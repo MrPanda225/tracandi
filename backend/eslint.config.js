@@ -27,6 +27,12 @@ export default tseslint.config(
     },
   },
   {
+    // Express identifies error middleware by its arity: exactly 4 parameters (err, req, res, next).
+    // Scoped to the single file that defines it; every other function stays limited to 3.
+    files: ['src/lib/error-handler.ts'],
+    rules: { 'max-params': ['error', 4] },
+  },
+  {
     files: ['**/*.test.ts', 'tests/**'],
     rules: { 'max-lines-per-function': 'off' },
   },
