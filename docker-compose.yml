@@ -22,20 +22,66 @@ services:
       interval: 5s
       retries: 20
 
-  backend:
+  # Exécution unique des migrations avec le compte DDL ; le backend ne reçoit jamais ce mot de passe (ENF-SEC-09).
+  migrate:
     build: ./backend
-    env_file: .env
+    command: ["node", "dist/db/migrate.js"]
     environment:
       DB_HOST: db
+      DB_PORT: 3306
+      DB_NAME: ${DB_NAME:-jobpilot}
+      MYSQL_MIGRATOR_PASSWORD: ${MYSQL_MIGRATOR_PASSWORD:?}
       MIGRATIONS_DIR: /app/migrations
     volumes:
-      - ./backend/data:/app/data
       - ./database/migrations:/app/migrations:ro
-    ports:
-      - "127.0.0.1:4000:4000"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
     depends_on:
       db:
         condition: service_healthy
+
+  # Moindre privilège : seules les variables utiles à l'application, jamais les mots de passe root, migration, sauvegarde ou test.
+  backend:
+    build: ./backend
+    environment:
+      HOST: 0.0.0.0
+      PORT: 4000
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_NAME: ${DB_NAME:-jobpilot}
+      MYSQL_APP_PASSWORD: ${MYSQL_APP_PASSWORD:?}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-}
+      GMAIL_APPLY_LABELS: ${GMAIL_APPLY_LABELS:-true}
+      GMAIL_INITIAL_LOOKBACK_DAYS: ${GMAIL_INITIAL_LOOKBACK_DAYS:-120}
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:?}
+      TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY:?}
+      SCRAPER_CONTACT_EMAIL: ${SCRAPER_CONTACT_EMAIL:-}
+      FOLLOW_UP_DAYS: ${FOLLOW_UP_DAYS:-10}
+      OFFER_ALERT_THRESHOLD: ${OFFER_ALERT_THRESHOLD:-60}
+      SCHEDULER_TIMEZONE: ${SCHEDULER_TIMEZONE:-Europe/Paris}
+      CRON_GMAIL: ${CRON_GMAIL:-*/30 * * * *}
+      CRON_SCRAPER: ${CRON_SCRAPER:-0 7,13,19 * * *}
+      # LibreOffice a besoin d'un HOME inscriptible ; le reste du système de fichiers est en lecture seule.
+      HOME: /tmp
+    volumes:
+      - ./backend/data:/app/data
+    tmpfs:
+      - /tmp
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    ports:
+      - "127.0.0.1:4000:4000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
 
   frontend:
     build:

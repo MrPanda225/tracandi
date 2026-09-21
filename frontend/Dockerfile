@@ -1,7 +1,7 @@
 FROM node:22-slim AS build
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci
+RUN npm ci --ignore-scripts
 COPY . .
 ARG VITE_API_URL=http://127.0.0.1:4000/api
 ENV VITE_API_URL=$VITE_API_URL
