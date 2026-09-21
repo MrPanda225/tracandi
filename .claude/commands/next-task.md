@@ -22,7 +22,7 @@ allowed-tools: Bash(git status), Bash(git diff:*), Bash(npm run check), Bash(npm
    - Les exécuter et constater qu'ils échouent pour la bonne raison.
 
 3. **Implémenter**
-   - Code minimal pour faire passer les tests, en respectant `.claude/rules/` (clean-code, security, database-mysql, etc.).
+   - Code minimal pour faire passer les tests, en respectant `.claude/rules/` (clean-code, security, database, etc.).
    - Toute modification de schéma : nouvelle migration via `/project:new-migration`.
    - Toute nouvelle dépendance : demander l'accord avec justification (règle security.md).
 

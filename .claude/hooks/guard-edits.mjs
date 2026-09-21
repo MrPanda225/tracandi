@@ -29,8 +29,9 @@ const isTrackedByGit = (file) => {
   }
 };
 
-if (relative.startsWith(path.join('database', 'migrations')) && existsSync(filePath) && isTrackedByGit(relative)) {
-  block(`${relative} is a committed migration. Create database/migrations/NNN_description.sql instead (see /project:new-migration).`);
+const MIGRATION_DIRS = [path.join('backend', 'drizzle'), path.join('database', 'migrations')];
+if (MIGRATION_DIRS.some((dir) => relative.startsWith(dir)) && existsSync(filePath) && isTrackedByGit(relative)) {
+  block(`${relative} is a committed migration. Change backend/src/db/schema.ts and generate a new migration instead (see /project:new-migration).`);
 }
 
 const written = [tool.content, tool.new_string, ...(tool.edits ?? []).map((e) => e.new_string)].filter(Boolean).join('\n');

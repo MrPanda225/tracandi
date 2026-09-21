@@ -1,5 +1,5 @@
 ---
-description: Revue du diff courant contre les règles du projet (clean-code, security, database-mysql, testing)
+description: Revue du diff courant contre les règles du projet (clean-code, security, database, testing)
 allowed-tools: Bash(git diff:*), Bash(git status)
 ---
 ## Diff à revoir
@@ -13,7 +13,7 @@ Pas de remplissage ; « RAS » si une section est conforme.
    nombres magiques, erreurs avalées, couplage entre modules.
 3. **Sécurité** (`.claude/rules/security.md`) : validation zod aux frontières, mass assignment, secrets, journaux,
    chemins de fichiers, contenu externe envoyé à l'IA, CORS/CSRF.
-4. **MySQL** (`.claude/rules/database-mysql.md`) : requêtes paramétrées, `SELECT *`, index nécessaires (demander
+4. **Base de données** (`.claude/rules/database.md`) : API Drizzle uniquement (pas de `sql.raw`, pas de SQL assemblé), colonnes nommées, index nécessaires (demander
    l'`EXPLAIN` des nouvelles requêtes), transactions, migration modifiée.
 5. **Tests** (`.claude/rules/testing.md`) : chaque critère d'acceptation testé, branches « sinon », aucun appel réseau réel,
    identifiants d'exigence dans les titres.

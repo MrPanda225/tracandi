@@ -9,10 +9,13 @@
   "location": {
     "searchArea": "Île-de-France (Val-d'Oise, Paris, Seine-Saint-Denis, Roissy) ou télétravail pour les postes data"
   },
-  "availability": "Mercredis, vendredis, week-ends et jours fériés ; soirées et coupures acceptées",
+  "availability": "CDI / CDD : disponible immédiatement ; alternance : rythme de l'école (3 jours entreprise / 2 jours école) ; job étudiant : mercredis, vendredis, week-ends et jours fériés",
   "targets": [
     {
       "label": "Job étudiant restauration / vente",
+      "contractTypes": [
+        "job_etudiant"
+      ],
       "keywords": [
         "équipier",
         "polyvalent",
@@ -34,6 +37,10 @@
     },
     {
       "label": "Data Engineer / BI junior",
+      "contractTypes": [
+        "cdi",
+        "cdd"
+      ],
       "keywords": [
         "data engineer",
         "ingénieur data",
@@ -44,12 +51,30 @@
         "etl",
         "développeur bi"
       ]
+    },
+    {
+      "label": "Alternance Data / BI",
+      "contractTypes": [
+        "alternance"
+      ],
+      "keywords": [
+        "alternance",
+        "alternant",
+        "apprenti",
+        "apprentissage",
+        "contrat de professionnalisation",
+        "data engineer",
+        "data analyst",
+        "business intelligence",
+        "power bi",
+        "etl"
+      ]
     }
   ],
   "cvSource": {
-    "defaultTitle": "Équipier polyvalent – Restauration & Vente",
-    "defaultSubtitle": "Ponctualité – Sens du service – Esprit d'équipe",
-    "profile": "Étudiant en Master, 18 mois d'expérience en boulangerie et en restauration. Habitué aux cadences soutenues, aux horaires matinaux et au travail debout. À l'aise avec la clientèle, la tenue de caisse et le respect des normes d'hygiène. Ponctuel, rigoureux et disponible en horaires décalés.",
+    "defaultTitle": "Data Engineer / BI junior",
+    "defaultSubtitle": "CDI, CDD ou alternance – Rigueur – Esprit d'équipe",
+    "profile": "Étudiant en Master MIAGE, parcours Data & Business Intelligence, à la recherche d'un poste en CDI, en CDD ou en alternance. Bases solides en SQL, Python et ETL, complétées par 18 mois d'expérience professionnelle en équipe, sous cadences soutenues. Rigoureux, ponctuel et autonome.",
     "experiences": [
       {
         "dates": "Oct. 2024 – Avril 2026",

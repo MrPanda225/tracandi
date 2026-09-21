@@ -12,22 +12,24 @@ Toute nouvelle demande passe par `/project:change-request` avant le code.
 | `docs/CAHIER_DES_CHARGES.md` | Besoins, exigences (EF-/ENF-), règles de gestion (RG-), contraintes, questions ouvertes |
 | `docs/ROADMAP.md` | Lots et tâches ordonnés (T-xxx), exigences couvertes, définition de fini par tâche |
 | `docs/TRACABILITE.md` | Exigence → tâche → test (tenu à jour à chaque tâche) |
-| `docs/ARCHITECTURE.md` | Décisions (ADR), arborescence cible, modèle de données, comptes MySQL |
+| `docs/ARCHITECTURE.md` | Décisions (ADR), arborescence cible, modèle de données, rôles PostgreSQL |
 
 ## Stack
-- **Backend** : Node 22, TypeScript strict, Express 4, `mysql2/promise` (SQL écrit à la main, pas d'ORM), zod, Vitest + Supertest.
+- **Backend** : Node 22, TypeScript strict, Express 4, Drizzle ORM (pilote `pg`, aucun SQL assemblé à la main), zod, Vitest + Supertest.
 - **Frontend** : React 18, TypeScript strict, Vite, React Router, Vitest + Testing Library.
-- **Base** : MySQL 8.4 LTS (Docker), migrations SQL versionnées dans `database/migrations/`.
+- **Base** : PostgreSQL hébergé par **Neon** (région UE, TLS). Schéma dans `backend/src/db/schema.ts`, migrations générées
+  par `drizzle-kit` dans `backend/drizzle/`. Tests d'intégration sur un PostgreSQL **local** (Docker), jamais sur Neon.
+  *Transition* : jusqu'à T-002, `docker-compose.yml`, `database/` et `scripts/db/` sont encore en version MySQL.
 - **IA** : Claude (`@anthropic-ai/sdk`) et Gemini (`@google/genai`) derrière un routeur avec bascule.
 - **Intégrations** : Gmail API (`googleapis`), API publiques des ATS.
 
 ## Commandes
 ```bash
-scripts/setup.sh                        # une seule fois : .env et database/conf/*.cnf avec secrets générés
-docker compose up -d db                 # MySQL local (127.0.0.1:3306)
+scripts/setup.sh                        # une seule fois : .env avec secrets générables (test, chiffrement)
+docker compose up -d db                 # base locale de test (PostgreSQL à partir de T-002)
 cd backend  && npm run check            # typecheck + lint + tests unitaires
-cd backend  && npm run test:integration # tests sur jobpilot_test (MySQL requis)
-cd backend  && npm run db:migrate       # applique les migrations (compte jobpilot_migrator)
+cd backend  && npm run test:integration # tests sur jobpilot_test (base locale Docker)
+cd backend  && npm run db:migrate       # applique les migrations (rôle propriétaire jobpilot_owner)
 cd backend  && npm run dev              # API sur :4000
 cd frontend && npm run check
 cd frontend && npm run dev              # interface sur :5173
@@ -49,19 +51,20 @@ scripts/db/backup.sh && scripts/db/restore-check.sh
 - [ ] `npm run check` vert (typecheck strict, lint typé sans erreur, tests unitaires ; côté backend, couverture ≥ 80 %
   sur `modules/`, `llm/`, `scraper/` incluse dans `check`) dans les packages modifiés.
 - [ ] `npm run audit` sans vulnérabilité haute ou critique si une dépendance a été ajoutée (ENF-SEC-10).
-- [ ] Nouvelles requêtes SQL vérifiées par `EXPLAIN` ; nouvelle structure = nouvelle migration.
+- [ ] Nouvelles requêtes vérifiées par `EXPLAIN` (SQL obtenu par `.toSQL()`) ; nouvelle structure = `schema.ts` modifié + migration générée.
 - [ ] Aucun secret, aucune donnée personnelle réelle dans le code, les fixtures ou les journaux.
 - [ ] `docs/TRACABILITE.md` et `docs/ROADMAP.md` à jour.
 - [ ] `/project:review` : verdict « Prêt à commiter ».
 
 ## Règles (chargées selon les fichiers touchés)
-`.claude/rules/` : `clean-code.md`, `security.md`, `database-mysql.md`, `testing.md`, `api-conventions.md`,
+`.claude/rules/` : `clean-code.md`, `security.md`, `database.md`, `testing.md`, `api-conventions.md`,
 `llm.md`, `scraping.md`, `frontend.md`.
-Skills de référence : `.claude/skills/` (`clean-code`, `security`, `dba-mysql`, `requirements-engineering`,
+Skills de référence : `.claude/skills/` (`clean-code`, `security`, `requirements-engineering`,
 `add-llm-task`, `add-scraper-adapter`).
 
 ## Interdits
 - Lire ou afficher `.env`, `database/conf/*.cnf`, `backend/data/profile.json` (données réelles du candidat).
+- Se connecter à la base Neon (données réelles) : seul le service `migrate` et le backend le font, jamais Claude Code ni un test.
   Pour les tests, utiliser `backend/tests/fixtures/profile.example.json`.
 - Modifier une migration commitée (bloqué par hook) ; exécuter `scripts/db/restore.sh` ; `git push`.
 - Appeler une API réelle (Claude, Gemini, Gmail, site carrières) dans un test.
@@ -72,6 +75,7 @@ Skills de référence : `.claude/skills/` (`clean-code`, `security`, `dba-mysql`
 ## Dépendances pré-approuvées (à installer au moment de la tâche qui en a besoin)
 | Tâche | Paquets |
 |---|---|
+| T-002 | `drizzle-orm`, `pg` ; dev : `drizzle-kit`, `@types/pg` — retrait de `mysql2` |
 | T-201 | `@anthropic-ai/sdk`, `@google/genai` |
 | T-301 | `googleapis` |
 | T-305 | `node-cron` |

@@ -15,11 +15,17 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
   garde JSON-only, route `GET /api/health`, gestionnaire d'erreurs central.
   *Exigences* : ENF-SEC-03, ENF-SEC-08, ENF-SEC-11, ENF-SEC-12, ENF-MAI-02.
   *Fini quand* : tests Supertest sur health, CORS refusé, 415 sur non-JSON, 500 masqué ; `npm run check` vert.
-- [ ] **T-002 Accès MySQL et migrations** — pool `mysql2/promise`, helper transaction, runner de migrations
-  (`database/migrations/*.sql`, table `schema_migrations`, compte DDL séparé), application de `001_initial_schema.sql`.
-  *Exigences* : ENF-MAI-05, ENF-SEC-05, ENF-SEC-09.
-  *Fini quand* : test d'intégration qui migre une base vide, relance sans effet (idempotent), et vérifie que le compte
-  applicatif reçoit une erreur sur `CREATE TABLE`.
+- [ ] **T-002 Accès PostgreSQL (Neon) et migrations** — client Drizzle (pilote `pg`, TLS `verify-full`), `db/schema.ts`
+  reprenant le modèle de `database/migrations/001_initial_schema.sql` (puis retrait de ce fichier MySQL et de `database/init/`),
+  migration initiale générée par `drizzle-kit`, `db/migrate.ts` (rôle propriétaire), helper transaction, rôles
+  `jobpilot_app` / `jobpilot_backup` créés par migration, PostgreSQL local en Docker pour les tests,
+  règle ESLint interdisant `sql.raw` et tout import de `pg` hors de `db/`.
+  Ajout au modèle de référence : énumération `contract_type` (cdi, cdd, alternance, job_etudiant, autre, non_precise) sur `applications`
+  et `job_offers` (remplace `job_offers.contract`), index `(contract_type, status)` sur `applications` (EF-CAN-14).
+  `cv_versions` : `provider` obligatoire, `keyword_coverage` et mots-clés non couverts (EF-CVX-16).
+  *Exigences* : ENF-MAI-05, ENF-SEC-05, ENF-SEC-09, ENF-SEC-15, ENF-SEC-16, ENF-SEC-17.
+  *Fini quand* : test d'intégration (PostgreSQL local) qui migre une base vide, relance sans effet, vérifie que le rôle
+  applicatif reçoit une erreur sur `CREATE TABLE` ; test unitaire refusant une URL de connexion sans `sslmode=verify-full`.
 - [ ] **T-003 Shell frontend** — routes des 6 pages (contenu vide), client API typé, composants de base
   (Flash, StatusTag, PageHeader), styles de base, gestion d'erreur réseau explicite.
   *Exigences* : ENF-UTI-01, ENF-UTI-02, ENF-UTI-03.
@@ -33,7 +39,7 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
   *Fini quand* : tests unitaires couvrant chaque branche de RG-03 et RG-04 ; tests d'intégration du repository.
 - [ ] **T-102 API candidatures** — `GET/POST/PATCH/DELETE /api/applications`, `GET /api/applications/:id/emails`,
   `PATCH /api/emails/:id` (rattachement manuel).
-  *Exigences* : EF-CAN-02, 03, 04, 06, 07, 08, 09, 10, 12, ENF-SEC-04.
+  *Exigences* : EF-CAN-02, 03, 04, 06, 07, 08, 09, 10, 12, 13, 14, ENF-SEC-04.
   *Fini quand* : un test par exigence ; validation 400 testée pour chaque corps de requête.
 - [ ] **T-103 Écran Candidatures** — groupement par entreprise, filtres, recherche, chronologie, lien Gmail,
   ajout manuel, changement de statut, badge « à relancer ».
@@ -62,7 +68,7 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
   *Fini quand* : tests sur client Gmail simulé avec fixtures (dont un message bancaire écarté).
 - [ ] **T-303 Classement et rattachement** — tâche IA de classement par lots de 10, rattachement RG-03,
   statuts RG-04, persistance des messages.
-  *Exigences* : EF-GML-08 à 12, EF-CAN-11.
+  *Exigences* : EF-GML-08 à 12, EF-GML-19, EF-CAN-11.
   *Fini quand* : scénario McDonald's (envoi → accusé → entretien) et fixture APEC/LHH passent.
 - [ ] **T-304 Libellés Gmail** — gestionnaire de libellés (cache, création à la demande), RG-05, alertes, mode lecture seule.
   *Exigences* : EF-GML-13 à 17.
@@ -84,25 +90,26 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
   *Exigences* : EF-VEI-08.
   *Fini quand* : test où l'IA simulée renvoie une URL externe, qui est écartée.
 - [ ] **T-404 Exécution et notation** — gestion des sources (API), dédoublonnage, pré-filtre RG-10, notation RG-09 par lots.
-  *Exigences* : EF-VEI-01 à 07, 09 à 14, ENF-FIA-02.
+  *Exigences* : EF-VEI-01 à 07, 09 à 14, 21, ENF-FIA-02.
   *Fini quand* : une source en échec n'empêche pas les autres (test).
 - [ ] **T-405 Récapitulatif e-mail** — envoi via Gmail des offres de score ≥ S.
   *Exigences* : EF-VEI-15.
 - [ ] **T-406 Écrans Sites et Offres** — ajout/suspension/retrait, liste triée, filtre score, garder/écarter,
   « J'ai postulé ».
-  *Exigences* : EF-VEI-16 à 20.
+  *Exigences* : EF-VEI-16 à 20, 22.
 
 ## Lot 5 — CV et réponses
 
 - [ ] **T-501 Profil de référence** — schéma zod, lecture/écriture `data/profile.json`, API.
-  *Exigences* : EF-CVX-01, 02.
+  *Exigences* : EF-CVX-01, 02 (cibles avec types de contrat acceptés, RG-09).
 - [ ] **T-502 Rendu Word** — rendu conforme RG-11 à partir d'un contenu validé.
-  *Exigences* : EF-CVX-03, 06, 08.
-  *Fini quand* : test de structure du .docx + comparaison visuelle manuelle avec le modèle (capture jointe à la PR).
+  *Exigences* : EF-CVX-06, 08, 14 (RG-11, RG-15 : mise en page sans tableau).
+  *Fini quand* : test de structure du .docx (aucun `w:tbl`, `w:txbxContent`, contenu d'en-tête ou de pied de page)
+  + comparaison visuelle manuelle avec le modèle (capture jointe à la PR).
 - [ ] **T-503 Conversion PDF** — LibreOffice sans shell (`execFile`), délai 60 s, contrôle 1 page A4.
   *Exigences* : EF-CVX-07, ENF-SEC-13.
 - [ ] **T-504 CV adapté** — tâche IA, contrôle de fidélité RG-12, historique des versions, téléchargement.
-  *Exigences* : EF-CVX-04, 05, 09, 10, 11.
+  *Exigences* : EF-CVX-04, 05, 09, 10, 11, 15, 16, 17 (RG-12 renforcée).
   *Fini quand* : test avec entreprise inventée rejetée.
 - [ ] **T-505 Réponse de motivation** — tâche IA, contrôle 80–140 mots.
   *Exigences* : EF-CVX-12.
@@ -111,13 +118,14 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
 
 ## Lot 6 — Tableau de bord
 
-- [ ] **T-601 API statistiques** — indicateurs EF-TDB-01 à 08, RG-07.
-  *Fini quand* : chaque requête vérifiée par `EXPLAIN` (pas de `type = ALL`) — ENF-PERF-04.
+- [ ] **T-601 API statistiques** — indicateurs EF-TDB-01 à 09, RG-07.
+  *Fini quand* : chaque requête vérifiée par `EXPLAIN` sur le jeu de charge (pas de `Seq Scan` sur les grandes tables) — ENF-PERF-04.
 - [ ] **T-602 Écran tableau de bord**.
 
 ## Lot 7 — Exploitation
 
-- [ ] **T-701 Sauvegardes** — brancher `scripts/db/backup.sh` et `restore-check.sh` (fournis), planification quotidienne.
+- [ ] **T-701 Sauvegardes** — réécrire `scripts/db/` pour PostgreSQL : `pg_dump` quotidien de Neon vers le poste (rôle
+  `jobpilot_backup`, rétention 30 j), restauration de contrôle dans le PostgreSQL local, restauration vers Neon, planification quotidienne.
   *Exigences* : ENF-FIA-04 à 08.
   *Fini quand* : une sauvegarde puis une restauration de contrôle réussissent ; durée de restauration mesurée.
 - [ ] **T-702 Purge RGPD** — commande `npm run data:purge` avec confirmation.

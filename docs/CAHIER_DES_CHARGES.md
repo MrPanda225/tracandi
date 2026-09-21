@@ -3,6 +3,7 @@
 | Version | Date | Auteur | Statut |
 |---|---|---|---|
 | 1.0 | 21/09/2026 | Sahiré YAPI (Business Owner) | À valider |
+| 1.1 | 22/09/2026 | Sahiré YAPI (Business Owner) | À valider — base hébergée Neon (PostgreSQL), accès par ORM (BES-10, BES-11) ; recherche en CDI, CDD, alternance ou job étudiant et suivi par type de contrat (BES-12) ; CV optimisé pour les ATS, sans CV générique (BES-13) ; questions Q-05 à Q-15 |
 
 > Document de référence pour le développement. Toute évolution de périmètre passe par une mise à jour
 > de ce fichier **avant** le code. Chaque exigence porte un identifiant stable, repris dans
@@ -12,8 +13,8 @@
 
 ## 1. Contexte et objet
 
-Sahiré YAPI, étudiant en Master MIAGE (parcours Data & BI) en Île-de-France, mène deux recherches en parallèle :
-un **job étudiant à temps partiel** (restauration, vente) et un **poste junior Data Engineer / BI**.
+Sahiré YAPI, étudiant en Master MIAGE (parcours Data & BI) en Île-de-France, recherche un poste en **CDI**, en **CDD**
+ou en **alternance** (v1.1, BES-12) et, en parallèle, un **job étudiant à temps partiel** (restauration, vente).
 Plus d'une centaine de candidatures ont été envoyées en trois mois, par e-mail direct et via des plateformes
 (APEC, LHH, Indeed, HelloWork…).
 
@@ -45,7 +46,8 @@ des candidatures, la veille des offres et la production de CV adaptés.
 | Offre | Annonce d'emploi détectée sur une source surveillée. |
 | Score de pertinence | Entier de 0 à 100 exprimant l'adéquation d'une offre au profil. |
 | Profil de référence | Données factuelles du candidat (identité, expériences, formations, compétences) servant de source unique aux CV. |
-| Cible | Type de poste recherché, défini par un libellé et une liste de mots-clés. |
+| Cible | Type de poste recherché, défini par un libellé, une liste de mots-clés et les types de contrat acceptés. |
+| Type de contrat | Nature du contrat d'une offre ou d'une candidature : **CDI**, **CDD**, **alternance** (apprentissage ou professionnalisation), **job étudiant** (temps partiel compatible avec les études, quel que soit le contrat juridique), **autre** (stage, intérim, freelance…) ou **non précisé**. |
 | Fournisseur IA | Service de modèle de langage : Claude (Anthropic) ou Gemini (Google). |
 | Tâche IA | Traitement confié à un fournisseur IA (classer, noter, extraire, rédiger). |
 
@@ -61,6 +63,7 @@ des candidatures, la veille des offres et la production de CV adaptés.
 | Recruteurs (expéditeurs des mails) | Tiers dont les données personnelles transitent | Faible | Faible | Surveiller : minimisation des données (RGPD) |
 | Google (Gmail API, Gemini API) | Fournisseur de services, conditions d'utilisation | Forte | Faible | Satisfaire : respect des scopes et quotas |
 | Anthropic (Claude API) | Fournisseur de service | Forte | Faible | Satisfaire : respect des quotas |
+| Neon | Hébergeur de la base de données (sous-traitant RGPD) | Forte | Faible | Satisfaire : région UE, connexion chiffrée, quotas de l'offre |
 | CNIL / RGPD | Cadre réglementaire | Forte | Faible | Satisfaire : conformité documentée (§ 7.7) |
 
 ### 3.2 Acteurs (interagissent directement avec le système)
@@ -89,6 +92,10 @@ des candidatures, la veille des offres et la production de CV adaptés.
 | BES-07 | « Je veux de l'aide pour répondre aux questions de motivation des formulaires. » |
 | BES-08 | « Je veux visualiser l'ensemble de ma recherche. » |
 | BES-09 | « Je veux utiliser mes deux clés d'API : Claude et Gemini. » |
+| BES-10 | « Pour la BD on va utiliser Neon. » |
+| BES-11 | « Accès base via Drizzle ORM plutôt que SQL écrit à la main, pour éviter les injections SQL. » |
+| BES-12 | « Le but de cette application est pour mes candidatures de CDI et CDD ou l'alternance et leur suivi. » (précisé : « pas besoin de retirer les jobs étudiants ») |
+| BES-13 | « Pas de CV générique : un CV optimisé pour passer les ATS et dont les expériences sont reformulées (sans mentir) pour correspondre aux besoins de l'offre ou en couvrir une bonne partie. » |
 
 ### 4.2 Exigences métier (indépendantes de la solution)
 
@@ -100,10 +107,12 @@ des candidatures, la veille des offres et la production de CV adaptés.
 | EXM-04 | Le système doit signaler les candidatures nécessitant une relance. | BES-04 |
 | EXM-05 | Le système doit détecter les nouvelles offres publiées par des entreprises choisies. | BES-05 |
 | EXM-06 | Le système doit évaluer l'adéquation de chaque nouvelle offre au profil du candidat. | BES-05 |
-| EXM-07 | Le système doit produire un CV fidèle au profil, adapté à une offre, dans la charte graphique du candidat. | BES-06 |
+| EXM-07 | Le système doit produire un CV fidèle au profil, adapté à une offre, dans la charte graphique du candidat. | BES-06, BES-13 |
+| EXM-12 | Le système doit maximiser les chances qu'un CV franchisse le tri automatique des logiciels de recrutement, sans affirmation absente du profil. | BES-13 |
 | EXM-08 | Le système doit proposer des réponses rédigées aux questions de formulaires de candidature. | BES-07 |
 | EXM-09 | Le système doit fournir des indicateurs de suivi de la recherche d'emploi. | BES-08 |
 | EXM-10 | Le système doit répartir les traitements automatisés entre deux fournisseurs IA, avec continuité de service si l'un est indisponible. | BES-09 |
+| EXM-11 | Le système doit distinguer les offres et les candidatures selon le type de contrat recherché : CDI, CDD, alternance ou job étudiant. | BES-12 |
 
 ## 5. Périmètre
 
@@ -117,7 +126,8 @@ sauvegarde et restauration de la base.
 - Envoi automatique de relances : le système signale, le candidat relance lui-même.
 - Collecte sur LinkedIn, Indeed, Welcome to the Jungle ou toute plateforme dont les conditions interdisent l'automatisation.
 - Messageries autres que Gmail.
-- Usage multi-utilisateur, hébergement en ligne, application mobile native.
+- Usage multi-utilisateur, hébergement en ligne de l'application (API, interface), application mobile native.
+  Seule la base de données est hébergée (BES-10).
 - Rendu des pages carrières exécutant du JavaScript côté client (navigateur automatisé).
 
 ## 6. Exigences fonctionnelles
@@ -148,6 +158,7 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | EF-GML-16 | Le système doit retirer de la boîte de réception un message d'alerte emploi. | C | EXM-03 | T | Appel `threads.modify` avec retrait de INBOX. |
 | EF-GML-17 | Le candidat peut désactiver l'écriture de libellés dans Gmail. | S | EXM-03 | T | Paramètre désactivé : aucun appel `threads.modify`. |
 | EF-GML-18 | Le système doit journaliser chaque exécution de synchronisation avec début, fin, compteurs et erreur éventuelle. | S | ENF-FIA-01 | T | Une ligne `job_runs` par exécution. |
+| EF-GML-19 | Le système doit enregistrer le type de contrat d'une candidature créée depuis un message lorsque ce message le mentionne. | C | EXM-11 | T | Fixture « Accusé de réception — Alternance Data Analyst » : type = alternance. |
 
 ### 6.2 Suivi des candidatures (CAN)
 
@@ -165,6 +176,8 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | EF-CAN-10 | Le candidat peut rattacher un message à une autre candidature. | S | EXM-02 | T | Correction d'une erreur de classement de l'IA. |
 | EF-CAN-11 | Le système doit mettre à jour le statut d'une candidature selon RG-04 à chaque message rattaché. | M | EXM-01 | T | Accusé reçu après entretien : le statut reste Entretien. |
 | EF-CAN-12 | Le système doit marquer « à relancer » toute candidature répondant à RG-06. | M | EXM-04 | T | Candidature Envoyée sans activité depuis 11 jours avec D = 10 : marquée. |
+| EF-CAN-13 | Le candidat peut renseigner et modifier le type de contrat d'une candidature. | M | EXM-11 | T | Valeur hors liste (glossaire) : réponse 400. |
+| EF-CAN-14 | Le candidat peut filtrer les candidatures par type de contrat. | M | EXM-11 | T | Filtre « Alternance » : seules les candidatures en alternance sont listées. |
 
 ### 6.3 Veille des offres (VEI)
 
@@ -189,7 +202,9 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | EF-VEI-17 | Le candidat peut filtrer les offres par score minimum. | S | EXM-06 | T | — |
 | EF-VEI-18 | Le candidat peut classer une offre dans l'état « gardée » ou « écartée ». | S | EXM-06 | T | — |
 | EF-VEI-19 | Le candidat peut déclarer avoir postulé à une offre. | M | EXM-01 | T | L'offre passe à l'état « postulée ». |
-| EF-VEI-20 | Le système doit créer une candidature au statut Envoyée lorsque le candidat déclare avoir postulé à une offre. | M | EXM-01 | T | Candidature liée à l'offre et au CV utilisé. |
+| EF-VEI-20 | Le système doit créer une candidature au statut Envoyée lorsque le candidat déclare avoir postulé à une offre. | M | EXM-01 | T | Candidature liée à l'offre et au CV utilisé, avec le type de contrat de l'offre. |
+| EF-VEI-21 | Le système doit attribuer à chaque nouvelle offre un type de contrat. | M | EXM-11 | T | Offre Greenhouse « Apprenti Data Engineer » : type = alternance ; offre sans mention : non précisé. |
+| EF-VEI-22 | Le candidat peut filtrer les offres par type de contrat. | S | EXM-11 | T | — |
 
 ### 6.4 Production de CV et de réponses (CVX)
 
@@ -197,7 +212,7 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 |---|---|---|---|---|---|
 | EF-CVX-01 | Le candidat peut consulter son profil de référence. | M | EXM-07 | T | — |
 | EF-CVX-02 | Le candidat peut modifier son profil de référence. | S | EXM-07 | T | Profil invalide au regard du schéma : réponse 400. |
-| EF-CVX-03 | Le système doit générer un CV générique à partir du profil, sans appel IA. | M | EXM-07 | T | — |
+| ~~EF-CVX-03~~ | *Supprimée en v1.1 (BES-13) : aucun CV générique n'est produit ; tout CV est adapté à une offre.* | — | — | — | — |
 | EF-CVX-04 | Le système doit générer un CV adapté à une offre repérée. | M | EXM-07 | T | — |
 | EF-CVX-05 | Le système doit générer un CV adapté à une offre saisie par le candidat (entreprise, intitulé, texte). | M | EXM-07 | T | — |
 | EF-CVX-06 | Le système doit produire chaque CV au format Word (.docx). | M | EXM-07 | T | Fichier ouvrable, type MIME vérifié. |
@@ -208,6 +223,10 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | EF-CVX-11 | Le candidat peut télécharger toute version de CV générée, au format Word ou PDF. | M | EXM-07 | T | — |
 | EF-CVX-12 | Le système doit rédiger une réponse de 80 à 140 mots à une question de formulaire, pour une offre donnée. | S | EXM-08 | T | Nombre de mots contrôlé ; hors bornes : nouvelle tentative puis erreur. |
 | EF-CVX-13 | Le candidat peut modifier la réponse rédigée avant de la copier. | S | EXM-08 | D | — |
+| EF-CVX-14 | Le système doit produire des CV dont le texte est intégralement lisible par un logiciel de recrutement, conformément à RG-15. | M | EXM-12 | T | Le .docx ne contient ni tableau, ni zone de texte, ni contenu en en-tête ou pied de page ; le texte extrait du PDF (`pdftotext`) contient chaque section et chaque expérience, dans l'ordre du CV. |
+| EF-CVX-15 | Le système doit reformuler les expériences, le profil et les compétences du CV adapté avec le vocabulaire de l'offre, pour chaque exigence de l'offre à laquelle une donnée du profil répond. | M | EXM-12 | T | Offre exigeant « gestion des stocks », profil mentionnant « rotation des stocks » : l'expression de l'offre figure dans le CV. |
+| EF-CVX-16 | Le système doit afficher, pour chaque CV adapté, le taux de couverture des mots-clés de l'offre et la liste des mots-clés non couverts. | S | EXM-12 | T | Taux entier de 0 à 100 ; un mot-clé est couvert s'il figure dans le texte du CV. |
+| EF-CVX-17 | Le système doit signaler un CV adapté dont le taux de couverture est inférieur à T %, T paramétrable avec 60 par défaut. | S | EXM-12 | T | Couverture de 45 % avec T = 60 : avertissement affiché. |
 
 ### 6.5 Tableau de bord (TDB)
 
@@ -221,6 +240,7 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | EF-TDB-06 | Le système doit afficher le nombre de candidatures par canal (direct ou plateforme). | C | EXM-09 | T |
 | EF-TDB-07 | Le système doit afficher la liste des candidatures à relancer, de la plus ancienne à la plus récente. | M | EXM-04 | T |
 | EF-TDB-08 | Le système doit afficher le nombre d'offres à l'état « nouvelle » de score supérieur ou égal à S. | S | EXM-06 | T |
+| EF-TDB-09 | Le système doit afficher le nombre de candidatures et le taux de réponse (RG-07) par type de contrat. | S | EXM-11 | T |
 
 ### 6.6 Orchestration IA (IA)
 
@@ -249,12 +269,12 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | ENF-PERF-01 | Chaque page de l'interface doit s'afficher en moins de 2 secondes avec 1 000 candidatures, 10 000 messages et 5 000 offres en base. | T (jeu de charge) |
 | ENF-PERF-02 | Une synchronisation incrémentale de 100 nouveaux messages doit s'achever en moins de 3 minutes. | T |
 | ENF-PERF-03 | 95 % des générations de CV adapté doivent s'achever en moins de 60 secondes. | T (mesure `llm_calls`) |
-| ENF-PERF-04 | Aucune requête SQL de l'application ne doit effectuer de parcours complet de table (`type = ALL` dans EXPLAIN) sur les tables `applications`, `emails` ou `job_offers`. | I (EXPLAIN) |
+| ENF-PERF-04 | Avec le jeu de charge d'ENF-PERF-01, aucune requête de l'application ne doit effectuer de parcours séquentiel complet (`Seq Scan` dans `EXPLAIN`) sur les tables `applications`, `emails` ou `job_offers`. | I (EXPLAIN) |
 
 ### 7.2 Sécurité
 | ID | Exigence | Vérif. |
 |---|---|---|
-| ENF-SEC-01 | Les services (API, base, interface) doivent être joignables uniquement depuis l'adresse 127.0.0.1. | I |
+| ENF-SEC-01 | L'API et l'interface doivent être joignables uniquement depuis l'adresse 127.0.0.1. | I |
 | ENF-SEC-02 | Le jeton de renouvellement OAuth doit être chiffré au repos en AES-256-GCM. | T |
 | ENF-SEC-03 | Aucun secret (clé d'API, mot de passe, jeton) ne doit figurer dans le dépôt Git. | I (hook + revue) |
 | ENF-SEC-04 | Toute donnée entrant dans l'API doit être validée par un schéma ; une donnée invalide doit être rejetée avec le code 400. | T |
@@ -268,6 +288,9 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | ENF-SEC-12 | L'API doit refuser toute requête d'écriture dont le type de contenu n'est pas `application/json`. | T |
 | ENF-SEC-13 | Le téléchargement d'un fichier doit être refusé lorsque sa référence ne correspond pas à un identifiant généré par le système. | T |
 | ENF-SEC-14 | Le callback OAuth doit rejeter toute réponse dont le paramètre `state` ne correspond pas à celui émis dans les 10 dernières minutes. | T |
+| ENF-SEC-15 | Toute connexion à la base de données hébergée doit être chiffrée, avec vérification du certificat du serveur. | T (connexion sans chiffrement refusée) |
+| ENF-SEC-16 | Le code applicatif ne doit construire aucune requête par assemblage de chaînes : toute valeur est transmise comme paramètre, tout nom de table ou de colonne est vérifié à la compilation. | I (règle lint + revue) |
+| ENF-SEC-17 | Les identifiants de connexion à la base hébergée doivent être propres à chaque compte (application, migrations, sauvegarde), distincts et révocables séparément. | I |
 
 ### 7.3 Fiabilité et disponibilité
 | ID | Exigence | Vérif. |
@@ -312,7 +335,7 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 |---|---|---|
 | ENF-RGP-01 | Le système ne doit conserver d'un message que ses métadonnées (expéditeur, objet, date) et un extrait de 300 caractères maximum. | T |
 | ENF-RGP-02 | Le candidat peut supprimer l'intégralité de ses données par une commande unique. | T |
-| ENF-RGP-03 | Les données doivent être stockées exclusivement sur le poste du candidat, à l'exception des contenus transmis aux fournisseurs IA pour traitement. | I |
+| ENF-RGP-03 | Les données doivent être stockées exclusivement sur le poste du candidat et dans la base hébergée, située dans l'Union européenne, à l'exception des contenus transmis aux fournisseurs IA pour traitement. | I |
 
 ### 7.8 Coûts
 | ID | Exigence | Vérif. |
@@ -324,12 +347,13 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | ID | Contrainte | Origine |
 |---|---|---|
 | C-01 | L'interface est réalisée en React. | Business Owner |
-| C-02 | La base de données est MySQL 8.4 LTS. | Business Owner |
+| C-02 | La base de données est PostgreSQL, hébergée par Neon. | Business Owner (v1.1, BES-10) |
 | C-03 | Les fournisseurs IA sont Claude (Anthropic) et Gemini (Google), avec les clés du candidat. | Business Owner |
 | C-04 | La messagerie supportée est Gmail. | Existant |
-| C-05 | Le système est mono-utilisateur et s'exécute en local, via Docker. | Business Owner |
+| C-05 | Le système est mono-utilisateur ; l'API et l'interface s'exécutent en local, via Docker ; la base est hébergée par Neon. | Business Owner (v1.1) |
 | C-06 | Le développement est réalisé de manière incrémentale par Claude Code, lot par lot, suivant `docs/ROADMAP.md`. | Organisation |
-| C-07 | Le code respecte les principes des skills `clean-code`, `security` et `dba-mysql` fournis dans `.claude/skills/`. | Organisation |
+| C-07 | Le code respecte les principes des skills `clean-code` et `security` fournis dans `.claude/skills/`, et la règle `.claude/rules/database.md`. | Organisation |
+| C-09 | L'accès aux données passe par l'ORM Drizzle. | Business Owner (v1.1, BES-11) |
 | C-08 | Le CV reproduit le modèle Word « CV pour Forum » déjà utilisé par le candidat. | Existant |
 
 ## 9. Règles de gestion
@@ -344,10 +368,11 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | RG-06 | Une candidature est « à relancer » lorsque son statut est Envoyée ou Accusé reçu et que sa dernière activité date de plus de D jours, D paramétrable avec 10 par défaut. |
 | RG-07 | Taux de réponse = (Entretien + Proposition + Refusée) / total des candidatures × 100, arrondi à l'entier le plus proche ; 0 lorsque le total est nul. |
 | RG-08 | Format d'identifiant de source : Greenhouse, Lever, SmartRecruiters, Recruitee → `^[a-z0-9][a-z0-9._-]{0,80}$` (insensible à la casse) ; Workday → URL https sur un sous-domaine de `myworkdayjobs.com` contenant le nom du site carrières ; page générique → URL https. |
-| RG-09 | Critères de notation : correspondance à une cible du profil ; lieu dans la zone de recherche ou télétravail ; contrat compatible avec la cible (temps partiel pour le job étudiant) ; expérience exigée de 3 ans au plus pour la cible data. Un critère non satisfait abaisse le score. |
-| RG-10 | Pré-filtre sans IA : un message est retenu si son objet ou son extrait contient un mot-clé d'emploi, ou si son expéditeur appartient à la liste des plateformes connues. Une offre est retenue pour notation IA si son intitulé ou sa description contient au moins un mot-clé d'une cible. Les listes sont paramétrables. |
-| RG-11 | Charte du CV : format A4, une page ; en-tête deux colonnes (coordonnées à gauche, disponibilités et photo à droite) ; titre centré en gras 15 pt et sous-titre centré en italique 11 pt ; sections en bandeaux de fond `#D9E2F3` bordés de `#AAB5CE`, libellés en majuscules ; lignes « dates \| contenu » (colonnes 2 150 / 8 470 twips) ; police Calibri 10 pt. |
-| RG-12 | Fidélité du CV : chaque entreprise, établissement de formation et période cités dans un CV adapté doit exister dans le profil de référence. L'IA peut reformuler, réordonner et sélectionner, jamais ajouter. |
+| RG-09 | Critères de notation : correspondance à une cible du profil ; lieu dans la zone de recherche ou télétravail ; type de contrat de l'offre accepté par la cible (CDI, CDD, alternance, job étudiant ; « non précisé » ne pénalise pas) ; expérience exigée de 3 ans au plus. Un critère non satisfait abaisse le score. |
+| RG-10 | Pré-filtre sans IA : un message est retenu si son objet ou son extrait contient un mot-clé d'emploi, ou si son expéditeur appartient à la liste des plateformes connues. Une offre est retenue pour notation IA si son intitulé ou sa description contient au moins un mot-clé d'une cible et si son type de contrat n'est pas « autre ». Les listes sont paramétrables. |
+| RG-11 | Charte du CV : format A4, une page ; en-tête deux colonnes (coordonnées à gauche, disponibilités et photo à droite) ; titre centré en gras 15 pt et sous-titre centré en italique 11 pt ; sections en bandeaux de fond `#D9E2F3` bordés de `#AAB5CE`, libellés en majuscules ; lignes « dates \| contenu » (alignement à 2 150 twips, largeur utile 10 620 twips) ; police Calibri 10 pt. Réalisation conforme à RG-15 (tabulations et trames de paragraphe, jamais de tableau). |
+| RG-12 | Fidélité du CV : chaque entreprise, établissement de formation, période, intitulé de poste et diplôme cités dans un CV adapté doit exister à l'identique dans le profil de référence ; chaque compétence et chaque outil cités doivent figurer dans le profil. Autorisé : reformuler une activité réellement exercée avec le vocabulaire de l'offre, réordonner, sélectionner, mettre en avant. Interdit : ajouter une compétence, un outil, une certification, une responsabilité, un chiffre ou un résultat absents du profil ; modifier un intitulé de poste, un employeur ou une date. |
+| RG-15 | Lisibilité par les ATS : texte réel (aucun texte en image) ; aucun tableau, zone de texte, colonne de section ni contenu en en-tête ou pied de page Word — la mise en page de RG-11 est obtenue par tabulations et trames de paragraphe ; titres de sections usuels en français (Profil, Expériences professionnelles, Formation, Compétences, Langues, Centres d'intérêt) ; coordonnées dans le corps du document ; dates au format « MM/AAAA – MM/AAAA » ; police standard ; intitulé du poste visé par l'offre en titre du CV. |
 | RG-13 | Routage IA : classement des messages, notation des offres, extraction de pages → Gemini puis Claude ; CV adapté, réponse de motivation → Claude puis Gemini. |
 | RG-14 | Clé normalisée d'un nom : minuscules, accents supprimés, tout caractère non alphanumérique remplacé par une espace, espaces multiples réduits, espaces de bord supprimées. |
 
@@ -370,6 +395,8 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | H-02 | Le poste du candidat dispose de Docker Desktop et de 4 Go de RAM libres. | Proposer une installation sans Docker. |
 | H-03 | La majorité des entreprises ciblées publient leurs offres via un ATS supporté. | Renforcer l'adaptateur générique. |
 | H-04 | Le projet Google Cloud reste en mode « test » (usage personnel). | L'autorisation Gmail expire tous les 7 jours : reconnexion manuelle. |
+| H-05 | Le volume de données tient dans l'offre gratuite de Neon (0,5 Go de stockage). | Passer à une offre payante ou purger les offres anciennes. |
+| H-06 | Le poste du candidat dispose d'une connexion internet lors de l'utilisation. | Sans connexion, l'application est inutilisable (base distante). |
 
 ## 12. Questions ouvertes (à trancher par le Business Owner)
 
@@ -377,9 +404,9 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 |---|---|---|
 | Q-01 | Faut-il une photo réelle sur le CV généré, ou garder l'emplacement « Photo » ? | Emplacement conservé, photo ajoutée à la main. |
 | Q-02 | La ligne « Compétences data » du profil doit être complétée avec les compétences techniques réelles. | Bloquant pour les CV data uniquement. |
-| Q-03 | Le RPO de 24 h convient-il, ou faut-il exploiter les binlogs pour une restauration à la minute ? | 24 h, binlogs activés pour permettre l'évolution. |
+| Q-03 | Le RPO de 24 h convient-il, ou faut-il s'appuyer sur la restauration à un instant donné de Neon (fenêtre limitée selon l'offre) ? | 24 h par sauvegarde logique quotidienne sur le poste ; restauration Neon en complément. |
 | Q-04 | Le récapitulatif des offres doit-il être envoyé à chaque passage ou une fois par jour ? | À chaque passage produisant au moins une offre pertinente. |
-| Q-05 | La recherche par sous-chaîne d'EF-CAN-03 (« mcdo ») impose un parcours complet de `applications`, interdit par ENF-PERF-04. Laquelle des deux assouplir ? (bloque T-102) | Exempter EF-CAN-03 d'ENF-PERF-04 : volume < 5 000 lignes (H-01), temps couvert par ENF-PERF-01. |
+| Q-05 | La recherche par sous-chaîne d'EF-CAN-03 (« mcdo ») impose un parcours complet de `applications`, interdit par ENF-PERF-04. Laquelle des deux assouplir ? (bloque T-102) | Aucune depuis v1.1 : index trigramme PostgreSQL (`pg_trgm`) sur les clés normalisées, compatible avec la recherche par sous-chaîne. |
 | Q-06 | EF-TDB-02 (« ayant atteint Entretien ») et EF-TDB-04 (entretiens et refus par semaine) supposent de connaître les statuts passés et leur date, que le modèle actuel ne conserve pas. Faut-il un historique des statuts ? (bloque T-101, impact schéma) | Oui : table `application_status_history` (candidature, statut, date, origine), alimentée à chaque changement. |
 | Q-07 | Le changement manuel de statut (EF-CAN-07) est-il soumis à RG-04 ? Une Proposition reçue après un Refus doit-elle remplacer le Refus (lecture littérale de RG-04) ? (bloque T-101) | Manuel : tout statut accepté. Automatique : RG-04 tel quel. |
 | Q-08 | Les messages écartés par RG-10 ou classés « hors sujet » ne sont pas conservés : après une synchronisation interrompue (ENF-FIA-03), ils seraient reclassés par l'IA. Faut-il mémoriser les identifiants traités ? (bloque T-302) | Oui : table des identifiants Gmail traités (sans contenu), compatible ENF-RGP-01. |
@@ -387,6 +414,9 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | Q-10 | RG-09 ne chiffre pas la baisse de score par critère non satisfait. Faut-il une grille (points par critère) ou laisser l'IA noter librement dans 0–100 ? (bloque T-404) | Grille indicative donnée à l'IA dans le prompt ; seul l'intervalle 0–100 est testé. |
 | Q-11 | En mode test Google (H-04), l'autorisation expire tous les 7 jours. Comment le candidat est-il prévenu ? (bloque T-305) | Échec `invalid_grant` : connexion marquée expirée, bandeau « Reconnecter Gmail » dans l'interface. |
 | Q-12 | Pour un CV adapté à une offre saisie à la main (EF-CVX-05), faut-il conserver l'entreprise, l'intitulé et le texte de l'offre ? (bloque T-504) | Conserver entreprise et intitulé dans `cv_versions` ; pas le texte. |
+| Q-13 | Quelle offre Neon retenir (gratuite ou payante) ? Elle fixe la fenêtre de restauration à un instant donné et la mise en veille de la base. | Offre gratuite ; la sauvegarde quotidienne sur le poste couvre ENF-FIA-04 à 08. |
+| Q-14 | Quelle région Neon ? (ENF-RGP-03 exige l'Union européenne) | Francfort (`aws-eu-central-1`). |
+| Q-15 | Pour l'alternance, faut-il suivre des informations propres (école, rythme, date de début) ? | Non en v1.1 : le rythme figure dans le profil (disponibilités), repris dans le CV. |
 
 ## 13. Traçabilité besoins → exigences
 
@@ -397,9 +427,13 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | BES-03 | EXM-03 | EF-GML-13 à 17 |
 | BES-04 | EXM-04 | EF-CAN-12, EF-TDB-07 |
 | BES-05 | EXM-05, EXM-06 | EF-VEI-01 à 18, ENF-COL-01 à 04 |
-| BES-06 | EXM-07 | EF-CVX-01 à 11 |
+| BES-06 | EXM-07 | EF-CVX-01, 02, 04 à 11 |
 | BES-07 | EXM-08 | EF-CVX-12, 13 |
 | BES-08 | EXM-09 | EF-TDB-01 à 08 |
 | BES-09 | EXM-10 | EF-IA-01 à 06, EF-CFG-02, 03, ENF-COU-01 |
+| BES-10 | — (choix de solution, C-02, C-05) | ENF-SEC-01, ENF-SEC-15, ENF-SEC-17, ENF-RGP-03, ENF-PERF-04 |
+| BES-11 | — (choix de solution, C-09) | ENF-SEC-05, ENF-SEC-16 |
+| BES-13 | EXM-07, EXM-12 | EF-CVX-14 à 17, RG-12, RG-15 |
+| BES-12 | EXM-11 | EF-GML-19, EF-CAN-13, 14, EF-VEI-20 à 22, EF-TDB-09, RG-09, RG-10 |
 
 La traçabilité fine exigence → tâche → test est tenue à jour dans `docs/TRACABILITE.md`.
