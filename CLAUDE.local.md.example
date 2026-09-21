@@ -1,0 +1,5 @@
+<!-- Copier en CLAUDE.local.md (ignoré par Git) : préférences personnelles, non partagées. -->
+# Préférences personnelles
+- Réponds-moi en français, de façon concise.
+- Avant chaque commit, montre-moi le résumé du diff et attends mon « ok ».
+- Mon OS : Windows 11 + Docker Desktop (adapter les commandes si besoin).

@@ -1,0 +1,6 @@
+{
+  "//": "Copier en settings.local.json (ignoré par Git) pour des réglages personnels. Exemple : autoriser docker compose up sans confirmation.",
+  "permissions": {
+    "allow": ["Bash(docker compose up:*)"]
+  }
+}

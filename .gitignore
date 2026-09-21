@@ -1,0 +1,14 @@
+node_modules/
+dist/
+coverage/
+.env
+.env.local
+CLAUDE.local.md
+.claude/settings.local.json
+database/conf/backup.cnf
+database/conf/restore.cnf
+backups/
+backend/data/generated/
+backend/data/profile.json
+*.log
+*.tsbuildinfo

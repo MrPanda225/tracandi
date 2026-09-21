@@ -1,0 +1,8 @@
+# Contexte de build minimal : ni dépendances locales, ni secrets, ni données personnelles.
+node_modules
+dist
+coverage
+data
+.env
+.env.*
+*.log

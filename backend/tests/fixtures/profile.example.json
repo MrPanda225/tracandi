@@ -1,0 +1,152 @@
+{
+  "identity": {
+    "name": "Alex MARTIN",
+    "city": "Villeurbanne",
+    "phone": "06 00 00 00 00",
+    "email": "alex.martin@example.com",
+    "extra": "Permis B"
+  },
+  "location": {
+    "searchArea": "Île-de-France (Val-d'Oise, Paris, Seine-Saint-Denis, Roissy) ou télétravail pour les postes data"
+  },
+  "availability": "Mercredis, vendredis, week-ends et jours fériés ; soirées et coupures acceptées",
+  "targets": [
+    {
+      "label": "Job étudiant restauration / vente",
+      "keywords": [
+        "équipier",
+        "polyvalent",
+        "employé polyvalent",
+        "crew",
+        "restauration",
+        "restaurant",
+        "vendeur",
+        "vendeuse",
+        "caissier",
+        "hôte de caisse",
+        "boulangerie",
+        "préparateur",
+        "serveur",
+        "employé libre service",
+        "temps partiel",
+        "job étudiant"
+      ]
+    },
+    {
+      "label": "Data Engineer / BI junior",
+      "keywords": [
+        "data engineer",
+        "ingénieur data",
+        "data analyst",
+        "analytics engineer",
+        "business intelligence",
+        "power bi",
+        "etl",
+        "développeur bi"
+      ]
+    }
+  ],
+  "cvSource": {
+    "defaultTitle": "Équipier polyvalent – Restauration & Vente",
+    "defaultSubtitle": "Ponctualité – Sens du service – Esprit d'équipe",
+    "profile": "Étudiant en Master, 18 mois d'expérience en boulangerie et en restauration. Habitué aux cadences soutenues, aux horaires matinaux et au travail debout. À l'aise avec la clientèle, la tenue de caisse et le respect des normes d'hygiène. Ponctuel, rigoureux et disponible en horaires décalés.",
+    "experiences": [
+      {
+        "dates": "Oct. 2024 – Avril 2026",
+        "company": "Boulangerie Exemple",
+        "place": "Rennes",
+        "role": "Équipier polyvalent",
+        "duration": "1 an et 6 mois",
+        "bullets": [
+          "Cuisson des pains et viennoiseries, préparation des sandwichs et des plats.",
+          "Réception des livraisons, contrôle et rotation des stocks.",
+          "Tenue de caisse, encaissement et relation client.",
+          "Ouvertures de magasin, cadences soutenues et objectifs de production tenus.",
+          "Nettoyage du poste et respect des normes d'hygiène (HACCP).",
+          "Polyvalence sur tous les postes et travail en équipe."
+        ]
+      },
+      {
+        "dates": "Juil. 2023 – Sept. 2023",
+        "company": "Restaurant Test",
+        "place": "Abidjan, Côte d'Ivoire",
+        "role": "Employé de restauration",
+        "duration": null,
+        "bullets": [
+          "Préparation des plats selon les normes d'hygiène et de sécurité alimentaire.",
+          "Service et accueil des clients avec professionnalisme et courtoisie.",
+          "Gestion des stocks et des commandes de produits."
+        ]
+      },
+      {
+        "dates": "Août 2022 – Oct. 2022",
+        "company": "Boutique Démo",
+        "place": "Abidjan, Côte d'Ivoire",
+        "role": "Vendeur en boutique",
+        "duration": null,
+        "bullets": [
+          "Accueil et conseil personnalisé des clients selon leurs besoins.",
+          "Opérations d'encaissement (espèces, mobile money) et tenue du journal de caisse.",
+          "Réception, mise en rayon et suivi du stock."
+        ]
+      }
+    ],
+    "education": [
+      {
+        "dates": "2024 – 2026",
+        "school": "Université de Rennes",
+        "place": null,
+        "degree": "Master MIAGE",
+        "detail": "parcours Data & Business Intelligence"
+      },
+      {
+        "dates": "2020 – 2023",
+        "school": "Université Félix Houphouët-Boigny",
+        "place": "Abidjan",
+        "degree": "Licence MIAGE",
+        "detail": null
+      },
+      {
+        "dates": "2020",
+        "school": "Baccalauréat scientifique",
+        "place": "Abidjan, Côte d'Ivoire",
+        "degree": null,
+        "detail": null
+      }
+    ],
+    "skills": [
+      {
+        "label": "Service & vente",
+        "value": "accueil client, conseil, encaissement, tenue de caisse, gestion des litiges"
+      },
+      {
+        "label": "Restauration",
+        "value": "préparation de plats et sandwichs, cuisson, normes d'hygiène HACCP, nettoyage du poste"
+      },
+      {
+        "label": "Logistique",
+        "value": "réception des livraisons, rotation et gestion des stocks, manutention et port de charges"
+      },
+      {
+        "label": "Qualités",
+        "value": "ponctualité, adaptabilité, autonomie, sens des responsabilités, résolution de problèmes"
+      },
+      {
+        "label": "Outils",
+        "value": "suite Office, prise en main rapide d'un PDA, d'un scanner ou d'une caisse enregistreuse"
+      },
+      {
+        "label": "Data (postes data uniquement)",
+        "value": "SQL, Python, ETL"
+      },
+      {
+        "label": "Langues",
+        "value": "français (langue maternelle) – anglais (B1)"
+      }
+    ],
+    "interests": [
+      "Basketball, pratiqué depuis le collège – esprit d'équipe et goût de l'effort.",
+      "Musculation en salle de sport – bonne condition physique."
+    ]
+  }
+}

@@ -1,0 +1,405 @@
+# Cahier des charges — JobPilot
+
+| Version | Date | Auteur | Statut |
+|---|---|---|---|
+| 1.0 | 21/09/2026 | Sahiré YAPI (Business Owner) | À valider |
+
+> Document de référence pour le développement. Toute évolution de périmètre passe par une mise à jour
+> de ce fichier **avant** le code. Chaque exigence porte un identifiant stable, repris dans
+> `docs/ROADMAP.md`, dans les noms de tests et dans `docs/TRACABILITE.md`.
+
+---
+
+## 1. Contexte et objet
+
+Sahiré YAPI, étudiant en Master MIAGE (parcours Data & BI) en Île-de-France, mène deux recherches en parallèle :
+un **job étudiant à temps partiel** (restauration, vente) et un **poste junior Data Engineer / BI**.
+Plus d'une centaine de candidatures ont été envoyées en trois mois, par e-mail direct et via des plateformes
+(APEC, LHH, Indeed, HelloWork…).
+
+Constat actuel (analyse documentaire de la boîte mail et des échanges précédents) :
+
+- le suivi est manuel et dispersé dans plus de 18 000 conversations Gmail ;
+- les filtres Gmail ne savent pas extraire l'employeur quand le mail vient d'une plateforme ;
+- les relances ne sont pas suivies ;
+- chaque CV est adapté à la main à partir d'un modèle Word ;
+- la découverte d'offres dépend des alertes des jobboards, sans visibilité directe sur les sites des entreprises visées.
+
+**Objet** : réaliser une application web mono-utilisateur, exécutée sur le poste du candidat, qui automatise le suivi
+des candidatures, la veille des offres et la production de CV adaptés.
+
+## 2. Glossaire
+
+| Terme | Définition |
+|---|---|
+| Candidat | L'utilisateur unique du système (Sahiré YAPI). |
+| Candidature | Démarche du candidat auprès d'une entreprise pour un poste donné. Identifiée par le couple (entreprise, intitulé de poste). |
+| Entreprise | Employeur réel visé par une candidature (≠ plateforme intermédiaire). |
+| Plateforme intermédiaire | Jobboard ou cabinet par lequel transite un message (APEC, LHH, Indeed…). |
+| Message | E-mail reçu ou envoyé par le candidat. |
+| Fil | Conversation Gmail regroupant plusieurs messages (thread). |
+| Catégorie de message | Nature d'un message : candidature envoyée, accusé de réception, entretien, proposition, refus, alerte emploi, hors sujet. |
+| Statut | État d'avancement d'une candidature (voir RG-01). |
+| Source surveillée | Page ou service listant les offres d'une entreprise. |
+| ATS | *Applicant Tracking System* : logiciel de recrutement publiant les offres d'une entreprise (Greenhouse, Lever, Workday…). |
+| Offre | Annonce d'emploi détectée sur une source surveillée. |
+| Score de pertinence | Entier de 0 à 100 exprimant l'adéquation d'une offre au profil. |
+| Profil de référence | Données factuelles du candidat (identité, expériences, formations, compétences) servant de source unique aux CV. |
+| Cible | Type de poste recherché, défini par un libellé et une liste de mots-clés. |
+| Fournisseur IA | Service de modèle de langage : Claude (Anthropic) ou Gemini (Google). |
+| Tâche IA | Traitement confié à un fournisseur IA (classer, noter, extraire, rédiger). |
+
+## 3. Parties prenantes et acteurs
+
+### 3.1 Parties prenantes (matrice de Mendelow)
+
+| Partie prenante | Rôle | Influence | Intérêt | Stratégie |
+|---|---|---|---|---|
+| Sahiré YAPI | Sponsor, Business Owner, utilisateur final | Forte | Fort | Gérer de près : valide chaque lot |
+| Claude Code | Équipe de réalisation (dev + tests) | Moyenne | Fort | Tenir informé via `CLAUDE.md`, règles et roadmap |
+| Entreprises dont les sites sont surveillés | Fournisseurs de données (offres) | Faible | Faible | Surveiller : respect robots.txt et rythme de requêtes |
+| Recruteurs (expéditeurs des mails) | Tiers dont les données personnelles transitent | Faible | Faible | Surveiller : minimisation des données (RGPD) |
+| Google (Gmail API, Gemini API) | Fournisseur de services, conditions d'utilisation | Forte | Faible | Satisfaire : respect des scopes et quotas |
+| Anthropic (Claude API) | Fournisseur de service | Forte | Faible | Satisfaire : respect des quotas |
+| CNIL / RGPD | Cadre réglementaire | Forte | Faible | Satisfaire : conformité documentée (§ 7.7) |
+
+### 3.2 Acteurs (interagissent directement avec le système)
+
+| Acteur | Type | Interaction |
+|---|---|---|
+| Candidat | Humain | Utilise l'interface web |
+| Gmail API | Système | Lecture des messages, libellés, envoi du récapitulatif |
+| Claude API | Système | Tâches IA de rédaction |
+| Gemini API | Système | Tâches IA de volume |
+| Services ATS / sites carrières | Système | Fourniture des listes d'offres |
+| Planificateur | Système (horloge) | Déclenche synchronisations et veilles |
+
+## 4. Besoins et exigences métier
+
+### 4.1 Besoins exprimés (espace problème)
+
+| ID | Besoin, tel qu'exprimé |
+|---|---|
+| BES-01 | « Je veux savoir où en sont toutes mes candidatures sans fouiller ma boîte mail. » |
+| BES-02 | « Pour une offre où j'ai candidaté, je veux que les réponses restent groupées avec elle, par entreprise : mail d'envoi, de réception, de refus, d'entretien. » |
+| BES-03 | « Je veux garder ma boîte Gmail organisée par entreprise et par statut. » |
+| BES-04 | « Je veux savoir quand relancer une entreprise. » |
+| BES-05 | « Je veux surveiller directement les sites des entreprises et voir leurs nouvelles offres qui vont dans mon sens. » |
+| BES-06 | « Je veux un CV adapté à chaque offre, au format de mon modèle Word, sans le refaire à la main. » |
+| BES-07 | « Je veux de l'aide pour répondre aux questions de motivation des formulaires. » |
+| BES-08 | « Je veux visualiser l'ensemble de ma recherche. » |
+| BES-09 | « Je veux utiliser mes deux clés d'API : Claude et Gemini. » |
+
+### 4.2 Exigences métier (indépendantes de la solution)
+
+| ID | Exigence métier | Besoin(s) |
+|---|---|---|
+| EXM-01 | Le système doit reconstituer automatiquement l'état de chaque candidature à partir des échanges de messagerie. | BES-01, BES-02 |
+| EXM-02 | Le système doit présenter chaque candidature avec l'historique complet de ses échanges. | BES-02 |
+| EXM-03 | Le système doit refléter le classement des candidatures dans la messagerie du candidat. | BES-03 |
+| EXM-04 | Le système doit signaler les candidatures nécessitant une relance. | BES-04 |
+| EXM-05 | Le système doit détecter les nouvelles offres publiées par des entreprises choisies. | BES-05 |
+| EXM-06 | Le système doit évaluer l'adéquation de chaque nouvelle offre au profil du candidat. | BES-05 |
+| EXM-07 | Le système doit produire un CV fidèle au profil, adapté à une offre, dans la charte graphique du candidat. | BES-06 |
+| EXM-08 | Le système doit proposer des réponses rédigées aux questions de formulaires de candidature. | BES-07 |
+| EXM-09 | Le système doit fournir des indicateurs de suivi de la recherche d'emploi. | BES-08 |
+| EXM-10 | Le système doit répartir les traitements automatisés entre deux fournisseurs IA, avec continuité de service si l'un est indisponible. | BES-09 |
+
+## 5. Périmètre
+
+### 5.1 Dans le périmètre
+Suivi des candidatures depuis Gmail ; saisie manuelle de candidatures ; veille de sites carrières d'entreprises choisies ;
+notation des offres ; génération de CV (.docx, .pdf) ; rédaction de réponses de motivation ; tableau de bord ;
+sauvegarde et restauration de la base.
+
+### 5.2 Hors périmètre (exclusions explicites)
+- Envoi automatique de candidatures au nom du candidat.
+- Envoi automatique de relances : le système signale, le candidat relance lui-même.
+- Collecte sur LinkedIn, Indeed, Welcome to the Jungle ou toute plateforme dont les conditions interdisent l'automatisation.
+- Messageries autres que Gmail.
+- Usage multi-utilisateur, hébergement en ligne, application mobile native.
+- Rendu des pages carrières exécutant du JavaScript côté client (navigateur automatisé).
+
+## 6. Exigences fonctionnelles
+
+Convention : **doit** = obligation du système ; **peut** = capacité offerte au candidat.
+Priorité MoSCoW : **M** (Must), **S** (Should), **C** (Could).
+Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
+
+### 6.1 Synchronisation de la messagerie (GML)
+
+| ID | Exigence | Prio | Source | Vérif. | Critère d'acceptation |
+|---|---|---|---|---|---|
+| EF-GML-01 | Le candidat peut connecter une boîte Gmail au système par autorisation OAuth. | M | EXM-01 | D | Après consentement Google, l'écran Réglages affiche l'adresse connectée. |
+| EF-GML-02 | Le candidat peut révoquer la connexion Gmail depuis l'interface. | M | EXM-01 | T | Après révocation, aucun jeton n'est présent en base. |
+| EF-GML-03 | Le système doit synchroniser les messages reçus et envoyés toutes les 30 minutes lorsqu'une boîte est connectée. | M | EXM-01 | T | Le planificateur déclenche la tâche selon l'expression cron configurée. |
+| EF-GML-04 | Le candidat peut déclencher une synchronisation manuelle. | M | EXM-01 | T | L'appel renvoie le nombre de messages lus, retenus et classés. |
+| EF-GML-05 | Lors de la première synchronisation, le système doit traiter les messages des N derniers jours, N paramétrable avec 120 par défaut. | M | EXM-01 | T | Avec N = 30, aucun message antérieur à J-30 n'est traité. |
+| EF-GML-06 | Le système doit ignorer tout message déjà traité. | M | EXM-01 | T | Deux synchronisations successives sans nouveau message n'ajoutent aucune ligne. |
+| EF-GML-07 | Le système doit écarter sans appel IA tout message ne correspondant à aucun indicateur d'emploi (RG-10). | M | EXM-10 | T | Un message bancaire de test n'entraîne aucun appel fournisseur. |
+| EF-GML-08 | Le système doit attribuer à chaque message retenu une catégorie de message. | M | EXM-01 | T | Sur le jeu de fixtures, chaque message reçoit une catégorie valide. |
+| EF-GML-09 | Le système doit identifier l'employeur réel d'un message transmis par une plateforme lorsque ce nom figure dans l'objet ou le corps. | M | EXM-01 | T | Fixture APEC « Innova Solutions » : entreprise = Innova Solutions. |
+| EF-GML-10 | Le système doit enregistrer le nom de la plateforme intermédiaire d'un message. | S | EXM-09 | T | Fixture LHH : plateforme = LHH. |
+| EF-GML-11 | Le système doit rattacher chaque message de catégorie candidature envoyée, accusé, entretien, proposition ou refus à une candidature selon RG-03. | M | EXM-02 | T | Trois messages McDonald's successifs sont rattachés à une seule candidature. |
+| EF-GML-12 | Le système doit créer une candidature lorsqu'aucune candidature ne correspond au message selon RG-03. | M | EXM-01 | T | Un refus d'une entreprise inconnue crée une candidature au statut Refusée. |
+| EF-GML-13 | Le système doit appliquer dans Gmail le libellé « Candidatures/‹Entreprise› » au fil d'un message rattaché. | S | EXM-03 | T | Appel `threads.modify` vérifié sur client Gmail simulé. |
+| EF-GML-14 | Le système doit maintenir un seul libellé de statut sur un fil rattaché, selon RG-05. | S | EXM-03 | T | Un fil passant d'« En attente » à « Entretien » ne porte plus « En attente ». |
+| EF-GML-15 | Le système doit appliquer le libellé « Alertes emploi » à un message d'alerte emploi. | S | EXM-03 | T | Appel `threads.modify` avec ajout du libellé. |
+| EF-GML-16 | Le système doit retirer de la boîte de réception un message d'alerte emploi. | C | EXM-03 | T | Appel `threads.modify` avec retrait de INBOX. |
+| EF-GML-17 | Le candidat peut désactiver l'écriture de libellés dans Gmail. | S | EXM-03 | T | Paramètre désactivé : aucun appel `threads.modify`. |
+| EF-GML-18 | Le système doit journaliser chaque exécution de synchronisation avec début, fin, compteurs et erreur éventuelle. | S | ENF-FIA-01 | T | Une ligne `job_runs` par exécution. |
+
+### 6.2 Suivi des candidatures (CAN)
+
+| ID | Exigence | Prio | Source | Vérif. | Critère d'acceptation |
+|---|---|---|---|---|---|
+| EF-CAN-01 | Le système doit afficher les candidatures regroupées par entreprise, entreprises triées alphabétiquement. | M | EXM-02 | D | — |
+| EF-CAN-02 | Le candidat peut filtrer les candidatures par statut. | M | EXM-02 | T | Filtre « Refusée » : seules les candidatures refusées sont listées. |
+| EF-CAN-03 | Le candidat peut rechercher une candidature par nom d'entreprise ou par intitulé de poste. | S | EXM-02 | T | Recherche « mcdo » : la candidature McDonald's apparaît. |
+| EF-CAN-04 | Le système doit afficher la chronologie des messages d'une candidature, par date croissante, avec date, sens, catégorie, objet et extrait. | M | EXM-02 | T | Ordre chronologique vérifié sur fixture. |
+| EF-CAN-05 | Le système doit fournir pour chaque message un lien ouvrant son fil dans Gmail. | S | EXM-02 | I | — |
+| EF-CAN-06 | Le candidat peut créer une candidature en saisissant entreprise, intitulé de poste et statut. | M | EXM-01 | T | Réponse 201 et candidature visible dans la liste. |
+| EF-CAN-07 | Le candidat peut modifier le statut d'une candidature. | M | EXM-01 | T | Réponse 204 et statut modifié en base. |
+| EF-CAN-08 | Le candidat peut associer une note de 2 000 caractères maximum à une candidature. | C | EXM-02 | T | Note de 2 001 caractères : réponse 400. |
+| EF-CAN-09 | Le candidat peut supprimer une candidature. | S | EXM-01 | T | Les messages associés restent en base, détachés. |
+| EF-CAN-10 | Le candidat peut rattacher un message à une autre candidature. | S | EXM-02 | T | Correction d'une erreur de classement de l'IA. |
+| EF-CAN-11 | Le système doit mettre à jour le statut d'une candidature selon RG-04 à chaque message rattaché. | M | EXM-01 | T | Accusé reçu après entretien : le statut reste Entretien. |
+| EF-CAN-12 | Le système doit marquer « à relancer » toute candidature répondant à RG-06. | M | EXM-04 | T | Candidature Envoyée sans activité depuis 11 jours avec D = 10 : marquée. |
+
+### 6.3 Veille des offres (VEI)
+
+| ID | Exigence | Prio | Source | Vérif. | Critère d'acceptation |
+|---|---|---|---|---|---|
+| EF-VEI-01 | Le candidat peut ajouter une source surveillée en indiquant nom d'entreprise, type de source et identifiant. | M | EXM-05 | T | Réponse 201. |
+| EF-VEI-02 | Le système doit rejeter un identifiant non conforme à RG-08 pour le type de source choisi. | M | ENF-SEC-04 | T | Identifiant `../../etc` pour Greenhouse : réponse 400. |
+| EF-VEI-03 | Le système doit rejeter l'ajout d'une source déjà surveillée. | S | EXM-05 | T | Réponse 409. |
+| EF-VEI-04 | Le candidat peut suspendre puis réactiver une source. | S | EXM-05 | T | Source suspendue : non consultée au passage suivant. |
+| EF-VEI-05 | Le candidat peut retirer une source surveillée. | S | EXM-05 | T | Offres de la source supprimées en cascade. |
+| EF-VEI-06 | Le système doit consulter chaque source active à 7 h, 13 h et 19 h, heure de Paris. | M | EXM-05 | T | Expression cron par défaut vérifiée. |
+| EF-VEI-07 | Le candidat peut déclencher une consultation immédiate de toutes les sources actives. | M | EXM-05 | T | Réponse avec nombre de sources, nouvelles offres, offres pertinentes. |
+| EF-VEI-08 | Le système doit prendre en charge les types de source Greenhouse, Lever, SmartRecruiters, Recruitee, Workday et page carrières générique. | M | EXM-05 | T | Un test par type sur réponse enregistrée (fixture). |
+| EF-VEI-09 | Le système doit enregistrer une offre uniquement si elle est absente de la base pour sa source. | M | EXM-05 | T | Deux consultations identiques : zéro nouvelle offre à la seconde. |
+| EF-VEI-10 | Le système doit enregistrer la date de dernière consultation de chaque source. | S | ENF-FIA-02 | T | — |
+| EF-VEI-11 | Le système doit enregistrer le message d'erreur de la dernière consultation échouée d'une source. | S | ENF-FIA-02 | T | Source renvoyant HTTP 500 : erreur visible dans la liste des sources. |
+| EF-VEI-12 | Le système doit attribuer à chaque nouvelle offre un score de pertinence selon RG-09. | M | EXM-06 | T | Score entier compris entre 0 et 100. |
+| EF-VEI-13 | Le système doit associer à chaque offre notée par l'IA une justification d'une phrase en français. | S | EXM-06 | T | Justification non vide. |
+| EF-VEI-14 | Le système doit attribuer sans appel IA le score 5 aux offres exclues par RG-10. | M | EXM-10 | T | Offre « Comptable senior » : score 5, aucun appel fournisseur. |
+| EF-VEI-15 | Le système doit envoyer au candidat un e-mail récapitulatif lorsqu'une consultation produit au moins une offre de score supérieur ou égal au seuil S. | S | EXM-05 | T | S paramétrable, 60 par défaut. |
+| EF-VEI-16 | Le système doit afficher les offres par score décroissant. | M | EXM-06 | T | — |
+| EF-VEI-17 | Le candidat peut filtrer les offres par score minimum. | S | EXM-06 | T | — |
+| EF-VEI-18 | Le candidat peut classer une offre dans l'état « gardée » ou « écartée ». | S | EXM-06 | T | — |
+| EF-VEI-19 | Le candidat peut déclarer avoir postulé à une offre. | M | EXM-01 | T | L'offre passe à l'état « postulée ». |
+| EF-VEI-20 | Le système doit créer une candidature au statut Envoyée lorsque le candidat déclare avoir postulé à une offre. | M | EXM-01 | T | Candidature liée à l'offre et au CV utilisé. |
+
+### 6.4 Production de CV et de réponses (CVX)
+
+| ID | Exigence | Prio | Source | Vérif. | Critère d'acceptation |
+|---|---|---|---|---|---|
+| EF-CVX-01 | Le candidat peut consulter son profil de référence. | M | EXM-07 | T | — |
+| EF-CVX-02 | Le candidat peut modifier son profil de référence. | S | EXM-07 | T | Profil invalide au regard du schéma : réponse 400. |
+| EF-CVX-03 | Le système doit générer un CV générique à partir du profil, sans appel IA. | M | EXM-07 | T | — |
+| EF-CVX-04 | Le système doit générer un CV adapté à une offre repérée. | M | EXM-07 | T | — |
+| EF-CVX-05 | Le système doit générer un CV adapté à une offre saisie par le candidat (entreprise, intitulé, texte). | M | EXM-07 | T | — |
+| EF-CVX-06 | Le système doit produire chaque CV au format Word (.docx). | M | EXM-07 | T | Fichier ouvrable, type MIME vérifié. |
+| EF-CVX-07 | Le système doit produire chaque CV au format PDF d'une page A4. | M | EXM-07 | T | `pdfinfo` : 1 page, format A4. |
+| EF-CVX-08 | Le système doit appliquer la charte RG-11 à chaque CV. | M | EXM-07 | I | Comparaison visuelle avec le modèle de référence. |
+| EF-CVX-09 | Le système doit rejeter tout CV adapté mentionnant une entreprise, un diplôme ou une période absents du profil (RG-12). | M | EXM-07 | T | Réponse IA simulée contenant une entreprise inventée : génération refusée. |
+| EF-CVX-10 | Le système doit conserver chaque version de CV générée avec son libellé, sa date et le fournisseur IA utilisé. | S | EXM-07 | T | — |
+| EF-CVX-11 | Le candidat peut télécharger toute version de CV générée, au format Word ou PDF. | M | EXM-07 | T | — |
+| EF-CVX-12 | Le système doit rédiger une réponse de 80 à 140 mots à une question de formulaire, pour une offre donnée. | S | EXM-08 | T | Nombre de mots contrôlé ; hors bornes : nouvelle tentative puis erreur. |
+| EF-CVX-13 | Le candidat peut modifier la réponse rédigée avant de la copier. | S | EXM-08 | D | — |
+
+### 6.5 Tableau de bord (TDB)
+
+| ID | Exigence | Prio | Source | Vérif. |
+|---|---|---|---|---|
+| EF-TDB-01 | Le système doit afficher le nombre total de candidatures suivies. | M | EXM-09 | T |
+| EF-TDB-02 | Le système doit afficher le nombre de candidatures ayant atteint le statut Entretien ou Proposition. | M | EXM-09 | T |
+| EF-TDB-03 | Le système doit afficher le taux de réponse calculé selon RG-07. | M | EXM-09 | T |
+| EF-TDB-04 | Le système doit afficher, pour chacune des 16 dernières semaines, le nombre de candidatures envoyées, ayant obtenu un entretien et refusées. | S | EXM-09 | T |
+| EF-TDB-05 | Le système doit afficher le nombre de candidatures par statut. | M | EXM-09 | T |
+| EF-TDB-06 | Le système doit afficher le nombre de candidatures par canal (direct ou plateforme). | C | EXM-09 | T |
+| EF-TDB-07 | Le système doit afficher la liste des candidatures à relancer, de la plus ancienne à la plus récente. | M | EXM-04 | T |
+| EF-TDB-08 | Le système doit afficher le nombre d'offres à l'état « nouvelle » de score supérieur ou égal à S. | S | EXM-06 | T |
+
+### 6.6 Orchestration IA (IA)
+
+| ID | Exigence | Prio | Source | Vérif. | Critère d'acceptation |
+|---|---|---|---|---|---|
+| EF-IA-01 | Le système doit confier chaque tâche IA au fournisseur prioritaire défini par RG-13. | M | EXM-10 | T | Fournisseurs simulés : appel au prioritaire vérifié. |
+| EF-IA-02 | Le système doit confier la tâche au fournisseur suivant lorsque le prioritaire renvoie une erreur, dépasse 60 secondes ou produit une réponse non conforme au schéma. | M | EXM-10 | T | Trois tests, un par cas d'échec. |
+| EF-IA-03 | Le système doit valider chaque réponse IA contre le schéma de la tâche avant toute utilisation. | M | ENF-SEC-06 | T | Réponse hors schéma : jamais persistée. |
+| EF-IA-04 | Le système doit informer le candidat lorsqu'aucun fournisseur n'a pu réaliser une tâche. | M | EXM-10 | T | Réponse HTTP 502 avec message explicite. |
+| EF-IA-05 | Le système doit fonctionner lorsqu'une seule des deux clés d'API est configurée. | M | EXM-10 | T | Démarrage réussi avec la seule clé Gemini. |
+| EF-IA-06 | Le système doit enregistrer pour chaque appel IA le fournisseur, la tâche, la durée, le nombre de jetons et le résultat. | S | ENF-COU-01 | T | Une ligne `llm_calls` par appel. |
+
+### 6.7 Réglages (CFG)
+
+| ID | Exigence | Prio | Source | Vérif. |
+|---|---|---|---|---|
+| EF-CFG-01 | Le système doit afficher l'adresse Gmail connectée et la date de dernière synchronisation. | M | EXM-01 | D |
+| EF-CFG-02 | Le système doit afficher les fournisseurs IA configurés et la tâche attribuée à chacun. | S | EXM-10 | D |
+| EF-CFG-03 | Le système doit afficher le coût IA estimé du mois en cours. | C | ENF-COU-01 | T |
+
+## 7. Exigences non fonctionnelles
+
+### 7.1 Performance
+| ID | Exigence | Vérif. |
+|---|---|---|
+| ENF-PERF-01 | Chaque page de l'interface doit s'afficher en moins de 2 secondes avec 1 000 candidatures, 10 000 messages et 5 000 offres en base. | T (jeu de charge) |
+| ENF-PERF-02 | Une synchronisation incrémentale de 100 nouveaux messages doit s'achever en moins de 3 minutes. | T |
+| ENF-PERF-03 | 95 % des générations de CV adapté doivent s'achever en moins de 60 secondes. | T (mesure `llm_calls`) |
+| ENF-PERF-04 | Aucune requête SQL de l'application ne doit effectuer de parcours complet de table (`type = ALL` dans EXPLAIN) sur les tables `applications`, `emails` ou `job_offers`. | I (EXPLAIN) |
+
+### 7.2 Sécurité
+| ID | Exigence | Vérif. |
+|---|---|---|
+| ENF-SEC-01 | Les services (API, base, interface) doivent être joignables uniquement depuis l'adresse 127.0.0.1. | I |
+| ENF-SEC-02 | Le jeton de renouvellement OAuth doit être chiffré au repos en AES-256-GCM. | T |
+| ENF-SEC-03 | Aucun secret (clé d'API, mot de passe, jeton) ne doit figurer dans le dépôt Git. | I (hook + revue) |
+| ENF-SEC-04 | Toute donnée entrant dans l'API doit être validée par un schéma ; une donnée invalide doit être rejetée avec le code 400. | T |
+| ENF-SEC-05 | Toute requête SQL doit être paramétrée. | I |
+| ENF-SEC-06 | Tout contenu externe (message, page web, offre) transmis à un fournisseur IA doit être délimité et déclaré comme donnée non fiable dans l'instruction système. | I |
+| ENF-SEC-07 | L'autorisation Gmail doit se limiter au scope `gmail.modify`. | I |
+| ENF-SEC-08 | Les journaux ne doivent contenir ni secret, ni jeton, ni corps de message. | I |
+| ENF-SEC-09 | Le compte de base de données de l'application ne doit disposer d'aucun droit de modification de structure (DDL). | T |
+| ENF-SEC-10 | Les dépendances ne doivent présenter aucune vulnérabilité de sévérité haute ou critique (`npm audit`). | T (CI locale) |
+| ENF-SEC-11 | L'API doit refuser les requêtes cross-origin provenant d'une origine autre que l'interface. | T |
+| ENF-SEC-12 | L'API doit refuser toute requête d'écriture dont le type de contenu n'est pas `application/json`. | T |
+| ENF-SEC-13 | Le téléchargement d'un fichier doit être refusé lorsque sa référence ne correspond pas à un identifiant généré par le système. | T |
+| ENF-SEC-14 | Le callback OAuth doit rejeter toute réponse dont le paramètre `state` ne correspond pas à celui émis dans les 10 dernières minutes. | T |
+
+### 7.3 Fiabilité et disponibilité
+| ID | Exigence | Vérif. |
+|---|---|---|
+| ENF-FIA-01 | L'échec d'une synchronisation ne doit pas arrêter le planificateur. | T |
+| ENF-FIA-02 | L'échec de consultation d'une source ne doit pas empêcher la consultation des autres sources. | T |
+| ENF-FIA-03 | Une synchronisation interrompue doit reprendre au passage suivant sans créer de doublon. | T |
+| ENF-FIA-04 | La base doit faire l'objet d'une sauvegarde logique quotidienne. | I |
+| ENF-FIA-05 | Chaque sauvegarde doit être restaurée automatiquement dans une base de contrôle, avec vérification du nombre de tables. | T |
+| ENF-FIA-06 | La perte de données maximale admissible (RPO) est de 24 heures. | I |
+| ENF-FIA-07 | La durée maximale de restauration (RTO) est de 30 minutes. | D |
+| ENF-FIA-08 | Les sauvegardes doivent être conservées 30 jours. | I |
+
+### 7.4 Maintenabilité
+| ID | Exigence | Vérif. |
+|---|---|---|
+| ENF-MAI-01 | La couverture de tests doit atteindre au moins 80 % des lignes des modules métier (`backend/src/modules`, `backend/src/llm`, `backend/src/scraper`). | T |
+| ENF-MAI-02 | Le code doit passer le contrôle de types strict et le linter sans erreur. | T |
+| ENF-MAI-03 | L'ajout d'un type de source ne doit nécessiter aucune modification de code hors du nouveau fichier adaptateur et du registre des adaptateurs. | I |
+| ENF-MAI-04 | L'ajout d'une tâche IA ne doit nécessiter aucune modification des fournisseurs existants. | I |
+| ENF-MAI-05 | Toute modification de structure de base doit passer par un fichier de migration versionné. | I |
+| ENF-MAI-06 | Chaque exigence de ce document doit être couverte par au moins un test ou une procédure de vérification référencée dans `docs/TRACABILITE.md`. | I |
+
+### 7.5 Utilisabilité et portabilité
+| ID | Exigence | Vérif. |
+|---|---|---|
+| ENF-UTI-01 | L'interface doit être rédigée en français. | I |
+| ENF-UTI-02 | L'interface doit rester utilisable sur un écran de 360 px de large. | D |
+| ENF-UTI-03 | Chaque action longue (plus de 1 seconde) doit afficher un indicateur d'attente. | D |
+| ENF-POR-01 | Le système complet doit démarrer par une seule commande `docker compose up` sous Windows, macOS et Linux. | D |
+
+### 7.6 Collecte responsable (veille)
+| ID | Exigence | Vérif. |
+|---|---|---|
+| ENF-COL-01 | Le système ne doit consulter aucune URL interdite par le fichier robots.txt du site. | T |
+| ENF-COL-02 | Le système doit espacer d'au moins 3 secondes deux requêtes vers un même hôte. | T |
+| ENF-COL-03 | Le système doit s'identifier par un agent utilisateur contenant une adresse de contact. | T |
+| ENF-COL-04 | Le système doit limiter chaque requête de collecte à 15 secondes et à 3 Mo de réponse. | T |
+
+### 7.7 Données personnelles (RGPD)
+| ID | Exigence | Vérif. |
+|---|---|---|
+| ENF-RGP-01 | Le système ne doit conserver d'un message que ses métadonnées (expéditeur, objet, date) et un extrait de 300 caractères maximum. | T |
+| ENF-RGP-02 | Le candidat peut supprimer l'intégralité de ses données par une commande unique. | T |
+| ENF-RGP-03 | Les données doivent être stockées exclusivement sur le poste du candidat, à l'exception des contenus transmis aux fournisseurs IA pour traitement. | I |
+
+### 7.8 Coûts
+| ID | Exigence | Vérif. |
+|---|---|---|
+| ENF-COU-01 | Le coût des appels IA ne doit pas dépasser 10 € par mois pour 300 messages liés à l'emploi et 500 nouvelles offres par mois. | T (agrégat `llm_calls`) |
+
+## 8. Contraintes
+
+| ID | Contrainte | Origine |
+|---|---|---|
+| C-01 | L'interface est réalisée en React. | Business Owner |
+| C-02 | La base de données est MySQL 8.4 LTS. | Business Owner |
+| C-03 | Les fournisseurs IA sont Claude (Anthropic) et Gemini (Google), avec les clés du candidat. | Business Owner |
+| C-04 | La messagerie supportée est Gmail. | Existant |
+| C-05 | Le système est mono-utilisateur et s'exécute en local, via Docker. | Business Owner |
+| C-06 | Le développement est réalisé de manière incrémentale par Claude Code, lot par lot, suivant `docs/ROADMAP.md`. | Organisation |
+| C-07 | Le code respecte les principes des skills `clean-code`, `security` et `dba-mysql` fournis dans `.claude/skills/`. | Organisation |
+| C-08 | Le CV reproduit le modèle Word « CV pour Forum » déjà utilisé par le candidat. | Existant |
+
+## 9. Règles de gestion
+
+| ID | Règle |
+|---|---|
+| RG-01 | Les statuts de candidature sont : **À postuler**, **Envoyée**, **Accusé reçu**, **Entretien**, **Proposition**, **Refusée**. |
+| RG-02 | Correspondance catégorie → statut : candidature envoyée → Envoyée ; accusé de réception → Accusé reçu ; entretien → Entretien ; proposition → Proposition ; refus → Refusée. Alerte emploi et hors sujet ne modifient aucune candidature. |
+| RG-03 | Rattachement d'un message : (a) entreprise identifiée par sa clé normalisée (RG-14) ; (b) si le message mentionne un intitulé, candidature de cette entreprise dont l'intitulé normalisé est identique ; (c) si le message ne mentionne aucun intitulé, candidature de l'entreprise dont la dernière activité est la plus récente ; (d) sinon, création d'une candidature avec l'intitulé mentionné ou, à défaut, « Candidature ». Si l'employeur n'est pas identifiable, l'entreprise retenue est la plateforme ; si aucune plateforme n'est identifiable, l'entreprise retenue est « Entreprise inconnue ». |
+| RG-04 | Évolution du statut : rang À postuler 0, Envoyée 1, Accusé reçu 2, Entretien 3, Proposition 4, Refusée 5. Un nouveau statut remplace le statut courant si et seulement si il vaut Proposition ou Refusée, ou si son rang est supérieur. Les messages sont traités par date croissante. La date de dernière activité prend la plus grande des deux dates. |
+| RG-05 | Libellés Gmail de statut : Refusée → « Statut/Refusée » ; Entretien et Proposition → « Statut/Entretien » ; Envoyée et Accusé reçu → « Statut/En attente ». À postuler → aucun libellé. |
+| RG-06 | Une candidature est « à relancer » lorsque son statut est Envoyée ou Accusé reçu et que sa dernière activité date de plus de D jours, D paramétrable avec 10 par défaut. |
+| RG-07 | Taux de réponse = (Entretien + Proposition + Refusée) / total des candidatures × 100, arrondi à l'entier le plus proche ; 0 lorsque le total est nul. |
+| RG-08 | Format d'identifiant de source : Greenhouse, Lever, SmartRecruiters, Recruitee → `^[a-z0-9][a-z0-9._-]{0,80}$` (insensible à la casse) ; Workday → URL https sur un sous-domaine de `myworkdayjobs.com` contenant le nom du site carrières ; page générique → URL https. |
+| RG-09 | Critères de notation : correspondance à une cible du profil ; lieu dans la zone de recherche ou télétravail ; contrat compatible avec la cible (temps partiel pour le job étudiant) ; expérience exigée de 3 ans au plus pour la cible data. Un critère non satisfait abaisse le score. |
+| RG-10 | Pré-filtre sans IA : un message est retenu si son objet ou son extrait contient un mot-clé d'emploi, ou si son expéditeur appartient à la liste des plateformes connues. Une offre est retenue pour notation IA si son intitulé ou sa description contient au moins un mot-clé d'une cible. Les listes sont paramétrables. |
+| RG-11 | Charte du CV : format A4, une page ; en-tête deux colonnes (coordonnées à gauche, disponibilités et photo à droite) ; titre centré en gras 15 pt et sous-titre centré en italique 11 pt ; sections en bandeaux de fond `#D9E2F3` bordés de `#AAB5CE`, libellés en majuscules ; lignes « dates \| contenu » (colonnes 2 150 / 8 470 twips) ; police Calibri 10 pt. |
+| RG-12 | Fidélité du CV : chaque entreprise, établissement de formation et période cités dans un CV adapté doit exister dans le profil de référence. L'IA peut reformuler, réordonner et sélectionner, jamais ajouter. |
+| RG-13 | Routage IA : classement des messages, notation des offres, extraction de pages → Gemini puis Claude ; CV adapté, réponse de motivation → Claude puis Gemini. |
+| RG-14 | Clé normalisée d'un nom : minuscules, accents supprimés, tout caractère non alphanumérique remplacé par une espace, espaces multiples réduits, espaces de bord supprimées. |
+
+## 10. Cas d'utilisation principaux
+
+| ID | Cas | Acteur principal | Scénario nominal (résumé) |
+|---|---|---|---|
+| UC-01 | Consulter l'état de sa recherche | Candidat | Ouvre le tableau de bord → consulte indicateurs et relances → ouvre une candidature → lit sa chronologie. |
+| UC-02 | Synchroniser la messagerie | Planificateur | Récupère les nouveaux messages → pré-filtre → classe → rattache → met à jour statuts et libellés → journalise. |
+| UC-03 | Surveiller une entreprise | Candidat | Ajoute une source → le planificateur la consulte → les nouvelles offres sont notées → récapitulatif e-mail si pertinent. |
+| UC-04 | Postuler à une offre repérée | Candidat | Ouvre une offre → génère le CV adapté → télécharge le PDF → postule hors système → déclare avoir postulé. |
+| UC-05 | Préparer une candidature externe | Candidat | Colle une annonce → génère CV et réponse de motivation → ajoute la candidature manuellement. |
+| UC-06 | Restaurer la base | Candidat | Exécute le script de restauration → vérifie le contrôle post-restauration. |
+
+## 11. Hypothèses
+
+| ID | Hypothèse | Impact si fausse |
+|---|---|---|
+| H-01 | Le volume est inférieur à 5 000 candidatures et 50 000 offres sur la durée de vie du projet. | Revoir index et purge. |
+| H-02 | Le poste du candidat dispose de Docker Desktop et de 4 Go de RAM libres. | Proposer une installation sans Docker. |
+| H-03 | La majorité des entreprises ciblées publient leurs offres via un ATS supporté. | Renforcer l'adaptateur générique. |
+| H-04 | Le projet Google Cloud reste en mode « test » (usage personnel). | L'autorisation Gmail expire tous les 7 jours : reconnexion manuelle. |
+
+## 12. Questions ouvertes (à trancher par le Business Owner)
+
+| ID | Question | Proposition par défaut |
+|---|---|---|
+| Q-01 | Faut-il une photo réelle sur le CV généré, ou garder l'emplacement « Photo » ? | Emplacement conservé, photo ajoutée à la main. |
+| Q-02 | La ligne « Compétences data » du profil doit être complétée avec les compétences techniques réelles. | Bloquant pour les CV data uniquement. |
+| Q-03 | Le RPO de 24 h convient-il, ou faut-il exploiter les binlogs pour une restauration à la minute ? | 24 h, binlogs activés pour permettre l'évolution. |
+| Q-04 | Le récapitulatif des offres doit-il être envoyé à chaque passage ou une fois par jour ? | À chaque passage produisant au moins une offre pertinente. |
+| Q-05 | La recherche par sous-chaîne d'EF-CAN-03 (« mcdo ») impose un parcours complet de `applications`, interdit par ENF-PERF-04. Laquelle des deux assouplir ? (bloque T-102) | Exempter EF-CAN-03 d'ENF-PERF-04 : volume < 5 000 lignes (H-01), temps couvert par ENF-PERF-01. |
+| Q-06 | EF-TDB-02 (« ayant atteint Entretien ») et EF-TDB-04 (entretiens et refus par semaine) supposent de connaître les statuts passés et leur date, que le modèle actuel ne conserve pas. Faut-il un historique des statuts ? (bloque T-101, impact schéma) | Oui : table `application_status_history` (candidature, statut, date, origine), alimentée à chaque changement. |
+| Q-07 | Le changement manuel de statut (EF-CAN-07) est-il soumis à RG-04 ? Une Proposition reçue après un Refus doit-elle remplacer le Refus (lecture littérale de RG-04) ? (bloque T-101) | Manuel : tout statut accepté. Automatique : RG-04 tel quel. |
+| Q-08 | Les messages écartés par RG-10 ou classés « hors sujet » ne sont pas conservés : après une synchronisation interrompue (ENF-FIA-03), ils seraient reclassés par l'IA. Faut-il mémoriser les identifiants traités ? (bloque T-302) | Oui : table des identifiants Gmail traités (sans contenu), compatible ENF-RGP-01. |
+| Q-09 | Quelle est la liste initiale des mots-clés d'emploi et des plateformes connues (RG-10), et où est-elle paramétrée ? (bloque T-302) | Liste initiale dans `settings`, modifiable dans Réglages. |
+| Q-10 | RG-09 ne chiffre pas la baisse de score par critère non satisfait. Faut-il une grille (points par critère) ou laisser l'IA noter librement dans 0–100 ? (bloque T-404) | Grille indicative donnée à l'IA dans le prompt ; seul l'intervalle 0–100 est testé. |
+| Q-11 | En mode test Google (H-04), l'autorisation expire tous les 7 jours. Comment le candidat est-il prévenu ? (bloque T-305) | Échec `invalid_grant` : connexion marquée expirée, bandeau « Reconnecter Gmail » dans l'interface. |
+| Q-12 | Pour un CV adapté à une offre saisie à la main (EF-CVX-05), faut-il conserver l'entreprise, l'intitulé et le texte de l'offre ? (bloque T-504) | Conserver entreprise et intitulé dans `cv_versions` ; pas le texte. |
+
+## 13. Traçabilité besoins → exigences
+
+| Besoin | Exigences métier | Exigences système |
+|---|---|---|
+| BES-01 | EXM-01 | EF-GML-01 à 12, EF-CAN-06, 07, 09, 11, EF-VEI-19, 20 |
+| BES-02 | EXM-01, EXM-02 | EF-GML-11, EF-CAN-01 à 05, 08, 10 |
+| BES-03 | EXM-03 | EF-GML-13 à 17 |
+| BES-04 | EXM-04 | EF-CAN-12, EF-TDB-07 |
+| BES-05 | EXM-05, EXM-06 | EF-VEI-01 à 18, ENF-COL-01 à 04 |
+| BES-06 | EXM-07 | EF-CVX-01 à 11 |
+| BES-07 | EXM-08 | EF-CVX-12, 13 |
+| BES-08 | EXM-09 | EF-TDB-01 à 08 |
+| BES-09 | EXM-10 | EF-IA-01 à 06, EF-CFG-02, 03, ENF-COU-01 |
+
+La traçabilité fine exigence → tâche → test est tenue à jour dans `docs/TRACABILITE.md`.
