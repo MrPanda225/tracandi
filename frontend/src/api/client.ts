@@ -26,6 +26,13 @@ export class ApiError extends Error {
   }
 }
 
+/** True for a request cancelled by its AbortController (screen left, newer request sent): nothing to show. */
+export const isAbortError = (error: unknown): boolean =>
+  error instanceof DOMException && error.name === 'AbortError';
+
+/** Readable French message of any failure, ready to display. */
+export const messageOf = (error: unknown): string => (error instanceof ApiError ? error.message : GENERIC_MESSAGE);
+
 interface RequestOptions {
   method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
   body?: unknown;

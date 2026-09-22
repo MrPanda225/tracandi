@@ -289,6 +289,8 @@ export const applications = pgTable(
       .unique('uq_applications_offer'),
     cvVersionId: integer().references(() => cvVersions.id, { onDelete: 'set null' }),
     notes: varchar({ length: 2000 }),
+    // EF-CAN-15: read only in the detail of one application, never filtered or sorted — no index.
+    offerDescription: varchar({ length: 20000 }),
     appliedAt: createdAt(),
     lastActivityAt: createdAt(),
   },

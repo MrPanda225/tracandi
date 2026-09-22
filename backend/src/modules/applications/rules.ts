@@ -103,3 +103,16 @@ export const decideAttachment = (
  * @req RG-04
  */
 export const laterOf = (current: Date, candidate: Date): Date => (candidate > current ? candidate : current);
+
+/**
+ * RG-16: last activity once the application date is changed by the user — the new date while nothing happened since
+ * the creation (last activity still equal to the application date), the later of both otherwise.
+ * @req RG-16
+ */
+export const lastActivityAfterDateChange = (
+  current: { appliedAt: Date; lastActivityAt: Date },
+  appliedAt: Date,
+): Date =>
+  current.lastActivityAt.getTime() === current.appliedAt.getTime()
+    ? appliedAt
+    : laterOf(current.lastActivityAt, appliedAt);

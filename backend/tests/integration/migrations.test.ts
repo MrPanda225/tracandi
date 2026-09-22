@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { sql } from 'drizzle-orm';
 import request from 'supertest';
 import { afterAll, describe, expect, it } from 'vitest';
@@ -7,6 +8,11 @@ import { createTestContext, openTestDatabase } from './context.js';
 import { testDatabaseUrl } from './test-database.js';
 
 const database = openTestDatabase();
+const JOURNAL_FILE = new URL('../../drizzle/meta/_journal.json', import.meta.url);
+
+/** Number of migrations versioned in `drizzle/`, as listed by drizzle-kit's journal. */
+const versionedMigrationCount = (): number =>
+  (JSON.parse(readFileSync(JOURNAL_FILE, 'utf8')) as { entries: unknown[] }).entries.length;
 
 afterAll(async () => {
   await database.close();
@@ -57,7 +63,7 @@ describe('migrations', () => {
     await runMigrations(testDatabaseUrl(), createLogger({ write: () => undefined }));
 
     expect(await countJournal()).toBe(before);
-    expect(before).toBe(2);
+    expect(before).toBe(versionedMigrationCount());
   });
 
   it('[EF-DOC-01] documents every route mounted by the modules', async () => {

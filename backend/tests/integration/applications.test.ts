@@ -441,3 +441,127 @@ describe('messages of an application', () => {
     expect(email?.applicationId).toBe(applicationId);
   });
 });
+
+describe('offer description and application date (T-104)', () => {
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  const DESCRIPTION = 'Pipelines de données sous Airflow, Python et SQL ; équipe data de 6 personnes.';
+  const daysAgo = (days: number) => new Date(context.clock.now().getTime() - days * DAY_MS).toISOString();
+
+  interface Detail {
+    appliedAt: string;
+    lastActivityAt: string;
+    isFollowUpDue: boolean;
+    offerDescription: string | null;
+  }
+
+  const detailOf = async (id: number): Promise<Detail> => {
+    const response = await api(alice).get(`/api/applications/${id}`);
+    expect(response.status).toBe(200);
+    return response.body as Detail;
+  };
+
+  it('[EF-CAN-15] stores the offer description, returns it in the detail and never in the list', async () => {
+    const id = await createApplication(alice, {
+      companyName: 'Arkema',
+      jobTitle: 'Data Engineer',
+      offerDescription: DESCRIPTION,
+    });
+
+    expect((await detailOf(id)).offerDescription).toBe(DESCRIPTION);
+    const list = await api(alice).get('/api/applications');
+    expect((list.body as { items: object[] }).items[0]).not.toHaveProperty('offerDescription');
+  });
+
+  it('[EF-CAN-15] changes then clears the offer description', async () => {
+    const id = await createApplication(alice, { companyName: 'Arkema', jobTitle: 'Data Engineer' });
+    expect((await detailOf(id)).offerDescription).toBeNull();
+
+    expect((await api(alice).patch(`/api/applications/${id}`, { offerDescription: DESCRIPTION })).status).toBe(204);
+    expect((await detailOf(id)).offerDescription).toBe(DESCRIPTION);
+
+    expect((await api(alice).patch(`/api/applications/${id}`, { offerDescription: null })).status).toBe(204);
+    expect((await detailOf(id)).offerDescription).toBeNull();
+  });
+
+  it('[EF-CAN-15] accepts 20 000 characters and refuses 20 001', async () => {
+    const created = await api(alice).post('/api/applications', {
+      companyName: 'Arkema',
+      jobTitle: 'Data Engineer',
+      status: 'sent',
+      offerDescription: 'a'.repeat(20_001),
+    });
+    expect(created.status).toBe(400);
+
+    const id = await createApplication(alice, { companyName: 'Arkema', jobTitle: 'Data Engineer' });
+    expect((await api(alice).patch(`/api/applications/${id}`, { offerDescription: 'a'.repeat(20_001) })).status).toBe(400);
+    expect((await api(alice).patch(`/api/applications/${id}`, { offerDescription: 'a'.repeat(20_000) })).status).toBe(204);
+  });
+
+  it('[EF-CAN-16] [RG-16] dates a new application in the past and follows it up from that date', async () => {
+    const appliedAt = daysAgo(15);
+    const id = await createApplication(alice, { companyName: 'Arkema', jobTitle: 'Data Engineer', appliedAt });
+
+    const detail = await detailOf(id);
+    expect(detail.appliedAt).toBe(appliedAt);
+    expect(detail.lastActivityAt).toBe(appliedAt);
+    expect(detail.isFollowUpDue).toBe(true);
+    const history = await database.db
+      .select({ changedAt: applicationStatusHistory.changedAt })
+      .from(applicationStatusHistory)
+      .where(eq(applicationStatusHistory.applicationId, id));
+    expect(history.map((row) => row.changedAt.toISOString())).toEqual([appliedAt]);
+  });
+
+  it('[EF-CAN-16] dates the application at the time of creation when no date is given', async () => {
+    const id = await createApplication(alice, { companyName: 'Arkema', jobTitle: 'Data Engineer' });
+
+    expect((await detailOf(id)).appliedAt).toBe(context.clock.now().toISOString());
+  });
+
+  it('[EF-CAN-16] refuses a date in the future or before 2000, on creation and on change', async () => {
+    const base = { companyName: 'Arkema', jobTitle: 'Data Engineer', status: 'sent' };
+    const tomorrow = daysAgo(-1);
+
+    const future = await api(alice).post('/api/applications', { ...base, appliedAt: tomorrow });
+    expect(future.status).toBe(400);
+    expect((future.body as { details: { path: string }[] }).details.map((issue) => issue.path)).toEqual([
+      'body.appliedAt',
+    ]);
+    expect((await api(alice).post('/api/applications', { ...base, appliedAt: '1999-12-31T23:59:59.000Z' })).status).toBe(400);
+
+    const id = await createApplication(alice, base);
+    expect((await api(alice).patch(`/api/applications/${id}`, { appliedAt: tomorrow })).status).toBe(400);
+    expect((await api(alice).patch(`/api/applications/${id}`, { appliedAt: 'hier' })).status).toBe(400);
+  });
+
+  it('[RG-16] moves the last activity with the date while nothing else happened', async () => {
+    const id = await createApplication(alice, { companyName: 'Arkema', jobTitle: 'Data Engineer' });
+    const appliedAt = daysAgo(20);
+
+    expect((await api(alice).patch(`/api/applications/${id}`, { appliedAt })).status).toBe(204);
+
+    const detail = await detailOf(id);
+    expect(detail.appliedAt).toBe(appliedAt);
+    expect(detail.lastActivityAt).toBe(appliedAt);
+    expect(detail.isFollowUpDue).toBe(true);
+  });
+
+  it('[RG-16] keeps a more recent activity when the date changes', async () => {
+    const id = await createApplication(alice, { companyName: 'Arkema', jobTitle: 'Data Engineer', appliedAt: daysAgo(20) });
+    await api(alice).patch(`/api/applications/${id}`, { status: 'acknowledged' });
+    const activity = context.clock.now().toISOString();
+
+    expect((await api(alice).patch(`/api/applications/${id}`, { appliedAt: daysAgo(25) })).status).toBe(204);
+
+    const detail = await detailOf(id);
+    expect(detail.appliedAt).toBe(daysAgo(25));
+    expect(detail.lastActivityAt).toBe(activity);
+  });
+
+  it("[EF-AUT-06] never returns another user's application detail", async () => {
+    const id = await createApplication(alice, { companyName: 'Arkema', jobTitle: 'Data Engineer', offerDescription: DESCRIPTION });
+
+    expect((await api(bob).get(`/api/applications/${id}`)).status).toBe(404);
+    expect((await api(bob).patch(`/api/applications/${id}`, { offerDescription: 'x' })).status).toBe(404);
+  });
+});
