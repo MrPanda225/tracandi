@@ -1,0 +1,220 @@
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { z } from 'zod';
+import { llmTask } from '../db/schema.js';
+import { HttpError, LlmUnavailableError } from '../lib/errors.js';
+import { createLlmRouter, LLM_TIMEOUT_MS, type LlmCallRecord, TASK_ROUTES } from './router.js';
+import type { LlmCompletion, LlmProvider, LlmRequest, ProviderName } from './types.js';
+
+const SCHEMA = z.object({ category: z.enum(['interview', 'rejected']) });
+const INPUT = {
+  userId: 7,
+  system: 'Classe le message.',
+  prompt: '<email>Nous vous proposons un entretien</email>',
+  schema: SCHEMA,
+};
+
+const answer = (value: unknown): LlmCompletion => ({
+  text: JSON.stringify(value),
+  inputTokens: 120,
+  outputTokens: 30,
+});
+
+const fakeProvider = (name: ProviderName, complete: (request: LlmRequest) => Promise<LlmCompletion>) => {
+  const provider = { name, model: `${name}-test-model`, complete: vi.fn(complete) };
+  return provider satisfies LlmProvider;
+};
+
+const setup = (providers: Partial<Record<ProviderName, LlmProvider>>) => {
+  const journal: LlmCallRecord[] = [];
+  const router = createLlmRouter({
+    providers,
+    journal: (record) => {
+      journal.push(record);
+      return Promise.resolve();
+    },
+  });
+  return { router, journal };
+};
+
+afterEach(() => {
+  vi.useRealTimers();
+});
+
+describe('TASK_ROUTES', () => {
+  it('[ENF-MAI-04] routes every task of the data model to known providers, with a fallback', () => {
+    expect(Object.keys(TASK_ROUTES).sort()).toEqual([...llmTask.enumValues].sort());
+    for (const route of Object.values(TASK_ROUTES)) {
+      expect(new Set(route)).toEqual(new Set(['claude', 'gemini']));
+    }
+  });
+
+  it('[RG-13] puts Gemini first for volume tasks and Claude first for writing tasks', () => {
+    expect(TASK_ROUTES.classify_emails[0]).toBe('gemini');
+    expect(TASK_ROUTES.score_offers[0]).toBe('gemini');
+    expect(TASK_ROUTES.extract_offers[0]).toBe('gemini');
+    expect(TASK_ROUTES.tailor_cv[0]).toBe('claude');
+    expect(TASK_ROUTES.write_motivation[0]).toBe('claude');
+  });
+});
+
+describe('runTask', () => {
+  it('[EF-IA-01] gives the task to the priority provider of RG-13 only', async () => {
+    const gemini = fakeProvider('gemini', () => Promise.resolve(answer({ category: 'interview' })));
+    const claude = fakeProvider('claude', () => Promise.resolve(answer({ category: 'rejected' })));
+    const { router } = setup({ gemini, claude });
+
+    const classified = await router.runTask('classify_emails', INPUT);
+    const tailored = await router.runTask('tailor_cv', INPUT);
+
+    expect(classified).toEqual({ data: { category: 'interview' }, provider: 'gemini' });
+    expect(tailored).toEqual({ data: { category: 'rejected' }, provider: 'claude' });
+    expect(gemini.complete).toHaveBeenCalledTimes(1);
+    expect(claude.complete).toHaveBeenCalledTimes(1);
+  });
+
+  it('[EF-IA-01] sends the system instruction and the prompt unchanged, with an output bound', async () => {
+    const gemini = fakeProvider('gemini', () => Promise.resolve(answer({ category: 'interview' })));
+    const { router } = setup({ gemini });
+
+    await router.runTask('classify_emails', { ...INPUT, maxOutputTokens: 512 });
+
+    expect(gemini.complete).toHaveBeenCalledWith(
+      expect.objectContaining({ system: INPUT.system, prompt: INPUT.prompt, maxOutputTokens: 512 }),
+    );
+  });
+
+  it('[EF-IA-02] gives the task to the next provider when the first one fails', async () => {
+    const gemini = fakeProvider('gemini', () => Promise.reject(new Error('503 Service Unavailable')));
+    const claude = fakeProvider('claude', () => Promise.resolve(answer({ category: 'interview' })));
+    const { router } = setup({ gemini, claude });
+
+    await expect(router.runTask('classify_emails', INPUT)).resolves.toEqual({
+      data: { category: 'interview' },
+      provider: 'claude',
+    });
+  });
+
+  it('[EF-IA-02] gives the task to the next provider after 60 seconds without answer', async () => {
+    vi.useFakeTimers();
+    let signal: AbortSignal | undefined;
+    const gemini = fakeProvider('gemini', (request) => {
+      signal = request.signal;
+      return new Promise<LlmCompletion>(() => undefined);
+    });
+    const claude = fakeProvider('claude', () => Promise.resolve(answer({ category: 'interview' })));
+    const { router, journal } = setup({ gemini, claude });
+
+    const result = router.runTask('classify_emails', INPUT);
+    await vi.advanceTimersByTimeAsync(LLM_TIMEOUT_MS - 1);
+    expect(claude.complete).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+
+    await expect(result).resolves.toMatchObject({ provider: 'claude' });
+    expect(signal?.aborted).toBe(true);
+    expect(journal[0]).toMatchObject({ provider: 'gemini', outcome: 'timeout', durationMs: LLM_TIMEOUT_MS });
+    expect(LLM_TIMEOUT_MS).toBe(60_000);
+  });
+
+  it.each([
+    ['an answer outside the schema', { category: 'offer' }],
+    ['an answer that is not JSON', 'Voici la catégorie : entretien'],
+  ])('[EF-IA-02] [EF-IA-03] gives the task to the next provider after %s', async (_case, output) => {
+    const text = typeof output === 'string' ? output : JSON.stringify(output);
+    const gemini = fakeProvider('gemini', () =>
+      Promise.resolve({ text, inputTokens: 100, outputTokens: 10 }),
+    );
+    const claude = fakeProvider('claude', () => Promise.resolve(answer({ category: 'rejected' })));
+    const { router, journal } = setup({ gemini, claude });
+
+    await expect(router.runTask('classify_emails', INPUT)).resolves.toEqual({
+      data: { category: 'rejected' },
+      provider: 'claude',
+    });
+    expect(journal.map((call) => call.outcome)).toEqual(['invalid_output', 'success']);
+  });
+
+  it('[EF-IA-03] reads a JSON answer wrapped in a Markdown code block', async () => {
+    const gemini = fakeProvider('gemini', () =>
+      Promise.resolve({ text: '```json\n{ "category": "interview" }\n```', inputTokens: 1, outputTokens: 1 }),
+    );
+    const { router } = setup({ gemini });
+
+    await expect(router.runTask('classify_emails', INPUT)).resolves.toMatchObject({
+      data: { category: 'interview' },
+    });
+  });
+
+  it('[EF-IA-04] [EF-IA-03] fails with a 502 and never returns an answer outside the schema', async () => {
+    const gemini = fakeProvider('gemini', () => Promise.resolve(answer({ category: 'offer' })));
+    const claude = fakeProvider('claude', () => Promise.reject(new Error('529 Overloaded')));
+    const { router } = setup({ gemini, claude });
+
+    const failure = router.runTask('classify_emails', INPUT);
+
+    await expect(failure).rejects.toBeInstanceOf(LlmUnavailableError);
+    await expect(failure).rejects.toMatchObject({ statusCode: 502 });
+  });
+
+  it('[EF-IA-05] works with a single configured provider, whatever its rank in the route', async () => {
+    const gemini = fakeProvider('gemini', () => Promise.resolve(answer({ category: 'interview' })));
+    const { router } = setup({ gemini });
+
+    await expect(router.runTask('tailor_cv', INPUT)).resolves.toMatchObject({ provider: 'gemini' });
+  });
+
+  it('[EF-IA-05] refuses to start without any provider', () => {
+    expect(() => setup({})).toThrow('At least one LLM provider must be configured');
+  });
+
+  it('[EF-IA-06] records every call: provider, model, task, duration, tokens and outcome, never the content', async () => {
+    vi.useFakeTimers();
+    const gemini = fakeProvider('gemini', async () => {
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      throw new Error('quota exceeded');
+    });
+    const claude = fakeProvider('claude', async () => {
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      return answer({ category: 'interview' });
+    });
+    const { router, journal } = setup({ gemini, claude });
+
+    const result = router.runTask('classify_emails', INPUT);
+    await vi.advanceTimersByTimeAsync(2300);
+    await result;
+
+    expect(journal).toEqual([
+      {
+        userId: 7,
+        task: 'classify_emails',
+        provider: 'gemini',
+        model: 'gemini-test-model',
+        outcome: 'error',
+        durationMs: 1500,
+        inputTokens: null,
+        outputTokens: null,
+      },
+      {
+        userId: 7,
+        task: 'classify_emails',
+        provider: 'claude',
+        model: 'claude-test-model',
+        outcome: 'success',
+        durationMs: 800,
+        inputTokens: 120,
+        outputTokens: 30,
+      },
+    ]);
+  });
+});
+
+describe('LlmUnavailableError', () => {
+  it('[EF-IA-04] is an HTTP 502 with an explicit French message', () => {
+    const error = new LlmUnavailableError();
+
+    expect(error).toBeInstanceOf(HttpError);
+    expect(error.statusCode).toBe(502);
+    expect(error.message).toBe(
+      'Aucun service d’IA n’a pu traiter la demande. Réessayez dans quelques minutes.',
+    );
+  });
+});

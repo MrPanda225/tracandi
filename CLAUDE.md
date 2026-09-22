@@ -83,7 +83,7 @@ Skills de référence : `.claude/skills/` (`clean-code`, `security`, `requiremen
 |---|---|
 | T-002 | `drizzle-orm`, `pg` ; dev : `drizzle-kit`, `@types/pg` (installés) |
 | T-005 | `@asteasolutions/zod-to-openapi`, `swagger-ui-express` ; dev : `@types/swagger-ui-express` (installés) |
-| T-201 | `@anthropic-ai/sdk`, `@google/genai` |
+| T-201 | `@anthropic-ai/sdk`, `@google/genai` (installés) |
 | T-301 | `googleapis` |
 | T-305 | `node-cron` |
 | T-401 | `robots-parser` |

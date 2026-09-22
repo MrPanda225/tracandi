@@ -2,7 +2,15 @@ import { describe, expect, it } from 'vitest';
 import { ConfigError, loadConfig } from './env.js';
 
 const NEON_URL = 'postgresql://app:pw@ep-x-pooler.eu-central-1.aws.neon.tech/tracandi?sslmode=verify-full';
-const VALID_ENV = { FRONTEND_ORIGIN: 'http://127.0.0.1:5173', DATABASE_URL_APP: NEON_URL };
+// Fictitious keys: the configuration never checks them against a provider.
+const ANTHROPIC = { ANTHROPIC_API_KEY: 'sk-ant-test-key', ANTHROPIC_MODEL: 'claude-sonnet-5' };
+const GEMINI = { GEMINI_API_KEY: 'gemini-test-key', GEMINI_MODEL: 'gemini-2.5-flash' };
+const VALID_ENV = {
+  FRONTEND_ORIGIN: 'http://127.0.0.1:5173',
+  DATABASE_URL_APP: NEON_URL,
+  ...ANTHROPIC,
+  ...GEMINI,
+};
 
 describe('loadConfig', () => {
   it('[ENF-SEC-03] reads the configuration from the environment and applies defaults', () => {
@@ -14,7 +22,47 @@ describe('loadConfig', () => {
       frontendOrigin: 'http://127.0.0.1:5173',
       databaseUrl: NEON_URL,
       isCookieSecure: true,
+      llm: {
+        claude: { apiKey: 'sk-ant-test-key', model: 'claude-sonnet-5' },
+        gemini: { apiKey: 'gemini-test-key', model: 'gemini-2.5-flash' },
+      },
     });
+  });
+
+  it('[EF-IA-05] starts with the Gemini key alone', () => {
+    const config = loadConfig({
+      FRONTEND_ORIGIN: 'http://127.0.0.1:5173',
+      DATABASE_URL_APP: NEON_URL,
+      ...GEMINI,
+    });
+
+    expect(config.llm).toEqual({ gemini: { apiKey: 'gemini-test-key', model: 'gemini-2.5-flash' } });
+  });
+
+  it('[EF-IA-05] starts with the Anthropic key alone, an empty Gemini key counting as absent', () => {
+    const config = loadConfig({ ...VALID_ENV, GEMINI_API_KEY: '' });
+
+    expect(config.llm).toEqual({ claude: { apiKey: 'sk-ant-test-key', model: 'claude-sonnet-5' } });
+  });
+
+  it('[EF-IA-05] refuses to start without any AI key', () => {
+    const env = { FRONTEND_ORIGIN: 'http://127.0.0.1:5173', DATABASE_URL_APP: NEON_URL };
+
+    expect(() => loadConfig(env)).toThrow(ConfigError);
+    expect(() => loadConfig(env)).toThrow('ANTHROPIC_API_KEY or GEMINI_API_KEY');
+  });
+
+  it.each([
+    ['ANTHROPIC_MODEL', { ...VALID_ENV, ANTHROPIC_MODEL: '' }],
+    ['GEMINI_MODEL', { ...VALID_ENV, GEMINI_MODEL: undefined }],
+  ])('[EF-IA-05] requires %s when its key is set (models are never hard-coded)', (variable, env) => {
+    expect(() => loadConfig(env)).toThrow(variable);
+  });
+
+  it('[ENF-SEC-08] never echoes an AI key in the error message', () => {
+    const env = { ...VALID_ENV, ANTHROPIC_MODEL: '', ANTHROPIC_API_KEY: 'sk-ant-secret-value' };
+
+    expect(() => loadConfig(env)).not.toThrow(/sk-ant-secret-value/);
   });
 
   it('[ENF-SEC-03] parses explicit host and port', () => {
@@ -41,7 +89,11 @@ describe('loadConfig', () => {
   it('[ENF-SEC-08] never echoes the rejected value in the error message', () => {
     const secretLookingValue = 'postgresql://u:s3cret@h/d';
 
-    const env = { ...VALID_ENV, FRONTEND_ORIGIN: secretLookingValue, DATABASE_URL_APP: 'postgresql://u:s3cret@neon.tech/d' };
+    const env = {
+      ...VALID_ENV,
+      FRONTEND_ORIGIN: secretLookingValue,
+      DATABASE_URL_APP: 'postgresql://u:s3cret@neon.tech/d',
+    };
 
     expect(() => loadConfig(env)).toThrow(ConfigError);
     expect(() => loadConfig(env)).not.toThrow(/s3cret/);

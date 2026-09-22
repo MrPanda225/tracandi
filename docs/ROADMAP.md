@@ -70,7 +70,7 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
 
 ## Lot 2 — Orchestration IA
 
-- [ ] **T-201 Fournisseurs et routeur** — interface `LlmProvider`, adaptateurs Claude et Gemini, table de routage
+- [x] **T-201 Fournisseurs et routeur** — interface `LlmProvider`, adaptateurs Claude et Gemini, table de routage
   (RG-13), délai 60 s, validation zod, bascule, journal `llm_calls`, erreur 502 finale.
   *Exigences* : EF-IA-01 à 06, ENF-MAI-04.
   *Fini quand* : tests avec fournisseurs simulés pour chaque cas de bascule ; aucun appel réseau réel en test.

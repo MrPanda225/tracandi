@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { describeDatabaseUrlProblem } from '../db/url.js';
+import type { ProviderName } from '../llm/types.js';
 
 const DEFAULT_HOST = '127.0.0.1';
 const DEFAULT_PORT = 4000;
@@ -11,6 +12,9 @@ const isHttpOrigin = (value: string): boolean => {
   const url = new URL(value);
   return (url.protocol === 'http:' || url.protocol === 'https:') && url.origin === value;
 };
+
+// A line `KEY=` left empty in .env counts as absent.
+const optionalValue = z.preprocess((value) => (value === '' ? undefined : value), z.string().optional());
 
 // Variables used by the tasks already delivered; each later task extends this schema (YAGNI).
 const EnvSchema = z.object({
@@ -29,7 +33,29 @@ const EnvSchema = z.object({
     .enum(['true', 'false'])
     .default('true')
     .transform((value) => value === 'true'),
+  // EF-IA-05: one AI key is enough; each configured provider needs its model (never hard-coded, rules/llm.md).
+  ANTHROPIC_API_KEY: optionalValue,
+  ANTHROPIC_MODEL: optionalValue,
+  GEMINI_API_KEY: optionalValue,
+  GEMINI_MODEL: optionalValue,
 });
+
+const requireAiProviders = (env: z.infer<typeof EnvSchema>, context: z.RefinementCtx): void => {
+  const issue = (path: string, message: string) =>
+    context.addIssue({ code: z.ZodIssueCode.custom, path: [path], message });
+  if (!env.ANTHROPIC_API_KEY && !env.GEMINI_API_KEY) {
+    issue('ANTHROPIC_API_KEY or GEMINI_API_KEY', 'at least one AI key is required');
+  }
+  if (env.ANTHROPIC_API_KEY && !env.ANTHROPIC_MODEL)
+    issue('ANTHROPIC_MODEL', 'required with ANTHROPIC_API_KEY');
+  if (env.GEMINI_API_KEY && !env.GEMINI_MODEL) issue('GEMINI_MODEL', 'required with GEMINI_API_KEY');
+};
+
+/** Key and model of one AI provider. */
+export interface LlmProviderConfig {
+  apiKey: string;
+  model: string;
+}
 
 /** Validated runtime configuration. */
 export interface Config {
@@ -38,6 +64,8 @@ export interface Config {
   frontendOrigin: string;
   databaseUrl: string;
   isCookieSecure: boolean;
+  /** Configured AI providers only (EF-IA-05). */
+  llm: Partial<Record<ProviderName, LlmProviderConfig>>;
 }
 
 /**
@@ -54,21 +82,28 @@ export class ConfigError extends Error {
 /**
  * Validates the environment and returns the configuration, applying defaults (HOST 127.0.0.1, PORT 4000,
  * COOKIE_SECURE true). Secrets are read from the environment only, never from the repository (ENF-SEC-03).
- * @throws ConfigError when a variable is missing or invalid; the server must then stop.
- * @req ENF-SEC-03, ENF-SEC-08, ENF-SEC-11, ENF-SEC-15
+ * @throws ConfigError when a variable is missing or invalid, or when no AI key is set; the server must then stop.
+ * @req ENF-SEC-03, ENF-SEC-08, ENF-SEC-11, ENF-SEC-15, EF-IA-05
  */
 export const loadConfig = (env: Record<string, string | undefined>): Config => {
-  const result = EnvSchema.safeParse(env);
+  const result = EnvSchema.superRefine(requireAiProviders).safeParse(env);
   if (!result.success) {
     const reasons = result.error.issues.map((issue) => `${issue.path.join('.')} (${issue.message})`);
     throw new ConfigError(`Invalid environment variables: ${reasons.join(', ')}`);
   }
   const { HOST, PORT, FRONTEND_ORIGIN, DATABASE_URL_APP, COOKIE_SECURE } = result.data;
+  const { ANTHROPIC_API_KEY, ANTHROPIC_MODEL, GEMINI_API_KEY, GEMINI_MODEL } = result.data;
   return {
     host: HOST,
     port: PORT,
     frontendOrigin: FRONTEND_ORIGIN,
     databaseUrl: DATABASE_URL_APP,
     isCookieSecure: COOKIE_SECURE,
+    llm: {
+      ...(ANTHROPIC_API_KEY && ANTHROPIC_MODEL
+        ? { claude: { apiKey: ANTHROPIC_API_KEY, model: ANTHROPIC_MODEL } }
+        : {}),
+      ...(GEMINI_API_KEY && GEMINI_MODEL ? { gemini: { apiKey: GEMINI_API_KEY, model: GEMINI_MODEL } } : {}),
+    },
   };
 };
