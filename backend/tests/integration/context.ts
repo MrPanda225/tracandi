@@ -117,7 +117,7 @@ export const createTestContext = (
   const sync = createGmailSync({
     db: database.db,
     fetcher: createMessageFetcher({ db: database.db, openMailbox, encryptionKey, clock: clock.now }),
-    router: createLlmRouter({ providers: aiProviders, journal: createLlmJournal(database.db) }),
+    router: createLlmRouter({ providers: aiProviders, journal: createLlmJournal(database.db), logger }),
     journal: createJobJournal({ db: database.db, clock: clock.now }),
     clock: clock.now,
     logger,

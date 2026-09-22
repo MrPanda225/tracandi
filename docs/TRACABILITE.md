@@ -55,7 +55,7 @@ Commande de contrôle : `/project:check-req EF-CAN-07`.
 | RG-16 | T-104 | `src/modules/applications/rules.test.ts` (lastActivityAfterDateChange, deux branches) ; `applications.test.ts` (relance à J+15, activité plus récente conservée) | couverte |
 | EF-CAN-06 (erreurs de champ) | T-104 | `ApplicationsPage.test.tsx` (raison donnée par l'API affichée sous le champ `body.companyName`) | couverte |
 | EF-IA-01 | T-201 | `backend/src/llm/router.test.ts` (fournisseur prioritaire seul appelé, consigne et contenu transmis tels quels) ; `llm/providers/claude.test.ts`, `gemini.test.ts` (requête envoyée au SDK) | couverte |
-| EF-IA-02 | T-201 | `router.test.ts` (erreur, 60 s sans réponse avec signal annulé, réponse hors schéma, réponse non JSON) ; `claude.test.ts` (refus), `gemini.test.ts` (réponse vide) | couverte |
+| EF-IA-02 | T-201 | `router.test.ts` (erreur, 60 s sans réponse avec signal annulé, réponse hors schéma, réponse non JSON ; raison du fournisseur écarté journalisée, sans le prompt ni la réponse) ; `claude.test.ts` (refus), `gemini.test.ts` (réponse vide) | couverte |
 | EF-IA-03 | T-201 | `router.test.ts` (réponse hors schéma jamais renvoyée, JSON dans un bloc Markdown accepté) | couverte |
 | EF-IA-04 | T-201 | `router.test.ts` (`LlmUnavailableError`, 502) ; `src/app.test.ts` (réponse HTTP 502 et message explicite) | couverte |
 | EF-IA-05 | T-201 | `src/config/env.test.ts` (démarrage avec la seule clé Gemini, la seule clé Anthropic ; refus sans clé ; modèle exigé) ; `router.test.ts` (un seul fournisseur) | couverte |

@@ -64,6 +64,7 @@ const llmRouter = createLlmRouter({
     ...(config.llm.gemini ? { gemini: connectGemini(config.llm.gemini) } : {}),
   },
   journal: createLlmJournal(database.db),
+  logger,
 });
 
 const gmailSync = createGmailSync({

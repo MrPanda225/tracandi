@@ -3,6 +3,7 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { llmCalls, users } from '../../src/db/schema.js';
 import { createLlmJournal } from '../../src/llm/repository.js';
+import { createLogger } from '../../src/lib/logger.js';
 import { createLlmRouter } from '../../src/llm/router.js';
 import type { LlmProvider } from '../../src/llm/types.js';
 import { openTestDatabase, truncateAll } from './context.js';
@@ -40,6 +41,7 @@ describe('LLM calls journal', () => {
     const router = createLlmRouter({
       providers: { gemini: failing, claude: answering },
       journal: createLlmJournal(database.db),
+      logger: createLogger({ write: () => undefined }),
     });
 
     await router.runTask('score_offers', {

@@ -24,16 +24,24 @@ const fakeProvider = (name: ProviderName, complete: (request: LlmRequest) => Pro
   return provider satisfies LlmProvider;
 };
 
+interface LoggedEntry {
+  message: string;
+  context: Record<string, unknown>;
+}
+
 const setup = (providers: Partial<Record<ProviderName, LlmProvider>>) => {
   const journal: LlmCallRecord[] = [];
+  const logged: LoggedEntry[] = [];
+  const record = (message: string, context: Record<string, unknown> = {}) => logged.push({ message, context });
   const router = createLlmRouter({
     providers,
-    journal: (record) => {
-      journal.push(record);
+    journal: (entry) => {
+      journal.push(entry);
       return Promise.resolve();
     },
+    logger: { info: record, warn: record, error: record },
   });
-  return { router, journal };
+  return { router, journal, logged };
 };
 
 afterEach(() => {
@@ -54,6 +62,46 @@ describe('TASK_ROUTES', () => {
     expect(TASK_ROUTES.extract_offers[0]).toBe('gemini');
     expect(TASK_ROUTES.tailor_cv[0]).toBe('claude');
     expect(TASK_ROUTES.write_motivation[0]).toBe('claude');
+  });
+});
+
+describe('runTask — why a provider was set aside', () => {
+  it('[EF-IA-02] logs the failure of a provider before falling back, without the prompt nor the answer', async () => {
+    const outage = Object.assign(new Error('401 invalid x-api-key'), { status: 401 });
+    const { router, logged } = setup({
+      gemini: fakeProvider('gemini', () => Promise.reject(outage)),
+      claude: fakeProvider('claude', () => Promise.resolve(answer({ category: 'interview' }))),
+    });
+
+    await router.runTask('classify_emails', INPUT);
+
+    expect(logged).toEqual([
+      {
+        message: 'llm provider set aside',
+        context: {
+          task: 'classify_emails',
+          provider: 'gemini',
+          model: 'gemini-test-model',
+          outcome: 'error',
+          error: outage,
+        },
+      },
+    ]);
+  });
+
+  it('[EF-IA-03] logs the fields the schema rejected, as paths, never their value', async () => {
+    const { router, logged } = setup({
+      gemini: fakeProvider('gemini', () => Promise.resolve(answer({ category: 'embauché' }))),
+      claude: fakeProvider('claude', () => Promise.resolve(answer({ category: 'rejected' }))),
+    });
+
+    await router.runTask('classify_emails', INPUT);
+
+    expect(logged[0]?.context).toMatchObject({
+      outcome: 'invalid_output',
+      issues: [{ path: 'category', code: 'invalid_enum_value' }],
+    });
+    expect(JSON.stringify(logged)).not.toContain('embauché');
   });
 });
 

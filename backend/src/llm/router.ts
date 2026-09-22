@@ -1,5 +1,6 @@
 import type { z } from 'zod';
 import { LlmUnavailableError } from '../lib/errors.js';
+import type { Logger } from '../lib/logger.js';
 import type { LlmCompletion, LlmOutcome, LlmProvider, LlmTaskName, ProviderName } from './types.js';
 
 /**
@@ -61,14 +62,23 @@ interface LlmRouterDeps {
   /** Configured providers only (EF-IA-05: one key is enough). */
   providers: Partial<Record<ProviderName, LlmProvider>>;
   journal: LlmJournal;
+  /** Receives the reason of every provider left aside; `llm_calls` only keeps the outcome. */
+  logger: Logger;
   timeoutMs?: number;
 }
+
+/** Why an attempt did not give usable data, for the logs only: never the prompt nor the answer (ENF-SEC-08). */
+type Refusal =
+  | { error: unknown }
+  /** Fields of the answer the schema rejected, as paths and codes, without any value (ENF-RGP-01). */
+  | { issues: { path: string; code: string }[] };
 
 type Attempt<T> =
   | { outcome: 'success'; data: T; completion: LlmCompletion }
   | {
       outcome: Exclude<LlmOutcome, 'success'>;
       completion: LlmCompletion | null;
+      refusal: Refusal;
     };
 
 const CODE_FENCE = /^```(?:json)?\s*\n([\s\S]*?)\n?```$/;
@@ -91,6 +101,44 @@ const abandonedOn = (signal: AbortSignal): Promise<never> =>
   });
 
 /**
+ * One call to one provider, bounded to `timeoutMs` and validated against the schema of the task.
+ * Never throws: a failure, a timeout and an answer outside the schema all come back as an outcome with its reason.
+ * @req EF-IA-02, EF-IA-03
+ */
+const attempt = async <T>(
+  provider: LlmProvider,
+  input: RunTaskInput<T>,
+  timeoutMs: number,
+): Promise<Attempt<T>> => {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const completion = await Promise.race([
+      provider.complete({
+        system: input.system,
+        prompt: input.prompt,
+        maxOutputTokens: input.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS,
+        signal: controller.signal,
+      }),
+      abandonedOn(controller.signal),
+    ]);
+    const parsed = input.schema.safeParse(parseJson(completion.text));
+    if (parsed.success) return { outcome: 'success', data: parsed.data, completion };
+    return {
+      outcome: 'invalid_output',
+      completion,
+      refusal: {
+        issues: parsed.error.issues.map((issue) => ({ path: issue.path.join('.'), code: issue.code })),
+      },
+    };
+  } catch (error) {
+    return { outcome: controller.signal.aborted ? 'timeout' : 'error', completion: null, refusal: { error } };
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
+/**
  * Creates the AI router. Every call is bounded to `timeoutMs` (60 s), validated against the task schema and journaled.
  * @throws Error when no provider is configured (the configuration refuses to start in that case, EF-IA-05).
  * @req EF-IA-01, EF-IA-02, EF-IA-03, EF-IA-04, EF-IA-05, EF-IA-06, RG-13
@@ -98,35 +146,12 @@ const abandonedOn = (signal: AbortSignal): Promise<never> =>
 export const createLlmRouter = ({
   providers,
   journal,
+  logger,
   timeoutMs = LLM_TIMEOUT_MS,
 }: LlmRouterDeps): LlmRouter => {
   if (Object.values(providers).every((provider) => provider === undefined)) {
     throw new Error('At least one LLM provider must be configured');
   }
-
-  const attempt = async <T>(provider: LlmProvider, input: RunTaskInput<T>): Promise<Attempt<T>> => {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
-    try {
-      const completion = await Promise.race([
-        provider.complete({
-          system: input.system,
-          prompt: input.prompt,
-          maxOutputTokens: input.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS,
-          signal: controller.signal,
-        }),
-        abandonedOn(controller.signal),
-      ]);
-      const parsed = input.schema.safeParse(parseJson(completion.text));
-      return parsed.success
-        ? { outcome: 'success', data: parsed.data, completion }
-        : { outcome: 'invalid_output', completion };
-    } catch {
-      return { outcome: controller.signal.aborted ? 'timeout' : 'error', completion: null };
-    } finally {
-      clearTimeout(timer);
-    }
-  };
 
   return {
     async runTask(task, input) {
@@ -134,7 +159,7 @@ export const createLlmRouter = ({
         const provider = providers[name];
         if (!provider) continue;
         const startedAt = Date.now();
-        const result = await attempt(provider, input);
+        const result = await attempt(provider, input, timeoutMs);
         await journal({
           userId: input.userId,
           task,
@@ -146,6 +171,14 @@ export const createLlmRouter = ({
           outputTokens: result.completion?.outputTokens ?? null,
         });
         if (result.outcome === 'success') return { data: result.data, provider: name };
+        // EF-IA-02: the next provider takes over, but the reason must not be lost (clean-code.md).
+        logger.warn('llm provider set aside', {
+          task,
+          provider: name,
+          model: provider.model,
+          outcome: result.outcome,
+          ...result.refusal,
+        });
       }
       throw new LlmUnavailableError();
     },
