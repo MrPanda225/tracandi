@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import userEvent from '@testing-library/user-event';
 import type { ReactElement } from 'react';
 import { MemoryRouter } from 'react-router-dom';
+import { ROUTER_FUTURE } from '../../lib/router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Application, ApplicationDetail, ApplicationEmail } from '../../api/applications';
 import { ApplicationsPage } from './ApplicationsPage';
@@ -118,7 +119,7 @@ const filteredList: Route = (url) => {
 };
 
 const withinSession = (page: ReactElement) => (
-  <MemoryRouter>
+  <MemoryRouter future={ROUTER_FUTURE}>
     <ApplicationsCacheProvider>{page}</ApplicationsCacheProvider>
   </MemoryRouter>
 );
@@ -138,7 +139,9 @@ const pending = () => {
 };
 
 const companyNames = () =>
-  screen.getAllByRole('region').map((region) => within(region).getByRole('heading', { level: 2 }).textContent);
+  screen
+    .getAllByRole('region')
+    .map((region) => within(region).getByRole('heading', { level: 2 }).textContent);
 
 const itemOf = (jobTitle: RegExp) => {
   const button = screen.getByRole('button', { name: jobTitle });
@@ -289,8 +292,13 @@ describe('ApplicationsPage', () => {
     expect(within(messages[0] as HTMLElement).getByText('Candidature envoyée')).toBeInTheDocument();
     expect(within(messages[1] as HTMLElement).getByText('Reçu')).toBeInTheDocument();
     expect(within(messages[1] as HTMLElement).getByText('Accusé de réception')).toBeInTheDocument();
-    expect(within(messages[1] as HTMLElement).getByText('Nous avons bien reçu votre candidature.')).toBeInTheDocument();
-    expect(within(messages[1] as HTMLElement).getByRole('time')).toHaveAttribute('dateTime', '2026-09-03T10:00:00.000Z');
+    expect(
+      within(messages[1] as HTMLElement).getByText('Nous avons bien reçu votre candidature.'),
+    ).toBeInTheDocument();
+    expect(within(messages[1] as HTMLElement).getByRole('time')).toHaveAttribute(
+      'dateTime',
+      '2026-09-03T10:00:00.000Z',
+    );
     expect(screen.getByRole('button', { name: /Développeur/ })).toHaveAttribute('aria-expanded', 'true');
   });
 
@@ -370,7 +378,12 @@ describe('ApplicationsPage', () => {
 
   it('[EF-CAN-06] adds an application by hand and shows it in the list', async () => {
     let items = ALL;
-    const created = application({ id: 5, company: { id: 4, name: 'Studio Ardent' }, jobTitle: 'UX', contractType: 'cdd' });
+    const created = application({
+      id: 5,
+      company: { id: 4, name: 'Studio Ardent' },
+      jobTitle: 'UX',
+      contractType: 'cdd',
+    });
     const calls = mockApi({
       'GET /applications': () => listOf(items),
       'POST /applications': () => {
@@ -492,7 +505,10 @@ describe('ApplicationsPage — offer description and application date (T-104)', 
   });
 
   it('[EF-CAN-16] dates a new application in the past', async () => {
-    const calls = mockApi({ 'GET /applications': () => listOf(ALL), 'POST /applications': () => json(201, { id: 9 }) });
+    const calls = mockApi({
+      'GET /applications': () => listOf(ALL),
+      'POST /applications': () => json(201, { id: 9 }),
+    });
     const { user, form } = await openCreationForm();
     const date = within(form).getByLabelText('Date de candidature');
     expect(date).toHaveValue('2026-09-22');
@@ -501,7 +517,9 @@ describe('ApplicationsPage — offer description and application date (T-104)', 
     await user.click(within(form).getByRole('button', { name: 'Ajouter' }));
 
     await waitFor(() => expect(calls.some((call) => call.method === 'POST')).toBe(true));
-    expect(calls.find((call) => call.method === 'POST')?.body).toMatchObject({ appliedAt: localNoon(2026, 8, 7) });
+    expect(calls.find((call) => call.method === 'POST')?.body).toMatchObject({
+      appliedAt: localNoon(2026, 8, 7),
+    });
   });
 
   it('[EF-CAN-16] refuses a date in the future without calling the API', async () => {
@@ -511,16 +529,24 @@ describe('ApplicationsPage — offer description and application date (T-104)', 
     fireEvent.change(within(form).getByLabelText('Date de candidature'), { target: { value: '2026-09-23' } });
     await user.click(within(form).getByRole('button', { name: 'Ajouter' }));
 
-    expect(within(form).getByText('La date de candidature ne peut pas être dans le futur.')).toBeInTheDocument();
+    expect(
+      within(form).getByText('La date de candidature ne peut pas être dans le futur.'),
+    ).toBeInTheDocument();
     expect(within(form).getByLabelText('Date de candidature')).toHaveAttribute('aria-invalid', 'true');
     expect(calls.some((call) => call.method === 'POST')).toBe(false);
   });
 
   it('[EF-CAN-15] adds an application with the description of the offer', async () => {
-    const calls = mockApi({ 'GET /applications': () => listOf(ALL), 'POST /applications': () => json(201, { id: 9 }) });
+    const calls = mockApi({
+      'GET /applications': () => listOf(ALL),
+      'POST /applications': () => json(201, { id: 9 }),
+    });
     const { user, form } = await openCreationForm();
 
-    await user.type(within(form).getByLabelText('Description de l’offre'), 'Pipelines de données sous Airflow.');
+    await user.type(
+      within(form).getByLabelText('Description de l’offre'),
+      'Pipelines de données sous Airflow.',
+    );
     await user.click(within(form).getByRole('button', { name: 'Ajouter' }));
 
     await waitFor(() => expect(calls.some((call) => call.method === 'POST')).toBe(true));
@@ -578,7 +604,9 @@ describe('ApplicationsPage — offer description and application date (T-104)', 
       offerDescription: 'Nouvelle description',
       appliedAt: localNoon(2026, 8, 5),
     });
-    expect(screen.getByRole('button', { name: /Développeur/ })).toHaveAccessibleName(/candidature du 5 sept\. 2026/);
+    expect(screen.getByRole('button', { name: /Développeur/ })).toHaveAccessibleName(
+      /candidature du 5 sept\. 2026/,
+    );
   });
 
   it('[EF-CAN-15] clears the description of the offer', async () => {
@@ -619,7 +647,9 @@ describe('ApplicationsPage — offer description and application date (T-104)', 
 
     await user.click(within(form).getByRole('button', { name: 'Ajouter' }));
 
-    expect(await within(form).findByText('Doit contenir au moins une lettre ou un chiffre')).toBeInTheDocument();
+    expect(
+      await within(form).findByText('Doit contenir au moins une lettre ou un chiffre'),
+    ).toBeInTheDocument();
     expect(within(form).getByLabelText('Entreprise')).toHaveAttribute('aria-invalid', 'true');
   });
 });

@@ -1,6 +1,7 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
+import { ROUTER_FUTURE } from '../../lib/router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { App } from '../../App';
 
@@ -41,7 +42,7 @@ const renderSignedIn = (path: string) => {
     '/auth/logout': () => new Response(null, { status: 204 }),
   });
   return render(
-    <MemoryRouter initialEntries={[path]}>
+    <MemoryRouter initialEntries={[path]} future={ROUTER_FUTURE}>
       <App />
     </MemoryRouter>,
   );
@@ -119,7 +120,7 @@ describe('AppShell', () => {
       '/auth/login': () => json(200, OTHER_ACCOUNT),
     });
     render(
-      <MemoryRouter initialEntries={['/candidatures']}>
+      <MemoryRouter initialEntries={['/candidatures']} future={ROUTER_FUTURE}>
         <App />
       </MemoryRouter>,
     );
@@ -148,7 +149,7 @@ describe('AppShell', () => {
       '/auth/login': () => json(200, OTHER_ACCOUNT),
     });
     render(
-      <MemoryRouter initialEntries={['/']}>
+      <MemoryRouter initialEntries={['/']} future={ROUTER_FUTURE}>
         <App />
       </MemoryRouter>,
     );
