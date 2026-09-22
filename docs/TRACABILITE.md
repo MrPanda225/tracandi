@@ -58,5 +58,10 @@ Commande de contrôle : `/project:check-req EF-CAN-07`.
 | ENF-UTI-01 | T-006 | `AuthPage.test.tsx` (libellés français) + revue | couverte |
 | ENF-UTI-02 | T-006 | Captures 1440 px et 390 px (Chrome sans interface) | couverte |
 | ENF-UTI-03 | T-006 | `AuthPage.test.tsx` (bouton désactivé, `aria-busy`, API injoignable) ; `frontend/src/api/client.test.ts` | couverte |
+| ENF-UTI-01 (shell) | T-003 | `frontend/src/components/layout/AppShell.test.tsx` (6 écrans, navigation et titres en français) | couverte |
+| ENF-UTI-02 (shell) | T-003 | `AppShell.test.tsx` (écran courant signalé) ; captures 360 px et 1440 px (Chrome sans interface, menu fermé) | couverte |
+| ENF-UTI-03 (shell) | T-003 | `frontend/src/components/Flash.test.tsx` (erreur en alerte) ; `DashboardPage.test.tsx` (squelette au premier chargement, derniers chiffres conservés si l'actualisation échoue) ; `api/client.test.ts` (API injoignable) | couverte |
+| EF-AUT-06 (interface) | T-003 | `AppShell.test.tsx` (chiffres de la session précédente jamais montrés au compte suivant) | couverte |
+| ENF-PERF-01 | T-003, T-703 | `DashboardPage.test.tsx` (retour au tableau de bord : derniers chiffres affichés aussitôt) — mesure sur le jeu de charge en T-703 | partielle |
 | EF-TDB-01 à 09 | T-601, T-602 | en cours | à faire |
 <!-- Ajouter une ligne par exigence au fur et à mesure. Statuts : à faire | couverte | vérifiée (démo BO) -->

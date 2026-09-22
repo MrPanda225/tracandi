@@ -201,8 +201,11 @@
 /* ---------- Below 900 px: top bar + disclosure menu ---------- */
 
 @media (max-width: 900px) {
+  /* Auto rows share the free space of `min-height: 100dvh`: without an explicit 1fr content row, a short page
+     stretches the top bar into an empty ink band. */
   .shell {
     grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto 1fr;
   }
 
   .shell__panel {

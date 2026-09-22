@@ -4,6 +4,7 @@ import { LOGIN_PATH, RedirectIfAuthenticated, RequireAuth } from './auth/guards'
 import { AppShell } from './components/layout/AppShell';
 import { AuthPage } from './pages/auth/AuthPage';
 import { DashboardPage } from './pages/dashboard/DashboardPage';
+import { DashboardCacheProvider } from './pages/dashboard/useDashboard';
 import { UpcomingPage } from './pages/UpcomingPage';
 
 /** The 5 screens not built yet (T-003 shell), each stating what it will offer instead of an empty page. */
@@ -54,7 +55,9 @@ export function App() {
         <Route
           element={
             <RequireAuth>
-              <AppShell />
+              <DashboardCacheProvider>
+                <AppShell />
+              </DashboardCacheProvider>
             </RequireAuth>
           }
         >

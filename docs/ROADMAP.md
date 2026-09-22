@@ -42,7 +42,7 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
   (SpotlightCard, ClickSpark, Magnet, Noise), scène 3D CSS des candidatures, page d'accueil provisoire.
   *Exigences* : EF-AUT-01 à 05 (interface), ENF-UTI-01, 02, 03.
   *Fini quand* : tests Testing Library du parcours (connexion, inscription, erreurs, attente, déconnexion) ; captures 1440 et 390 px.
-- [~] **T-003 Shell frontend** — routes des 6 pages (contenu vide), client API typé, composants de base
+- [x] **T-003 Shell frontend** — routes des 6 pages (contenu vide), client API typé, composants de base
   (Flash, StatusTag, PageHeader), styles de base, gestion d'erreur réseau explicite.
   *Exigences* : ENF-UTI-01, ENF-UTI-02, ENF-UTI-03.
   *Fini quand* : test de rendu de chaque route ; `npm run check` vert côté frontend.

@@ -1,14 +1,3 @@
-.dashboard__status {
-  padding: 2rem 0;
-  color: var(--color-mauve-deep);
-  font-size: 0.9375rem;
-}
-
-.dashboard__status--error {
-  color: var(--color-danger);
-  font-weight: 600;
-}
-
 .dashboard {
   display: grid;
   gap: clamp(0.75rem, 0.4rem + 1vw, 1.25rem);

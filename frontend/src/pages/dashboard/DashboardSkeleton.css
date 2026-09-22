@@ -1,0 +1,4 @@
+.dashboard-skeleton__stack {
+  display: grid;
+  gap: 0.9rem;
+}
