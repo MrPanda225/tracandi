@@ -89,13 +89,18 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
   *Fini quand* : tests du chiffrement (aller-retour, altération détectée) et du `state` (absent, faux, expiré).
   *Livré* : routes `/api/gmail/*` et écran Réglages (connexion, statut, déconnexion confirmée). Le callback est public :
   le cookie de session `SameSite=Strict` n'accompagne pas la redirection de Google, l'utilisateur est retrouvé par le `state`.
-- [ ] **T-302 Récupération incrémentale** — liste des messages depuis la dernière synchro, exclusion des connus,
+- [x] **T-302 Récupération incrémentale** — liste des messages depuis la dernière synchro, exclusion des connus,
   extraction métadonnées + extrait 300 car., pré-filtre RG-10.
   *Exigences* : EF-GML-04 à 07, ENF-RGP-01, ENF-FIA-03.
   *Fini quand* : tests sur client Gmail simulé avec fixtures (dont un message bancaire écarté).
+  *Livré* : `modules/emails/fetcher.ts` (messages lus depuis une heure avant la dernière synchronisation, ou N jours),
+  `mailbox.ts` (format `metadata` uniquement), `prefilter.ts` (listes initiales Q-09 : mots-clés donnés à la première
+  synchronisation, plateformes connues enregistrées dans `platforms`). Les messages retenus ne sont marqués traités
+  qu'après leur classement : la route `POST /api/gmail/sync`, ses compteurs et la date de dernière synchronisation
+  arrivent donc avec T-303.
 - [ ] **T-303 Classement et rattachement** — tâche IA de classement par lots de 10, rattachement RG-03,
   statuts RG-04, persistance des messages.
-  *Exigences* : EF-GML-08 à 12, EF-GML-19, EF-CAN-11.
+  *Exigences* : EF-GML-08 à 12, EF-GML-19, EF-CAN-11 ; fin d'EF-GML-04 et 06, ENF-FIA-03 (route de synchronisation).
   *Fini quand* : scénario McDonald's (envoi → accusé → entretien) et fixture APEC/LHH passent.
 - [ ] **T-304 Libellés Gmail** — gestionnaire de libellés (cache, création à la demande), RG-05, alertes, mode lecture seule.
   *Exigences* : EF-GML-13 à 17.

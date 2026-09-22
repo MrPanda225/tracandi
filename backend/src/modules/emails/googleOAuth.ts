@@ -25,7 +25,8 @@ export interface GoogleOAuth {
   revoke: (refreshToken: string) => Promise<void>;
 }
 
-interface GoogleOAuthConfig {
+/** The OAuth client registered at Google (configuration). */
+export interface GoogleOAuthConfig {
   clientId: string;
   clientSecret: string;
   redirectUri: string;

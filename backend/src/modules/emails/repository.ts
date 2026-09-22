@@ -1,7 +1,23 @@
-import { eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import type { Database } from '../../db/client.js';
-import { gmailAccounts } from '../../db/schema.js';
+import {
+  appSettings,
+  gmailAccounts,
+  type messageOutcome,
+  platformDomains,
+  platforms,
+  prefilterKeywords,
+  processedMessages,
+} from '../../db/schema.js';
 import type { SealedSecret } from '../../lib/crypto.js';
+
+// PostgreSQL takes at most 65 535 parameters per statement: ids go by slices well below it.
+const IDS_PER_STATEMENT = 1000;
+
+const slices = <T>(items: readonly T[]): T[][] =>
+  Array.from({ length: Math.ceil(items.length / IDS_PER_STATEMENT) }, (_, index) =>
+    items.slice(index * IDS_PER_STATEMENT, (index + 1) * IDS_PER_STATEMENT),
+  );
 
 type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0];
 /** Database or open transaction: repository functions work with both. */
@@ -73,4 +89,144 @@ export const saveGmailAccount = async (
  */
 export const deleteGmailAccount = async (db: Executor, userId: number): Promise<void> => {
   await db.delete(gmailAccounts).where(eq(gmailAccounts.userId, userId));
+};
+
+/** What a synchronisation starts from: the sealed token, the last synchronisation and N (EF-GML-05). */
+export interface SyncSource {
+  refreshToken: SealedSecret;
+  lastSyncAt: Date | null;
+  lookbackDays: number;
+}
+
+/**
+ * The Gmail connection of the user with its synchronisation settings, or null when no mailbox is connected.
+ * @req EF-GML-05
+ */
+export const findSyncSource = async (db: Executor, userId: number): Promise<SyncSource | null> => {
+  const [row] = await db
+    .select({
+      ciphertext: gmailAccounts.refreshTokenEnc,
+      iv: gmailAccounts.tokenIv,
+      tag: gmailAccounts.tokenTag,
+      lastSyncAt: gmailAccounts.lastSyncAt,
+      lookbackDays: appSettings.gmailLookbackDays,
+    })
+    .from(gmailAccounts)
+    .innerJoin(appSettings, eq(appSettings.userId, gmailAccounts.userId))
+    .where(eq(gmailAccounts.userId, userId));
+  if (!row) return null;
+  const { ciphertext, iv, tag, ...source } = row;
+  return { ...source, refreshToken: { ciphertext, iv, tag } };
+};
+
+/**
+ * Job keywords of the user (RG-10), in no particular order; empty when none was ever given.
+ * @req RG-10
+ */
+export const findPrefilterKeywords = async (db: Executor, userId: number): Promise<string[]> => {
+  const rows = await db
+    .select({ keyword: prefilterKeywords.keyword })
+    .from(prefilterKeywords)
+    .where(eq(prefilterKeywords.userId, userId));
+  return rows.map((row) => row.keyword);
+};
+
+/**
+ * Adds job keywords to the list of the user; a keyword already listed is kept once.
+ * @req RG-10, Q-09
+ */
+export const insertPrefilterKeywords = async (
+  db: Executor,
+  userId: number,
+  keywords: readonly string[],
+): Promise<void> => {
+  if (keywords.length === 0) return;
+  await db
+    .insert(prefilterKeywords)
+    .values(keywords.map((keyword) => ({ userId, keyword })))
+    .onConflictDoNothing();
+};
+
+/**
+ * Records the known platforms and their sender domains; platforms and domains already there are left as they are.
+ * @req RG-10, EF-GML-10
+ */
+export const saveKnownPlatforms = async (
+  db: Database,
+  known: readonly { name: string; nameKey: string; domains: readonly string[] }[],
+): Promise<void> => {
+  await db.transaction(async (tx) => {
+    await tx
+      .insert(platforms)
+      .values(known.map(({ name, nameKey }) => ({ name, nameKey })))
+      .onConflictDoNothing({ target: platforms.nameKey });
+    const saved = await tx
+      .select({ id: platforms.id, nameKey: platforms.nameKey })
+      .from(platforms)
+      .where(
+        inArray(
+          platforms.nameKey,
+          known.map((platform) => platform.nameKey),
+        ),
+      );
+    const idOf = new Map(saved.map((platform) => [platform.nameKey, platform.id]));
+    const domains = known.flatMap(({ nameKey, domains: names }) => {
+      const platformId = idOf.get(nameKey);
+      return platformId === undefined ? [] : names.map((domain) => ({ platformId, domain }));
+    });
+    if (domains.length > 0) await tx.insert(platformDomains).values(domains).onConflictDoNothing();
+  });
+};
+
+/**
+ * Every known sender domain with its platform (RG-10): a small reference table, read whole.
+ * @req RG-10, EF-GML-10
+ */
+export const findPlatformDomains = async (db: Executor): Promise<Map<string, number>> => {
+  const rows = await db
+    .select({ domain: platformDomains.domain, platformId: platformDomains.platformId })
+    .from(platformDomains);
+  return new Map(rows.map((row) => [row.domain.toLowerCase(), row.platformId]));
+};
+
+/**
+ * Which of these Gmail messages the user already processed (EF-GML-06), whatever the outcome.
+ * @req EF-GML-06, ENF-FIA-03
+ */
+export const findProcessedMessageIds = async (
+  db: Executor,
+  userId: number,
+  gmailMessageIds: readonly string[],
+): Promise<Set<string>> => {
+  const found = new Set<string>();
+  for (const ids of slices(gmailMessageIds)) {
+    const rows = await db
+      .select({ id: processedMessages.gmailMessageId })
+      .from(processedMessages)
+      .where(and(eq(processedMessages.userId, userId), inArray(processedMessages.gmailMessageId, ids)));
+    for (const row of rows) found.add(row.id);
+  }
+  return found;
+};
+
+/**
+ * Marks Gmail messages as processed, without any content (Q-08); a message already marked keeps its first outcome.
+ * @req EF-GML-06, ENF-FIA-03, ENF-RGP-01
+ */
+export const insertProcessedMessages = async (
+  db: Executor,
+  processed: {
+    userId: number;
+    gmailMessageIds: readonly string[];
+    outcome: (typeof messageOutcome.enumValues)[number];
+    processedAt: Date;
+  },
+): Promise<void> => {
+  const { userId, outcome, processedAt } = processed;
+  for (const ids of slices(processed.gmailMessageIds)) {
+    await db
+      .insert(processedMessages)
+      .values(ids.map((gmailMessageId) => ({ userId, gmailMessageId, outcome, processedAt })))
+      .onConflictDoNothing();
+  }
 };

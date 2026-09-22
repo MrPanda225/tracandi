@@ -72,6 +72,13 @@ Commande de contrôle : `/project:check-req EF-CAN-07`.
 | ENF-SEC-07 | T-301 | `googleOAuth.test.ts` (scope `gmail.modify` seul) | couverte |
 | ENF-SEC-14 | T-301 | `src/modules/emails/oauthState.test.ts` (24 octets aléatoires, usage unique, 10 min, utilisateurs séparés) ; `gmail-connection.test.ts` (`state` absent, faux, expiré, rejoué ; limite de 20 retours / 15 min) | couverte |
 | ENF-SEC-10 (T-301) | T-301 | `npm run audit` après ajout de `googleapis` : aucune vulnérabilité haute ou critique | couverte |
+| EF-GML-04 | T-302, T-303 | `backend/tests/integration/gmail-fetch.test.ts` (nombre de messages lus, refus sans boîte connectée) — route de synchronisation manuelle et compteurs « retenus / classés » en T-303 | partielle |
+| EF-GML-05 | T-302 | `gmail-fetch.test.ts` (120 jours par défaut ; N = 30 : aucun message antérieur à J-30 traité) ; `src/modules/emails/mailbox.test.ts` (toutes les pages de la recherche) | couverte |
+| EF-GML-06 | T-302, T-303 | `gmail-fetch.test.ts` (message traité jamais relu, aucune ligne ajoutée, reprise une heure avant la dernière synchronisation, message supprimé entre la liste et la lecture) — messages retenus marqués traités par le classement en T-303 | partielle |
+| EF-GML-07 | T-302 | `src/modules/emails/prefilter.test.ts` ; `gmail-fetch.test.ts` (message bancaire écarté, marqué traité, jamais transmis au classement : la récupération n'a aucun accès aux fournisseurs IA) | couverte |
+| RG-10 (messages) | T-302 | `prefilter.test.ts` (mot-clé entier dans l'objet ou l'extrait, casse et accents ignorés, plateforme par domaine ou sous-domaine, listes initiales Q-09) ; `gmail-fetch.test.ts` (liste initiale donnée à la première synchronisation, liste propre de l'utilisateur ensuite) — volet offres en T-404 | couverte |
+| ENF-RGP-01 | T-302 | `mailbox.test.ts` (format `metadata` : jamais le corps ; extrait décodé, 300 caractères au plus) ; `gmail-fetch.test.ts` (champs transmis au classement) | couverte |
+| ENF-FIA-03 | T-302, T-303 | `gmail-fetch.test.ts` (panne Gmail en cours de lecture : reprise au passage suivant sans doublon) ; `src/lib/async.test.ts` — interruption pendant le classement en T-303 | partielle |
 | EF-AUT-01 | T-004 | `tests/integration/auth.test.ts` | couverte |
 | EF-AUT-02 | T-004 | `auth.test.ts` (11, 12, 129 caractères) | couverte |
 | EF-AUT-03 | T-004 | `auth.test.ts` (cookie HttpOnly, SameSite=Strict, Secure) | couverte |
