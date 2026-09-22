@@ -8,6 +8,10 @@ import { createApplicationsService } from './modules/applications/service.js';
 import { OWASP_SCRYPT_PARAMS } from './modules/auth/password.js';
 import { createAuthModules } from './modules/auth/routes.js';
 import { createAuthService } from './modules/auth/service.js';
+import { createGmailConnectionService } from './modules/emails/connection.js';
+import { connectGoogleOAuth } from './modules/emails/googleOAuth.js';
+import { createOAuthStateStore } from './modules/emails/oauthState.js';
+import { createGmailModules } from './modules/emails/routes.js';
 import { createStatsModule } from './modules/stats/routes.js';
 import { createStatsService } from './modules/stats/service.js';
 
@@ -33,6 +37,15 @@ const authService = createAuthService({
   passwordParams: OWASP_SCRYPT_PARAMS,
 });
 
+const gmailService = createGmailConnectionService({
+  db: database.db,
+  google: connectGoogleOAuth(config.gmail),
+  states: createOAuthStateStore({ clock: systemClock }),
+  encryptionKey: config.gmail.tokenEncryptionKey,
+  clock: systemClock,
+  logger,
+});
+
 const app = createApp({
   config,
   logger,
@@ -41,6 +54,7 @@ const app = createApp({
     ...createAuthModules({ service: authService, isCookieSecure: config.isCookieSecure }),
     createApplicationsModule(createApplicationsService({ db: database.db, clock: systemClock })),
     createStatsModule(createStatsService({ db: database.db, clock: systemClock })),
+    ...createGmailModules({ service: gmailService, frontendOrigin: config.frontendOrigin }),
   ],
 });
 

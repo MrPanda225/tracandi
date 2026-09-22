@@ -5,12 +5,15 @@ const NEON_URL = 'postgresql://app:pw@ep-x-pooler.eu-central-1.aws.neon.tech/tra
 // Fictitious keys: the configuration never checks them against a provider.
 const ANTHROPIC = { ANTHROPIC_API_KEY: 'sk-ant-test-key', ANTHROPIC_MODEL: 'claude-sonnet-5' };
 const GEMINI = { GEMINI_API_KEY: 'gemini-test-key', GEMINI_MODEL: 'gemini-2.5-flash' };
-const VALID_ENV = {
-  FRONTEND_ORIGIN: 'http://127.0.0.1:5173',
-  DATABASE_URL_APP: NEON_URL,
-  ...ANTHROPIC,
-  ...GEMINI,
+const ENCRYPTION_KEY_HEX = '0123456789abcdef'.repeat(4);
+const GOOGLE = {
+  GOOGLE_CLIENT_ID: 'test-client.apps.googleusercontent.com',
+  GOOGLE_CLIENT_SECRET: 'google-test-secret',
+  GOOGLE_REDIRECT_URI: 'http://localhost:4000/api/gmail/callback',
+  TOKEN_ENCRYPTION_KEY: ENCRYPTION_KEY_HEX,
 };
+const BASE_ENV = { FRONTEND_ORIGIN: 'http://127.0.0.1:5173', DATABASE_URL_APP: NEON_URL, ...GOOGLE };
+const VALID_ENV = { ...BASE_ENV, ...ANTHROPIC, ...GEMINI };
 
 describe('loadConfig', () => {
   it('[ENF-SEC-03] reads the configuration from the environment and applies defaults', () => {
@@ -26,15 +29,34 @@ describe('loadConfig', () => {
         claude: { apiKey: 'sk-ant-test-key', model: 'claude-sonnet-5' },
         gemini: { apiKey: 'gemini-test-key', model: 'gemini-2.5-flash' },
       },
+      gmail: {
+        clientId: 'test-client.apps.googleusercontent.com',
+        clientSecret: 'google-test-secret',
+        redirectUri: 'http://localhost:4000/api/gmail/callback',
+        tokenEncryptionKey: Buffer.from(ENCRYPTION_KEY_HEX, 'hex'),
+      },
     });
   });
 
+  it.each([
+    ['GOOGLE_CLIENT_ID', { ...VALID_ENV, GOOGLE_CLIENT_ID: '' }],
+    ['GOOGLE_CLIENT_SECRET', { ...VALID_ENV, GOOGLE_CLIENT_SECRET: undefined }],
+    ['GOOGLE_REDIRECT_URI', { ...VALID_ENV, GOOGLE_REDIRECT_URI: 'not a url' }],
+    ['TOKEN_ENCRYPTION_KEY', { ...VALID_ENV, TOKEN_ENCRYPTION_KEY: '' }],
+    ['TOKEN_ENCRYPTION_KEY', { ...VALID_ENV, TOKEN_ENCRYPTION_KEY: 'ab'.repeat(31) }],
+  ])('[EF-GML-01] [ENF-SEC-02] refuses to start without a valid %s', (variable, env) => {
+    expect(() => loadConfig(env)).toThrow(ConfigError);
+    expect(() => loadConfig(env)).toThrow(variable);
+  });
+
+  it('[ENF-SEC-08] never echoes the Google secret nor the encryption key in the error message', () => {
+    const env = { ...VALID_ENV, GOOGLE_REDIRECT_URI: '', TOKEN_ENCRYPTION_KEY: 'secret-looking-key-value' };
+
+    expect(() => loadConfig(env)).not.toThrow(/google-test-secret|secret-looking-key-value/);
+  });
+
   it('[EF-IA-05] starts with the Gemini key alone', () => {
-    const config = loadConfig({
-      FRONTEND_ORIGIN: 'http://127.0.0.1:5173',
-      DATABASE_URL_APP: NEON_URL,
-      ...GEMINI,
-    });
+    const config = loadConfig({ ...BASE_ENV, ...GEMINI });
 
     expect(config.llm).toEqual({ gemini: { apiKey: 'gemini-test-key', model: 'gemini-2.5-flash' } });
   });
@@ -46,7 +68,7 @@ describe('loadConfig', () => {
   });
 
   it('[EF-IA-05] refuses to start without any AI key', () => {
-    const env = { FRONTEND_ORIGIN: 'http://127.0.0.1:5173', DATABASE_URL_APP: NEON_URL };
+    const env = BASE_ENV;
 
     expect(() => loadConfig(env)).toThrow(ConfigError);
     expect(() => loadConfig(env)).toThrow('ANTHROPIC_API_KEY or GEMINI_API_KEY');

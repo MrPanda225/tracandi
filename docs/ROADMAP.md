@@ -83,10 +83,12 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
 
 ## Lot 3 — Synchronisation Gmail
 
-- [ ] **T-301 Connexion OAuth** — URL d'autorisation avec `state`, callback, chiffrement AES-256-GCM du jeton,
+- [x] **T-301 Connexion OAuth** — URL d'autorisation avec `state`, callback, chiffrement AES-256-GCM du jeton,
   révocation, statut.
   *Exigences* : EF-GML-01, 02, EF-CFG-01, ENF-SEC-02, ENF-SEC-07, ENF-SEC-14.
   *Fini quand* : tests du chiffrement (aller-retour, altération détectée) et du `state` (absent, faux, expiré).
+  *Livré* : routes `/api/gmail/*` et écran Réglages (connexion, statut, déconnexion confirmée). Le callback est public :
+  le cookie de session `SameSite=Strict` n'accompagne pas la redirection de Google, l'utilisateur est retrouvé par le `state`.
 - [ ] **T-302 Récupération incrémentale** — liste des messages depuis la dernière synchro, exclusion des connus,
   extraction métadonnées + extrait 300 car., pré-filtre RG-10.
   *Exigences* : EF-GML-04 à 07, ENF-RGP-01, ENF-FIA-03.

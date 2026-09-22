@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { describeDatabaseUrlProblem } from '../db/url.js';
+import { parseEncryptionKey } from '../lib/crypto.js';
 import type { ProviderName } from '../llm/types.js';
 
 const DEFAULT_HOST = '127.0.0.1';
@@ -38,6 +39,19 @@ const EnvSchema = z.object({
   ANTHROPIC_MODEL: optionalValue,
   GEMINI_API_KEY: optionalValue,
   GEMINI_MODEL: optionalValue,
+  // EF-GML-01: OAuth client of the Google Cloud project, for the Gmail connection from the interface.
+  GOOGLE_CLIENT_ID: z.string().min(1),
+  GOOGLE_CLIENT_SECRET: z.string().min(1),
+  GOOGLE_REDIRECT_URI: z.string().url(),
+  // ENF-SEC-02: key of the refresh tokens at rest (`openssl rand -hex 32`).
+  TOKEN_ENCRYPTION_KEY: z.string().transform((value, context) => {
+    try {
+      return parseEncryptionKey(value);
+    } catch (error) {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: (error as Error).message });
+      return z.NEVER;
+    }
+  }),
 });
 
 const requireAiProviders = (env: z.infer<typeof EnvSchema>, context: z.RefinementCtx): void => {
@@ -66,6 +80,16 @@ export interface Config {
   isCookieSecure: boolean;
   /** Configured AI providers only (EF-IA-05). */
   llm: Partial<Record<ProviderName, LlmProviderConfig>>;
+  /** EF-GML-01, ENF-SEC-02 */
+  gmail: GmailConfig;
+}
+
+/** OAuth client of the Gmail connection and key of the tokens at rest. */
+export interface GmailConfig {
+  clientId: string;
+  clientSecret: string;
+  redirectUri: string;
+  tokenEncryptionKey: Buffer;
 }
 
 /**
@@ -104,6 +128,12 @@ export const loadConfig = (env: Record<string, string | undefined>): Config => {
         ? { claude: { apiKey: ANTHROPIC_API_KEY, model: ANTHROPIC_MODEL } }
         : {}),
       ...(GEMINI_API_KEY && GEMINI_MODEL ? { gemini: { apiKey: GEMINI_API_KEY, model: GEMINI_MODEL } } : {}),
+    },
+    gmail: {
+      clientId: result.data.GOOGLE_CLIENT_ID,
+      clientSecret: result.data.GOOGLE_CLIENT_SECRET,
+      redirectUri: result.data.GOOGLE_REDIRECT_URI,
+      tokenEncryptionKey: result.data.TOKEN_ENCRYPTION_KEY,
     },
   };
 };

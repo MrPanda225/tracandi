@@ -7,6 +7,7 @@ import { ApplicationsCacheProvider } from './pages/applications/useApplications'
 import { AuthPage } from './pages/auth/AuthPage';
 import { DashboardPage } from './pages/dashboard/DashboardPage';
 import { DashboardCacheProvider } from './pages/dashboard/useDashboard';
+import { SettingsPage } from './pages/settings/SettingsPage';
 import { UpcomingPage } from './pages/UpcomingPage';
 
 /** The screens not built yet (T-003 shell), each stating what it will offer instead of an empty page. */
@@ -25,11 +26,6 @@ const UPCOMING_SCREENS = [
     path: '/atelier-cv',
     title: 'Atelier CV',
     promise: 'La génération d’un CV adapté à chaque offre et d’une réponse de motivation.',
-  },
-  {
-    path: '/reglages',
-    title: 'Réglages',
-    promise: 'La connexion de votre boîte Gmail et les seuils de suivi.',
   },
 ] as const;
 
@@ -62,6 +58,7 @@ export function App() {
         >
           <Route path="/" element={<DashboardPage />} />
           <Route path="/candidatures" element={<ApplicationsPage />} />
+          <Route path="/reglages" element={<SettingsPage />} />
           {UPCOMING_SCREENS.map((screen) => (
             <Route
               key={screen.path}

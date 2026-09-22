@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import type { Express } from 'express';
 import request from 'supertest';
@@ -8,6 +9,10 @@ import { createApplicationsModule } from '../../src/modules/applications/routes.
 import { createApplicationsService } from '../../src/modules/applications/service.js';
 import { createAuthModules } from '../../src/modules/auth/routes.js';
 import { createAuthService } from '../../src/modules/auth/service.js';
+import { createGmailConnectionService } from '../../src/modules/emails/connection.js';
+import type { GoogleOAuth } from '../../src/modules/emails/googleOAuth.js';
+import { createOAuthStateStore } from '../../src/modules/emails/oauthState.js';
+import { createGmailModules } from '../../src/modules/emails/routes.js';
 import { createStatsModule } from '../../src/modules/stats/routes.js';
 import { createStatsService } from '../../src/modules/stats/service.js';
 import { testDatabaseUrl } from './test-database.js';
@@ -40,16 +45,37 @@ export interface TestContext {
   app: Express;
   database: DatabaseHandle;
   clock: TestClock;
+  /** Key of the Gmail tokens at rest in this context (ENF-SEC-02). */
+  encryptionKey: Buffer;
 }
 
-/** Real application on the local test database, with an injectable clock. */
-export const createTestContext = (database: DatabaseHandle): TestContext => {
+/** Google that must never be reached: tests needing Google pass their own fake. */
+const unreachableGoogle: GoogleOAuth = {
+  authorizationUrl: (state) => `https://accounts.google.com/o/oauth2/v2/auth?state=${state}`,
+  exchangeCode: () => Promise.reject(new Error('Google must not be called in this test')),
+  revoke: () => Promise.reject(new Error('Google must not be called in this test')),
+};
+
+/** Real application on the local test database, with an injectable clock and a fake Google. */
+export const createTestContext = (
+  database: DatabaseHandle,
+  { google = unreachableGoogle }: { google?: GoogleOAuth } = {},
+): TestContext => {
   const clock = createTestClock(new Date('2026-09-22T08:00:00.000Z'));
   const logger = createLogger({ write: () => undefined });
+  const encryptionKey = randomBytes(32);
   const authService = createAuthService({
     db: database.db,
     clock: clock.now,
     passwordParams: TEST_PASSWORD_PARAMS,
+  });
+  const gmailService = createGmailConnectionService({
+    db: database.db,
+    google,
+    states: createOAuthStateStore({ clock: clock.now }),
+    encryptionKey,
+    clock: clock.now,
+    logger,
   });
   const app = createApp({
     config: { frontendOrigin: FRONTEND_ORIGIN },
@@ -59,9 +85,10 @@ export const createTestContext = (database: DatabaseHandle): TestContext => {
       ...createAuthModules({ service: authService, isCookieSecure: true }),
       createApplicationsModule(createApplicationsService({ db: database.db, clock: clock.now })),
       createStatsModule(createStatsService({ db: database.db, clock: clock.now })),
+      ...createGmailModules({ service: gmailService, frontendOrigin: FRONTEND_ORIGIN }),
     ],
   });
-  return { app, database, clock };
+  return { app, database, clock, encryptionKey };
 };
 
 export const openTestDatabase = (): DatabaseHandle =>

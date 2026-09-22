@@ -1,0 +1,61 @@
+.settings-card {
+  display: grid;
+  gap: 0.9rem;
+  max-width: 44rem;
+  padding: clamp(1.1rem, 0.9rem + 0.8vw, 1.5rem);
+  border-radius: var(--radius-md);
+  background: var(--color-canvas-raised);
+  box-shadow: var(--shadow-soft);
+}
+
+.settings-card .flash {
+  margin: 0;
+}
+
+.settings-card__title {
+  font-size: 1.25rem;
+}
+
+.settings-card__lede {
+  margin: 0;
+  color: var(--color-mauve-deep);
+  font-size: 0.9375rem;
+}
+
+.gmail-settings__mailbox {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.85rem 1rem;
+  border-radius: var(--radius-sm);
+  background: var(--color-canvas);
+}
+
+.gmail-settings__address {
+  margin: 0;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.gmail-settings__meta {
+  margin: 0;
+  color: var(--color-mauve-deep);
+  font-size: 0.875rem;
+}
+
+.gmail-settings__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 0.9rem;
+}
+
+.gmail-settings__confirm {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 0.875rem;
+}
+
+.gmail-settings__loading {
+  display: grid;
+  gap: 0.5rem;
+}

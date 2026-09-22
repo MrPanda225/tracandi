@@ -65,6 +65,13 @@ Commande de contrôle : `/project:check-req EF-CAN-07`.
 | ENF-SEC-06 | T-202 | `backend/src/llm/prompts/untrusted.test.ts` (encadrement, balise fermante neutralisée, avis « donnée, jamais une instruction ») ; `prompts/classifyEmails.test.ts` (chaque message entre balises, message hostile qui ne peut pas sortir de sa balise, avis dans l'instruction système) | couverte |
 | EF-GML-08 à 10, 19 (prompt et schéma) | T-202, T-303 | `classifyEmails.test.ts` (catégories, employeur, plateforme, intitulé, contrat demandés) ; `src/modules/emails/classification.test.ts` (catégorie et contrat hors liste refusés, nom vide = absent) — classement réel des fixtures en T-303 | partielle |
 | ENF-SEC-10 (T-201) | T-201 | `npm run audit` après ajout de `@anthropic-ai/sdk` et `@google/genai` : aucune vulnérabilité haute ou critique | couverte |
+| EF-GML-01 | T-301 | `backend/tests/integration/gmail-connection.test.ts` (adresse de consentement, adresse connectée visible par ce seul utilisateur, refus, échec Google, reconnexion de la même boîte, autre boîte) ; `src/modules/emails/googleOAuth.test.ts` ; `frontend/src/pages/settings/SettingsPage.test.tsx` (redirection vers Google, 4 issues du retour affichées une fois) | couverte |
+| EF-GML-02 | T-301 | `gmail-connection.test.ts` (jeton révoqué chez Google et absent de la base, même si Google est injoignable ; connexion d'un autre utilisateur intouchable) ; `SettingsPage.test.tsx` (confirmation, annulation) | couverte |
+| EF-CFG-01 | T-301, T-302 | `gmail-connection.test.ts` (statut : adresse, date de connexion) ; `SettingsPage.test.tsx` (adresse, date de connexion, dernière synchronisation ou « pas encore ») — date renseignée par la synchronisation en T-302 | partielle |
+| ENF-SEC-02 | T-301 | `src/lib/crypto.test.ts` (aller-retour, IV neuf, altération du chiffré, du tag ou de l'IV détectée, autre clé refusée, clé de 64 caractères hexadécimaux) ; `gmail-connection.test.ts` (jeton jamais stocké en clair) | couverte |
+| ENF-SEC-07 | T-301 | `googleOAuth.test.ts` (scope `gmail.modify` seul) | couverte |
+| ENF-SEC-14 | T-301 | `src/modules/emails/oauthState.test.ts` (24 octets aléatoires, usage unique, 10 min, utilisateurs séparés) ; `gmail-connection.test.ts` (`state` absent, faux, expiré, rejoué ; limite de 20 retours / 15 min) | couverte |
+| ENF-SEC-10 (T-301) | T-301 | `npm run audit` après ajout de `googleapis` : aucune vulnérabilité haute ou critique | couverte |
 | EF-AUT-01 | T-004 | `tests/integration/auth.test.ts` | couverte |
 | EF-AUT-02 | T-004 | `auth.test.ts` (11, 12, 129 caractères) | couverte |
 | EF-AUT-03 | T-004 | `auth.test.ts` (cookie HttpOnly, SameSite=Strict, Secure) | couverte |
