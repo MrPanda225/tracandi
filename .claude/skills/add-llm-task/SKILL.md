@@ -21,8 +21,11 @@ eux-mêmes ne sont jamais modifiés (ENF-MAI-04).
    (entiers 0–100, longueurs max, énumérations). Le schéma est la seule barrière contre une sortie aberrante.
 4. **Prompt** : créer `backend/src/llm/prompts/<task>.ts` exportant une fonction pure `(input) => { system, prompt }`.
    - Instruction système en français, décrit le format JSON attendu.
-   - Tout contenu externe entre balises (`<email>`, `<offer>`, `<page_text>`) + phrase standard `UNTRUSTED_CONTENT_NOTICE`.
-   - Tronquer les entrées longues (constante nommée) pour maîtriser le coût.
+   - Tout contenu externe encadré par `frameUntrusted('<tag>', contenu, attributs)` (`llm/prompts/untrusted.ts`, balises
+     `<email>`, `<offer>`, `<page_text>`) + phrase standard `UNTRUSTED_CONTENT_NOTICE` en fin d'instruction système.
+     `frameUntrusted` neutralise toute balise du même nom dans le contenu : ne jamais concaténer à la main.
+   - Tronquer les entrées longues avec `truncate(texte, CONSTANTE_NOMMÉE)` pour maîtriser le coût.
+   - Modèle de référence : `llm/prompts/classifyEmails.ts` et son test.
 5. **Appel** : dans le service métier, `const { data, provider } = await runTask('<task>', { ...buildPrompt(input), schema })`.
    Traiter par lots si plusieurs éléments.
 6. **Tests** :

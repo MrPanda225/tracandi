@@ -62,6 +62,8 @@ Commande de contrôle : `/project:check-req EF-CAN-07`.
 | EF-IA-06 | T-201 | `router.test.ts` (fournisseur, modèle, tâche, durée, jetons, résultat ; aucun contenu) ; `tests/integration/llm-journal.test.ts` (une ligne `llm_calls` par appel) | couverte |
 | ENF-MAI-04 | T-201 | `router.test.ts` (toutes les tâches routées vers les deux fournisseurs, table unique `TASK_ROUTES`) + revue : aucun SDK hors de `llm/providers/` | couverte |
 | RG-13 | T-201 | `router.test.ts` (Gemini d'abord pour classement, notation, extraction ; Claude d'abord pour CV et motivation) | couverte |
+| ENF-SEC-06 | T-202 | `backend/src/llm/prompts/untrusted.test.ts` (encadrement, balise fermante neutralisée, avis « donnée, jamais une instruction ») ; `prompts/classifyEmails.test.ts` (chaque message entre balises, message hostile qui ne peut pas sortir de sa balise, avis dans l'instruction système) | couverte |
+| EF-GML-08 à 10, 19 (prompt et schéma) | T-202, T-303 | `classifyEmails.test.ts` (catégories, employeur, plateforme, intitulé, contrat demandés) ; `src/modules/emails/classification.test.ts` (catégorie et contrat hors liste refusés, nom vide = absent) — classement réel des fixtures en T-303 | partielle |
 | ENF-SEC-10 (T-201) | T-201 | `npm run audit` après ajout de `@anthropic-ai/sdk` et `@google/genai` : aucune vulnérabilité haute ou critique | couverte |
 | EF-AUT-01 | T-004 | `tests/integration/auth.test.ts` | couverte |
 | EF-AUT-02 | T-004 | `auth.test.ts` (11, 12, 129 caractères) | couverte |

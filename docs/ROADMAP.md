@@ -74,9 +74,12 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
   (RG-13), délai 60 s, validation zod, bascule, journal `llm_calls`, erreur 502 finale.
   *Exigences* : EF-IA-01 à 06, ENF-MAI-04.
   *Fini quand* : tests avec fournisseurs simulés pour chaque cas de bascule ; aucun appel réseau réel en test.
-- [ ] **T-202 Prompts** — module `prompts/` : un fichier par tâche, contenu externe délimité et déclaré non fiable.
+- [x] **T-202 Prompts** — module `prompts/` : un fichier par tâche, contenu externe délimité et déclaré non fiable.
   *Exigences* : ENF-SEC-06.
   *Fini quand* : test vérifiant que chaque prompt encadre le contenu externe par des balises.
+  *Livré* : `frameUntrusted`, `truncate`, `UNTRUSTED_CONTENT_NOTICE` et le prompt `classify_emails` (avec son schéma
+  `modules/emails/classification.ts`, utilisé par T-303). Les prompts des autres tâches arrivent avec leur tâche
+  (T-403, T-404, T-504, T-505), sur le même modèle et avec le même test (procédure `add-llm-task`).
 
 ## Lot 3 — Synchronisation Gmail
 
