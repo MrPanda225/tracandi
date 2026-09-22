@@ -14,6 +14,7 @@ import type { MessageFetcher, RetainedMessage } from './fetcher.js';
 import { createThreadLabeler, databaseLabelCache, type ThreadLabeler } from './labels.js';
 import { isInvalidGrant } from './mailbox.js';
 import type { PlatformRef } from './prefilter.js';
+import { isRateLimited } from './quota.js';
 import * as repository from './repository.js';
 import type { Executor } from './repository.js';
 
@@ -44,13 +45,28 @@ export class GmailAuthorizationExpiredError extends HttpError {
   }
 }
 
+/**
+ * Gmail still refused the calls of the pass once the attempts were spent (quota of the minute exhausted). What was
+ * read and classified is kept; the next pass continues from there (503, ENF-FIA-03).
+ */
+export class GmailQuotaExceededError extends HttpError {
+  constructor() {
+    super(
+      503,
+      'Gmail limite temporairement le nombre de requêtes. Les messages déjà lus sont enregistrés : ' +
+        'relancez la synchronisation dans quelques minutes.',
+    );
+  }
+}
+
 export interface GmailSync {
   /**
    * Reads the new messages, classifies the retained ones by batches of 10, stores them and updates the applications
    * (RG-03, RG-04), then moves the date of the last synchronisation. Every execution is journaled in `job_runs`.
    * @throws GmailNotConnectedError (409), SyncAlreadyRunningError (409), GmailAuthorizationExpiredError (409, the
-   * connection is marked expired), LlmUnavailableError (502: the batches classified before are kept, the others wait
-   * for the next pass), or a Gmail or database failure.
+   * connection is marked expired), GmailQuotaExceededError (503, Gmail's quota still refused the calls),
+   * LlmUnavailableError (502: the batches classified before are kept, the others wait for the next pass), or a Gmail
+   * or database failure.
    */
   synchronise: (userId: number, trigger: TriggerType) => Promise<SyncReport>;
   /**
@@ -224,7 +240,11 @@ const createSyncRun = ({
   };
 
   /** EF-GML-13 to 16: labels of what the batch changed, every thread of a touched application relabelled. */
-  const labelBatch = async (userId: number, labeler: ThreadLabeler, recorded: RecordedBatch): Promise<void> => {
+  const labelBatch = async (
+    userId: number,
+    labeler: ThreadLabeler,
+    recorded: RecordedBatch,
+  ): Promise<void> => {
     try {
       for (const target of await findApplicationThreads(db, userId, recorded.applicationIds)) {
         await labeler.labelApplication(target);
@@ -238,7 +258,8 @@ const createSyncRun = ({
 
   const run = async (userId: number): Promise<SyncReport> => {
     const startedAt = clock();
-    const { readCount, retained, mailbox, shouldApplyLabels } = await fetcher.fetchNewMessages(userId);
+    const { readCount, retained, mailbox, shouldApplyLabels, hasMore } =
+      await fetcher.fetchNewMessages(userId);
     // EF-GML-17: read-only mode, no label is ever written.
     const labeler = shouldApplyLabels
       ? createThreadLabeler({ mailbox, cache: databaseLabelCache(db, userId) })
@@ -252,11 +273,14 @@ const createSyncRun = ({
       if (labeler) await labelBatch(userId, labeler, recorded);
       classified += pairs.length;
     }
-    // A message the AI skipped is still unprocessed: the next pass must read it again from the same date.
-    if (classified === retained.length) await repository.setLastSyncAt(db, userId, startedAt);
+    // A message the AI skipped, or one the bounded pass left behind, is still unprocessed: the next pass must list
+    // it again from the same date.
+    const isComplete = !hasMore && classified === retained.length;
+    if (isComplete) await repository.setLastSyncAt(db, userId, startedAt);
     else
       logger.warn('gmail messages left for the next synchronisation', {
         unclassified: retained.length - classified,
+        hasMore,
       });
     return { read: readCount, retained: retained.length, classified };
   };
@@ -278,6 +302,7 @@ export const createGmailSync = (deps: GmailSyncDeps): GmailSync => {
     try {
       return await run(userId);
     } catch (error) {
+      if (isRateLimited(error)) throw new GmailQuotaExceededError();
       if (!isInvalidGrant(error)) throw error;
       await repository.markAuthorizationExpired(db, userId, clock());
       throw new GmailAuthorizationExpiredError();

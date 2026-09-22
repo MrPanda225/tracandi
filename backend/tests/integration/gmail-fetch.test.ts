@@ -12,6 +12,7 @@ import { encryptSecret } from '../../src/lib/crypto.js';
 import {
   createMessageFetcher,
   GmailNotConnectedError,
+  MAX_MESSAGES_PER_PASS,
   SYNC_OVERLAP_MS,
 } from '../../src/modules/emails/fetcher.js';
 import { createGmailMailbox } from '../../src/modules/emails/mailbox.js';
@@ -24,6 +25,7 @@ import {
   LONG_NEWSLETTER,
   MCDONALDS_ACKNOWLEDGEMENT,
   OLD_SPONTANEOUS_APPLICATION,
+  otherMessages,
   SENT_APPLICATION,
 } from '../fixtures/emails/messages.js';
 import {
@@ -146,6 +148,23 @@ describe('MessageFetcher — first synchronisation', () => {
     await newFetcher().fetchNewMessages(aliceId);
 
     expect(openedWith).toEqual([REFRESH_TOKEN]);
+  });
+
+  it('[ENF-FIA-03] [ENF-PERF-02] reads one bounded pass and leaves the older messages to the next one', async () => {
+    await connectMailbox(aliceId);
+    // Gmail's quota per minute and per user forbids reading a large mailbox in one go.
+    for (const message of otherMessages(MAX_MESSAGES_PER_PASS)) gmail.deliver(message);
+    const fetcher = newFetcher();
+
+    const first = await fetcher.fetchNewMessages(aliceId);
+    const second = await fetcher.fetchNewMessages(aliceId);
+
+    expect(first.readCount).toBe(MAX_MESSAGES_PER_PASS);
+    expect(first.hasMore).toBe(true);
+    expect(second.readCount).toBe(MAILBOX.length);
+    expect(second.hasMore).toBe(false);
+    // No message is read twice: the first pass marked what it read as processed.
+    expect(new Set(gmail.readIds).size).toBe(MAX_MESSAGES_PER_PASS + MAILBOX.length);
   });
 
   it('[EF-GML-04] refuses to synchronise without a connected mailbox', async () => {

@@ -14,6 +14,7 @@ import {
   users,
 } from '../../src/db/schema.js';
 import { encryptSecret } from '../../src/lib/crypto.js';
+import { MAX_MESSAGES_PER_PASS } from '../../src/modules/emails/fetcher.js';
 import { createGmailMailbox } from '../../src/modules/emails/mailbox.js';
 import { saveGmailAccount } from '../../src/modules/emails/repository.js';
 import { createFakeGmail, type FakeGmail } from '../fixtures/emails/fakeGmail.js';
@@ -29,6 +30,7 @@ import {
   MCDONALDS_ACKNOWLEDGEMENT,
   MCDONALDS_INTERVIEW,
   OLD_SPONTANEOUS_APPLICATION,
+  otherMessages,
   SENT_APPLICATION,
 } from '../fixtures/emails/messages.js';
 import { createScriptedClassifier, type ScriptedClassifier } from '../fixtures/llm/classifications.js';
@@ -459,6 +461,36 @@ describe('incremental and interrupted synchronisations', () => {
     expect(resumed.body).toEqual({ read: 2, retained: 2, classified: 2 });
     expect((await emailsOf()).map((email) => email.gmailMessageId)).toEqual(alerts.map((m) => m.id));
     expect(await lastSyncAt()).toEqual(SYNC_TIME);
+  });
+
+  it('[ENF-FIA-03] leaves the messages beyond one pass for the next one, without moving the last synchronisation', async () => {
+    await setUp([SENT_APPLICATION, MCDONALDS_ACKNOWLEDGEMENT, ...otherMessages(MAX_MESSAGES_PER_PASS)]);
+
+    const first = await synchronise();
+
+    expect(first.body).toEqual({ read: MAX_MESSAGES_PER_PASS, retained: 0, classified: 0 });
+    expect(await lastSyncAt()).toBeNull();
+    expect(ai.requests).toHaveLength(0);
+
+    const second = await synchronise();
+
+    expect(second.body).toEqual({ read: 2, retained: 2, classified: 2 });
+    expect(await lastSyncAt()).toEqual(SYNC_TIME);
+  });
+
+  it('[ENF-FIA-03] answers a Gmail quota refusal with an explicit message, not an internal error', async () => {
+    await setUp([SENT_APPLICATION, MCDONALDS_ACKNOWLEDGEMENT]);
+    // Gmail's answer once the attempts of the quota governor are spent.
+    gmail.client.get = () =>
+      Promise.reject(
+        Object.assign(new Error("Quota exceeded for quota metric 'Total Query Cost'"), { status: 429 }),
+      );
+
+    const refused = await synchronise();
+
+    expect(refused.status).toBe(503);
+    expect((refused.body as { error: string }).error).toContain('Gmail limite temporairement');
+    expect(await lastSyncAt()).toBeNull();
   });
 
   it('[ENF-FIA-03] leaves a message the AI skipped for the next pass, without moving the last synchronisation', async () => {

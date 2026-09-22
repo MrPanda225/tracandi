@@ -83,10 +83,12 @@ const ROUTES: RouteConfig[] = [
       'EF-GML-04. Lit les nouveaux messages reçus et envoyés, écarte sans IA ceux sans indicateur d’emploi (RG-10), ' +
       'classe les autres par lots de 10, met à jour les candidatures (RG-03, RG-04) puis les libellés Gmail des fils ' +
       '(RG-05, sauf lecture seule). 409 sans boîte connectée ou ' +
-      'pendant une synchronisation ; 502 si aucun fournisseur d’IA ne répond (les lots déjà classés sont conservés).',
+      'pendant une synchronisation ; 502 si aucun fournisseur d’IA ne répond (les lots déjà classés sont conservés) ; ' +
+      '503 si Gmail limite les requêtes malgré les réessais (les messages déjà lus sont conservés). ' +
+      'Une passe lit au plus 400 nouveaux messages : la première synchronisation en demande plusieurs.',
     responses: {
       200: jsonResponse('Compteurs de la synchronisation', SyncReportSchema),
-      ...errorResponses(401, 409, 415, 502),
+      ...errorResponses(401, 409, 415, 502, 503),
     },
   },
 ];

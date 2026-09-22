@@ -38,6 +38,11 @@ export interface FetchResult {
   mailbox: GmailMailbox;
   /** EF-GML-17: false when the user turned the writing of labels off. */
   shouldApplyLabels: boolean;
+  /**
+   * True when the pass stopped at `MAX_MESSAGES_PER_PASS`: messages older than the ones read are still waiting.
+   * The date of the last synchronisation must not move, so that the next pass lists them again (ENF-FIA-03).
+   */
+  hasMore: boolean;
 }
 
 export interface MessageFetcher {
@@ -61,8 +66,15 @@ const DAY_MS = 24 * 60 * 60_000;
 const MS_PER_SECOND = 1000;
 // Gmail indexes a message shortly after its arrival: the last hour is read again, known messages skipped (EF-GML-06).
 export const SYNC_OVERLAP_MS = 60 * 60_000;
-// ENF-PERF-02 within Gmail's quota (250 units per second and user, 5 per message read).
+// ENF-PERF-02; the quota governor of the mailbox spaces these calls (200 units per second, 5 per message read).
 const READ_CONCURRENCY = 10;
+/**
+ * Messages read in one pass. The first synchronisation of a mailbox covers N days and may list thousands of
+ * messages: they are read over several passes, each one short enough for the manual synchronisation to answer and
+ * for Gmail's quota per minute to hold. The messages read are marked processed, so a pass never redoes the previous
+ * one (ENF-FIA-03).
+ */
+export const MAX_MESSAGES_PER_PASS = 400;
 
 /**
  * Instant from which messages are read: one overlap before the last synchronisation, or N days back for the first.
@@ -140,11 +152,10 @@ export const createMessageFetcher = ({
       ]);
       const unique = [...new Set(listed)];
       const known = await repository.findProcessedMessageIds(db, userId, unique);
-      const read = await mapWithConcurrency(
-        unique.filter((id) => !known.has(id)),
-        READ_CONCURRENCY,
-        (id) => mailbox.getMessage(id),
-      );
+      // Gmail lists the newest messages first: a bounded pass reads those, the older ones wait for the next one.
+      const unread = unique.filter((id) => !known.has(id));
+      const toRead = unread.slice(0, MAX_MESSAGES_PER_PASS);
+      const read = await mapWithConcurrency(toRead, READ_CONCURRENCY, (id) => mailbox.getMessage(id));
       // EF-GML-05: the search bounds the listing, the date of each message decides.
       const messages = read.filter(
         (message): message is MailboxMessage => message !== null && message.receivedAt >= since,
@@ -164,7 +175,13 @@ export const createMessageFetcher = ({
         .filter((message) => isKept.get(message))
         .sort(byReceptionDate)
         .map((message) => ({ ...message, platform: prefilter.platformOf(message.fromAddress) }));
-      return { readCount: messages.length, retained, mailbox, shouldApplyLabels: source.shouldApplyLabels };
+      return {
+        readCount: messages.length,
+        retained,
+        mailbox,
+        shouldApplyLabels: source.shouldApplyLabels,
+        hasMore: unread.length > toRead.length,
+      };
     },
   };
 };

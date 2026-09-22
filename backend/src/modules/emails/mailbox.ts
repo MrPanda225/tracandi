@@ -2,6 +2,7 @@
 import { auth, gmail, type gmail_v1 } from 'googleapis/build/src/apis/gmail/index.js';
 import { z } from 'zod';
 import type { GoogleOAuthConfig } from './googleOAuth.js';
+import { type GmailRetry, throttleGmailClient } from './quota.js';
 
 /** ENF-RGP-01: at most 300 characters of a message are kept, besides its metadata. */
 export const SNIPPET_MAX_LENGTH = 300;
@@ -24,7 +25,9 @@ export interface GmailClient {
   listLabels: (
     params: gmail_v1.Params$Resource$Users$Labels$List,
   ) => Promise<{ data: gmail_v1.Schema$ListLabelsResponse }>;
-  createLabel: (params: gmail_v1.Params$Resource$Users$Labels$Create) => Promise<{ data: gmail_v1.Schema$Label }>;
+  createLabel: (
+    params: gmail_v1.Params$Resource$Users$Labels$Create,
+  ) => Promise<{ data: gmail_v1.Schema$Label }>;
   modifyThread: (params: gmail_v1.Params$Resource$Users$Threads$Modify) => Promise<unknown>;
 }
 
@@ -59,7 +62,10 @@ export interface GmailMailbox {
   /** Creates a label shown in the label list and on messages; returns its id. */
   createLabel: (name: string) => Promise<string>;
   /** Adds and removes labels on every message of a thread (EF-GML-13 to 16). */
-  modifyThread: (threadId: string, change: { add: readonly string[]; remove: readonly string[] }) => Promise<void>;
+  modifyThread: (
+    threadId: string,
+    change: { add: readonly string[]; remove: readonly string[] },
+  ) => Promise<void>;
 }
 
 /** Opens the mailbox authorised by a (clear) refresh token. */
@@ -154,7 +160,8 @@ const INVALID_GRANT = 'invalid_grant';
 export const isInvalidGrant = (error: unknown): boolean => {
   if (!(error instanceof Error)) return false;
   const answer = (error as { response?: { data?: unknown } }).response?.data;
-  const answerError = typeof answer === 'object' && answer !== null && 'error' in answer ? answer.error : null;
+  const answerError =
+    typeof answer === 'object' && answer !== null && 'error' in answer ? answer.error : null;
   return error.message === INVALID_GRANT || answerError === INVALID_GRANT;
 };
 
@@ -220,11 +227,15 @@ export const createGmailMailbox = (client: GmailClient): GmailMailbox => ({
 
 /**
  * Opens mailboxes on the real Gmail API with the OAuth client of the configuration; the access token is renewed from
- * the refresh token by the Google client.
- * @req EF-GML-03, EF-GML-13
+ * the refresh token by the Google client. Each mailbox has its own quota governor: Gmail counts its limits per user,
+ * and the calls of one synchronisation are spaced and attempted again accordingly (ENF-FIA-03).
+ * @req EF-GML-03, EF-GML-13, ENF-FIA-03
  */
 export const connectGmailMailbox =
-  ({ clientId, clientSecret, redirectUri }: GoogleOAuthConfig): OpenMailbox =>
+  (
+    { clientId, clientSecret, redirectUri }: GoogleOAuthConfig,
+    { onRetry }: { onRetry?: (retry: GmailRetry) => void } = {},
+  ): OpenMailbox =>
   (refreshToken) => {
     const client = new auth.OAuth2(clientId, clientSecret, redirectUri);
     client.setCredentials({ refresh_token: refreshToken });
@@ -233,11 +244,16 @@ export const connectGmailMailbox =
       auth: client,
       timeout: GMAIL_REQUEST_TIMEOUT_MS,
     }).users;
-    return createGmailMailbox({
-      list: (params) => messages.list(params),
-      get: (params) => messages.get(params),
-      listLabels: (params) => labels.list(params),
-      createLabel: (params) => labels.create(params),
-      modifyThread: (params) => threads.modify(params),
-    });
+    return createGmailMailbox(
+      throttleGmailClient(
+        {
+          list: (params) => messages.list(params),
+          get: (params) => messages.get(params),
+          listLabels: (params) => labels.list(params),
+          createLabel: (params) => labels.create(params),
+          modifyThread: (params) => threads.modify(params),
+        },
+        { onRetry },
+      ),
+    );
   };

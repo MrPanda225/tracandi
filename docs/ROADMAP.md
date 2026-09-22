@@ -98,6 +98,10 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
   synchronisation, plateformes connues enregistrées dans `platforms`). Les messages retenus ne sont marqués traités
   qu'après leur classement : la route `POST /api/gmail/sync`, ses compteurs et la date de dernière synchronisation
   arrivent donc avec T-303.
+  *Correctif du 22/09/2026* : quota Gmail (`lib/rateLimiter.ts`, `modules/emails/quota.ts`) — appels espacés à
+  200 unités/seconde (limite Google : 250), réessais avec attente exponentielle sur 429, 403 de quota et 5xx,
+  passe bornée à 400 messages lus (`MAX_MESSAGES_PER_PASS`) avec reprise au passage suivant ; refus persistant
+  renvoyé en 503 explicite au lieu d'une erreur interne.
 - [x] **T-303 Classement et rattachement** — tâche IA de classement par lots de 10, rattachement RG-03,
   statuts RG-04, persistance des messages.
   *Exigences* : EF-GML-08 à 12, EF-GML-19, EF-CAN-11 ; fin d'EF-GML-04 et 06, ENF-FIA-03 (route de synchronisation).

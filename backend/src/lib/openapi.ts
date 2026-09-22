@@ -34,6 +34,7 @@ const ERROR_DESCRIPTIONS: Record<number, string> = {
   415: 'Le type de contenu doit être application/json',
   429: 'Trop de requêtes',
   500: 'Erreur interne du serveur',
+  503: 'Service tiers momentanément indisponible',
 };
 
 /** OpenAPI responses for the given error status codes, all sharing the `Error` schema. */

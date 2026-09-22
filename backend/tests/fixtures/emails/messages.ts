@@ -162,3 +162,19 @@ export const jobAlerts = (count: number): gmail_v1.Schema$Message[] =>
       snippet: 'Cinq nouvelles offres correspondent à votre recherche de data analyst à Lyon.',
     }),
   );
+
+/**
+ * `count` messages without any job keyword (set aside by RG-10), one a minute from 2026-09-20: a mailbox large
+ * enough for one synchronisation pass not to read it whole.
+ */
+export const otherMessages = (count: number): gmail_v1.Schema$Message[] =>
+  Array.from({ length: count }, (_, index) =>
+    metadata({
+      id: `18f0c0000000${String(index).padStart(4, '0')}`,
+      threadId: `18f0c0000000${String(index).padStart(4, '0')}`,
+      receivedAt: new Date(Date.UTC(2026, 8, 20, 0, index)).toISOString(),
+      from: 'Le Panier Bio <lettre@panier-bio.example>',
+      subject: `Votre panier de la semaine n° ${index + 1}`,
+      snippet: 'Les paniers de légumes de la semaine sont en ligne, retrait samedi au point relais.',
+    }),
+  );

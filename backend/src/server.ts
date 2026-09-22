@@ -70,7 +70,11 @@ const gmailSync = createGmailSync({
   db: database.db,
   fetcher: createMessageFetcher({
     db: database.db,
-    openMailbox: connectGmailMailbox(config.gmail),
+    openMailbox: connectGmailMailbox(config.gmail, {
+      // ENF-FIA-03: a quota refusal or a Gmail outage is attempted again; the journal keeps why the pass was slow.
+      onRetry: ({ attempt, delayMs, error }) =>
+        logger.warn('gmail call attempted again', { attempt, delayMs, error }),
+    }),
     encryptionKey: config.gmail.tokenEncryptionKey,
     clock: systemClock,
   }),
