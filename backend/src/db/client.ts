@@ -3,8 +3,11 @@ import pg from 'pg';
 import type { Logger } from '../lib/logger.js';
 import * as schema from './schema.js';
 
-const POOL_MAX_CONNECTIONS = 5;
-const IDLE_TIMEOUT_MS = 30_000;
+// The dashboard sends 7 queries at once (stats service): a smaller pool queues some of them for one more round trip
+// to Neon, which costs far more than the queries themselves (< 1 ms each, ENF-PERF-05).
+const POOL_MAX_CONNECTIONS = 10;
+// Coming back to a screen within minutes reuses open TLS connections instead of opening new ones to Neon.
+const IDLE_TIMEOUT_MS = 5 * 60_000;
 // Neon suspends idle computes: the first connection may take several seconds (cold start).
 const CONNECTION_TIMEOUT_MS = 15_000;
 

@@ -37,9 +37,13 @@ Environnement : **PostgreSQL hébergé par Neon (région UE), base < 0,5 Go, RPO
 - Écritures multi-tables dans `db.transaction()` ; `for('update')` si lecture-puis-écriture concurrente.
 - Upsert : `onConflictDoUpdate` / `onConflictDoNothing` sur une contrainte unique.
 - Pagination bornée (`limit` ≤ 500).
-- Toute nouvelle requête de lecture sur `applications`, `emails`, `job_offers` est vérifiée par `EXPLAIN` (SQL obtenu par
-  `.toSQL()`) sur le PostgreSQL local avec un volume représentatif : `Seq Scan` sur une grande table → corriger l'index
-  (ENF-PERF-04). Coller l'`EXPLAIN` dans la description du commit quand un index est créé.
+- Toute nouvelle requête de lecture sélective (liste, recherche, détail, rattachement) sur `applications`, `emails`,
+  `job_offers` est vérifiée par `EXPLAIN` (SQL obtenu par `.toSQL()`) sur le PostgreSQL local avec le jeu de charge
+  (`tests/integration/load-dataset.ts`) : `Seq Scan` sur une grande table → corriger l'index (ENF-PERF-04). Coller
+  l'`EXPLAIN` dans la description du commit quand un index est créé.
+- Les agrégats du tableau de bord, qui lisent par nature toutes les candidatures de l'utilisateur, sont exemptés du
+  `Seq Scan` mais doivent tenir en moins de 50 ms par requête sur le jeu de charge (ENF-PERF-05, test
+  `stats-query-plans.test.ts`).
 
 ## Rôles (moindre privilège, ENF-SEC-09, ENF-SEC-17)
 - Backend : `tracandi_app` (DML seulement, `DATABASE_URL_APP`). Migrations : `tracandi_owner` (`DATABASE_URL_MIGRATOR`,
