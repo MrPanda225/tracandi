@@ -7,7 +7,7 @@ import {
   MCDONALDS_ACKNOWLEDGEMENT,
   SENT_APPLICATION,
 } from '../../../tests/fixtures/emails/messages.js';
-import { createGmailMailbox, SNIPPET_MAX_LENGTH } from './mailbox.js';
+import { createGmailMailbox, isInvalidGrant, SNIPPET_MAX_LENGTH } from './mailbox.js';
 
 describe('createGmailMailbox — listing', () => {
   it('[EF-GML-05] follows every page of the search and asks for large pages', async () => {
@@ -165,5 +165,21 @@ describe('createGmailMailbox — reading a message', () => {
     const mailbox = createGmailMailbox(createFakeGmail([undated]).client);
 
     await expect(mailbox.getMessage(BANK_STATEMENT.id ?? '')).rejects.toThrow();
+  });
+});
+
+describe('isInvalidGrant', () => {
+  it.each([
+    ['the message of the OAuth client', new Error('invalid_grant'), true],
+    [
+      'the answer of the token endpoint',
+      Object.assign(new Error('Bad Request'), { response: { data: { error: 'invalid_grant' } } }),
+      true,
+    ],
+    ['another OAuth refusal', Object.assign(new Error('Bad Request'), { response: { data: { error: 'invalid_client' } } }), false],
+    ['an answer without body', Object.assign(new Error('Backend Error'), { response: { data: null } }), false],
+    ['a value that is not an error', 'invalid_grant', false],
+  ])('[Q-11] tells an expired authorisation from %s', (_case, error, expected) => {
+    expect(isInvalidGrant(error)).toBe(expected);
   });
 });

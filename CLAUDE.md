@@ -85,7 +85,7 @@ Skills de référence : `.claude/skills/` (`clean-code`, `security`, `requiremen
 | T-005 | `@asteasolutions/zod-to-openapi`, `swagger-ui-express` ; dev : `@types/swagger-ui-express` (installés) |
 | T-201 | `@anthropic-ai/sdk`, `@google/genai` (installés) |
 | T-301 | `googleapis` (installé) |
-| T-305 | `node-cron` |
+| T-305 | `node-cron` (installé) |
 | T-401 | `robots-parser` |
 | T-403 | `cheerio` |
 | T-502 | `docx` |

@@ -167,4 +167,40 @@ describe('AppShell', () => {
     expect(await screen.findByText('Chargement du tableau de bord…')).toBeInTheDocument();
     expect(screen.queryByRole('group', { name: 'Indicateurs clés' })).not.toBeInTheDocument();
   });
+
+  it('[Q-11] asks to reconnect Gmail on every screen once Google refused the authorisation', async () => {
+    mockApi({
+      '/auth/me': () => json(200, ACCOUNT),
+      '/stats/dashboard': () => json(200, EMPTY_DASHBOARD),
+      '/gmail/status': () =>
+        json(200, {
+          connected: true,
+          emailAddress: ACCOUNT.email,
+          connectedAt: '2026-09-15T09:00:00.000Z',
+          lastSyncAt: '2026-09-21T09:00:00.000Z',
+          applyLabels: true,
+          authorizationExpired: true,
+        }),
+    });
+    render(
+      <MemoryRouter initialEntries={['/']} future={ROUTER_FUTURE}>
+        <App />
+      </MemoryRouter>,
+    );
+    const user = userEvent.setup();
+
+    const banner = await screen.findByRole('alert');
+    expect(banner).toHaveTextContent('L’autorisation Gmail a expiré : la synchronisation est en pause.');
+    await user.click(within(banner).getByRole('link', { name: 'Reconnecter Gmail' }));
+
+    expect(await screen.findByRole('heading', { name: 'Réglages' })).toBeInTheDocument();
+  });
+
+  it('[Q-11] shows no banner while the authorisation holds', async () => {
+    renderSignedIn('/');
+
+    await screen.findByRole('heading', { name: 'Tableau de bord' });
+
+    expect(screen.queryByRole('link', { name: 'Reconnecter Gmail' })).not.toBeInTheDocument();
+  });
 });

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { PageHeader } from '../../components/PageHeader';
+import { AiSettings } from './AiSettings';
 import { GmailSettings, type Notice } from './GmailSettings';
 import './SettingsPage.css';
 
@@ -12,7 +13,7 @@ const GMAIL_OUTCOMES: Readonly<Record<string, Notice>> = {
   failed: { tone: 'error', text: 'Google n’a pas pu finaliser la connexion. Réessayez dans quelques minutes.' },
 };
 
-/** Settings screen: Gmail connection (T-301); the synchronisation settings come with T-305. */
+/** Settings screen: Gmail connection, synchronisation and labels (EF-CFG-01), AI providers (EF-CFG-02). */
 export function SettingsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [gmailOutcome] = useState(() => GMAIL_OUTCOMES[searchParams.get('gmail') ?? ''] ?? null);
@@ -32,9 +33,12 @@ export function SettingsPage() {
   return (
     <>
       <PageHeader title="Réglages">
-        <p>La connexion de votre boîte Gmail et le suivi de vos candidatures.</p>
+        <p>La connexion de votre boîte Gmail, le suivi de vos candidatures et les fournisseurs d’IA.</p>
       </PageHeader>
-      <GmailSettings initialNotice={gmailOutcome} />
+      <div className="settings-page">
+        <GmailSettings initialNotice={gmailOutcome} />
+        <AiSettings />
+      </div>
     </>
   );
 }

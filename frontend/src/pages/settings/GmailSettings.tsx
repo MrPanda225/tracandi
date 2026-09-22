@@ -62,6 +62,15 @@ function SynchroniseButton({
   );
 }
 
+/** EF-GML-01: leaves for Google's consent page; the button waits while the address is asked (ENF-UTI-03). */
+function ConnectButton({ label, isLeaving, onConnect }: { label: string; isLeaving: boolean; onConnect: () => void }) {
+  return (
+    <button type="button" className="btn" disabled={isLeaving} aria-busy={isLeaving} onClick={onConnect}>
+      {isLeaving ? 'Redirection vers Google…' : label}
+    </button>
+  );
+}
+
 /** EF-GML-17: writing of Gmail labels, on by default; the box goes back if the API refuses the change. */
 function LabelsOption({ isOn, onFailure }: { isOn: boolean; onFailure: (message: string) => void }) {
   const hintId = useId();
@@ -160,7 +169,9 @@ function ConnectedMailbox({
           </>
         ) : (
           <>
-            <SynchroniseButton onSynchronised={onSynchronised} onFailure={onFailure} />
+            {!gmail.authorizationExpired && (
+              <SynchroniseButton onSynchronised={onSynchronised} onFailure={onFailure} />
+            )}
             <button type="button" className="btn btn--quiet" onClick={() => setIsConfirming(true)}>
               Déconnecter Gmail
             </button>
@@ -174,7 +185,7 @@ function ConnectedMailbox({
 /**
  * Gmail block of the settings: connected address, connection day and last synchronisation (EF-CFG-01), connection
  * through Google's consent page (EF-GML-01), manual synchronisation (EF-GML-04), writing of labels (EF-GML-17),
- * disconnection after confirmation (EF-GML-02).
+ * disconnection after confirmation (EF-GML-02), reconnection of an expired authorisation (Q-11).
  */
 export function GmailSettings({ initialNotice }: { initialNotice: Notice | null }) {
   const titleId = useId();
@@ -225,6 +236,15 @@ export function GmailSettings({ initialNotice }: { initialNotice: Notice | null 
         </div>
       )}
       {state.status === 'error' && <Flash>{state.message}</Flash>}
+      {state.status === 'ready' && state.gmail.connected && state.gmail.authorizationExpired && (
+        <div className="gmail-settings__expired">
+          <Flash>
+            L’autorisation Gmail a expiré : la synchronisation est en pause. Google la limite à 7 jours tant que le
+            projet est en mode test ; reconnectez Gmail pour la reprendre.
+          </Flash>
+          <ConnectButton label="Reconnecter Gmail" isLeaving={isLeaving} onConnect={() => void handleConnect()} />
+        </div>
+      )}
       {state.status === 'ready' && state.gmail.connected && (
         <ConnectedMailbox
           gmail={state.gmail}
@@ -243,15 +263,7 @@ export function GmailSettings({ initialNotice }: { initialNotice: Notice | null 
       {state.status === 'ready' && !state.gmail.connected && (
         <div className="gmail-settings__actions">
           <p className="gmail-settings__meta">Aucune boîte connectée.</p>
-          <button
-            type="button"
-            className="btn"
-            disabled={isLeaving}
-            aria-busy={isLeaving}
-            onClick={() => void handleConnect()}
-          >
-            {isLeaving ? 'Redirection vers Google…' : 'Connecter Gmail'}
-          </button>
+          <ConnectButton label="Connecter Gmail" isLeaving={isLeaving} onConnect={() => void handleConnect()} />
         </div>
       )}
     </section>

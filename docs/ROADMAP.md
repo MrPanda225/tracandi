@@ -113,9 +113,14 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
   après chaque lot enregistré sur tous les fils des candidatures touchées ; un refus de Gmail n'annule pas la
   synchronisation. Lecture seule : `PATCH /api/gmail/settings` et case à cocher dans Réglages. Un changement de statut
   manuel n'est reporté dans Gmail qu'au prochain message de la candidature.
-- [ ] **T-305 Planification et suivi** — scheduler (fuseau `SCHEDULER_TIMEZONE`), verrou anti-concurrence, journal `job_runs`, écran Réglages.
+- [x] **T-305 Planification et suivi** — scheduler (fuseau `SCHEDULER_TIMEZONE`), verrou anti-concurrence, journal `job_runs`, écran Réglages.
   *Exigences* : EF-GML-03, EF-GML-18, ENF-FIA-01, EF-CFG-01, 02.
   *Fini quand* : test d'une exception dans la tâche sans arrêt du scheduler.
+  *Livré* : `jobs/scheduler.ts` (node-cron, `CRON_GMAIL` dans `SCHEDULER_TIMEZONE`, sans chevauchement),
+  `jobs/journal.ts` (`job_runs` + compteurs, manuel et planifié), verrou par utilisateur (exécution `skipped`),
+  Q-11 (migration 0003 `authorization_expired_at`, bandeau « Reconnecter Gmail »), carte « Fournisseurs d'IA »
+  (`GET /api/settings/ai`). La liste des mots-clés RG-10 n'est pas encore modifiable dans Réglages (Q-09) : aucune
+  tâche ne la prévoit.
 
 ## Lot 4 — Veille des offres
 

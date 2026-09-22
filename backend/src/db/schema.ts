@@ -388,6 +388,9 @@ export const gmailAccounts = pgTable('gmail_accounts', {
   historyId: varchar({ length: 32 }),
   connectedAt: createdAt(),
   lastSyncAt: instant(),
+  // Q-11: set when Google refuses the refresh token (invalid_grant); cleared by a new connection. Never filtered on
+  // its own (read with the account row): no index.
+  authorizationExpiredAt: instant(),
 });
 
 export const gmailLabels = pgTable(

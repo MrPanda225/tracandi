@@ -1,9 +1,13 @@
+import { validate as isCronExpression } from 'node-cron';
 import { z } from 'zod';
 import { describeDatabaseUrlProblem } from '../db/url.js';
 import { parseEncryptionKey } from '../lib/crypto.js';
 import type { ProviderName } from '../llm/types.js';
 
 const DEFAULT_HOST = '127.0.0.1';
+// EF-GML-03: every 30 minutes, Paris time (EF-VEI-06).
+const DEFAULT_TIMEZONE = 'Europe/Paris';
+const DEFAULT_GMAIL_CRON = '*/30 * * * *';
 const DEFAULT_PORT = 4000;
 const MAX_PORT = 65_535;
 
@@ -12,6 +16,16 @@ const isHttpOrigin = (value: string): boolean => {
   if (!URL.canParse(value)) return false;
   const url = new URL(value);
   return (url.protocol === 'http:' || url.protocol === 'https:') && url.origin === value;
+};
+
+// Any name the runtime knows, aliases included (America/Montreal): the formatter refuses the others.
+const isTimeZone = (value: string): boolean => {
+  try {
+    new Intl.DateTimeFormat('fr-FR', { timeZone: value });
+    return true;
+  } catch {
+    return false;
+  }
 };
 
 // A line `KEY=` left empty in .env counts as absent.
@@ -52,6 +66,9 @@ const EnvSchema = z.object({
       return z.NEVER;
     }
   }),
+  // EF-GML-03: time zone of the cron expressions (IANA name) and schedule of the Gmail synchronisation.
+  SCHEDULER_TIMEZONE: z.string().refine(isTimeZone, 'must be an IANA time zone').default(DEFAULT_TIMEZONE),
+  CRON_GMAIL: z.string().refine(isCronExpression, 'must be a cron expression').default(DEFAULT_GMAIL_CRON),
 });
 
 const requireAiProviders = (env: z.infer<typeof EnvSchema>, context: z.RefinementCtx): void => {
@@ -82,6 +99,14 @@ export interface Config {
   llm: Partial<Record<ProviderName, LlmProviderConfig>>;
   /** EF-GML-01, ENF-SEC-02 */
   gmail: GmailConfig;
+  /** EF-GML-03 */
+  scheduler: SchedulerConfig;
+}
+
+/** Time zone of the cron expressions and schedule of each job. */
+export interface SchedulerConfig {
+  timezone: string;
+  gmailCron: string;
 }
 
 /** OAuth client of the Gmail connection and key of the tokens at rest. */
@@ -105,9 +130,9 @@ export class ConfigError extends Error {
 
 /**
  * Validates the environment and returns the configuration, applying defaults (HOST 127.0.0.1, PORT 4000,
- * COOKIE_SECURE true). Secrets are read from the environment only, never from the repository (ENF-SEC-03).
+ * COOKIE_SECURE true, Paris time, Gmail every 30 minutes). Secrets are read from the environment only, never from the repository (ENF-SEC-03).
  * @throws ConfigError when a variable is missing or invalid, or when no AI key is set; the server must then stop.
- * @req ENF-SEC-03, ENF-SEC-08, ENF-SEC-11, ENF-SEC-15, EF-IA-05
+ * @req ENF-SEC-03, ENF-SEC-08, ENF-SEC-11, ENF-SEC-15, EF-IA-05, EF-GML-03
  */
 export const loadConfig = (env: Record<string, string | undefined>): Config => {
   const result = EnvSchema.superRefine(requireAiProviders).safeParse(env);
@@ -135,5 +160,6 @@ export const loadConfig = (env: Record<string, string | undefined>): Config => {
       redirectUri: result.data.GOOGLE_REDIRECT_URI,
       tokenEncryptionKey: result.data.TOKEN_ENCRYPTION_KEY,
     },
+    scheduler: { timezone: result.data.SCHEDULER_TIMEZONE, gmailCron: result.data.CRON_GMAIL },
   };
 };

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -14,6 +14,7 @@ const CONNECTED = {
   connectedAt: '2026-09-20T09:00:00.000Z',
   lastSyncAt: null,
   applyLabels: true,
+  authorizationExpired: false,
 };
 
 const json = (status: number, body?: unknown) =>
@@ -24,14 +25,18 @@ const json = (status: number, body?: unknown) =>
 
 type Route = () => Response | Promise<Response>;
 
+const NO_AI = { providers: [], tasks: [] };
+
 const mockApi = (routes: Record<string, Route>) => {
   const calls: string[] = [];
+  // The AI card reads its own configuration on every render of the page.
+  const withDefaults: Record<string, Route> = { 'GET /settings/ai': () => json(200, NO_AI), ...routes };
   vi.stubGlobal(
     'fetch',
     vi.fn((input: string, init?: RequestInit) => {
       const key = `${init?.method ?? 'GET'} ${input.replace(/^\/api/, '')}`;
       calls.push(key);
-      const route = routes[key];
+      const route = withDefaults[key];
       return Promise.resolve(route ? route() : json(404, { error: 'Ressource introuvable' }));
     }),
   );
@@ -70,7 +75,8 @@ describe('SettingsPage — Gmail', () => {
 
     renderPage();
 
-    expect(screen.getByRole('status')).toHaveTextContent('Chargement de la connexion Gmail…');
+    const gmailCard = screen.getByRole('region', { name: 'Boîte Gmail' });
+    expect(within(gmailCard).getByRole('status')).toHaveTextContent('Chargement de la connexion Gmail…');
   });
 
   it('[ENF-UTI-03] shows a readable message when the API fails', async () => {
@@ -195,6 +201,7 @@ describe('SettingsPage — Gmail', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn((input: string, init?: RequestInit) => {
+        if (input.endsWith('/settings/ai')) return Promise.resolve(json(200, NO_AI));
         if (init?.method === 'PATCH' && input.endsWith('/gmail/settings')) {
           bodies.push(JSON.parse(String(init.body)));
           return Promise.resolve(new Response(null, { status: 204 }));
@@ -230,6 +237,21 @@ describe('SettingsPage — Gmail', () => {
     expect(screen.getByRole('checkbox', { name: /Ranger les fils avec des libellés Gmail/ })).toBeChecked();
   });
 
+  it('[Q-11] asks to reconnect an expired authorisation, through Google’s consent page', async () => {
+    const url = 'https://accounts.google.com/o/oauth2/v2/auth?state=again';
+    mockApi({
+      'GET /gmail/status': () => json(200, { ...CONNECTED, authorizationExpired: true }),
+      'GET /gmail/authorization-url': () => json(200, { url }),
+    });
+    renderPage();
+    const user = userEvent.setup();
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('L’autorisation Gmail a expiré');
+    await user.click(screen.getByRole('button', { name: 'Reconnecter Gmail' }));
+
+    await waitFor(() => expect(leaveFor).toHaveBeenCalledWith(url));
+  });
+
   it('[EF-GML-02] keeps the connection when the user cancels', async () => {
     const calls = mockApi({ 'GET /gmail/status': () => json(200, CONNECTED) });
     renderPage();
@@ -240,5 +262,65 @@ describe('SettingsPage — Gmail', () => {
 
     expect(screen.getByRole('button', { name: 'Déconnecter Gmail' })).toBeInTheDocument();
     expect(calls).not.toContain('DELETE /gmail/connection');
+  });
+});
+
+describe('SettingsPage — AI providers', () => {
+  it('[EF-CFG-02] shows the configured providers and the provider of each task, with its fallback', async () => {
+    mockApi({
+      'GET /gmail/status': () => json(200, { connected: false }),
+      'GET /settings/ai': () =>
+        json(200, {
+          providers: [
+            { name: 'claude', model: 'claude-sonnet-5' },
+            { name: 'gemini', model: 'gemini-2.5-flash' },
+          ],
+          tasks: [
+            { task: 'classify_emails', providers: ['gemini', 'claude'] },
+            { task: 'tailor_cv', providers: ['claude', 'gemini'] },
+          ],
+        }),
+    });
+
+    renderPage();
+
+    const card = await screen.findByRole('region', { name: 'Fournisseurs d’IA' });
+    const providers = within(within(card).getByRole('list')).getAllByRole('listitem');
+    expect(providers.map((provider) => provider.textContent)).toEqual([
+      'Claude claude-sonnet-5',
+      'Gemini gemini-2.5-flash',
+    ]);
+    const classification = within(card).getByRole('row', { name: /Classement des e-mails/ });
+    expect(classification).toHaveTextContent('Gemini');
+    expect(classification).toHaveTextContent('secours : Claude');
+    expect(within(card).getByRole('row', { name: /CV adapté/ })).toHaveTextContent('Claude');
+  });
+
+  it('[EF-CFG-02] [EF-IA-05] says when a task has no fallback', async () => {
+    mockApi({
+      'GET /gmail/status': () => json(200, { connected: false }),
+      'GET /settings/ai': () =>
+        json(200, {
+          providers: [{ name: 'gemini', model: 'gemini-2.5-flash' }],
+          tasks: [{ task: 'classify_emails', providers: ['gemini'] }],
+        }),
+    });
+
+    renderPage();
+
+    const row = await screen.findByRole('row', { name: /Classement des e-mails/ });
+    expect(row).toHaveTextContent('sans secours');
+  });
+
+  it('[ENF-UTI-03] shows why the AI configuration could not be read', async () => {
+    mockApi({
+      'GET /gmail/status': () => json(200, { connected: false }),
+      'GET /settings/ai': () => json(500, { error: 'Une erreur inattendue est survenue.' }),
+    });
+
+    renderPage();
+
+    const card = await screen.findByRole('region', { name: 'Fournisseurs d’IA' });
+    expect(await within(card).findByRole('alert')).toHaveTextContent('Une erreur inattendue est survenue.');
   });
 });

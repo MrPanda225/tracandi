@@ -1,4 +1,4 @@
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 import type { Database } from '../../db/client.js';
 import {
   appSettings,
@@ -32,6 +32,8 @@ export interface GmailAccountRow {
   historyId: string | null;
   connectedAt: Date;
   lastSyncAt: Date | null;
+  /** Q-11: when Google refused the refresh token; null while the authorisation holds. */
+  authorizationExpiredAt: Date | null;
 }
 
 /**
@@ -48,6 +50,7 @@ export const findGmailAccount = async (db: Executor, userId: number): Promise<Gm
       historyId: gmailAccounts.historyId,
       connectedAt: gmailAccounts.connectedAt,
       lastSyncAt: gmailAccounts.lastSyncAt,
+      authorizationExpiredAt: gmailAccounts.authorizationExpiredAt,
     })
     .from(gmailAccounts)
     .where(eq(gmailAccounts.userId, userId));
@@ -77,6 +80,8 @@ export const saveGmailAccount = async (
     tokenIv: account.refreshToken.iv,
     tokenTag: account.refreshToken.tag,
     connectedAt: account.connectedAt,
+    // Q-11: a new authorisation replaces an expired one.
+    authorizationExpiredAt: null,
     ...(account.resetSync ? { historyId: null, lastSyncAt: null } : {}),
   };
   await db
@@ -321,4 +326,26 @@ export const findApplyLabels = async (db: Executor, userId: number): Promise<boo
 /** Turns the writing of labels in Gmail on or off for the user (EF-GML-17). */
 export const setApplyLabels = async (db: Executor, userId: number, applyLabels: boolean): Promise<void> => {
   await db.update(appSettings).set({ gmailApplyLabels: applyLabels }).where(eq(appSettings.userId, userId));
+};
+
+/**
+ * Q-11: marks the Gmail connection of the user as expired; the scheduler leaves it until a new connection.
+ * @req Q-11
+ */
+export const markAuthorizationExpired = async (db: Executor, userId: number, expiredAt: Date): Promise<void> => {
+  await db.update(gmailAccounts).set({ authorizationExpiredAt: expiredAt }).where(eq(gmailAccounts.userId, userId));
+};
+
+/**
+ * Users whose mailbox the scheduler synchronises: connected, authorisation not expired (EF-GML-03, Q-11). One row per
+ * connected user: the whole (small) table is read.
+ * @req EF-GML-03, Q-11
+ */
+export const listSyncableUserIds = async (db: Executor): Promise<number[]> => {
+  const rows = await db
+    .select({ userId: gmailAccounts.userId })
+    .from(gmailAccounts)
+    .where(isNull(gmailAccounts.authorizationExpiredAt))
+    .orderBy(gmailAccounts.userId);
+  return rows.map((row) => row.userId);
 };

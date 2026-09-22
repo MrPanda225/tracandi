@@ -35,7 +35,22 @@ describe('loadConfig', () => {
         redirectUri: 'http://localhost:4000/api/gmail/callback',
         tokenEncryptionKey: Buffer.from(ENCRYPTION_KEY_HEX, 'hex'),
       },
+      scheduler: { timezone: 'Europe/Paris', gmailCron: '*/30 * * * *' },
     });
+  });
+
+  it('[EF-GML-03] reads the time zone and the cron expression of the Gmail synchronisation', () => {
+    const config = loadConfig({ ...VALID_ENV, SCHEDULER_TIMEZONE: 'America/Montreal', CRON_GMAIL: '*/15 8-20 * * *' });
+
+    expect(config.scheduler).toEqual({ timezone: 'America/Montreal', gmailCron: '*/15 8-20 * * *' });
+  });
+
+  it.each([
+    ['SCHEDULER_TIMEZONE', { ...VALID_ENV, SCHEDULER_TIMEZONE: 'Europe/Atlantis' }],
+    ['CRON_GMAIL', { ...VALID_ENV, CRON_GMAIL: 'every 30 minutes' }],
+    ['CRON_GMAIL', { ...VALID_ENV, CRON_GMAIL: '*/30 * * *' }],
+  ])('[EF-GML-03] refuses to start with an invalid %s', (variable, env) => {
+    expect(() => loadConfig(env)).toThrow(new RegExp(variable));
   });
 
   it.each([

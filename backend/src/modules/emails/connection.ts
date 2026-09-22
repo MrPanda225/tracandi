@@ -12,7 +12,15 @@ export type AuthorizationOutcome = 'connected' | 'refused' | 'expired' | 'failed
 /** What the settings screen shows of the Gmail connection (EF-CFG-01). */
 export type GmailStatus =
   | { connected: false }
-  | { connected: true; emailAddress: string; connectedAt: Date; lastSyncAt: Date | null; applyLabels: boolean };
+  | {
+      connected: true;
+      emailAddress: string;
+      connectedAt: Date;
+      lastSyncAt: Date | null;
+      applyLabels: boolean;
+      /** Q-11: Google refused the authorisation; the user must connect Gmail again. */
+      authorizationExpired: boolean;
+    };
 
 /** Google's redirection parameters, as received (none is trusted). */
 export interface AuthorizationAnswer {
@@ -59,6 +67,7 @@ const statusOf = async (db: Database, userId: number): Promise<GmailStatus> => {
     lastSyncAt: account.lastSyncAt,
     // The settings row exists from the registration; labels are on by default (app_settings).
     applyLabels: applyLabels ?? true,
+    authorizationExpired: account.authorizationExpiredAt !== null,
   };
 };
 

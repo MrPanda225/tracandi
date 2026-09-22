@@ -77,7 +77,7 @@ export const createGmailModules = ({ service, sync, frontendOrigin }: GmailModul
   protectedRouter.post(
     '/gmail/sync',
     asyncHandler(async (_req, res) => {
-      res.status(200).json(await sync.synchronise(currentUserId(res)));
+      res.status(200).json(await sync.synchronise(currentUserId(res), 'manual'));
     }),
   );
 

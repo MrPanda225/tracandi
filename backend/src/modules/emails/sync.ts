@@ -1,4 +1,6 @@
 import type { Database } from '../../db/client.js';
+import type { JobJournal, RunCounters } from '../../jobs/journal.js';
+import type { TriggerType } from '../../jobs/repository.js';
 import type { Clock } from '../../lib/clock.js';
 import { HttpError } from '../../lib/errors.js';
 import type { Logger } from '../../lib/logger.js';
@@ -10,6 +12,7 @@ import { attachIncomingMessage, findApplicationThreads } from '../applications/s
 import { type ClassifiedMessage, ClassificationSchema } from './classification.js';
 import type { MessageFetcher, RetainedMessage } from './fetcher.js';
 import { createThreadLabeler, databaseLabelCache, type ThreadLabeler } from './labels.js';
+import { isInvalidGrant } from './mailbox.js';
 import type { PlatformRef } from './prefilter.js';
 import * as repository from './repository.js';
 import type { Executor } from './repository.js';
@@ -34,23 +37,43 @@ export class SyncAlreadyRunningError extends HttpError {
   }
 }
 
+/** Q-11: Google refused the authorisation (7 days in test mode, or revoked): Gmail must be connected again. */
+export class GmailAuthorizationExpiredError extends HttpError {
+  constructor() {
+    super(409, 'L’autorisation Gmail a expiré : reconnectez Gmail depuis les Réglages.');
+  }
+}
+
 export interface GmailSync {
   /**
    * Reads the new messages, classifies the retained ones by batches of 10, stores them and updates the applications
-   * (RG-03, RG-04), then moves the date of the last synchronisation.
-   * @throws GmailNotConnectedError (409), SyncAlreadyRunningError (409), LlmUnavailableError (502: the batches
-   * classified before are kept, the others wait for the next pass), or a Gmail or database failure.
+   * (RG-03, RG-04), then moves the date of the last synchronisation. Every execution is journaled in `job_runs`.
+   * @throws GmailNotConnectedError (409), SyncAlreadyRunningError (409), GmailAuthorizationExpiredError (409, the
+   * connection is marked expired), LlmUnavailableError (502: the batches classified before are kept, the others wait
+   * for the next pass), or a Gmail or database failure.
    */
-  synchronise: (userId: number) => Promise<SyncReport>;
+  synchronise: (userId: number, trigger: TriggerType) => Promise<SyncReport>;
+  /**
+   * EF-GML-03: synchronises, one after the other, every connected mailbox whose authorisation holds. Never throws:
+   * the failure of one user is journaled and logged, the others still run (ENF-FIA-01).
+   */
+  synchroniseEveryMailbox: () => Promise<void>;
 }
 
 interface GmailSyncDeps {
   db: Database;
   fetcher: MessageFetcher;
   router: LlmRouter;
+  journal: JobJournal;
   clock: Clock;
   logger: Logger;
 }
+
+const countersOf = (report: SyncReport): RunCounters => ({
+  messages_read: report.read,
+  messages_retained: report.retained,
+  messages_classified: report.classified,
+});
 
 interface ClassifiedPair {
   message: RetainedMessage;
@@ -178,14 +201,17 @@ const recordBatch = async (
 };
 
 /**
- * Creates the Gmail synchronisation: incremental fetch (T-302), classification by the AI router (RG-13: Gemini then
- * Claude), storage and attachment, then Gmail labels unless the user turned them off. One synchronisation at a time
- * per user.
+ * One synchronisation of a user: incremental fetch (T-302), classification by the AI router (RG-13: Gemini then
+ * Claude), storage and attachment, then Gmail labels unless the user turned them off.
  * @req EF-GML-04, EF-GML-06, EF-GML-08 to EF-GML-17, EF-GML-19, EF-CAN-11, EF-CFG-01, ENF-FIA-03
  */
-export const createGmailSync = ({ db, fetcher, router, clock, logger }: GmailSyncDeps): GmailSync => {
-  const running = new Set<number>();
-
+const createSyncRun = ({
+  db,
+  fetcher,
+  router,
+  clock,
+  logger,
+}: Omit<GmailSyncDeps, 'journal'>): ((userId: number) => Promise<SyncReport>) => {
   const classifyBatch = async (userId: number, batch: RetainedMessage[]) => {
     const { system, prompt } = buildClassifyEmailsPrompt(batch.map(toMessageToClassify));
     const { data, provider } = await router.runTask('classify_emails', {
@@ -235,14 +261,52 @@ export const createGmailSync = ({ db, fetcher, router, clock, logger }: GmailSyn
     return { read: readCount, retained: retained.length, classified };
   };
 
+  return run;
+};
+
+/**
+ * Creates the Gmail synchronisation: one at a time per user, every execution journaled (EF-GML-18), an authorisation
+ * refused by Google marked expired (Q-11).
+ * @req EF-GML-03, EF-GML-04, EF-GML-18, ENF-FIA-01, Q-11
+ */
+export const createGmailSync = (deps: GmailSyncDeps): GmailSync => {
+  const { db, journal, clock, logger } = deps;
+  const run = createSyncRun(deps);
+  const running = new Set<number>();
+
+  const runOnce = async (userId: number): Promise<SyncReport> => {
+    try {
+      return await run(userId);
+    } catch (error) {
+      if (!isInvalidGrant(error)) throw error;
+      await repository.markAuthorizationExpired(db, userId, clock());
+      throw new GmailAuthorizationExpiredError();
+    }
+  };
+
+  const synchronise = async (userId: number, trigger: TriggerType): Promise<SyncReport> => {
+    const entry = { userId, job: 'gmail_sync' as const, trigger };
+    if (running.has(userId)) {
+      await journal.recordSkipped(entry);
+      throw new SyncAlreadyRunningError();
+    }
+    running.add(userId);
+    try {
+      return await journal.record(entry, () => runOnce(userId), countersOf);
+    } finally {
+      running.delete(userId);
+    }
+  };
+
   return {
-    async synchronise(userId) {
-      if (running.has(userId)) throw new SyncAlreadyRunningError();
-      running.add(userId);
-      try {
-        return await run(userId);
-      } finally {
-        running.delete(userId);
+    synchronise,
+    async synchroniseEveryMailbox() {
+      for (const userId of await repository.listSyncableUserIds(db)) {
+        try {
+          await synchronise(userId, 'schedule');
+        } catch (error) {
+          logger.warn('scheduled gmail synchronisation failed', { userId, error });
+        }
       }
     },
   };

@@ -10,6 +10,8 @@ export type GmailStatus =
       lastSyncAt: string | null;
       /** EF-GML-17: false in read-only mode. */
       applyLabels: boolean;
+      /** Q-11: Google refused the authorisation; Gmail must be connected again. */
+      authorizationExpired: boolean;
     };
 
 export const fetchGmailStatus = (signal?: AbortSignal) => request<GmailStatus>('/gmail/status', { signal });

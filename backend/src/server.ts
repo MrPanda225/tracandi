@@ -1,8 +1,11 @@
 import { createApp } from './app.js';
 import { type Config, loadConfig } from './config/env.js';
 import { connectDatabase } from './db/client.js';
+import { createJobJournal } from './jobs/journal.js';
+import { startScheduler } from './jobs/scheduler.js';
 import { systemClock } from './lib/clock.js';
 import { createLogger } from './lib/logger.js';
+import { describeAssignments } from './llm/assignments.js';
 import { connectClaude } from './llm/providers/claude.js';
 import { connectGemini } from './llm/providers/gemini.js';
 import { createLlmJournal } from './llm/repository.js';
@@ -19,6 +22,7 @@ import { connectGmailMailbox } from './modules/emails/mailbox.js';
 import { createOAuthStateStore } from './modules/emails/oauthState.js';
 import { createGmailModules } from './modules/emails/routes.js';
 import { createGmailSync } from './modules/emails/sync.js';
+import { createSettingsModule } from './modules/settings/routes.js';
 import { createStatsModule } from './modules/stats/routes.js';
 import { createStatsService } from './modules/stats/service.js';
 
@@ -71,6 +75,7 @@ const gmailSync = createGmailSync({
     clock: systemClock,
   }),
   router: llmRouter,
+  journal: createJobJournal({ db: database.db, clock: systemClock }),
   clock: systemClock,
   logger,
 });
@@ -84,6 +89,7 @@ const app = createApp({
     createApplicationsModule(createApplicationsService({ db: database.db, clock: systemClock })),
     createStatsModule(createStatsService({ db: database.db, clock: systemClock })),
     ...createGmailModules({ service: gmailService, sync: gmailSync, frontendOrigin: config.frontendOrigin }),
+    createSettingsModule(describeAssignments(config.llm)),
   ],
 });
 
@@ -91,8 +97,16 @@ const server = app.listen(config.port, config.host, () => {
   logger.info('api listening', { host: config.host, port: config.port, docs: '/api/docs' });
 });
 
+// EF-GML-03: every connected mailbox, on the configured schedule and time zone.
+const scheduler = startScheduler({
+  jobs: [{ name: 'gmail_sync', cron: config.scheduler.gmailCron, run: () => gmailSync.synchroniseEveryMailbox() }],
+  timezone: config.scheduler.timezone,
+  logger,
+});
+
 const shutdown = (signal: NodeJS.Signals): void => {
   logger.info('shutting down', { signal });
+  void scheduler.stop();
   server.close(() => {
     database.close().then(
       () => process.exit(),

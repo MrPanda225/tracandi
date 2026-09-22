@@ -145,6 +145,19 @@ const toMailboxMessage = (message: MessageAnswer): MailboxMessage => {
   };
 };
 
+const INVALID_GRANT = 'invalid_grant';
+
+/**
+ * Q-11: Google refused the refresh token (expired after 7 days in test mode, or revoked by the user): only a new
+ * connection helps. Google's OAuth client reports it as the message, or as the `error` of the answer.
+ */
+export const isInvalidGrant = (error: unknown): boolean => {
+  if (!(error instanceof Error)) return false;
+  const answer = (error as { response?: { data?: unknown } }).response?.data;
+  const answerError = typeof answer === 'object' && answer !== null && 'error' in answer ? answer.error : null;
+  return error.message === INVALID_GRANT || answerError === INVALID_GRANT;
+};
+
 /** True when a Gmail call failed with this HTTP status. */
 export const hasHttpStatus = (error: unknown, status: number): boolean =>
   typeof error === 'object' && error !== null && 'status' in error && error.status === status;

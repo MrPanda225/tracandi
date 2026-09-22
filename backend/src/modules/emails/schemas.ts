@@ -33,6 +33,9 @@ export const GmailStatusSchema = z
       connectedAt: DateTimeSchema,
       lastSyncAt: DateTimeSchema.nullable(),
       applyLabels: z.boolean().openapi({ description: 'Écriture des libellés dans Gmail (EF-GML-17)' }),
+      authorizationExpired: z
+        .boolean()
+        .openapi({ description: 'Autorisation refusée par Google (Q-11) : reconnecter Gmail' }),
     }),
   ])
   .openapi('GmailStatus');

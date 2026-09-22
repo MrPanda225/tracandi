@@ -95,6 +95,7 @@ describe('migrations', () => {
         'GET /gmail/status',
         'PATCH /gmail/settings',
         'POST /gmail/sync',
+        'GET /settings/ai',
         'DELETE /gmail/connection',
       ].sort(),
     );

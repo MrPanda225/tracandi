@@ -4,7 +4,9 @@ import type { Express } from 'express';
 import request from 'supertest';
 import { createApp } from '../../src/app.js';
 import { connectDatabase, type DatabaseHandle } from '../../src/db/client.js';
+import { createJobJournal } from '../../src/jobs/journal.js';
 import { createLogger } from '../../src/lib/logger.js';
+import { describeAssignments } from '../../src/llm/assignments.js';
 import { createLlmJournal } from '../../src/llm/repository.js';
 import { createLlmRouter } from '../../src/llm/router.js';
 import type { LlmProvider, ProviderName } from '../../src/llm/types.js';
@@ -18,7 +20,8 @@ import type { GoogleOAuth } from '../../src/modules/emails/googleOAuth.js';
 import type { OpenMailbox } from '../../src/modules/emails/mailbox.js';
 import { createOAuthStateStore } from '../../src/modules/emails/oauthState.js';
 import { createGmailModules } from '../../src/modules/emails/routes.js';
-import { createGmailSync } from '../../src/modules/emails/sync.js';
+import { createGmailSync, type GmailSync } from '../../src/modules/emails/sync.js';
+import { createSettingsModule } from '../../src/modules/settings/routes.js';
 import { createStatsModule } from '../../src/modules/stats/routes.js';
 import { createStatsService } from '../../src/modules/stats/service.js';
 import { testDatabaseUrl } from './test-database.js';
@@ -53,6 +56,8 @@ export interface TestContext {
   clock: TestClock;
   /** Key of the Gmail tokens at rest in this context (ENF-SEC-02). */
   encryptionKey: Buffer;
+  /** The Gmail synchronisation behind the routes, for the scheduled runs (EF-GML-03). */
+  gmailSync: GmailSync;
 }
 
 /** Google that must never be reached: tests needing Google pass their own fake. */
@@ -113,6 +118,7 @@ export const createTestContext = (
     db: database.db,
     fetcher: createMessageFetcher({ db: database.db, openMailbox, encryptionKey, clock: clock.now }),
     router: createLlmRouter({ providers: aiProviders, journal: createLlmJournal(database.db) }),
+    journal: createJobJournal({ db: database.db, clock: clock.now }),
     clock: clock.now,
     logger,
   });
@@ -125,9 +131,10 @@ export const createTestContext = (
       createApplicationsModule(createApplicationsService({ db: database.db, clock: clock.now })),
       createStatsModule(createStatsService({ db: database.db, clock: clock.now })),
       ...createGmailModules({ service: gmailService, sync, frontendOrigin: FRONTEND_ORIGIN }),
+      createSettingsModule(describeAssignments(aiProviders)),
     ],
   });
-  return { app, database, clock, encryptionKey };
+  return { app, database, clock, encryptionKey, gmailSync: sync };
 };
 
 export const openTestDatabase = (): DatabaseHandle =>

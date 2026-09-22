@@ -198,6 +198,12 @@
   outline: none;
 }
 
+/* Q-11: above the page title, on every screen but the settings. */
+.shell__banner a {
+  color: inherit;
+  font-weight: 700;
+}
+
 /* ---------- Below 900 px: top bar + disclosure menu ---------- */
 
 @media (max-width: 900px) {
