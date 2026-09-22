@@ -1,3 +1,4 @@
+import { propertyOf, statusOfError } from '../../lib/httpStatus.js';
 import { createRateLimiter, type RateLimiter, type Sleep, wait } from '../../lib/rateLimiter.js';
 import type { GmailClient } from './mailbox.js';
 
@@ -29,16 +30,6 @@ const FIRST_SERVER_ERROR = 500;
 // Reasons Gmail gives when the quota of the user or of the project is exhausted for the moment.
 const RATE_LIMIT_REASONS = new Set(['rateLimitExceeded', 'userRateLimitExceeded', 'quotaExceeded']);
 
-/** Reads a property of a value that may be anything: Gmail failures are external data (clean-code.md). */
-const propertyOf = (value: unknown, key: string): unknown =>
-  typeof value === 'object' && value !== null ? Reflect.get(value, key) : undefined;
-
-/** HTTP status of a Gmail failure, reported by googleapis as `status` or `code`. */
-const statusOf = (error: unknown): number | null => {
-  const status = propertyOf(error, 'status') ?? propertyOf(error, 'code');
-  return typeof status === 'number' ? status : null;
-};
-
 /** Reasons carried by a Gmail failure, at the top level or inside the answer. */
 const reasonsOf = (error: unknown): string[] =>
   [
@@ -56,14 +47,14 @@ const reasonsOf = (error: unknown): string[] =>
  * @req ENF-FIA-03
  */
 export const isRateLimited = (error: unknown): boolean => {
-  const status = statusOf(error);
+  const status = statusOfError(error);
   if (status === TOO_MANY_REQUESTS) return true;
   return status === FORBIDDEN && reasonsOf(error).some((reason) => RATE_LIMIT_REASONS.has(reason));
 };
 
 /** A failure worth another attempt: the quota of the moment, or a Gmail outage (5xx). */
 const isRetryable = (error: unknown): boolean => {
-  const status = statusOf(error);
+  const status = statusOfError(error);
   return isRateLimited(error) || (status !== null && status >= FIRST_SERVER_ERROR);
 };
 

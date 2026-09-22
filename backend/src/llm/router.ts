@@ -1,6 +1,8 @@
 import type { z } from 'zod';
 import { LlmUnavailableError } from '../lib/errors.js';
+import { isTransientFailure } from '../lib/httpStatus.js';
 import type { Logger } from '../lib/logger.js';
+import { type Sleep, wait } from '../lib/rateLimiter.js';
 import type { LlmCompletion, LlmOutcome, LlmProvider, LlmTaskName, ProviderName } from './types.js';
 
 /**
@@ -17,6 +19,13 @@ export const TASK_ROUTES: Readonly<Record<LlmTaskName, readonly ProviderName[]>>
 
 /** EF-IA-02: a provider silent for longer than this is abandoned for the next one. */
 export const LLM_TIMEOUT_MS = 60_000;
+/**
+ * Attempts on one provider, the first one included, before its fallback takes over. Only a refusal that passes on
+ * its own is worth another try: an overloaded model (503) or too many requests (429), never a refused request.
+ * @req ENF-FIA-10
+ */
+const RETRY_BACKOFF_MS = [2000, 5000] as const;
+export const PROVIDER_ATTEMPTS = RETRY_BACKOFF_MS.length + 1;
 // Room for a whole CV or a batch of classifications; billing follows the tokens actually produced.
 const DEFAULT_MAX_OUTPUT_TOKENS = 16_000;
 
@@ -65,6 +74,7 @@ interface LlmRouterDeps {
   /** Receives the reason of every provider left aside; `llm_calls` only keeps the outcome. */
   logger: Logger;
   timeoutMs?: number;
+  sleep?: Sleep;
 }
 
 /** Why an attempt did not give usable data, for the logs only: never the prompt nor the answer (ENF-SEC-08). */
@@ -138,47 +148,93 @@ const attempt = async <T>(
   }
 };
 
+/** ENF-FIA-10: the provider refused for a reason that passes on its own, so the same call may work in a moment. */
+const isWorthAnotherTry = (refusal: Refusal): boolean =>
+  'error' in refusal && isTransientFailure(refusal.error);
+
+/** What one provider run needs: the journal of the calls, the logs of the refusals and the time budget. */
+interface ProviderRunnerDeps {
+  journal: LlmJournal;
+  logger: Logger;
+  timeoutMs: number;
+  sleep: Sleep;
+}
+
+/**
+ * Runs one provider until it gives usable data, trying again while it refuses for a reason that passes on its own
+ * (ENF-FIA-10). Every attempt is journaled as one `llm_calls` row (EF-IA-06) and its reason reaches the logs.
+ * @req EF-IA-02, EF-IA-06, ENF-FIA-10
+ */
+const createProviderRunner = ({ journal, logger, timeoutMs, sleep }: ProviderRunnerDeps) => {
+  const tryOnce = async <T>(
+    provider: LlmProvider,
+    task: LlmTaskName,
+    input: RunTaskInput<T>,
+  ): Promise<Attempt<T>> => {
+    const startedAt = Date.now();
+    const result = await attempt(provider, input, timeoutMs);
+    await journal({
+      userId: input.userId,
+      task,
+      provider: provider.name,
+      model: provider.model,
+      outcome: result.outcome,
+      durationMs: Date.now() - startedAt,
+      inputTokens: result.completion?.inputTokens ?? null,
+      outputTokens: result.completion?.outputTokens ?? null,
+    });
+    if (result.outcome !== 'success') {
+      // EF-IA-02: the next attempt or the next provider takes over, but the reason must not be lost.
+      logger.warn('llm provider set aside', {
+        task,
+        provider: provider.name,
+        model: provider.model,
+        outcome: result.outcome,
+        ...result.refusal,
+      });
+    }
+    return result;
+  };
+
+  return async <T>(
+    provider: LlmProvider,
+    task: LlmTaskName,
+    input: RunTaskInput<T>,
+  ): Promise<Attempt<T>> => {
+    let last = await tryOnce(provider, task, input);
+    for (const delayMs of RETRY_BACKOFF_MS) {
+      if (last.outcome === 'success' || !isWorthAnotherTry(last.refusal)) return last;
+      await sleep(delayMs);
+      last = await tryOnce(provider, task, input);
+    }
+    return last;
+  };
+};
+
 /**
  * Creates the AI router. Every call is bounded to `timeoutMs` (60 s), validated against the task schema and journaled.
  * @throws Error when no provider is configured (the configuration refuses to start in that case, EF-IA-05).
- * @req EF-IA-01, EF-IA-02, EF-IA-03, EF-IA-04, EF-IA-05, EF-IA-06, RG-13
+ * @req EF-IA-01, EF-IA-02, EF-IA-03, EF-IA-04, EF-IA-05, EF-IA-06, RG-13, ENF-FIA-10
  */
 export const createLlmRouter = ({
   providers,
   journal,
   logger,
   timeoutMs = LLM_TIMEOUT_MS,
+  sleep = wait,
 }: LlmRouterDeps): LlmRouter => {
   if (Object.values(providers).every((provider) => provider === undefined)) {
     throw new Error('At least one LLM provider must be configured');
   }
+  const runProvider = createProviderRunner({ journal, logger, timeoutMs, sleep });
 
   return {
     async runTask(task, input) {
       for (const name of TASK_ROUTES[task]) {
         const provider = providers[name];
         if (!provider) continue;
-        const startedAt = Date.now();
-        const result = await attempt(provider, input, timeoutMs);
-        await journal({
-          userId: input.userId,
-          task,
-          provider: name,
-          model: provider.model,
-          outcome: result.outcome,
-          durationMs: Date.now() - startedAt,
-          inputTokens: result.completion?.inputTokens ?? null,
-          outputTokens: result.completion?.outputTokens ?? null,
-        });
+        const result = await runProvider(provider, task, input);
         if (result.outcome === 'success') return { data: result.data, provider: name };
-        // EF-IA-02: the next provider takes over, but the reason must not be lost (clean-code.md).
-        logger.warn('llm provider set aside', {
-          task,
-          provider: name,
-          model: provider.model,
-          outcome: result.outcome,
-          ...result.refusal,
-        });
       }
       throw new LlmUnavailableError();
     },

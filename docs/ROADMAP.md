@@ -74,6 +74,10 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
   (RG-13), délai 60 s, validation zod, bascule, journal `llm_calls`, erreur 502 finale.
   *Exigences* : EF-IA-01 à 06, ENF-MAI-04.
   *Fini quand* : tests avec fournisseurs simulés pour chaque cas de bascule ; aucun appel réseau réel en test.
+  *Correctif du 22/09/2026* : raison du fournisseur écarté journalisée (erreur, délai, champs refusés par le schéma,
+  sans le prompt ni la réponse) ; un fournisseur momentanément surchargé est redemandé 3 fois (2 s puis 5 s) avant la
+  bascule (ENF-FIA-10, cahier v1.6).
+
 - [x] **T-202 Prompts** — module `prompts/` : un fichier par tâche, contenu externe délimité et déclaré non fiable.
   *Exigences* : ENF-SEC-06.
   *Fini quand* : test vérifiant que chaque prompt encadre le contenu externe par des balises.

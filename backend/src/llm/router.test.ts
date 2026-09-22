@@ -2,7 +2,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { llmTask } from '../db/schema.js';
 import { HttpError, LlmUnavailableError } from '../lib/errors.js';
-import { createLlmRouter, LLM_TIMEOUT_MS, type LlmCallRecord, TASK_ROUTES } from './router.js';
+import {
+  createLlmRouter,
+  LLM_TIMEOUT_MS,
+  type LlmCallRecord,
+  PROVIDER_ATTEMPTS,
+  TASK_ROUTES,
+} from './router.js';
 import type { LlmCompletion, LlmProvider, LlmRequest, ProviderName } from './types.js';
 
 const SCHEMA = z.object({ category: z.enum(['interview', 'rejected']) });
@@ -32,6 +38,7 @@ interface LoggedEntry {
 const setup = (providers: Partial<Record<ProviderName, LlmProvider>>) => {
   const journal: LlmCallRecord[] = [];
   const logged: LoggedEntry[] = [];
+  const waits: number[] = [];
   const record = (message: string, context: Record<string, unknown> = {}) => logged.push({ message, context });
   const router = createLlmRouter({
     providers,
@@ -40,9 +47,17 @@ const setup = (providers: Partial<Record<ProviderName, LlmProvider>>) => {
       return Promise.resolve();
     },
     logger: { info: record, warn: record, error: record },
+    // Waiting between attempts is recorded, never really awaited (testing.md).
+    sleep: (ms) => {
+      waits.push(ms);
+      return Promise.resolve();
+    },
   });
-  return { router, journal, logged };
+  return { router, journal, logged, waits };
 };
+
+/** A failure of a provider as its SDK reports it: HTTP status and message. */
+const apiFailure = (status: number, message: string) => Object.assign(new Error(message), { status });
 
 afterEach(() => {
   vi.useRealTimers();
@@ -62,6 +77,67 @@ describe('TASK_ROUTES', () => {
     expect(TASK_ROUTES.extract_offers[0]).toBe('gemini');
     expect(TASK_ROUTES.tailor_cv[0]).toBe('claude');
     expect(TASK_ROUTES.write_motivation[0]).toBe('claude');
+  });
+});
+
+describe('runTask — a provider that refuses for the moment', () => {
+  it('[ENF-FIA-10] asks an overloaded model again before handing over to the fallback', async () => {
+    let calls = 0;
+    const gemini = fakeProvider('gemini', () => {
+      calls += 1;
+      return calls < 3
+        ? Promise.reject(apiFailure(503, 'This model is currently experiencing high demand.'))
+        : Promise.resolve(answer({ category: 'interview' }));
+    });
+    const claude = fakeProvider('claude', () => Promise.resolve(answer({ category: 'rejected' })));
+    const { router, journal, waits } = setup({ gemini, claude });
+
+    const result = await router.runTask('classify_emails', INPUT);
+
+    expect(result).toEqual({ data: { category: 'interview' }, provider: 'gemini' });
+    expect(calls).toBe(3);
+    expect(claude.complete).not.toHaveBeenCalled();
+    expect(waits).toEqual([2000, 5000]);
+    // EF-IA-06: one journal row per call, the two refusals included.
+    expect(journal.map((entry) => entry.outcome)).toEqual(['error', 'error', 'success']);
+  });
+
+  it('[ENF-FIA-10] [EF-IA-02] hands over to the fallback once the attempts of the first provider are spent', async () => {
+    const gemini = fakeProvider('gemini', () => Promise.reject(apiFailure(503, 'high demand')));
+    const claude = fakeProvider('claude', () => Promise.resolve(answer({ category: 'rejected' })));
+    const { router, journal } = setup({ gemini, claude });
+
+    const result = await router.runTask('classify_emails', INPUT);
+
+    expect(result.provider).toBe('claude');
+    expect(gemini.complete).toHaveBeenCalledTimes(PROVIDER_ATTEMPTS);
+    expect(journal).toHaveLength(PROVIDER_ATTEMPTS + 1);
+  });
+
+  it('[ENF-FIA-10] never asks again when the provider refused the request itself', async () => {
+    const credit = apiFailure(400, 'Your credit balance is too low to access the Anthropic API.');
+    const claude = fakeProvider('claude', () => Promise.reject(credit));
+    const gemini = fakeProvider('gemini', () => Promise.reject(apiFailure(404, 'model not found')));
+    const { router, waits } = setup({ claude, gemini });
+
+    await expect(router.runTask('tailor_cv', INPUT)).rejects.toBeInstanceOf(LlmUnavailableError);
+    expect(claude.complete).toHaveBeenCalledTimes(1);
+    expect(gemini.complete).toHaveBeenCalledTimes(1);
+    expect(waits).toEqual([]);
+  });
+
+  it('[EF-IA-02] never asks again a provider that stayed silent for 60 s', async () => {
+    vi.useFakeTimers();
+    const gemini = fakeProvider('gemini', () => new Promise<LlmCompletion>(() => undefined));
+    const claude = fakeProvider('claude', () => Promise.resolve(answer({ category: 'rejected' })));
+    const { router, waits } = setup({ gemini, claude });
+
+    const running = router.runTask('classify_emails', INPUT);
+    await vi.advanceTimersByTimeAsync(LLM_TIMEOUT_MS);
+
+    expect((await running).provider).toBe('claude');
+    expect(gemini.complete).toHaveBeenCalledTimes(1);
+    expect(waits).toEqual([]);
   });
 });
 

@@ -8,6 +8,7 @@
 | 1.3 | 22/09/2026 | Sahiré YAPI (Business Owner) | Validée — ENF-PERF-04 limitée aux requêtes sélectives ; indicateurs du tableau de bord bornés à 50 ms par requête (BES-17, ENF-PERF-05) ; Q-17 |
 | 1.4 | 22/09/2026 | Sahiré YAPI (Business Owner) | À valider — description de l'offre et date de candidature saisies par le candidat (BES-18, EF-CAN-15, EF-CAN-16, RG-16) |
 | 1.5 | 22/09/2026 | Sahiré YAPI (Business Owner) | À valider — période de la première synchronisation réglable depuis les Réglages, 30 jours par défaut (BES-19, EF-GML-05 modifiée, EF-CFG-04) ; quotas de l'API Gmail respectés (ENF-FIA-09) |
+| 1.6 | 22/09/2026 | Sahiré YAPI (Business Owner) | À valider — un fournisseur d'IA momentanément surchargé est redemandé avant la bascule (ENF-FIA-10), après un 503 « high demand » de Gemini |
 
 > Document de référence pour le développement. Toute évolution de périmètre passe par une mise à jour
 > de ce fichier **avant** le code. Chaque exigence porte un identifiant stable, repris dans
@@ -344,6 +345,7 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | ENF-FIA-07 | La durée maximale de restauration (RTO) est de 30 minutes. | D |
 | ENF-FIA-08 | Les sauvegardes doivent être conservées 30 jours. | I |
 | ENF-FIA-09 | La synchronisation doit rester dans les quotas de l'API Gmail : appels espacés, refus pour quota réessayé avec attente croissante, et passage interrompu conservant les messages déjà lus. | T |
+| ENF-FIA-10 | Un fournisseur d'IA qui refuse pour une raison passagère (surcharge, trop de requêtes) doit être redemandé jusqu'à 3 fois avant la bascule vers le fournisseur de secours ; un refus de la requête elle-même bascule aussitôt. | T |
 
 ### 7.4 Maintenabilité
 | ID | Exigence | Vérif. |
