@@ -127,14 +127,14 @@ export const appSettings = pgTable(
     followUpDays: smallint().notNull().default(10),
     offerAlertThreshold: smallint().notNull().default(60),
     coverageThreshold: smallint().notNull().default(60),
-    gmailLookbackDays: smallint().notNull().default(120),
+    gmailLookbackDays: smallint().notNull().default(30),
     gmailApplyLabels: boolean().notNull().default(true),
   },
   (t) => [
     check('ck_app_settings_follow_up_days', sql`${t.followUpDays} between 1 and 365`),
     check('ck_app_settings_offer_alert_threshold', sql`${t.offerAlertThreshold} between 0 and 100`),
     check('ck_app_settings_coverage_threshold', sql`${t.coverageThreshold} between 0 and 100`),
-    check('ck_app_settings_gmail_lookback_days', sql`${t.gmailLookbackDays} between 1 and 3650`),
+    check('ck_app_settings_gmail_lookback_days', sql`${t.gmailLookbackDays} between 1 and 365`),
   ],
 );
 

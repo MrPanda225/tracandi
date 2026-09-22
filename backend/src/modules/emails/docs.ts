@@ -49,7 +49,8 @@ const ROUTES: RouteConfig[] = [
     path: '/gmail/status',
     summary: 'État de la connexion Gmail',
     description:
-      'EF-CFG-01, EF-GML-17. Adresse connectée, date de connexion et de dernière synchronisation, écriture des libellés.',
+      'EF-CFG-01, EF-CFG-04, EF-GML-17. Adresse connectée, date de connexion et de dernière synchronisation, ' +
+      'écriture des libellés, période de la première synchronisation.',
     responses: { 200: jsonResponse('Connexion Gmail', GmailStatusSchema), ...errorResponses(401) },
   },
   {
@@ -67,9 +68,11 @@ const ROUTES: RouteConfig[] = [
     security: SESSION_SECURITY,
     method: 'patch',
     path: '/gmail/settings',
-    summary: 'Régler l’écriture des libellés Gmail',
+    summary: 'Régler la synchronisation Gmail',
     description:
-      'EF-GML-17. `applyLabels: false` passe en lecture seule : aucune synchronisation ne modifie plus les libellés.',
+      'EF-GML-17, EF-CFG-04. `applyLabels: false` passe en lecture seule : aucune synchronisation ne modifie plus ' +
+      'les libellés. `lookbackDays` (1 à 365) fixe la période de la première synchronisation (N d’EF-GML-05) ; ' +
+      'au moins un des deux réglages est attendu.',
     request: { body: jsonBody(GmailSettingsBodySchema) },
     responses: { 204: { description: 'Réglage enregistré' }, ...errorResponses(400, 401, 415) },
   },

@@ -6,6 +6,9 @@ import { GmailAccessRefusedError, type GoogleOAuth } from './googleOAuth.js';
 import type { OAuthStateStore } from './oauthState.js';
 import * as repository from './repository.js';
 
+/** EF-GML-05 (v1.5): period of the first synchronisation when the user never changed it, in days. */
+export const DEFAULT_LOOKBACK_DAYS = 30;
+
 /** Result of Google's redirection, shown to the user on the settings screen. */
 export type AuthorizationOutcome = 'connected' | 'refused' | 'expired' | 'failed';
 
@@ -18,6 +21,8 @@ export type GmailStatus =
       connectedAt: Date;
       lastSyncAt: Date | null;
       applyLabels: boolean;
+      /** EF-CFG-04: period of the first synchronisation, in days (N of EF-GML-05). */
+      lookbackDays: number;
       /** Q-11: Google refused the authorisation; the user must connect Gmail again. */
       authorizationExpired: boolean;
     };
@@ -40,8 +45,14 @@ export interface GmailConnectionService {
   status: (userId: number) => Promise<GmailStatus>;
   /** Revokes the token at Google when reachable, then removes it: none remains in the database (EF-GML-02). */
   disconnect: (userId: number) => Promise<void>;
-  /** EF-GML-17: turns the writing of labels in Gmail on or off. */
-  setApplyLabels: (userId: number, applyLabels: boolean) => Promise<void>;
+  /**
+   * EF-GML-17, EF-CFG-04: changes the writing of labels in Gmail and the period of the first synchronisation.
+   * A setting left out keeps its value.
+   */
+  setSyncPreferences: (
+    userId: number,
+    changes: { applyLabels?: boolean; lookbackDays?: number },
+  ) => Promise<void>;
 }
 
 interface GmailConnectionDeps {
@@ -53,11 +64,11 @@ interface GmailConnectionDeps {
   logger: Logger;
 }
 
-/** EF-CFG-01, EF-GML-17: what the settings screen shows of the connection of the user. */
+/** EF-CFG-01, EF-CFG-04, EF-GML-17: what the settings screen shows of the connection of the user. */
 const statusOf = async (db: Database, userId: number): Promise<GmailStatus> => {
-  const [account, applyLabels] = await Promise.all([
+  const [account, preferences] = await Promise.all([
     repository.findGmailAccount(db, userId),
-    repository.findApplyLabels(db, userId),
+    repository.findSyncPreferences(db, userId),
   ]);
   if (!account) return { connected: false };
   return {
@@ -65,8 +76,9 @@ const statusOf = async (db: Database, userId: number): Promise<GmailStatus> => {
     emailAddress: account.emailAddress,
     connectedAt: account.connectedAt,
     lastSyncAt: account.lastSyncAt,
-    // The settings row exists from the registration; labels are on by default (app_settings).
-    applyLabels: applyLabels ?? true,
+    // The settings row exists from the registration; these are the defaults of app_settings.
+    applyLabels: preferences?.applyLabels ?? true,
+    lookbackDays: preferences?.lookbackDays ?? DEFAULT_LOOKBACK_DAYS,
     authorizationExpired: account.authorizationExpiredAt !== null,
   };
 };
@@ -116,7 +128,7 @@ export const createGmailConnectionService = ({
 
     status: (userId) => statusOf(db, userId),
 
-    setApplyLabels: (userId, applyLabels) => repository.setApplyLabels(db, userId, applyLabels),
+    setSyncPreferences: (userId, changes) => repository.setSyncPreferences(db, userId, changes),
 
     async disconnect(userId) {
       const account = await repository.findGmailAccount(db, userId);

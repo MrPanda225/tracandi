@@ -32,8 +32,11 @@ const gmailError = (status: number, { reason, retryAfter }: { reason?: string; r
     },
   });
 
-/** Never spaces the calls: the retry tests read the sleeps of the backoff only. */
-const noPacing: RateLimiter = { take: () => Promise.resolve() };
+/** Never spaces the calls, and records the cool-downs asked for: the retry tests read the backoff only. */
+const noPacing = (): RateLimiter & { pauses: number[] } => {
+  const pauses: number[] = [];
+  return { take: () => Promise.resolve(), pauseFor: (ms) => pauses.push(ms), pauses };
+};
 
 /** A client whose reads fail `failures` times before answering like Gmail would. */
 const failingReads = (client: GmailClient, failures: number, error: () => Error) => {
@@ -58,7 +61,7 @@ describe('throttleGmailClient — quota refusals', () => {
     const time = fakeTime();
     const gmail = failingReads(createFakeGmail([MCDONALDS_ACKNOWLEDGEMENT]).client, 2, () => gmailError(429));
     const client = throttleGmailClient(gmail.client, {
-      limiter: noPacing,
+      limiter: noPacing(),
       sleep: time.sleep,
       random: () => 0,
     });
@@ -67,8 +70,8 @@ describe('throttleGmailClient — quota refusals', () => {
 
     expect(data.id).toBe(MCDONALDS_ACKNOWLEDGEMENT.id);
     expect(gmail.attempts()).toBe(3);
-    // Exponential backoff, without jitter here: 1 s then 2 s.
-    expect(time.sleeps).toEqual([1000, 2000]);
+    // Exponential backoff, without jitter here: 4 s then 8 s.
+    expect(time.sleeps).toEqual([4000, 8000]);
   });
 
   it('[ENF-FIA-03] waits the delay Gmail asks for', async () => {
@@ -76,7 +79,7 @@ describe('throttleGmailClient — quota refusals', () => {
     const gmail = failingReads(createFakeGmail([MCDONALDS_ACKNOWLEDGEMENT]).client, 1, () =>
       gmailError(429, { retryAfter: '30' }),
     );
-    const client = throttleGmailClient(gmail.client, { limiter: noPacing, sleep: time.sleep });
+    const client = throttleGmailClient(gmail.client, { limiter: noPacing(), sleep: time.sleep });
 
     await read(client);
 
@@ -89,7 +92,7 @@ describe('throttleGmailClient — quota refusals', () => {
       gmailError(403, { reason: 'userRateLimitExceeded' }),
     );
     const client = throttleGmailClient(gmail.client, {
-      limiter: noPacing,
+      limiter: noPacing(),
       sleep: time.sleep,
       random: () => 0,
     });
@@ -106,7 +109,7 @@ describe('throttleGmailClient — quota refusals', () => {
     );
     const retries: number[] = [];
     const client = throttleGmailClient(gmail.client, {
-      limiter: noPacing,
+      limiter: noPacing(),
       sleep: time.sleep,
       random: () => 0,
       onRetry: ({ attempt }) => retries.push(attempt),
@@ -115,14 +118,26 @@ describe('throttleGmailClient — quota refusals', () => {
     await expect(read(client)).rejects.toSatisfy(isRateLimited);
     expect(gmail.attempts()).toBe(5);
     expect(retries).toEqual([1, 2, 3, 4]);
-    expect(time.sleeps).toEqual([1000, 2000, 4000, 8000]);
+    expect(time.sleeps).toEqual([4000, 8000, 16_000, 32_000]);
+  });
+
+  it('[ENF-FIA-09] holds the other calls of the mailbox back for as long as the refused one waits', async () => {
+    const time = fakeTime();
+    const limiter = noPacing();
+    const gmail = failingReads(createFakeGmail([MCDONALDS_ACKNOWLEDGEMENT]).client, 2, () => gmailError(429));
+    const client = throttleGmailClient(gmail.client, { limiter, sleep: time.sleep, random: () => 0 });
+
+    await read(client);
+
+    // One refusal exhausts the quota of the whole mailbox, not of this call alone.
+    expect(limiter.pauses).toEqual([4000, 8000]);
   });
 
   it('[ENF-FIA-03] reads again after a Gmail outage', async () => {
     const time = fakeTime();
     const gmail = failingReads(createFakeGmail([MCDONALDS_ACKNOWLEDGEMENT]).client, 1, () => gmailError(503));
     const client = throttleGmailClient(gmail.client, {
-      limiter: noPacing,
+      limiter: noPacing(),
       sleep: time.sleep,
       random: () => 0,
     });
@@ -137,7 +152,7 @@ describe('throttleGmailClient — quota refusals', () => {
     const gmail = failingReads(createFakeGmail([MCDONALDS_ACKNOWLEDGEMENT]).client, 99, () =>
       gmailError(404),
     );
-    const client = throttleGmailClient(gmail.client, { limiter: noPacing, sleep: time.sleep });
+    const client = throttleGmailClient(gmail.client, { limiter: noPacing(), sleep: time.sleep });
 
     await expect(read(client)).rejects.toThrow();
     expect(gmail.attempts()).toBe(1);
@@ -149,7 +164,7 @@ describe('throttleGmailClient — quota refusals', () => {
     const gmail = failingReads(createFakeGmail([MCDONALDS_ACKNOWLEDGEMENT]).client, 99, () =>
       Object.assign(new Error('invalid_grant'), { status: 400 }),
     );
-    const client = throttleGmailClient(gmail.client, { limiter: noPacing, sleep: time.sleep });
+    const client = throttleGmailClient(gmail.client, { limiter: noPacing(), sleep: time.sleep });
 
     await expect(read(client)).rejects.toThrow('invalid_grant');
     expect(gmail.attempts()).toBe(1);

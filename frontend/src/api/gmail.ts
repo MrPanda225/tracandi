@@ -10,6 +10,8 @@ export type GmailStatus =
       lastSyncAt: string | null;
       /** EF-GML-17: false in read-only mode. */
       applyLabels: boolean;
+      /** EF-CFG-04: period of the first synchronisation, in days (N of EF-GML-05). */
+      lookbackDays: number;
       /** Q-11: Google refused the authorisation; Gmail must be connected again. */
       authorizationExpired: boolean;
     };
@@ -35,3 +37,7 @@ export const synchroniseGmail = () => request<SyncReport>('/gmail/sync', { metho
 /** EF-GML-17: turns the writing of labels in Gmail on or off. */
 export const setGmailApplyLabels = (applyLabels: boolean) =>
   request<undefined>('/gmail/settings', { method: 'PATCH', body: { applyLabels } });
+
+/** EF-CFG-04: period of the first synchronisation, in days. */
+export const setGmailLookbackDays = (lookbackDays: number) =>
+  request<undefined>('/gmail/settings', { method: 'PATCH', body: { lookbackDays } });

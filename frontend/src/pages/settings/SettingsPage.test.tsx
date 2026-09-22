@@ -14,6 +14,7 @@ const CONNECTED = {
   connectedAt: '2026-09-20T09:00:00.000Z',
   lastSyncAt: null,
   applyLabels: true,
+  lookbackDays: 30,
   authorizationExpired: false,
 };
 
@@ -235,6 +236,46 @@ describe('SettingsPage — Gmail', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Une erreur inattendue est survenue.');
     expect(screen.getByRole('checkbox', { name: /Ranger les fils avec des libellés Gmail/ })).toBeChecked();
+  });
+
+  it('[EF-CFG-04] shows the period of the first synchronisation and records the one chosen', async () => {
+    const bodies: unknown[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: string, init?: RequestInit) => {
+        if (input.endsWith('/settings/ai')) return Promise.resolve(json(200, NO_AI));
+        if (init?.method === 'PATCH' && input.endsWith('/gmail/settings')) {
+          bodies.push(JSON.parse(String(init.body)));
+          return Promise.resolve(new Response(null, { status: 204 }));
+        }
+        return Promise.resolve(json(200, CONNECTED));
+      }),
+    );
+    renderPage();
+    const user = userEvent.setup();
+    const period = await screen.findByRole('combobox', { name: 'Période à synchroniser' });
+
+    expect(period).toHaveValue('30');
+    await user.selectOptions(period, '7');
+
+    await waitFor(() => expect(bodies).toEqual([{ lookbackDays: 7 }]));
+    expect(period).toHaveValue('7');
+    expect(screen.getByText(/Une période courte évite les limites de l’API Gmail/)).toBeInTheDocument();
+  });
+
+  it('[EF-CFG-04] keeps the previous period when the API refuses the change', async () => {
+    mockApi({
+      'GET /gmail/status': () => json(200, { ...CONNECTED, lookbackDays: 90 }),
+      'PATCH /gmail/settings': () => json(400, { error: 'Données invalides' }),
+    });
+    renderPage();
+    const user = userEvent.setup();
+    const period = await screen.findByRole('combobox', { name: 'Période à synchroniser' });
+
+    await user.selectOptions(period, '365');
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Données invalides');
+    expect(period).toHaveValue('90');
   });
 
   it('[Q-11] asks to reconnect an expired authorisation, through Google’s consent page', async () => {

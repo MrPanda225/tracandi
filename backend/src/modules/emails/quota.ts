@@ -8,16 +8,18 @@ import type { GmailClient } from './mailbox.js';
 const COST = { list: 5, get: 5, listLabels: 1, createLabel: 5, modifyThread: 10 } as const;
 
 /**
- * 80 % of the 250 units per second and per user Gmail grants (15 000 per minute): the moving average it measures
- * stays under the limit even when the reads run in parallel.
+ * A fifth of the 250 units per second and per user Gmail grants (15 000 per minute). The limit is a moving average
+ * over a window Google does not publish, and it refused a synchronisation paced at 200: the margin is wide on
+ * purpose, and ENF-PERF-02 still holds (10 messages a second, 100 messages in 10 seconds).
  */
-export const GMAIL_UNITS_PER_SECOND = 200;
+export const GMAIL_UNITS_PER_SECOND = 50;
 
-/** Attempts of one call, the first one included; four waits of 1, 2, 4 then 8 seconds at most. */
+/** Attempts of one call, the first one included; four waits of 4, 8, 16 then 32 seconds at most (ENF-FIA-09). */
 export const MAX_ATTEMPTS = 5;
-const FIRST_BACKOFF_MS = 1000;
+// Gmail counts its limit over a minute: waiting a second is never enough for the quota to come back.
+const FIRST_BACKOFF_MS = 4000;
 const MAX_BACKOFF_MS = 60_000;
-const JITTER_MS = 1000;
+const JITTER_MS = 2000;
 const MS_PER_SECOND = 1000;
 const RETRY_AFTER = 'retry-after';
 
@@ -79,7 +81,7 @@ const retryAfterMs = (error: unknown): number | null => {
   return Number.isFinite(seconds) && seconds >= 0 ? Math.min(seconds * MS_PER_SECOND, MAX_BACKOFF_MS) : null;
 };
 
-/** Exponential backoff with jitter (Google, « Exponential backoff »): 1, 2, 4 then 8 seconds, plus 0 to 1 second. */
+/** Exponential backoff with jitter (Google, « Exponential backoff »): 4, 8, 16 then 32 seconds, plus 0 to 2 seconds. */
 const backoffMs = (attempt: number, random: () => number): number =>
   Math.min(FIRST_BACKOFF_MS * 2 ** (attempt - 1), MAX_BACKOFF_MS) + random() * JITTER_MS;
 
@@ -92,7 +94,7 @@ export interface GmailRetry {
 }
 
 export interface GmailThrottleDeps {
-  /** Spacing of the calls; a limiter at 200 units per second by default. */
+  /** Spacing of the calls; a limiter at GMAIL_UNITS_PER_SECOND by default. */
   limiter?: RateLimiter;
   sleep?: Sleep;
   random?: () => number;
@@ -104,7 +106,7 @@ export interface GmailThrottleDeps {
  * refusal for exhausted quota or a Gmail outage is attempted again with an exponential backoff. Any other failure
  * (message deleted, authorisation refused, invalid label) is raised as it is, at once.
  * @throws the last failure of the call once the attempts are spent; `isRateLimited` tells a quota refusal.
- * @req ENF-FIA-03, ENF-PERF-02
+ * @req ENF-FIA-03, ENF-FIA-09, ENF-PERF-02
  */
 export const throttleGmailClient = (client: GmailClient, deps: GmailThrottleDeps = {}): GmailClient => {
   const {
@@ -125,6 +127,9 @@ export const throttleGmailClient = (client: GmailClient, deps: GmailThrottleDeps
       } catch (error) {
         if (!isRetryable(error)) throw error;
         const delayMs = retryAfterMs(error) ?? backoffMs(attempt, random);
+        // The quota is counted per user, not per call: every other call of this mailbox waits too, otherwise the
+        // calls in flight keep the quota exhausted and spend their attempts for nothing (ENF-FIA-09).
+        limiter.pauseFor(delayMs);
         onRetry?.({ attempt, delayMs, error });
         await sleep(delayMs);
       }

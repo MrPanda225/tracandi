@@ -19,6 +19,11 @@ export interface RateLimiter {
    * in parallel are spread instead of bursting; an idle period is not saved up for later.
    */
   take: (cost: number) => Promise<void>;
+  /**
+   * Holds every later call back for `ms`, whoever asks: one refusal from the service slows the whole client down
+   * instead of the single call that was refused.
+   */
+  pauseFor: (ms: number) => void;
 }
 
 /**
@@ -41,6 +46,10 @@ export const createRateLimiter = ({
       nextFreeAt = startAt + (cost / unitsPerSecond) * MS_PER_SECOND;
       const delay = startAt - now();
       if (delay > 0) await sleep(delay);
+    },
+
+    pauseFor(ms) {
+      nextFreeAt = Math.max(nextFreeAt, now() + ms);
     },
   };
 };

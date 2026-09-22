@@ -111,6 +111,7 @@ describe('Gmail connection', () => {
       connectedAt: '2026-09-22T08:00:00.000Z',
       lastSyncAt: null,
       applyLabels: true,
+      lookbackDays: 30,
       authorizationExpired: false,
     });
     expect((await api(bob).get('/api/gmail/status')).body).toEqual({ connected: false });

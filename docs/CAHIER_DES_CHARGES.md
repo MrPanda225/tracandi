@@ -7,6 +7,7 @@
 | 1.2 | 22/09/2026 | Sahiré YAPI (Business Owner) | À valider — comptes utilisateurs et données séparées (BES-14), documentation OpenAPI / Swagger (BES-15), connexion Gmail par utilisateur depuis l'interface (BES-16) ; Q-16 |
 | 1.3 | 22/09/2026 | Sahiré YAPI (Business Owner) | Validée — ENF-PERF-04 limitée aux requêtes sélectives ; indicateurs du tableau de bord bornés à 50 ms par requête (BES-17, ENF-PERF-05) ; Q-17 |
 | 1.4 | 22/09/2026 | Sahiré YAPI (Business Owner) | À valider — description de l'offre et date de candidature saisies par le candidat (BES-18, EF-CAN-15, EF-CAN-16, RG-16) |
+| 1.5 | 22/09/2026 | Sahiré YAPI (Business Owner) | À valider — période de la première synchronisation réglable depuis les Réglages, 30 jours par défaut (BES-19, EF-GML-05 modifiée, EF-CFG-04) ; quotas de l'API Gmail respectés (ENF-FIA-09) |
 
 > Document de référence pour le développement. Toute évolution de périmètre passe par une mise à jour
 > de ce fichier **avant** le code. Chaque exigence porte un identifiant stable, repris dans
@@ -104,6 +105,7 @@ des candidatures, la veille des offres et la production de CV adaptés.
 | BES-13 | « Pas de CV générique : un CV optimisé pour passer les ATS et dont les expériences sont reformulées (sans mentir) pour correspondre aux besoins de l'offre ou en couvrir une bonne partie. » |
 | BES-17 | « Exempter [les agrégats du tableau de bord de l'interdiction du Seq Scan], borner à 50 ms. » (choix du 22/09/2026, après mesure : moins de 1 ms par requête avec le jeu de charge) |
 | BES-18 | « Il faudrait pouvoir mettre une description de l'offre et la date de candidature. » |
+| BES-19 | « Pour la synchronisation on peut définir la période à vérifier qui doit être modifiable sur l'écran, mais pour éviter ces rate limits on peut passer par les mails sur la période 1 mois. » (après refus de quota de l'API Gmail, 22/09/2026) |
 
 ### 4.2 Exigences métier (indépendantes de la solution)
 
@@ -155,7 +157,7 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | EF-GML-02 | Le candidat peut révoquer la connexion Gmail depuis l'interface. | M | EXM-01 | T | Après révocation, aucun jeton n'est présent en base. |
 | EF-GML-03 | Le système doit synchroniser les messages reçus et envoyés toutes les 30 minutes lorsqu'une boîte est connectée. | M | EXM-01 | T | Le planificateur déclenche la tâche selon l'expression cron configurée. |
 | EF-GML-04 | Le candidat peut déclencher une synchronisation manuelle. | M | EXM-01 | T | L'appel renvoie le nombre de messages lus, retenus et classés. |
-| EF-GML-05 | Lors de la première synchronisation, le système doit traiter les messages des N derniers jours, N paramétrable avec 120 par défaut. | M | EXM-01 | T | Avec N = 30, aucun message antérieur à J-30 n'est traité. |
+| EF-GML-05 | Lors de la première synchronisation, le système doit traiter les messages des N derniers jours, N paramétrable entre 1 et 365 avec **30 par défaut** (v1.5, BES-19 ; 120 en v1.4). | M | EXM-01 | T | Avec N = 30, aucun message antérieur à J-30 n'est traité. |
 | EF-GML-06 | Le système doit ignorer tout message déjà traité. | M | EXM-01 | T | Deux synchronisations successives sans nouveau message n'ajoutent aucune ligne. |
 | EF-GML-07 | Le système doit écarter sans appel IA tout message ne correspondant à aucun indicateur d'emploi (RG-10). | M | EXM-10 | T | Un message bancaire de test n'entraîne aucun appel fournisseur. |
 | EF-GML-08 | Le système doit attribuer à chaque message retenu une catégorie de message. | M | EXM-01 | T | Sur le jeu de fixtures, chaque message reçoit une catégorie valide. |
@@ -273,6 +275,7 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | EF-CFG-01 | Le système doit afficher l'adresse Gmail connectée et la date de dernière synchronisation. | M | EXM-01 | D |
 | EF-CFG-02 | Le système doit afficher les fournisseurs IA configurés et la tâche attribuée à chacun. | S | EXM-10 | D |
 | EF-CFG-03 | Le système doit afficher le coût IA estimé du mois en cours. | C | ENF-COU-01 | T |
+| EF-CFG-04 | Le candidat doit pouvoir régler, depuis l'écran Réglages, la période de la première synchronisation (N jours, EF-GML-05). | M | BES-19 | T |
 
 ### 6.8 Comptes et accès (AUT)
 
@@ -340,6 +343,7 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | ENF-FIA-06 | La perte de données maximale admissible (RPO) est de 24 heures. | I |
 | ENF-FIA-07 | La durée maximale de restauration (RTO) est de 30 minutes. | D |
 | ENF-FIA-08 | Les sauvegardes doivent être conservées 30 jours. | I |
+| ENF-FIA-09 | La synchronisation doit rester dans les quotas de l'API Gmail : appels espacés, refus pour quota réessayé avec attente croissante, et passage interrompu conservant les messages déjà lus. | T |
 
 ### 7.4 Maintenabilité
 | ID | Exigence | Vérif. |
@@ -480,5 +484,6 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | BES-12 | EXM-11 | EF-GML-19, EF-CAN-13, 14, EF-VEI-20 à 22, EF-TDB-09, RG-09, RG-10 |
 | BES-17 | EXM-09 | ENF-PERF-04, ENF-PERF-05 |
 | BES-18 | EXM-02, EXM-04 | EF-CAN-15, EF-CAN-16, RG-16 |
+| BES-19 | EXM-01 | EF-GML-05, EF-CFG-04, ENF-FIA-09 |
 
 La traçabilité fine exigence → tâche → test est tenue à jour dans `docs/TRACABILITE.md`.

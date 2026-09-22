@@ -33,6 +33,10 @@ export const GmailStatusSchema = z
       connectedAt: DateTimeSchema,
       lastSyncAt: DateTimeSchema.nullable(),
       applyLabels: z.boolean().openapi({ description: 'Écriture des libellés dans Gmail (EF-GML-17)' }),
+      lookbackDays: z
+        .number()
+        .int()
+        .openapi({ description: 'Période de la première synchronisation, en jours (EF-GML-05, EF-CFG-04)' }),
       authorizationExpired: z
         .boolean()
         .openapi({ description: 'Autorisation refusée par Google (Q-11) : reconnecter Gmail' }),
@@ -40,14 +44,29 @@ export const GmailStatusSchema = z
   ])
   .openapi('GmailStatus');
 
-/** EF-GML-17 */
+/** EF-GML-05: bornes de N, la période de la première synchronisation. */
+export const MIN_LOOKBACK_DAYS = 1;
+export const MAX_LOOKBACK_DAYS = 365;
+
+/** EF-GML-17, EF-CFG-04 : au moins un réglage, les autres gardent leur valeur. */
 export const GmailSettingsBodySchema = z
   .object({
     applyLabels: z
       .boolean()
+      .optional()
       .openapi({ description: 'false : mode lecture seule, Tracandi ne modifie aucun libellé dans Gmail' }),
+    lookbackDays: z
+      .number()
+      .int()
+      .min(MIN_LOOKBACK_DAYS)
+      .max(MAX_LOOKBACK_DAYS)
+      .optional()
+      .openapi({ description: 'Période de la première synchronisation, en jours (1 à 365, EF-GML-05)' }),
   })
   .strict()
+  .refine((body) => Object.values(body).some((value) => value !== undefined), {
+    message: 'Indiquez au moins un réglage à modifier',
+  })
   .openapi('GmailSettingsBody');
 
 /** EF-GML-04 */

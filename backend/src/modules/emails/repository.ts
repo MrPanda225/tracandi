@@ -315,17 +315,33 @@ export const deleteGmailLabels = async (db: Executor, userId: number): Promise<v
 };
 
 /** Whether the user lets Tracandi write labels in Gmail (EF-GML-17); null when the settings row is missing. */
-export const findApplyLabels = async (db: Executor, userId: number): Promise<boolean | null> => {
+export const findSyncPreferences = async (
+  db: Executor,
+  userId: number,
+): Promise<{ applyLabels: boolean; lookbackDays: number } | null> => {
   const [row] = await db
-    .select({ applyLabels: appSettings.gmailApplyLabels })
+    .select({ applyLabels: appSettings.gmailApplyLabels, lookbackDays: appSettings.gmailLookbackDays })
     .from(appSettings)
     .where(eq(appSettings.userId, userId));
-  return row?.applyLabels ?? null;
+  return row ?? null;
 };
 
-/** Turns the writing of labels in Gmail on or off for the user (EF-GML-17). */
-export const setApplyLabels = async (db: Executor, userId: number, applyLabels: boolean): Promise<void> => {
-  await db.update(appSettings).set({ gmailApplyLabels: applyLabels }).where(eq(appSettings.userId, userId));
+/**
+ * Changes the synchronisation settings of the user; a setting left out keeps its value.
+ * @req EF-GML-17, EF-CFG-04
+ */
+export const setSyncPreferences = async (
+  db: Executor,
+  userId: number,
+  changes: { applyLabels?: boolean; lookbackDays?: number },
+): Promise<void> => {
+  await db
+    .update(appSettings)
+    .set({
+      ...(changes.applyLabels === undefined ? {} : { gmailApplyLabels: changes.applyLabels }),
+      ...(changes.lookbackDays === undefined ? {} : { gmailLookbackDays: changes.lookbackDays }),
+    })
+    .where(eq(appSettings.userId, userId));
 };
 
 /**

@@ -3,6 +3,7 @@ import type { gmail_v1 } from 'googleapis/build/src/apis/gmail/index.js';
 import request from 'supertest';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import {
+  appSettings,
   applicationStatusHistory,
   applications,
   companies,
@@ -79,6 +80,10 @@ const setUp = async (messages: readonly gmail_v1.Schema$Message[]) => {
   aliceId = await userIdOf('alice@example.com');
   await connectMailbox(aliceId);
 };
+
+/** EF-CFG-04: sets N, the period of the first synchronisation, for the scenarios built on older messages. */
+const readBack = (days: number) =>
+  database.db.update(appSettings).set({ gmailLookbackDays: days }).where(eq(appSettings.userId, aliceId));
 
 const synchronise = (cookie = alice) =>
   request(context.app).post('/api/gmail/sync').set('Cookie', cookie).set('Content-Type', 'application/json');
@@ -354,6 +359,8 @@ describe('classification and attachment', () => {
 
   it('[RG-03] files a message without employer nor platform under « Entreprise inconnue », « Candidature »', async () => {
     await setUp([OLD_SPONTANEOUS_APPLICATION]);
+    // This recorded message is older than the 30 days read by default (EF-GML-05).
+    await readBack(120);
 
     await synchronise();
 

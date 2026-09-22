@@ -126,6 +126,15 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
   (`GET /api/settings/ai`). La liste des mots-clés RG-10 n'est pas encore modifiable dans Réglages (Q-09) : aucune
   tâche ne la prévoit.
 
+- [x] **T-306 Période de synchronisation réglable et quotas Gmail** — `PATCH /api/gmail/settings` accepte `lookbackDays`
+  (1 à 365), `GET /api/gmail/status` l'expose, sélecteur « Période à synchroniser » dans Réglages ; migration 0004
+  (défaut 30 jours, contrainte 1–365, reprise des boîtes restées à 120) ; gouverneur de quota Gmail
+  (`lib/rateLimiter.ts`, `modules/emails/quota.ts`) : 50 unités/seconde, attente partagée par la boîte sur un refus,
+  réessais 4/8/16/32 s, passe bornée à 200 messages, passage interrompu conservant les messages déjà lus.
+  *Exigences* : EF-CFG-04, EF-GML-05 (v1.5), ENF-FIA-09 (demande du Business Owner du 22/09/2026, cahier v1.5).
+  *Fini quand* : tests d'intégration (période par défaut 30 jours, réglage enregistré et refusé hors bornes, passe
+  partielle sur refus de quota) et tests Testing Library (sélecteur, refus de l'API) ; `npm run check` vert.
+
 ## Lot 4 — Veille des offres
 
 - [ ] **T-401 Client HTTP de collecte** — robots.txt (cache par origine), 3 s par hôte, agent identifiant,

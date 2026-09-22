@@ -173,6 +173,30 @@ describe('PATCH /api/gmail/settings — read-only mode (EF-GML-17)', () => {
     expect((await status()).body).toMatchObject({ applyLabels: true });
   });
 
+  it('[EF-CFG-04] shows the period of the first synchronisation and records a new one', async () => {
+    await setUp([]);
+    const status = () => request(context.app).get('/api/gmail/status').set('Cookie', alice);
+
+    // Cahier v1.5: 30 days by default.
+    expect((await status()).body).toMatchObject({ connected: true, lookbackDays: 30 });
+    await setApplyLabels({ lookbackDays: 7 }).expect(204);
+
+    expect((await status()).body).toMatchObject({ lookbackDays: 7, applyLabels: true });
+  });
+
+  it.each([
+    ['a period below the minimum', { lookbackDays: 0 }],
+    ['a period above a year', { lookbackDays: 366 }],
+    ['a period that is not a whole number', { lookbackDays: 30.5 }],
+  ])('[ENF-SEC-04] [EF-CFG-04] refuses %s', async (_case, body) => {
+    await setUp([]);
+
+    expect((await setApplyLabels(body)).status).toBe(400);
+    expect((await request(context.app).get('/api/gmail/status').set('Cookie', alice)).body).toMatchObject({
+      lookbackDays: 30,
+    });
+  });
+
   it.each([
     ['a missing value', {}],
     ['a text instead of a boolean', { applyLabels: 'non' }],

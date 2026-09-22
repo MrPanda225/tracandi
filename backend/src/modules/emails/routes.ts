@@ -70,7 +70,7 @@ export const createGmailModules = ({ service, sync, frontendOrigin }: GmailModul
     '/gmail/settings',
     asyncHandler(async (req, res) => {
       const { body } = validate(req, { body: GmailSettingsBodySchema });
-      await service.setApplyLabels(currentUserId(res), body.applyLabels);
+      await service.setSyncPreferences(currentUserId(res), body);
       res.status(204).end();
     }),
   );

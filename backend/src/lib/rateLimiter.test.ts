@@ -55,6 +55,16 @@ describe('createRateLimiter', () => {
     expect(time.elapsed()).toBe(200);
   });
 
+  it('[ENF-FIA-09] holds every later call back for the pause asked for', async () => {
+    const time = fakeTime();
+    const limiter = createRateLimiter({ unitsPerSecond: 200, now: time.now, sleep: time.sleep });
+
+    limiter.pauseFor(30_000);
+    await Promise.all([limiter.take(5), limiter.take(5)]);
+
+    expect(time.elapsed()).toBe(30_025);
+  });
+
   it('[ENF-PERF-02] refuses a rate that would never let a call through', () => {
     expect(() => createRateLimiter({ unitsPerSecond: 0 })).toThrow();
   });

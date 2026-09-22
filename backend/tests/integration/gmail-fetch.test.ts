@@ -68,6 +68,13 @@ const connectMailbox = async (userId: number) =>
     resetSync: true,
   });
 
+/**
+ * EF-CFG-04: sets N, the period of the first synchronisation. The recorded mailbox spans more than the 30 days
+ * read by default (EF-GML-05), so the scenarios about the whole mailbox ask for 120 days.
+ */
+const readBack = (userId: number, days: number) =>
+  database.db.update(appSettings).set({ gmailLookbackDays: days }).where(eq(appSettings.userId, userId));
+
 const newFetcher = () =>
   createMessageFetcher({
     db: database.db,
@@ -109,37 +116,38 @@ afterAll(async () => {
 });
 
 describe('MessageFetcher — first synchronisation', () => {
-  it('[EF-GML-05] reads back 120 days by default, the received and the sent messages, drafts excluded', async () => {
+  it('[EF-GML-05] reads back 30 days by default, the received and the sent messages, drafts excluded', async () => {
     await connectMailbox(aliceId);
 
     const result = await newFetcher().fetchNewMessages(aliceId);
 
-    expect(lastSearchSince()).toEqual(new Date(context.clock.now().getTime() - 120 * DAY_MS));
-    expect(gmail.listCalls.at(-1)?.q).toContain('-in:drafts');
-    expect(result.readCount).toBe(MAILBOX.length);
-    expect(result.retained.map((message) => message.gmailMessageId)).toContain(
-      OLD_SPONTANEOUS_APPLICATION.id,
-    );
-    expect(result.retained.find((message) => message.gmailMessageId === SENT_APPLICATION.id)?.direction).toBe(
-      'outbound',
-    );
-  });
-
-  it('[EF-GML-05] with N = 30, processes no message older than 30 days', async () => {
-    await connectMailbox(aliceId);
-    await database.db
-      .update(appSettings)
-      .set({ gmailLookbackDays: 30 })
-      .where(eq(appSettings.userId, aliceId));
-
-    const result = await newFetcher().fetchNewMessages(aliceId);
-
+    // Cahier v1.5: N is 30 days by default, no message older is processed.
     expect(lastSearchSince()).toEqual(new Date('2026-08-23T10:00:00.000Z'));
+    expect(gmail.listCalls.at(-1)?.q).toContain('-in:drafts');
     expect(result.readCount).toBe(MAILBOX.length - 1);
     expect(result.retained.map((message) => message.gmailMessageId)).not.toContain(
       OLD_SPONTANEOUS_APPLICATION.id,
     );
     expect((await processedRows(aliceId)).map((row) => row.id)).not.toContain(OLD_SPONTANEOUS_APPLICATION.id);
+    expect(result.retained.find((message) => message.gmailMessageId === SENT_APPLICATION.id)?.direction).toBe(
+      'outbound',
+    );
+  });
+
+  it('[EF-CFG-04] [EF-GML-05] with N = 120, processes the messages of the last 120 days', async () => {
+    await connectMailbox(aliceId);
+    await database.db
+      .update(appSettings)
+      .set({ gmailLookbackDays: 120 })
+      .where(eq(appSettings.userId, aliceId));
+
+    const result = await newFetcher().fetchNewMessages(aliceId);
+
+    expect(lastSearchSince()).toEqual(new Date(context.clock.now().getTime() - 120 * DAY_MS));
+    expect(result.readCount).toBe(MAILBOX.length);
+    expect(result.retained.map((message) => message.gmailMessageId)).toContain(
+      OLD_SPONTANEOUS_APPLICATION.id,
+    );
   });
 
   it('[ENF-SEC-02] opens the mailbox with the refresh token decrypted from the database', async () => {
@@ -152,6 +160,7 @@ describe('MessageFetcher — first synchronisation', () => {
 
   it('[ENF-FIA-03] [ENF-PERF-02] reads one bounded pass and leaves the older messages to the next one', async () => {
     await connectMailbox(aliceId);
+    await readBack(aliceId, 120);
     // Gmail's quota per minute and per user forbids reading a large mailbox in one go.
     for (const message of otherMessages(MAX_MESSAGES_PER_PASS)) gmail.deliver(message);
     const fetcher = newFetcher();
@@ -165,6 +174,32 @@ describe('MessageFetcher — first synchronisation', () => {
     expect(second.hasMore).toBe(false);
     // No message is read twice: the first pass marked what it read as processed.
     expect(new Set(gmail.readIds).size).toBe(MAX_MESSAGES_PER_PASS + MAILBOX.length);
+  });
+
+  it('[ENF-FIA-09] keeps what it read when Gmail refuses the rest for quota, and leaves the rest to the next pass', async () => {
+    await connectMailbox(aliceId);
+    let reads = 0;
+    const quotaRefusal = Object.assign(new Error('Quota exceeded for quota metric'), { status: 429 });
+    const strict = { ...gmail.client };
+    gmail.client.get = (params) => {
+      reads += 1;
+      return reads > 2 ? Promise.reject(quotaRefusal) : strict.get(params);
+    };
+
+    const result = await newFetcher().fetchNewMessages(aliceId);
+
+    expect(result.readCount).toBeGreaterThan(0);
+    expect(result.readCount).toBeLessThan(MAILBOX.length);
+    expect(result.hasMore).toBe(true);
+  });
+
+  it('[ENF-FIA-09] reports the refusal when Gmail let nothing be read at all', async () => {
+    await connectMailbox(aliceId);
+    gmail.client.get = () =>
+      Promise.reject(Object.assign(new Error('Quota exceeded for quota metric'), { status: 429 }));
+
+    await expect(newFetcher().fetchNewMessages(aliceId)).rejects.toThrow('Quota exceeded');
+    expect(await processedRows(aliceId)).toEqual([]);
   });
 
   it('[EF-GML-04] refuses to synchronise without a connected mailbox', async () => {
@@ -185,6 +220,7 @@ describe('MessageFetcher — pre-filter (RG-10)', () => {
 
   it('[RG-10] [EF-GML-10] keeps job messages, oldest first, with the platform of a platform sender', async () => {
     await connectMailbox(aliceId);
+    await readBack(aliceId, 120);
 
     const { retained } = await newFetcher().fetchNewMessages(aliceId);
 
@@ -255,6 +291,7 @@ describe('MessageFetcher — pre-filter (RG-10)', () => {
 describe('MessageFetcher — incremental synchronisation', () => {
   it('[EF-GML-06] never reads again a message already processed', async () => {
     await connectMailbox(aliceId);
+    await readBack(aliceId, 120);
     await newFetcher().fetchNewMessages(aliceId);
     const rowsAfterFirst = await processedRows(aliceId);
     gmail.readIds.length = 0;
@@ -279,6 +316,7 @@ describe('MessageFetcher — incremental synchronisation', () => {
 
   it('[ENF-FIA-03] resumes an interrupted synchronisation at the next pass, without any duplicate', async () => {
     await connectMailbox(aliceId);
+    await readBack(aliceId, 120);
     gmail.breakMessage(APEC_INNOVA.id ?? '');
 
     await expect(newFetcher().fetchNewMessages(aliceId)).rejects.toThrow('Backend Error');
@@ -305,6 +343,8 @@ describe('MessageFetcher — incremental synchronisation', () => {
     const bobId = await userIdOf('bob@example.com');
     await connectMailbox(aliceId);
     await connectMailbox(bobId);
+    await readBack(aliceId, 120);
+    await readBack(bobId, 120);
     const fetcher = newFetcher();
 
     await fetcher.fetchNewMessages(aliceId);

@@ -6,6 +6,7 @@ import {
   fetchGmailStatus,
   type GmailStatus,
   setGmailApplyLabels,
+  setGmailLookbackDays,
   synchroniseGmail,
   type SyncReport,
 } from '../../api/gmail';
@@ -110,6 +111,81 @@ function LabelsOption({ isOn, onFailure }: { isOn: boolean; onFailure: (message:
   );
 }
 
+/** EF-CFG-04: periods offered for the first synchronisation; the API accepts 1 to 365 days. */
+const LOOKBACK_CHOICES = [
+  { days: 7, label: '7 derniers jours' },
+  { days: 30, label: '1 mois' },
+  { days: 90, label: '3 mois' },
+  { days: 180, label: '6 mois' },
+  { days: 365, label: '1 an' },
+];
+
+/**
+ * EF-CFG-04: period read on the first synchronisation (N of EF-GML-05). A short period keeps the first
+ * synchronisation inside Gmail's quota; the select goes back if the API refuses the change.
+ */
+function LookbackOption({
+  days,
+  isFirstSyncDone,
+  onFailure,
+}: {
+  days: number;
+  isFirstSyncDone: boolean;
+  onFailure: (message: string) => void;
+}) {
+  const fieldId = useId();
+  const hintId = useId();
+  const [selected, setSelected] = useState(days);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleChange = async (chosen: number) => {
+    const previous = selected;
+    setSelected(chosen);
+    setIsSaving(true);
+    try {
+      await setGmailLookbackDays(chosen);
+    } catch (failure) {
+      setSelected(previous);
+      onFailure(messageOf(failure));
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // A period the API returns that is not in the list (set elsewhere) stays selectable.
+  const choices = LOOKBACK_CHOICES.some((choice) => choice.days === selected)
+    ? LOOKBACK_CHOICES
+    : [...LOOKBACK_CHOICES, { days: selected, label: `${selected} jours` }].sort((a, b) => a.days - b.days);
+
+  return (
+    <div className="gmail-settings__option gmail-settings__option--period">
+      <label className="gmail-settings__option-label" htmlFor={fieldId}>
+        Période à synchroniser
+      </label>
+      <select
+        id={fieldId}
+        className="control gmail-settings__select"
+        value={selected}
+        disabled={isSaving}
+        aria-describedby={hintId}
+        onChange={(event) => void handleChange(Number(event.target.value))}
+      >
+        {choices.map((choice) => (
+          <option key={choice.days} value={choice.days}>
+            {choice.label}
+          </option>
+        ))}
+      </select>
+      <p id={hintId} className="gmail-settings__meta">
+        {isFirstSyncDone
+          ? 'La première synchronisation est faite : Tracandi ne lit plus que les nouveaux messages. Cette période ' +
+            'resservira après une reconnexion de la boîte.'
+          : 'Messages lus lors de la première synchronisation. Une période courte évite les limites de l’API Gmail.'}
+      </p>
+    </div>
+  );
+}
+
 function ConnectedMailbox({
   gmail,
   onSynchronised,
@@ -147,6 +223,11 @@ function ConnectedMailbox({
             : 'Dernière synchronisation : pas encore'}
         </p>
       </div>
+      <LookbackOption
+        days={gmail.lookbackDays}
+        isFirstSyncDone={gmail.lastSyncAt !== null}
+        onFailure={onFailure}
+      />
       <LabelsOption isOn={gmail.applyLabels} onFailure={onFailure} />
       <div className="gmail-settings__actions">
         {isConfirming ? (
@@ -184,8 +265,9 @@ function ConnectedMailbox({
 
 /**
  * Gmail block of the settings: connected address, connection day and last synchronisation (EF-CFG-01), connection
- * through Google's consent page (EF-GML-01), manual synchronisation (EF-GML-04), writing of labels (EF-GML-17),
- * disconnection after confirmation (EF-GML-02), reconnection of an expired authorisation (Q-11).
+ * through Google's consent page (EF-GML-01), manual synchronisation (EF-GML-04), period of the first synchronisation
+ * (EF-CFG-04), writing of labels (EF-GML-17), disconnection after confirmation (EF-GML-02), reconnection of an
+ * expired authorisation (Q-11).
  */
 export function GmailSettings({ initialNotice }: { initialNotice: Notice | null }) {
   const titleId = useId();

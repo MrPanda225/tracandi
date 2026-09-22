@@ -5,6 +5,7 @@ import { decryptSecret } from '../../lib/crypto.js';
 import { HttpError } from '../../lib/errors.js';
 import { normalizeKey } from '../../lib/text.js';
 import type { GmailMailbox, MailboxMessage, OpenMailbox } from './mailbox.js';
+import { isRateLimited } from './quota.js';
 import {
   createPrefilter,
   DEFAULT_JOB_KEYWORDS,
@@ -39,7 +40,7 @@ export interface FetchResult {
   /** EF-GML-17: false when the user turned the writing of labels off. */
   shouldApplyLabels: boolean;
   /**
-   * True when the pass stopped at `MAX_MESSAGES_PER_PASS`: messages older than the ones read are still waiting.
+   * True when the pass left messages behind: it reached `MAX_MESSAGES_PER_PASS`, or Gmail's quota stopped it.
    * The date of the last synchronisation must not move, so that the next pass lists them again (ENF-FIA-03).
    */
   hasMore: boolean;
@@ -49,8 +50,8 @@ export interface MessageFetcher {
   /**
    * Reads the messages received and sent since the last synchronisation (N days back for the first one), skips the
    * known ones, and marks the messages set aside by RG-10 as processed, without any AI call.
-   * @throws GmailNotConnectedError when no mailbox is connected; any Gmail or database failure, nothing being
-   * recorded twice on the next pass (ENF-FIA-03).
+   * @throws GmailNotConnectedError when no mailbox is connected; Gmail's quota refusal when not a single message
+   * could be read; any other Gmail or database failure, nothing being recorded twice on the next pass (ENF-FIA-03).
    */
   fetchNewMessages: (userId: number) => Promise<FetchResult>;
 }
@@ -66,7 +67,7 @@ const DAY_MS = 24 * 60 * 60_000;
 const MS_PER_SECOND = 1000;
 // Gmail indexes a message shortly after its arrival: the last hour is read again, known messages skipped (EF-GML-06).
 export const SYNC_OVERLAP_MS = 60 * 60_000;
-// ENF-PERF-02; the quota governor of the mailbox spaces these calls (200 units per second, 5 per message read).
+// ENF-PERF-02; the quota governor of the mailbox spaces these calls (GMAIL_UNITS_PER_SECOND, 5 per read).
 const READ_CONCURRENCY = 10;
 /**
  * Messages read in one pass. The first synchronisation of a mailbox covers N days and may list thousands of
@@ -74,7 +75,7 @@ const READ_CONCURRENCY = 10;
  * for Gmail's quota per minute to hold. The messages read are marked processed, so a pass never redoes the previous
  * one (ENF-FIA-03).
  */
-export const MAX_MESSAGES_PER_PASS = 400;
+export const MAX_MESSAGES_PER_PASS = 200;
 
 /**
  * Instant from which messages are read: one overlap before the last synchronisation, or N days back for the first.
@@ -126,9 +127,37 @@ const createListsLoader = (db: Database): ((userId: number) => Promise<Prefilter
 };
 
 /**
+ * Reads the messages of one pass, at most READ_CONCURRENCY at a time.
+ * Gmail's quota may be spent although the calls were spaced and attempted again: the reading then stops and the
+ * pass keeps what it holds, the rest waiting for the next one.
+ * @returns the messages read, deleted ones as null, and whether Gmail refused the rest for quota.
+ * @throws the quota refusal when not a single message could be read; any other Gmail failure.
+ * @req ENF-FIA-03, ENF-FIA-09, ENF-PERF-02
+ */
+const readMessages = async (
+  mailbox: GmailMailbox,
+  ids: readonly string[],
+): Promise<{ read: (MailboxMessage | null)[]; isQuotaSpent: boolean }> => {
+  let quotaRefusal: unknown = null;
+  const read = await mapWithConcurrency(ids, READ_CONCURRENCY, async (id) => {
+    if (quotaRefusal) return null;
+    try {
+      return await mailbox.getMessage(id);
+    } catch (error) {
+      if (!isRateLimited(error)) throw error;
+      quotaRefusal = error;
+      return null;
+    }
+  });
+  // Nothing at all could be read: the user is told, rather than shown an empty synchronisation.
+  if (quotaRefusal && read.every((message) => message === null)) throw quotaRefusal;
+  return { read, isQuotaSpent: quotaRefusal !== null };
+};
+
+/**
  * Creates the fetcher of new Gmail messages: incremental listing, exclusion of the processed ones, metadata and
  * excerpt only, RG-10 pre-filter.
- * @req EF-GML-05, EF-GML-06, EF-GML-07, ENF-RGP-01, ENF-FIA-03, RG-10
+ * @req EF-GML-05, EF-GML-06, EF-GML-07, ENF-RGP-01, ENF-FIA-03, ENF-FIA-09, RG-10
  */
 export const createMessageFetcher = ({
   db,
@@ -155,7 +184,7 @@ export const createMessageFetcher = ({
       // Gmail lists the newest messages first: a bounded pass reads those, the older ones wait for the next one.
       const unread = unique.filter((id) => !known.has(id));
       const toRead = unread.slice(0, MAX_MESSAGES_PER_PASS);
-      const read = await mapWithConcurrency(toRead, READ_CONCURRENCY, (id) => mailbox.getMessage(id));
+      const { read, isQuotaSpent } = await readMessages(mailbox, toRead);
       // EF-GML-05: the search bounds the listing, the date of each message decides.
       const messages = read.filter(
         (message): message is MailboxMessage => message !== null && message.receivedAt >= since,
@@ -180,7 +209,7 @@ export const createMessageFetcher = ({
         retained,
         mailbox,
         shouldApplyLabels: source.shouldApplyLabels,
-        hasMore: unread.length > toRead.length,
+        hasMore: unread.length > toRead.length || isQuotaSpent,
       };
     },
   };

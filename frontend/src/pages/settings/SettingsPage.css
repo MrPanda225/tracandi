@@ -91,6 +91,17 @@
   padding-left: 1.6rem;
 }
 
+/* EF-CFG-04: the period is a select, without the checkbox indent. */
+.gmail-settings__option--period .gmail-settings__option-label,
+.gmail-settings__option--period .gmail-settings__meta {
+  padding-left: 0;
+  cursor: default;
+}
+
+.gmail-settings__select {
+  max-width: 16rem;
+}
+
 .ai-settings__providers {
   display: flex;
   flex-wrap: wrap;
