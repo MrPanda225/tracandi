@@ -4,18 +4,26 @@ import { describeAssignments } from './assignments.js';
 describe('describeAssignments', () => {
   it('[EF-CFG-02] lists the configured providers and, for each task, the providers that serve it in order', () => {
     expect(
-      describeAssignments({ claude: { model: 'claude-sonnet-5' }, gemini: { model: 'gemini-2.5-flash' } }),
+      describeAssignments({
+        claude: { model: 'claude-sonnet-5' },
+        gemini: { model: 'gemini-3.6-flash' },
+        groq_llama: { model: 'llama-3.3-70b-versatile' },
+        groq_kimi: { model: 'moonshotai/kimi-k2-instruct' },
+      }),
     ).toEqual({
       providers: [
+        { name: 'groq_llama', model: 'llama-3.3-70b-versatile' },
+        { name: 'groq_kimi', model: 'moonshotai/kimi-k2-instruct' },
+        { name: 'gemini', model: 'gemini-3.6-flash' },
         { name: 'claude', model: 'claude-sonnet-5' },
-        { name: 'gemini', model: 'gemini-2.5-flash' },
       ],
+      // RG-13 (v1.7); Qwen, left out of the configuration, is left out of the routing.
       tasks: [
-        { task: 'classify_emails', providers: ['gemini', 'claude'] },
-        { task: 'score_offers', providers: ['gemini', 'claude'] },
-        { task: 'extract_offers', providers: ['gemini', 'claude'] },
-        { task: 'tailor_cv', providers: ['claude', 'gemini'] },
-        { task: 'write_motivation', providers: ['claude', 'gemini'] },
+        { task: 'classify_emails', providers: ['groq_llama', 'groq_kimi', 'gemini', 'claude'] },
+        { task: 'score_offers', providers: ['groq_llama', 'groq_kimi', 'gemini', 'claude'] },
+        { task: 'extract_offers', providers: ['groq_llama', 'groq_kimi', 'gemini', 'claude'] },
+        { task: 'tailor_cv', providers: ['groq_kimi', 'groq_llama', 'gemini', 'claude'] },
+        { task: 'write_motivation', providers: ['groq_kimi', 'groq_llama', 'gemini', 'claude'] },
       ],
     });
   });
@@ -27,9 +35,9 @@ describe('describeAssignments', () => {
   });
 
   it('[EF-CFG-02] [EF-IA-05] gives every task to the only configured provider', () => {
-    const { providers, tasks } = describeAssignments({ gemini: { model: 'gemini-2.5-flash' } });
+    const { providers, tasks } = describeAssignments({ gemini: { model: 'gemini-3.6-flash' } });
 
-    expect(providers).toEqual([{ name: 'gemini', model: 'gemini-2.5-flash' }]);
+    expect(providers).toEqual([{ name: 'gemini', model: 'gemini-3.6-flash' }]);
     expect(tasks.every((task) => task.providers.join() === 'gemini')).toBe(true);
   });
 });

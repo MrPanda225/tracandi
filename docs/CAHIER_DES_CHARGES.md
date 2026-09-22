@@ -9,6 +9,7 @@
 | 1.4 | 22/09/2026 | Sahiré YAPI (Business Owner) | À valider — description de l'offre et date de candidature saisies par le candidat (BES-18, EF-CAN-15, EF-CAN-16, RG-16) |
 | 1.5 | 22/09/2026 | Sahiré YAPI (Business Owner) | À valider — période de la première synchronisation réglable depuis les Réglages, 30 jours par défaut (BES-19, EF-GML-05 modifiée, EF-CFG-04) ; quotas de l'API Gmail respectés (ENF-FIA-09) |
 | 1.6 | 22/09/2026 | Sahiré YAPI (Business Owner) | À valider — un fournisseur d'IA momentanément surchargé est redemandé avant la bascule (ENF-FIA-10), après un 503 « high demand » de Gemini |
+| 1.7 | 22/09/2026 | Sahiré YAPI (Business Owner) | À valider — trois modèles gratuits de Groq (Llama 3.3 70B, Qwen, Kimi K2) en fournisseurs prioritaires, Gemini puis Claude en secours (BES-20, RG-13 révisée, EF-IA-05 étendue) |
 
 > Document de référence pour le développement. Toute évolution de périmètre passe par une mise à jour
 > de ce fichier **avant** le code. Chaque exigence porte un identifiant stable, repris dans
@@ -107,6 +108,7 @@ des candidatures, la veille des offres et la production de CV adaptés.
 | BES-17 | « Exempter [les agrégats du tableau de bord de l'interdiction du Seq Scan], borner à 50 ms. » (choix du 22/09/2026, après mesure : moins de 1 ms par requête avec le jeu de charge) |
 | BES-18 | « Il faudrait pouvoir mettre une description de l'offre et la date de candidature. » |
 | BES-19 | « Pour la synchronisation on peut définir la période à vérifier qui doit être modifiable sur l'écran, mais pour éviter ces rate limits on peut passer par les mails sur la période 1 mois. » (après refus de quota de l'API Gmail, 22/09/2026) |
+| BES-20 | « J'ai l'abonnement max avec Claude et je ne veux pas payer de crédit en plus […] je veux utiliser ces trois là Llama 3.3 70B, Qwen, Kimi K2 de Groq. » (22/09/2026) |
 
 ### 4.2 Exigences métier (indépendantes de la solution)
 
@@ -266,7 +268,7 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | EF-IA-02 | Le système doit confier la tâche au fournisseur suivant lorsque le prioritaire renvoie une erreur, dépasse 60 secondes ou produit une réponse non conforme au schéma. | M | EXM-10 | T | Trois tests, un par cas d'échec. |
 | EF-IA-03 | Le système doit valider chaque réponse IA contre le schéma de la tâche avant toute utilisation. | M | ENF-SEC-06 | T | Réponse hors schéma : jamais persistée. |
 | EF-IA-04 | Le système doit informer le candidat lorsqu'aucun fournisseur n'a pu réaliser une tâche. | M | EXM-10 | T | Réponse HTTP 502 avec message explicite. |
-| EF-IA-05 | Le système doit fonctionner lorsqu'une seule des deux clés d'API est configurée. | M | EXM-10 | T | Démarrage réussi avec la seule clé Gemini. |
+| EF-IA-05 | Le système doit fonctionner lorsqu'une seule clé d'API est configurée, quel que soit le fournisseur. | M | EXM-10 | T | Démarrage réussi avec la seule clé Gemini, ou la seule clé Groq. |
 | EF-IA-06 | Le système doit enregistrer pour chaque appel IA le fournisseur, la tâche, la durée, le nombre de jetons et le résultat. | S | ENF-COU-01 | T | Une ligne `llm_calls` par appel. |
 
 ### 6.7 Réglages (CFG)
@@ -416,7 +418,7 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | RG-11 | Charte du CV : format A4, une page ; en-tête deux colonnes (coordonnées à gauche, disponibilités et photo à droite) ; titre centré en gras 15 pt et sous-titre centré en italique 11 pt ; sections en bandeaux de fond `#D9E2F3` bordés de `#AAB5CE`, libellés en majuscules ; lignes « dates \| contenu » (alignement à 2 150 twips, largeur utile 10 620 twips) ; police Calibri 10 pt. Réalisation conforme à RG-15 (tabulations et trames de paragraphe, jamais de tableau). |
 | RG-12 | Fidélité du CV : chaque entreprise, établissement de formation, période, intitulé de poste et diplôme cités dans un CV adapté doit exister à l'identique dans le profil de référence ; chaque compétence et chaque outil cités doivent figurer dans le profil. Autorisé : reformuler une activité réellement exercée avec le vocabulaire de l'offre, réordonner, sélectionner, mettre en avant. Interdit : ajouter une compétence, un outil, une certification, une responsabilité, un chiffre ou un résultat absents du profil ; modifier un intitulé de poste, un employeur ou une date. |
 | RG-15 | Lisibilité par les ATS : texte réel (aucun texte en image) ; aucun tableau, zone de texte, colonne de section ni contenu en en-tête ou pied de page Word — la mise en page de RG-11 est obtenue par tabulations et trames de paragraphe ; titres de sections usuels en français (Profil, Expériences professionnelles, Formation, Compétences, Langues, Centres d'intérêt) ; coordonnées dans le corps du document ; dates au format « MM/AAAA – MM/AAAA » ; police standard ; intitulé du poste visé par l'offre en titre du CV. |
-| RG-13 | Routage IA : classement des messages, notation des offres, extraction de pages → Gemini puis Claude ; CV adapté, réponse de motivation → Claude puis Gemini. |
+| RG-13 | Routage IA (v1.7) : les modèles gratuits de Groq passent en premier, Gemini puis Claude servent de secours. Classement des messages, notation des offres, extraction de pages → Llama 3.3 70B, Kimi K2, Qwen, Gemini, Claude. CV adapté, réponse de motivation → Kimi K2, Llama 3.3 70B, Qwen, Gemini, Claude. |
 | RG-14 | Clé normalisée d'un nom : minuscules, accents supprimés, tout caractère non alphanumérique remplacé par une espace, espaces multiples réduits, espaces de bord supprimées. |
 | RG-16 | Date de candidature saisie par le candidat : à la création, la date de dernière activité et la date du statut initial valent la date de candidature. Quand la date de candidature est modifiée, la date de dernière activité prend la nouvelle date si aucune activité n'a eu lieu depuis la création, sinon la plus récente des deux. |
 
@@ -487,5 +489,6 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | BES-17 | EXM-09 | ENF-PERF-04, ENF-PERF-05 |
 | BES-18 | EXM-02, EXM-04 | EF-CAN-15, EF-CAN-16, RG-16 |
 | BES-19 | EXM-01 | EF-GML-05, EF-CFG-04, ENF-FIA-09 |
+| BES-20 | EXM-10 | RG-13, EF-IA-01, EF-IA-05, ENF-COU-01 |
 
 La traçabilité fine exigence → tâche → test est tenue à jour dans `docs/TRACABILITE.md`.

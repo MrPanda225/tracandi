@@ -8,7 +8,12 @@ let context: TestContext;
 
 beforeEach(async () => {
   await truncateAll(database);
-  context = createTestContext(database, { aiProviders: { gemini: createScriptedClassifier('gemini').provider } });
+  context = createTestContext(database, {
+    aiProviders: {
+      groq_kimi: createScriptedClassifier('groq_kimi').provider,
+      gemini: createScriptedClassifier('gemini').provider,
+    },
+  });
 });
 
 afterAll(async () => {
@@ -22,9 +27,16 @@ describe('GET /api/settings/ai', () => {
     const response = await request(context.app).get('/api/settings/ai').set('Cookie', cookie);
 
     expect(response.status).toBe(200);
+    // RG-13 (v1.7): the free Groq model leads, Gemini is its fallback; the ones left out are not shown.
     expect(response.body).toMatchObject({
-      providers: [{ name: 'gemini', model: 'gemini-test' }],
-      tasks: expect.arrayContaining([{ task: 'classify_emails', providers: ['gemini'] }]) as unknown,
+      providers: [
+        { name: 'groq_kimi', model: 'groq_kimi-test' },
+        { name: 'gemini', model: 'gemini-test' },
+      ],
+      tasks: expect.arrayContaining([
+        { task: 'classify_emails', providers: ['groq_kimi', 'gemini'] },
+        { task: 'tailor_cv', providers: ['groq_kimi', 'gemini'] },
+      ]) as unknown,
     });
   });
 

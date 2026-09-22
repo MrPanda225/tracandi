@@ -12,6 +12,12 @@ const GOOGLE = {
   GOOGLE_REDIRECT_URI: 'http://localhost:4000/api/gmail/callback',
   TOKEN_ENCRYPTION_KEY: ENCRYPTION_KEY_HEX,
 };
+const GROQ = {
+  GROQ_API_KEY: 'gsk-test-key',
+  GROQ_MODEL_LLAMA: 'llama-3.3-70b-versatile',
+  GROQ_MODEL_QWEN: 'qwen/qwen3-32b',
+  GROQ_MODEL_KIMI: 'moonshotai/kimi-k2-instruct',
+};
 const BASE_ENV = { FRONTEND_ORIGIN: 'http://127.0.0.1:5173', DATABASE_URL_APP: NEON_URL, ...GOOGLE };
 const VALID_ENV = { ...BASE_ENV, ...ANTHROPIC, ...GEMINI };
 
@@ -82,11 +88,33 @@ describe('loadConfig', () => {
     expect(config.llm).toEqual({ claude: { apiKey: 'sk-ant-test-key', model: 'claude-sonnet-5' } });
   });
 
+  it('[RG-13] [EF-IA-05] starts with the Groq key alone, one route entry per configured model', () => {
+    const config = loadConfig({ ...BASE_ENV, ...GROQ });
+
+    expect(config.llm).toEqual({
+      groq_llama: { apiKey: 'gsk-test-key', model: 'llama-3.3-70b-versatile' },
+      groq_qwen: { apiKey: 'gsk-test-key', model: 'qwen/qwen3-32b' },
+      groq_kimi: { apiKey: 'gsk-test-key', model: 'moonshotai/kimi-k2-instruct' },
+    });
+  });
+
+  it('[EF-IA-05] leaves out a Groq model that is not configured', () => {
+    const config = loadConfig({ ...BASE_ENV, ...GROQ, GROQ_MODEL_QWEN: '' });
+
+    expect(Object.keys(config.llm)).toEqual(['groq_llama', 'groq_kimi']);
+  });
+
+  it('[EF-IA-05] refuses a Groq key without a single model', () => {
+    const env = { ...BASE_ENV, GROQ_API_KEY: 'gsk-test-key' };
+
+    expect(() => loadConfig(env)).toThrow('GROQ_MODEL_LLAMA, GROQ_MODEL_QWEN or GROQ_MODEL_KIMI');
+  });
+
   it('[EF-IA-05] refuses to start without any AI key', () => {
     const env = BASE_ENV;
 
     expect(() => loadConfig(env)).toThrow(ConfigError);
-    expect(() => loadConfig(env)).toThrow('ANTHROPIC_API_KEY or GEMINI_API_KEY');
+    expect(() => loadConfig(env)).toThrow('ANTHROPIC_API_KEY, GEMINI_API_KEY or GROQ_API_KEY');
   });
 
   it.each([

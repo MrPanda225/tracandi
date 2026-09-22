@@ -8,6 +8,8 @@ import { createLogger } from './lib/logger.js';
 import { describeAssignments } from './llm/assignments.js';
 import { connectClaude } from './llm/providers/claude.js';
 import { connectGemini } from './llm/providers/gemini.js';
+import { createOpenAiCompatibleProvider, GROQ_BASE_URL } from './llm/providers/openaiCompatible.js';
+import type { ProviderName } from './llm/types.js';
 import { createLlmJournal } from './llm/repository.js';
 import { createLlmRouter } from './llm/router.js';
 import { createApplicationsModule } from './modules/applications/routes.js';
@@ -58,11 +60,27 @@ const gmailService = createGmailConnectionService({
 });
 
 // EF-IA-05: only the providers whose key is configured.
+// EF-IA-05: only the providers whose key and model are configured; each Groq model is a route entry of RG-13.
+const configuredProviders = Object.fromEntries(
+  Object.entries(config.llm).flatMap(([name, provider]) => {
+    if (name === 'claude') return [[name, connectClaude(provider)]];
+    if (name === 'gemini') return [[name, connectGemini(provider)]];
+    return [
+      [
+        name,
+        createOpenAiCompatibleProvider({
+          name: name as ProviderName,
+          model: provider.model,
+          baseUrl: GROQ_BASE_URL,
+          apiKey: provider.apiKey,
+        }),
+      ],
+    ];
+  }),
+);
+
 const llmRouter = createLlmRouter({
-  providers: {
-    ...(config.llm.claude ? { claude: connectClaude(config.llm.claude) } : {}),
-    ...(config.llm.gemini ? { gemini: connectGemini(config.llm.gemini) } : {}),
-  },
+  providers: configuredProviders,
   journal: createLlmJournal(database.db),
   logger,
 });

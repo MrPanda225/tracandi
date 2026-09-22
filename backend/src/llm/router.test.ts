@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { llmTask } from '../db/schema.js';
+import { llmProvider, llmTask } from '../db/schema.js';
 import { HttpError, LlmUnavailableError } from '../lib/errors.js';
 import {
   createLlmRouter,
@@ -64,19 +64,23 @@ afterEach(() => {
 });
 
 describe('TASK_ROUTES', () => {
-  it('[ENF-MAI-04] routes every task of the data model to known providers, with a fallback', () => {
+  it('[ENF-MAI-04] routes every task of the data model to every known provider, with fallbacks', () => {
     expect(Object.keys(TASK_ROUTES).sort()).toEqual([...llmTask.enumValues].sort());
     for (const route of Object.values(TASK_ROUTES)) {
-      expect(new Set(route)).toEqual(new Set(['claude', 'gemini']));
+      expect(new Set(route)).toEqual(new Set(llmProvider.enumValues));
     }
   });
 
-  it('[RG-13] puts Gemini first for volume tasks and Claude first for writing tasks', () => {
-    expect(TASK_ROUTES.classify_emails[0]).toBe('gemini');
-    expect(TASK_ROUTES.score_offers[0]).toBe('gemini');
-    expect(TASK_ROUTES.extract_offers[0]).toBe('gemini');
-    expect(TASK_ROUTES.tailor_cv[0]).toBe('claude');
-    expect(TASK_ROUTES.write_motivation[0]).toBe('claude');
+  it('[RG-13] puts the free Groq models first, Gemini then Claude as fallbacks', () => {
+    // v1.7: Llama 3.3 70B leads the volume tasks, Kimi K2 the writing ones.
+    expect(TASK_ROUTES.classify_emails[0]).toBe('groq_llama');
+    expect(TASK_ROUTES.score_offers[0]).toBe('groq_llama');
+    expect(TASK_ROUTES.extract_offers[0]).toBe('groq_llama');
+    expect(TASK_ROUTES.tailor_cv[0]).toBe('groq_kimi');
+    expect(TASK_ROUTES.write_motivation[0]).toBe('groq_kimi');
+    for (const route of Object.values(TASK_ROUTES)) {
+      expect(route.slice(-2)).toEqual(['gemini', 'claude']);
+    }
   });
 });
 
@@ -183,17 +187,19 @@ describe('runTask — why a provider was set aside', () => {
 
 describe('runTask', () => {
   it('[EF-IA-01] gives the task to the priority provider of RG-13 only', async () => {
+    const llama = fakeProvider('groq_llama', () => Promise.resolve(answer({ category: 'interview' })));
+    const kimi = fakeProvider('groq_kimi', () => Promise.resolve(answer({ category: 'rejected' })));
     const gemini = fakeProvider('gemini', () => Promise.resolve(answer({ category: 'interview' })));
-    const claude = fakeProvider('claude', () => Promise.resolve(answer({ category: 'rejected' })));
-    const { router } = setup({ gemini, claude });
+    const { router } = setup({ groq_llama: llama, groq_kimi: kimi, gemini });
 
     const classified = await router.runTask('classify_emails', INPUT);
     const tailored = await router.runTask('tailor_cv', INPUT);
 
-    expect(classified).toEqual({ data: { category: 'interview' }, provider: 'gemini' });
-    expect(tailored).toEqual({ data: { category: 'rejected' }, provider: 'claude' });
-    expect(gemini.complete).toHaveBeenCalledTimes(1);
-    expect(claude.complete).toHaveBeenCalledTimes(1);
+    expect(classified).toEqual({ data: { category: 'interview' }, provider: 'groq_llama' });
+    expect(tailored).toEqual({ data: { category: 'rejected' }, provider: 'groq_kimi' });
+    expect(llama.complete).toHaveBeenCalledTimes(1);
+    expect(kimi.complete).toHaveBeenCalledTimes(1);
+    expect(gemini.complete).not.toHaveBeenCalled();
   });
 
   it('[EF-IA-01] sends the system instruction and the prompt unchanged, with an output bound', async () => {

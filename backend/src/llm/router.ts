@@ -5,16 +5,20 @@ import type { Logger } from '../lib/logger.js';
 import { type Sleep, wait } from '../lib/rateLimiter.js';
 import type { LlmCompletion, LlmOutcome, LlmProvider, LlmTaskName, ProviderName } from './types.js';
 
+const VOLUME_ROUTE = ['groq_llama', 'groq_kimi', 'groq_qwen', 'gemini', 'claude'] as const;
+const WRITING_ROUTE = ['groq_kimi', 'groq_llama', 'groq_qwen', 'gemini', 'claude'] as const;
+
 /**
- * RG-13: providers of each task, in order of preference. Adding a task = one entry here, one prompt, one schema
- * (skill `add-llm-task`); the providers never change (ENF-MAI-04).
+ * RG-13 (v1.7): providers of each task, in order of preference — the free Groq models first, Gemini then Claude as
+ * fallbacks. Adding a task = one entry here, one prompt, one schema (skill `add-llm-task`); adding a task never
+ * changes an adapter (ENF-MAI-04).
  */
 export const TASK_ROUTES: Readonly<Record<LlmTaskName, readonly ProviderName[]>> = {
-  classify_emails: ['gemini', 'claude'],
-  score_offers: ['gemini', 'claude'],
-  extract_offers: ['gemini', 'claude'],
-  tailor_cv: ['claude', 'gemini'],
-  write_motivation: ['claude', 'gemini'],
+  classify_emails: VOLUME_ROUTE,
+  score_offers: VOLUME_ROUTE,
+  extract_offers: VOLUME_ROUTE,
+  tailor_cv: WRITING_ROUTE,
+  write_motivation: WRITING_ROUTE,
 };
 
 /** EF-IA-02: a provider silent for longer than this is abandoned for the next one. */

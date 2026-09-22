@@ -53,6 +53,11 @@ const EnvSchema = z.object({
   ANTHROPIC_MODEL: optionalValue,
   GEMINI_API_KEY: optionalValue,
   GEMINI_MODEL: optionalValue,
+  // RG-13 (v1.7): the free Groq models; one key, one model name per route entry, each one optional.
+  GROQ_API_KEY: optionalValue,
+  GROQ_MODEL_LLAMA: optionalValue,
+  GROQ_MODEL_QWEN: optionalValue,
+  GROQ_MODEL_KIMI: optionalValue,
   // EF-GML-01: OAuth client of the Google Cloud project, for the Gmail connection from the interface.
   GOOGLE_CLIENT_ID: z.string().min(1),
   GOOGLE_CLIENT_SECRET: z.string().min(1),
@@ -71,15 +76,29 @@ const EnvSchema = z.object({
   CRON_GMAIL: z.string().refine(isCronExpression, 'must be a cron expression').default(DEFAULT_GMAIL_CRON),
 });
 
-const requireAiProviders = (env: z.infer<typeof EnvSchema>, context: z.RefinementCtx): void => {
+type Env = z.infer<typeof EnvSchema>;
+
+/** The Groq model names, in the order of RG-13; an empty one leaves its route entry out (EF-IA-05). */
+const groqModelsOf = (env: Env): Partial<Record<ProviderName, string>> => ({
+  ...(env.GROQ_MODEL_LLAMA ? { groq_llama: env.GROQ_MODEL_LLAMA } : {}),
+  ...(env.GROQ_MODEL_KIMI ? { groq_kimi: env.GROQ_MODEL_KIMI } : {}),
+  ...(env.GROQ_MODEL_QWEN ? { groq_qwen: env.GROQ_MODEL_QWEN } : {}),
+});
+
+/** EF-IA-05: at least one key, and every configured key needs the name of the model it serves. */
+const requireAiProviders = (env: Env, context: z.RefinementCtx): void => {
   const issue = (path: string, message: string) =>
     context.addIssue({ code: z.ZodIssueCode.custom, path: [path], message });
-  if (!env.ANTHROPIC_API_KEY && !env.GEMINI_API_KEY) {
-    issue('ANTHROPIC_API_KEY or GEMINI_API_KEY', 'at least one AI key is required');
+  if (!env.ANTHROPIC_API_KEY && !env.GEMINI_API_KEY && !env.GROQ_API_KEY) {
+    issue('ANTHROPIC_API_KEY, GEMINI_API_KEY or GROQ_API_KEY', 'at least one AI key is required');
   }
-  if (env.ANTHROPIC_API_KEY && !env.ANTHROPIC_MODEL)
+  if (env.ANTHROPIC_API_KEY && !env.ANTHROPIC_MODEL) {
     issue('ANTHROPIC_MODEL', 'required with ANTHROPIC_API_KEY');
+  }
   if (env.GEMINI_API_KEY && !env.GEMINI_MODEL) issue('GEMINI_MODEL', 'required with GEMINI_API_KEY');
+  if (env.GROQ_API_KEY && Object.keys(groqModelsOf(env)).length === 0) {
+    issue('GROQ_MODEL_LLAMA, GROQ_MODEL_QWEN or GROQ_MODEL_KIMI', 'at least one model is required with GROQ_API_KEY');
+  }
 };
 
 /** Key and model of one AI provider. */
@@ -141,7 +160,14 @@ export const loadConfig = (env: Record<string, string | undefined>): Config => {
     throw new ConfigError(`Invalid environment variables: ${reasons.join(', ')}`);
   }
   const { HOST, PORT, FRONTEND_ORIGIN, DATABASE_URL_APP, COOKIE_SECURE } = result.data;
-  const { ANTHROPIC_API_KEY, ANTHROPIC_MODEL, GEMINI_API_KEY, GEMINI_MODEL } = result.data;
+  const {
+    ANTHROPIC_API_KEY,
+    ANTHROPIC_MODEL,
+    GEMINI_API_KEY,
+    GEMINI_MODEL,
+    GROQ_API_KEY,
+  } = result.data;
+  const groqModels = groqModelsOf(result.data);
   return {
     host: HOST,
     port: PORT,
@@ -153,6 +179,11 @@ export const loadConfig = (env: Record<string, string | undefined>): Config => {
         ? { claude: { apiKey: ANTHROPIC_API_KEY, model: ANTHROPIC_MODEL } }
         : {}),
       ...(GEMINI_API_KEY && GEMINI_MODEL ? { gemini: { apiKey: GEMINI_API_KEY, model: GEMINI_MODEL } } : {}),
+      ...(GROQ_API_KEY
+        ? Object.fromEntries(
+            Object.entries(groqModels).map(([name, model]) => [name, { apiKey: GROQ_API_KEY, model }]),
+          )
+        : {}),
     },
     gmail: {
       clientId: result.data.GOOGLE_CLIENT_ID,

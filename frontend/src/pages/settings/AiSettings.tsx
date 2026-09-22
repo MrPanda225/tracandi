@@ -4,7 +4,13 @@ import { type AiAssignments, type AiTask, fetchAiAssignments, type ProviderName 
 import { Flash } from '../../components/Flash';
 import { Skeleton } from '../../components/Skeleton';
 
-const PROVIDER_LABELS: Readonly<Record<ProviderName, string>> = { claude: 'Claude', gemini: 'Gemini' };
+const PROVIDER_LABELS: Readonly<Record<ProviderName, string>> = {
+  groq_llama: 'Groq · Llama',
+  groq_qwen: 'Groq · Qwen',
+  groq_kimi: 'Groq · Kimi',
+  gemini: 'Gemini',
+  claude: 'Claude',
+};
 
 const TASK_LABELS: Readonly<Record<AiTask, string>> = {
   classify_emails: 'Classement des e-mails',

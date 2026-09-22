@@ -36,6 +36,20 @@
       "when": 1790110762202,
       "tag": "0004_lookback_days_default",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790114192846,
+      "tag": "0005_groq_providers",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790114262938,
+      "tag": "0006_groq_classifiers",
+      "breakpoints": true
     }
   ]
 }

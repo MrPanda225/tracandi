@@ -12,13 +12,13 @@ const database = openTestDatabase();
 let userId: number;
 
 const failing: LlmProvider = {
-  name: 'gemini',
-  model: 'gemini-test',
+  name: 'groq_llama',
+  model: 'llama-3.3-70b-versatile',
   complete: () => Promise.reject(new Error('quota')),
 };
 const answering: LlmProvider = {
-  name: 'claude',
-  model: 'claude-test',
+  name: 'gemini',
+  model: 'gemini-test',
   complete: () => Promise.resolve({ text: '{"score":72}', inputTokens: 900, outputTokens: 12 }),
 };
 
@@ -37,9 +37,9 @@ afterAll(async () => {
 });
 
 describe('LLM calls journal', () => {
-  it('[EF-IA-06] stores one llm_calls row per provider call, without any content', async () => {
+  it('[EF-IA-06] [RG-13] stores one llm_calls row per provider call, without any content', async () => {
     const router = createLlmRouter({
-      providers: { gemini: failing, claude: answering },
+      providers: { groq_llama: failing, gemini: answering },
       journal: createLlmJournal(database.db),
       logger: createLogger({ write: () => undefined }),
     });
@@ -68,15 +68,15 @@ describe('LLM calls journal', () => {
     expect(rows).toEqual([
       expect.objectContaining({
         task: 'score_offers',
-        provider: 'gemini',
-        model: 'gemini-test',
+        provider: 'groq_llama',
+        model: 'llama-3.3-70b-versatile',
         outcome: 'error',
         inputTokens: null,
       }),
       expect.objectContaining({
         task: 'score_offers',
-        provider: 'claude',
-        model: 'claude-test',
+        provider: 'gemini',
+        model: 'gemini-test',
         outcome: 'success',
         inputTokens: 900,
         outputTokens: 12,
