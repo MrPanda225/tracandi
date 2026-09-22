@@ -61,6 +61,12 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
   ajout manuel, changement de statut, badge « à relancer ».
   *Exigences* : EF-CAN-01 à 05, 12 ; interface d'EF-CAN-06, 07, 14.
   *Fini quand* : tests Testing Library sur filtre, recherche, ouverture de chronologie.
+- [x] **T-104 Description de l'offre et date de candidature** — colonne `offer_description` (migration), création et
+  modification de la description et de la date (RG-16), détail d'une candidature `GET /api/applications/:id` avec la
+  description (absente de la liste), saisie dans le formulaire d'ajout et modification dans le détail.
+  *Exigences* : EF-CAN-15, EF-CAN-16, RG-16 (demande du Business Owner du 22/09/2026, cahier des charges v1.4).
+  *Fini quand* : tests d'intégration (20 001 caractères → 400, date future → 400, relance avec une date antérieure
+  de 15 jours, description absente de la liste) ; tests Testing Library (saisie à la création, modification dans le détail).
 
 ## Lot 2 — Orchestration IA
 

@@ -5,6 +5,7 @@
 | 1.0 | 21/09/2026 | Sahiré YAPI (Business Owner) | À valider |
 | 1.1 | 22/09/2026 | Sahiré YAPI (Business Owner) | À valider — base hébergée Neon (PostgreSQL), accès par ORM (BES-10, BES-11) ; recherche en CDI, CDD, alternance ou job étudiant et suivi par type de contrat (BES-12) ; CV optimisé pour les ATS, sans CV générique (BES-13) ; questions Q-05 à Q-15 |
 | 1.2 | 22/09/2026 | Sahiré YAPI (Business Owner) | À valider — comptes utilisateurs et données séparées (BES-14), documentation OpenAPI / Swagger (BES-15), connexion Gmail par utilisateur depuis l'interface (BES-16) ; Q-16 |
+| 1.4 | 22/09/2026 | Sahiré YAPI (Business Owner) | À valider — description de l'offre et date de candidature saisies par le candidat (BES-18, EF-CAN-15, EF-CAN-16, RG-16) |
 
 > Document de référence pour le développement. Toute évolution de périmètre passe par une mise à jour
 > de ce fichier **avant** le code. Chaque exigence porte un identifiant stable, repris dans
@@ -100,6 +101,7 @@ des candidatures, la veille des offres et la production de CV adaptés.
 | BES-15 | « Ajoute un Swagger qui documente bien mes API. » |
 | BES-16 | « L'autorisation pour son Gmail devra être effectuée depuis l'app web. » |
 | BES-13 | « Pas de CV générique : un CV optimisé pour passer les ATS et dont les expériences sont reformulées (sans mentir) pour correspondre aux besoins de l'offre ou en couvrir une bonne partie. » |
+| BES-18 | « Il faudrait pouvoir mettre une description de l'offre et la date de candidature. » |
 
 ### 4.2 Exigences métier (indépendantes de la solution)
 
@@ -185,6 +187,8 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | EF-CAN-12 | Le système doit marquer « à relancer » toute candidature répondant à RG-06. | M | EXM-04 | T | Candidature Envoyée sans activité depuis 11 jours avec D = 10 : marquée. |
 | EF-CAN-13 | Le candidat peut renseigner et modifier le type de contrat d'une candidature. | M | EXM-11 | T | Valeur hors liste (glossaire) : réponse 400. |
 | EF-CAN-14 | Le candidat peut filtrer les candidatures par type de contrat. | M | EXM-11 | T | Filtre « Alternance » : seules les candidatures en alternance sont listées. |
+| EF-CAN-15 | Le candidat peut enregistrer, modifier et effacer la description de l'offre d'une candidature, de 20 000 caractères au plus. | S | EXM-02 | T | Description de 20 001 caractères : réponse 400 ; description enregistrée affichée dans le détail de la candidature et absente de la liste. |
+| EF-CAN-16 | Le candidat peut indiquer la date de candidature à la création d'une candidature, puis la modifier ; la date ne peut être ni postérieure au moment de la saisie, ni antérieure au 1er janvier 2000. | S | EXM-02, EXM-04 | T | Candidature Envoyée créée avec une date antérieure de 15 jours et D = 10 : marquée « à relancer » (RG-06, RG-16) ; date du lendemain : réponse 400. |
 
 ### 6.3 Veille des offres (VEI)
 
@@ -405,6 +409,7 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | RG-15 | Lisibilité par les ATS : texte réel (aucun texte en image) ; aucun tableau, zone de texte, colonne de section ni contenu en en-tête ou pied de page Word — la mise en page de RG-11 est obtenue par tabulations et trames de paragraphe ; titres de sections usuels en français (Profil, Expériences professionnelles, Formation, Compétences, Langues, Centres d'intérêt) ; coordonnées dans le corps du document ; dates au format « MM/AAAA – MM/AAAA » ; police standard ; intitulé du poste visé par l'offre en titre du CV. |
 | RG-13 | Routage IA : classement des messages, notation des offres, extraction de pages → Gemini puis Claude ; CV adapté, réponse de motivation → Claude puis Gemini. |
 | RG-14 | Clé normalisée d'un nom : minuscules, accents supprimés, tout caractère non alphanumérique remplacé par une espace, espaces multiples réduits, espaces de bord supprimées. |
+| RG-16 | Date de candidature saisie par le candidat : à la création, la date de dernière activité et la date du statut initial valent la date de candidature. Quand la date de candidature est modifiée, la date de dernière activité prend la nouvelle date si aucune activité n'a eu lieu depuis la création, sinon la plus récente des deux. |
 
 ## 10. Cas d'utilisation principaux
 
@@ -469,5 +474,6 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | BES-15 | EXM-14 | EF-DOC-01, 02 |
 | BES-16 | EXM-01 | EF-GML-01 |
 | BES-12 | EXM-11 | EF-GML-19, EF-CAN-13, 14, EF-VEI-20 à 22, EF-TDB-09, RG-09, RG-10 |
+| BES-18 | EXM-02, EXM-04 | EF-CAN-15, EF-CAN-16, RG-16 |
 
 La traçabilité fine exigence → tâche → test est tenue à jour dans `docs/TRACABILITE.md`.

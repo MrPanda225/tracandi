@@ -1,9 +1,9 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactElement } from 'react';
 import { MemoryRouter } from 'react-router-dom';
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { Application, ApplicationEmail } from '../../api/applications';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Application, ApplicationDetail, ApplicationEmail } from '../../api/applications';
 import { ApplicationsPage } from './ApplicationsPage';
 import { ApplicationsCacheProvider } from './useApplications';
 
@@ -41,6 +41,8 @@ const MCDO = application({
   status: 'acknowledged',
 });
 const ALL = [NOVA_DEV, NOVA_DATA, LUMEN_UX, MCDO];
+const NOVA_DEV_DETAIL: ApplicationDetail = { ...NOVA_DEV, offerDescription: null };
+const OFFER_TEXT = 'Pipelines de données sous Airflow.\nPython, SQL, équipe de 6 personnes.';
 
 const EMAILS: ApplicationEmail[] = [
   {
@@ -270,6 +272,7 @@ describe('ApplicationsPage', () => {
   it('[EF-CAN-04] opens the chronology of an application, oldest message first', async () => {
     mockApi({
       'GET /applications': () => listOf(ALL),
+      'GET /applications/1': () => json(200, NOVA_DEV_DETAIL),
       'GET /applications/1/emails': () => json(200, EMAILS),
     });
     renderPage();
@@ -294,6 +297,7 @@ describe('ApplicationsPage', () => {
   it('[EF-CAN-05] links every message to its thread in Gmail, in a new tab', async () => {
     mockApi({
       'GET /applications': () => listOf(ALL),
+      'GET /applications/1': () => json(200, NOVA_DEV_DETAIL),
       'GET /applications/1/emails': () => json(200, EMAILS),
     });
     renderPage();
@@ -312,6 +316,7 @@ describe('ApplicationsPage', () => {
   it('[EF-CAN-05] never renders a message link that does not point to Gmail', async () => {
     mockApi({
       'GET /applications': () => listOf(ALL),
+      'GET /applications/1': () => json(200, NOVA_DEV_DETAIL),
       'GET /applications/1/emails': () =>
         json(200, [{ ...EMAILS[0], gmailUrl: 'javascript:alert(document.cookie)' }]),
     });
@@ -348,6 +353,7 @@ describe('ApplicationsPage', () => {
   it('[EF-CAN-07] keeps the status and explains why when the change is refused', async () => {
     mockApi({
       'GET /applications': () => listOf(ALL),
+      'GET /applications/1': () => json(200, NOVA_DEV_DETAIL),
       'GET /applications/1/emails': () => json(200, []),
       'PATCH /applications/1': () => json(404, { error: 'Candidature introuvable' }),
     });
@@ -448,5 +454,172 @@ describe('ApplicationsPage', () => {
     expect(await screen.findByRole('region', { name: 'Zénith' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Afficher plus/ })).not.toBeInTheDocument();
     expect(calls.at(-1)?.url.searchParams.get('offset')).toBe('100');
+  });
+});
+
+describe('ApplicationsPage — offer description and application date (T-104)', () => {
+  // Only Date is faked: timers stay real for userEvent and the search delay.
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'], now: new Date(2026, 8, 22, 10, 0, 0) });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const openCreationForm = async () => {
+    renderPage();
+    await screen.findByRole('region', { name: 'Atelier Nova' });
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Ajouter une candidature' }));
+    const form = screen.getByRole('form', { name: 'Nouvelle candidature' });
+    await user.type(within(form).getByLabelText('Entreprise'), 'Arkema');
+    await user.type(within(form).getByLabelText('Intitulé du poste'), 'Data Engineer');
+    return { user, form };
+  };
+
+  const localNoon = (year: number, monthIndex: number, day: number) =>
+    new Date(year, monthIndex, day, 12, 0, 0).toISOString();
+
+  it('[EF-CAN-16] shows the date of the application in its summary', async () => {
+    mockApi({ 'GET /applications': () => listOf(ALL) });
+
+    renderPage();
+
+    expect(await screen.findByRole('button', { name: /Développeur/ })).toHaveAccessibleName(
+      /candidature du 1 sept\. 2026/,
+    );
+  });
+
+  it('[EF-CAN-16] dates a new application in the past', async () => {
+    const calls = mockApi({ 'GET /applications': () => listOf(ALL), 'POST /applications': () => json(201, { id: 9 }) });
+    const { user, form } = await openCreationForm();
+    const date = within(form).getByLabelText('Date de candidature');
+    expect(date).toHaveValue('2026-09-22');
+
+    fireEvent.change(date, { target: { value: '2026-09-07' } });
+    await user.click(within(form).getByRole('button', { name: 'Ajouter' }));
+
+    await waitFor(() => expect(calls.some((call) => call.method === 'POST')).toBe(true));
+    expect(calls.find((call) => call.method === 'POST')?.body).toMatchObject({ appliedAt: localNoon(2026, 8, 7) });
+  });
+
+  it('[EF-CAN-16] refuses a date in the future without calling the API', async () => {
+    const calls = mockApi({ 'GET /applications': () => listOf(ALL) });
+    const { user, form } = await openCreationForm();
+
+    fireEvent.change(within(form).getByLabelText('Date de candidature'), { target: { value: '2026-09-23' } });
+    await user.click(within(form).getByRole('button', { name: 'Ajouter' }));
+
+    expect(within(form).getByText('La date de candidature ne peut pas être dans le futur.')).toBeInTheDocument();
+    expect(within(form).getByLabelText('Date de candidature')).toHaveAttribute('aria-invalid', 'true');
+    expect(calls.some((call) => call.method === 'POST')).toBe(false);
+  });
+
+  it('[EF-CAN-15] adds an application with the description of the offer', async () => {
+    const calls = mockApi({ 'GET /applications': () => listOf(ALL), 'POST /applications': () => json(201, { id: 9 }) });
+    const { user, form } = await openCreationForm();
+
+    await user.type(within(form).getByLabelText('Description de l’offre'), 'Pipelines de données sous Airflow.');
+    await user.click(within(form).getByRole('button', { name: 'Ajouter' }));
+
+    await waitFor(() => expect(calls.some((call) => call.method === 'POST')).toBe(true));
+    expect(calls.find((call) => call.method === 'POST')?.body).toMatchObject({
+      offerDescription: 'Pipelines de données sous Airflow.',
+    });
+  });
+
+  it('[EF-CAN-15] shows the description of the offer in the detail of the application', async () => {
+    mockApi({
+      'GET /applications': () => listOf(ALL),
+      'GET /applications/1': () => json(200, { ...NOVA_DEV_DETAIL, offerDescription: OFFER_TEXT }),
+      'GET /applications/1/emails': () => json(200, []),
+      'GET /applications/2': () => json(200, { ...NOVA_DATA, offerDescription: null }),
+      'GET /applications/2/emails': () => json(200, []),
+    });
+    renderPage();
+    await screen.findByRole('region', { name: 'Atelier Nova' });
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('button', { name: /Développeur/ }));
+    expect(await screen.findByText(/Pipelines de données sous Airflow\./)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /Data analyst/ }));
+    expect(await screen.findByText('Aucune description enregistrée.')).toBeInTheDocument();
+  });
+
+  it('[EF-CAN-15] [EF-CAN-16] changes the description and the date from the detail', async () => {
+    let detail: ApplicationDetail = { ...NOVA_DEV_DETAIL, offerDescription: OFFER_TEXT };
+    const calls = mockApi({
+      'GET /applications': () => listOf(ALL),
+      'GET /applications/1': () => json(200, detail),
+      'GET /applications/1/emails': () => json(200, []),
+      'PATCH /applications/1': (_url, body) => {
+        detail = { ...detail, ...(body as Partial<ApplicationDetail>) };
+        return new Response(null, { status: 204 });
+      },
+    });
+    renderPage();
+    await screen.findByRole('region', { name: 'Atelier Nova' });
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /Développeur/ }));
+    await user.click(await screen.findByRole('button', { name: 'Modifier l’offre et la date' }));
+
+    const form = screen.getByRole('form', { name: 'Offre et date de candidature' });
+    const description = within(form).getByLabelText('Description de l’offre');
+    expect(description).toHaveValue(OFFER_TEXT);
+    await user.clear(description);
+    await user.type(description, 'Nouvelle description');
+    fireEvent.change(within(form).getByLabelText('Date de candidature'), { target: { value: '2026-09-05' } });
+    await user.click(within(form).getByRole('button', { name: 'Enregistrer' }));
+
+    expect(await screen.findByText('Nouvelle description')).toBeInTheDocument();
+    expect(calls.find((call) => call.method === 'PATCH')?.body).toEqual({
+      offerDescription: 'Nouvelle description',
+      appliedAt: localNoon(2026, 8, 5),
+    });
+    expect(screen.getByRole('button', { name: /Développeur/ })).toHaveAccessibleName(/candidature du 5 sept\. 2026/);
+  });
+
+  it('[EF-CAN-15] clears the description of the offer', async () => {
+    let detail: ApplicationDetail = { ...NOVA_DEV_DETAIL, offerDescription: OFFER_TEXT };
+    const calls = mockApi({
+      'GET /applications': () => listOf(ALL),
+      'GET /applications/1': () => json(200, detail),
+      'GET /applications/1/emails': () => json(200, []),
+      'PATCH /applications/1': (_url, body) => {
+        detail = { ...detail, ...(body as Partial<ApplicationDetail>) };
+        return new Response(null, { status: 204 });
+      },
+    });
+    renderPage();
+    await screen.findByRole('region', { name: 'Atelier Nova' });
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /Développeur/ }));
+    await user.click(await screen.findByRole('button', { name: 'Modifier l’offre et la date' }));
+
+    const form = screen.getByRole('form', { name: 'Offre et date de candidature' });
+    await user.clear(within(form).getByLabelText('Description de l’offre'));
+    await user.click(within(form).getByRole('button', { name: 'Enregistrer' }));
+
+    expect(await screen.findByText('Aucune description enregistrée.')).toBeInTheDocument();
+    expect(calls.find((call) => call.method === 'PATCH')?.body).toEqual({ offerDescription: null });
+  });
+
+  it('[EF-CAN-06] shows the reason given by the API under the refused field', async () => {
+    mockApi({
+      'GET /applications': () => listOf(ALL),
+      'POST /applications': () =>
+        json(400, {
+          error: 'Données invalides',
+          details: [{ path: 'body.companyName', message: 'Doit contenir au moins une lettre ou un chiffre' }],
+        }),
+    });
+    const { user, form } = await openCreationForm();
+
+    await user.click(within(form).getByRole('button', { name: 'Ajouter' }));
+
+    expect(await within(form).findByText('Doit contenir au moins une lettre ou un chiffre')).toBeInTheDocument();
+    expect(within(form).getByLabelText('Entreprise')).toHaveAttribute('aria-invalid', 'true');
   });
 });

@@ -1,12 +1,19 @@
 import type { Database } from '../../db/client.js';
 import type { Clock } from '../../lib/clock.js';
 import { isUniqueViolation } from '../../lib/db-errors.js';
-import { HttpError, NotFoundError } from '../../lib/errors.js';
+import { HttpError, NotFoundError, ValidationError } from '../../lib/errors.js';
 import { normalizeKey } from '../../lib/text.js';
 import * as repository from './repository.js';
 import type { ApplicationRow, EmailRow, Executor } from './repository.js';
-import { isFollowUpDue, laterOf, shouldReplaceStatus, statusOfCategory } from './rules.js';
+import {
+  isFollowUpDue,
+  lastActivityAfterDateChange,
+  laterOf,
+  shouldReplaceStatus,
+  statusOfCategory,
+} from './rules.js';
 import type {
+  ApplicationDetailView,
   ApplicationView,
   CreateApplicationBody,
   EmailView,
@@ -19,11 +26,22 @@ const DEFAULT_FOLLOW_UP_DAYS = 10;
 const GMAIL_THREAD_URL = 'https://mail.google.com/mail/u/0/#all/';
 const DUPLICATE_APPLICATION = 'Une candidature existe déjà pour ce poste dans cette entreprise';
 const APPLICATION_NOT_FOUND = 'Candidature introuvable';
+// EF-CAN-16: a date sent as « now » by a browser whose clock runs slightly ahead is still accepted.
+const CLOCK_SKEW_TOLERANCE_MS = 5 * 60_000;
+
+/** EF-CAN-16: an application date cannot be in the future. */
+const assertNotFuture = (appliedAt: Date, now: Date): void => {
+  if (appliedAt.getTime() > now.getTime() + CLOCK_SKEW_TOLERANCE_MS) {
+    throw new ValidationError([
+      { path: 'body.appliedAt', message: 'La date de candidature ne peut pas être dans le futur' },
+    ]);
+  }
+};
 
 /** Application and message use cases, always scoped to one user (EF-AUT-06). */
 export interface ApplicationsService {
   list(userId: number, query: ListApplicationsQuery): Promise<{ items: ApplicationView[]; total: number }>;
-  get(userId: number, id: number): Promise<ApplicationView>;
+  get(userId: number, id: number): Promise<ApplicationDetailView>;
   create(userId: number, body: CreateApplicationBody): Promise<number>;
   update(userId: number, id: number, body: UpdateApplicationBody): Promise<void>;
   remove(userId: number, id: number): Promise<void>;
@@ -100,12 +118,17 @@ const findOwned = async (executor: Executor, userId: number, id: number): Promis
   return row;
 };
 
-/** EF-CAN-06: company upserted (RG-14), application and initial status recorded in one transaction. */
+/**
+ * EF-CAN-06: company upserted (RG-14), application and initial status recorded in one transaction. The application
+ * date is the one given, or now (EF-CAN-16); last activity and initial status share it (RG-16).
+ */
 const createApplication = (
   tx: Executor,
   { userId, body, now }: { userId: number; body: CreateApplicationBody; now: Date },
-): Promise<number> =>
-  repository
+): Promise<number> => {
+  const appliedAt = body.appliedAt ?? now;
+  assertNotFuture(appliedAt, now);
+  return repository
     .upsertCompany(tx, { userId, name: body.companyName, nameKey: normalizeKey(body.companyName) })
     .then(async (companyId) => {
       const id = await repository.insertApplication(tx, {
@@ -116,32 +139,66 @@ const createApplication = (
         contractType: body.contractType,
         source: 'manual',
         notes: body.notes ?? null,
-        appliedAt: now,
-        lastActivityAt: now,
+        offerDescription: body.offerDescription ?? null,
+        appliedAt,
+        lastActivityAt: appliedAt,
       });
-      await repository.insertStatusChange(tx, { applicationId: id, status: body.status, changedAt: now, origin: 'manual' });
+      await repository.insertStatusChange(tx, {
+        applicationId: id,
+        status: body.status,
+        changedAt: appliedAt,
+        origin: 'manual',
+      });
       return id;
     });
+};
+
+/** Columns set by an update body: only the provided fields (`null` clears notes and description). */
+const changedColumnsOf = (body: UpdateApplicationBody) => ({
+  ...(body.status ? { status: body.status } : {}),
+  ...(body.contractType ? { contractType: body.contractType } : {}),
+  ...(body.jobTitle ? { jobTitle: body.jobTitle, jobTitleKey: normalizeKey(body.jobTitle) } : {}),
+  ...(body.notes !== undefined ? { notes: body.notes } : {}),
+  ...(body.offerDescription !== undefined ? { offerDescription: body.offerDescription } : {}),
+  ...(body.appliedAt ? { appliedAt: body.appliedAt } : {}),
+});
+
+/** Last activity after an update: a status change is activity now; a new application date follows RG-16. */
+const lastActivityAfterUpdate = (
+  current: ApplicationRow,
+  { isStatusChange, appliedAt, now }: { isStatusChange: boolean; appliedAt: Date | undefined; now: Date },
+): Date | undefined => {
+  if (isStatusChange) return now;
+  return appliedAt ? lastActivityAfterDateChange(current, appliedAt) : undefined;
+};
 
 /**
- * EF-CAN-07, EF-CAN-08, EF-CAN-13: only the provided fields change. A manual status change accepts any status
- * (Q-07 default), is recorded in the history and counts as activity.
+ * EF-CAN-07, EF-CAN-08, EF-CAN-13, EF-CAN-15, EF-CAN-16: only the provided fields change. A manual status change
+ * accepts any status (Q-07 default), is recorded in the history and counts as activity.
  */
 const updateApplication = async (
   tx: Executor,
   current: ApplicationRow,
   { body, now }: { body: UpdateApplicationBody; now: Date },
 ): Promise<void> => {
+  if (body.appliedAt) assertNotFuture(body.appliedAt, now);
   const newStatus = body.status !== undefined && body.status !== current.status ? body.status : null;
   if (newStatus) {
-    await repository.insertStatusChange(tx, { applicationId: current.id, status: newStatus, changedAt: now, origin: 'manual' });
+    await repository.insertStatusChange(tx, {
+      applicationId: current.id,
+      status: newStatus,
+      changedAt: now,
+      origin: 'manual',
+    });
   }
+  const lastActivityAt = lastActivityAfterUpdate(current, {
+    isStatusChange: newStatus !== null,
+    appliedAt: body.appliedAt,
+    now,
+  });
   await repository.updateApplication(tx, current.id, {
-    ...(body.status ? { status: body.status } : {}),
-    ...(body.contractType ? { contractType: body.contractType } : {}),
-    ...(body.jobTitle ? { jobTitle: body.jobTitle, jobTitleKey: normalizeKey(body.jobTitle) } : {}),
-    ...(body.notes !== undefined ? { notes: body.notes } : {}),
-    ...(newStatus ? { lastActivityAt: now } : {}),
+    ...changedColumnsOf(body),
+    ...(lastActivityAt ? { lastActivityAt } : {}),
   });
 };
 
@@ -178,22 +235,31 @@ export const createApplicationsService = ({ db, clock }: ApplicationsServiceDeps
     },
 
     async get(userId, id) {
-      const [row, followUpDays] = await Promise.all([findOwned(db, userId, id), followUpDaysOf(userId)]);
-      return toView(row, clock(), followUpDays);
+      const [row, followUpDays] = await Promise.all([
+        repository.findApplicationDetail(db, userId, id),
+        followUpDaysOf(userId),
+      ]);
+      if (!row) throw new NotFoundError(APPLICATION_NOT_FOUND);
+      return { ...toView(row, clock(), followUpDays), offerDescription: row.offerDescription };
     },
 
     create(userId, body) {
-      return db.transaction((tx) => createApplication(tx, { userId, body, now: clock() })).catch(rethrowDuplicate);
+      return db
+        .transaction((tx) => createApplication(tx, { userId, body, now: clock() }))
+        .catch(rethrowDuplicate);
     },
 
     update(userId, id, body) {
       return db
-        .transaction(async (tx) => updateApplication(tx, await findOwned(tx, userId, id), { body, now: clock() }))
+        .transaction(async (tx) =>
+          updateApplication(tx, await findOwned(tx, userId, id), { body, now: clock() }),
+        )
         .catch(rethrowDuplicate);
     },
 
     async remove(userId, id) {
-      if (!(await repository.deleteApplication(db, userId, id))) throw new NotFoundError(APPLICATION_NOT_FOUND);
+      if (!(await repository.deleteApplication(db, userId, id)))
+        throw new NotFoundError(APPLICATION_NOT_FOUND);
     },
 
     async listEmails(userId, applicationId) {

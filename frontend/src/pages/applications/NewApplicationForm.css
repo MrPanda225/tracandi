@@ -24,6 +24,10 @@
   }
 }
 
+.new-application__wide {
+  grid-column: 1 / -1;
+}
+
 .new-application__actions {
   display: flex;
   flex-wrap: wrap;

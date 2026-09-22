@@ -12,6 +12,9 @@ const LIST_DEFAULT_LIMIT = 100;
 const LIST_MAX_LIMIT = 500;
 const NOTES_MAX_LENGTH = 2000;
 const SEARCH_MAX_LENGTH = 100;
+// EF-CAN-15, EF-CAN-16
+const OFFER_DESCRIPTION_MAX_LENGTH = 20000;
+const EARLIEST_APPLIED_AT = new Date('2000-01-01T00:00:00.000Z');
 
 const hasLettersOrDigits = (value: string) => normalizeKey(value).length > 0;
 
@@ -41,6 +44,27 @@ const JobTitleSchema = z
   .refine(hasLettersOrDigits, 'Doit contenir au moins une lettre ou un chiffre')
   .openapi({ example: 'Équipier polyvalent' });
 
+const OfferDescriptionSchema = z
+  .string()
+  .max(OFFER_DESCRIPTION_MAX_LENGTH)
+  .openapi({ description: "Description de l'offre, 20 000 caractères au plus (EF-CAN-15)" });
+
+/** EF-CAN-16: the upper bound (not in the future) depends on the clock and is checked by the service. */
+const AppliedAtSchema = z
+  .string()
+  .datetime()
+  .transform((value) => new Date(value))
+  .refine(
+    (date) => date >= EARLIEST_APPLIED_AT,
+    'La date de candidature doit être postérieure au 1er janvier 2000',
+  )
+  .openapi({
+    type: 'string',
+    format: 'date-time',
+    description: 'Date de candidature, ni future ni antérieure à 2000 (EF-CAN-16) ; maintenant par défaut',
+    example: '2026-09-07T10:00:00.000Z',
+  });
+
 export const IdParamsSchema = z.object({ id: z.coerce.number().int().positive().openapi({ example: 1 }) });
 
 /** EF-CAN-02, EF-CAN-03, EF-CAN-14 */
@@ -48,21 +72,16 @@ export const ListApplicationsQuerySchema = z
   .object({
     status: ApplicationStatusSchema.optional(),
     contractType: ContractTypeSchema.optional(),
-    q: z
-      .string()
-      .trim()
-      .max(SEARCH_MAX_LENGTH)
-      .optional()
-      .openapi({
-        description: "Recherche dans le nom de l'entreprise ou l'intitulé (EF-CAN-03)",
-        example: 'mcdo',
-      }),
+    q: z.string().trim().max(SEARCH_MAX_LENGTH).optional().openapi({
+      description: "Recherche dans le nom de l'entreprise ou l'intitulé (EF-CAN-03)",
+      example: 'mcdo',
+    }),
     limit: z.coerce.number().int().min(1).max(LIST_MAX_LIMIT).default(LIST_DEFAULT_LIMIT),
     offset: z.coerce.number().int().min(0).default(0),
   })
   .strict();
 
-/** EF-CAN-06, EF-CAN-08, EF-CAN-13 */
+/** EF-CAN-06, EF-CAN-08, EF-CAN-13, EF-CAN-15, EF-CAN-16 */
 export const CreateApplicationBodySchema = z
   .object({
     companyName: CompanyNameSchema,
@@ -70,17 +89,21 @@ export const CreateApplicationBodySchema = z
     status: ApplicationStatusSchema,
     contractType: ContractTypeSchema.default('non_precise'),
     notes: z.string().max(NOTES_MAX_LENGTH).optional(),
+    offerDescription: OfferDescriptionSchema.optional(),
+    appliedAt: AppliedAtSchema.optional(),
   })
   .strict()
   .openapi('CreateApplicationBody');
 
-/** EF-CAN-07, EF-CAN-08, EF-CAN-13 */
+/** EF-CAN-07, EF-CAN-08, EF-CAN-13, EF-CAN-15, EF-CAN-16 */
 export const UpdateApplicationBodySchema = z
   .object({
     status: ApplicationStatusSchema.optional(),
     contractType: ContractTypeSchema.optional(),
     jobTitle: JobTitleSchema.optional(),
     notes: z.string().max(NOTES_MAX_LENGTH).nullable().optional(),
+    offerDescription: OfferDescriptionSchema.nullable().optional(),
+    appliedAt: AppliedAtSchema.optional(),
   })
   .strict()
   .refine((body) => Object.keys(body).length > 0, 'Au moins un champ à modifier')
@@ -117,6 +140,11 @@ export const ApplicationSchema = z
   })
   .openapi('Application');
 
+/** EF-CAN-15: the description is served only here, never in the list (up to 20 000 characters per application). */
+export const ApplicationDetailSchema = ApplicationSchema.extend({
+  offerDescription: z.string().nullable().openapi({ description: "Description de l'offre (EF-CAN-15)" }),
+}).openapi('ApplicationDetail');
+
 export const ApplicationListSchema = z
   .object({ items: z.array(ApplicationSchema), total: z.number().int() })
   .openapi('ApplicationList');
@@ -142,4 +170,5 @@ export type ApplicationView = Omit<z.infer<typeof ApplicationSchema>, 'appliedAt
   appliedAt: Date;
   lastActivityAt: Date;
 };
+export type ApplicationDetailView = ApplicationView & { offerDescription: string | null };
 export type EmailView = Omit<z.infer<typeof EmailSchema>, 'receivedAt'> & { receivedAt: Date };

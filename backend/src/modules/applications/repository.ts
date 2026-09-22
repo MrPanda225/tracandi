@@ -109,6 +109,25 @@ export const findApplication = async (
 };
 
 /**
+ * One of the user's applications with its offer description (EF-CAN-15), or null when absent or owned by another user.
+ * The description is read only here: the list never carries it (up to 20 000 characters per application).
+ * @req EF-CAN-15, EF-AUT-06
+ */
+export const findApplicationDetail = async (
+  db: Executor,
+  userId: number,
+  id: number,
+): Promise<(ApplicationRow & { offerDescription: string | null }) | null> => {
+  const [row] = await db
+    .select({ ...applicationColumns, offerDescription: applications.offerDescription })
+    .from(applications)
+    .innerJoin(companies, eq(applications.companyId, companies.id))
+    .leftJoin(platforms, eq(applications.platformId, platforms.id))
+    .where(and(ownedBy(userId), eq(applications.id, id)));
+  return row ?? null;
+};
+
+/**
  * Returns the id of the user's company with this normalized key, creating it when absent (RG-14 deduplication).
  * @req RG-03, RG-14
  */

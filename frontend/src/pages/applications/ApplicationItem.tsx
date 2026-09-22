@@ -1,5 +1,5 @@
 import { useId, useState } from 'react';
-import { type Application, fetchApplication, updateApplicationStatus } from '../../api/applications';
+import { type Application, fetchApplication, updateApplication } from '../../api/applications';
 import { messageOf } from '../../api/client';
 import type { ApplicationStatus } from '../../api/stats';
 import { Flash } from '../../components/Flash';
@@ -12,12 +12,26 @@ import {
   toApplicationStatus,
 } from '../../lib/format';
 import { Chronology } from './Chronology';
+import { OfferDetails } from './OfferDetails';
 import './ApplicationItem.css';
 
 interface ApplicationItemProps {
   application: Application;
   onUpdated: (application: Application) => void;
 }
+
+/** « CDI · Envoi direct · candidature du 3 sept. 2026 », plus the last activity when it happened another day. */
+const summaryOf = (application: Application): string => {
+  const channel = application.platform ? `via ${application.platform}` : 'Envoi direct';
+  const applied = formatDate(application.appliedAt);
+  const lastActivity = formatDate(application.lastActivityAt);
+  return [
+    CONTRACT_LABELS[application.contractType],
+    channel,
+    `candidature du ${applied}`,
+    ...(lastActivity === applied ? [] : [`dernière activité le ${lastActivity}`]),
+  ].join(' · ');
+};
 
 /** EF-CAN-07: the new status is saved at once; the list then shows the application as the API sees it. */
 function StatusChanger({ application, onUpdated }: ApplicationItemProps) {
@@ -31,7 +45,7 @@ function StatusChanger({ application, onUpdated }: ApplicationItemProps) {
     setPending(status);
     setError(null);
     try {
-      await updateApplicationStatus(application.id, status);
+      await updateApplication(application.id, { status });
       onUpdated(await fetchApplication(application.id));
     } catch (failure) {
       setError(messageOf(failure));
@@ -78,7 +92,6 @@ function StatusChanger({ application, onUpdated }: ApplicationItemProps) {
 export function ApplicationItem({ application, onUpdated }: ApplicationItemProps) {
   const detailId = useId();
   const [isOpen, setIsOpen] = useState(false);
-  const channel = application.platform ? `via ${application.platform}` : 'Envoi direct';
 
   return (
     <li className="application">
@@ -91,10 +104,7 @@ export function ApplicationItem({ application, onUpdated }: ApplicationItemProps
       >
         <span className="application__main">
           <span className="application__title">{application.jobTitle}</span>
-          <span className="application__meta">
-            {CONTRACT_LABELS[application.contractType]} · {channel} · dernière activité le{' '}
-            {formatDate(application.lastActivityAt)}
-          </span>
+          <span className="application__meta">{summaryOf(application)}</span>
         </span>
         <span className="application__tags">
           {application.isFollowUpDue && <span className="application__badge">À relancer</span>}
@@ -107,6 +117,7 @@ export function ApplicationItem({ application, onUpdated }: ApplicationItemProps
         {isOpen && (
           <>
             <StatusChanger application={application} onUpdated={onUpdated} />
+            <OfferDetails application={application} onUpdated={onUpdated} />
             <Chronology applicationId={application.id} />
           </>
         )}

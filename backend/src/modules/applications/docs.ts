@@ -8,8 +8,8 @@ import {
   z,
 } from '../../lib/openapi.js';
 import {
+  ApplicationDetailSchema,
   ApplicationListSchema,
-  ApplicationSchema,
   CreateApplicationBodySchema,
   EmailSchema,
   IdParamsSchema,
@@ -57,7 +57,11 @@ const ROUTES: RouteConfig[] = [
     path: '/applications/{id}',
     summary: 'Consulter une candidature',
     request: { params: IdParamsSchema },
-    responses: { 200: jsonResponse('Candidature', ApplicationSchema), ...errorResponses(400, 401, 404) },
+    description: 'Avec la description de l’offre (EF-CAN-15), absente de la liste.',
+    responses: {
+      200: jsonResponse('Candidature', ApplicationDetailSchema),
+      ...errorResponses(400, 401, 404),
+    },
   },
   {
     ...common,

@@ -50,6 +50,10 @@ Commande de contrôle : `/project:check-req EF-CAN-07`.
 | ENF-UTI-03 (Candidatures) | T-103 | `ApplicationsPage.test.tsx` (squelette, message d'erreur) ; `Flash.test.tsx` (confirmation polie) | couverte |
 | ENF-PERF-01 (Candidatures) | T-103, T-703 | `ApplicationsPage.test.tsx` (retour sur l'écran : dernière liste et filtres affichés aussitôt) — mesure sur le jeu de charge en T-703 | partielle |
 | EF-AUT-06 (Candidatures) | T-103 | `AppShell.test.tsx` (liste de la session précédente jamais montrée au compte suivant) | couverte |
+| EF-CAN-15 | T-104 | `backend/tests/integration/applications.test.ts` (détail avec description, absente de la liste, modification, effacement, 20 000 / 20 001 caractères, autre utilisateur 404) ; `ApplicationsPage.test.tsx` (saisie à la création, affichage, modification, effacement) | couverte |
+| EF-CAN-16 | T-104 | `applications.test.ts` (date passée, date par défaut, date future et antérieure à 2000 refusées) ; `ApplicationsPage.test.tsx` (date passée envoyée à midi, date future refusée localement, résumé « candidature du ») ; `frontend/src/lib/dates.test.ts` | couverte |
+| RG-16 | T-104 | `src/modules/applications/rules.test.ts` (lastActivityAfterDateChange, deux branches) ; `applications.test.ts` (relance à J+15, activité plus récente conservée) | couverte |
+| EF-CAN-06 (erreurs de champ) | T-104 | `ApplicationsPage.test.tsx` (raison donnée par l'API affichée sous le champ `body.companyName`) | couverte |
 | EF-AUT-01 | T-004 | `tests/integration/auth.test.ts` | couverte |
 | EF-AUT-02 | T-004 | `auth.test.ts` (11, 12, 129 caractères) | couverte |
 | EF-AUT-03 | T-004 | `auth.test.ts` (cookie HttpOnly, SameSite=Strict, Secure) | couverte |

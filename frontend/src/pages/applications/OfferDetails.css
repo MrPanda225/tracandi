@@ -1,0 +1,77 @@
+.offer-details {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.9rem 1rem;
+  border-radius: var(--radius-sm);
+  background: var(--color-canvas-raised);
+}
+
+.offer-details__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.offer-details__title {
+  font-family: var(--font-body);
+  font-size: 0.9375rem;
+  font-weight: 700;
+}
+
+.offer-details__date {
+  margin: 0;
+  color: var(--color-mauve-deep);
+  font-size: 0.8125rem;
+}
+
+/* The announcement keeps its own paragraphs and line breaks. */
+.offer-details__text {
+  margin: 0;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.offer-details__text--folded {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 6;
+  line-clamp: 6;
+}
+
+.offer-details__toggle {
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-accent);
+  font-size: 0.875rem;
+  font-weight: 650;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.offer-details__empty {
+  margin: 0;
+  color: var(--color-mauve-deep);
+  font-size: 0.875rem;
+}
+
+.offer-form {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.offer-form .flash {
+  margin: 0;
+}
+
+.offer-form__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.6rem;
+}

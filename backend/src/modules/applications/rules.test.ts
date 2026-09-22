@@ -5,6 +5,7 @@ import {
   decideAttachment,
   isFollowUpDue,
   laterOf,
+  lastActivityAfterDateChange,
   resolveCompanyName,
   shouldReplaceStatus,
   statusOfCategory,
@@ -126,5 +127,31 @@ describe('laterOf', () => {
   it('[RG-04] keeps the later of two activity dates', () => {
     expect(laterOf(day('2026-09-10'), day('2026-09-01'))).toEqual(day('2026-09-10'));
     expect(laterOf(day('2026-09-01'), day('2026-09-10'))).toEqual(day('2026-09-10'));
+  });
+});
+
+describe('lastActivityAfterDateChange', () => {
+  const applied = new Date('2026-09-10T12:00:00.000Z');
+
+  it('[RG-16] follows the new date when nothing happened since the creation', () => {
+    const current = { appliedAt: applied, lastActivityAt: applied };
+
+    expect(lastActivityAfterDateChange(current, new Date('2026-09-01T12:00:00.000Z'))).toEqual(
+      new Date('2026-09-01T12:00:00.000Z'),
+    );
+    expect(lastActivityAfterDateChange(current, new Date('2026-09-15T12:00:00.000Z'))).toEqual(
+      new Date('2026-09-15T12:00:00.000Z'),
+    );
+  });
+
+  it('[RG-16] keeps a more recent activity, and takes a later date otherwise', () => {
+    const current = { appliedAt: applied, lastActivityAt: new Date('2026-09-18T09:00:00.000Z') };
+
+    expect(lastActivityAfterDateChange(current, new Date('2026-09-01T12:00:00.000Z'))).toEqual(
+      new Date('2026-09-18T09:00:00.000Z'),
+    );
+    expect(lastActivityAfterDateChange(current, new Date('2026-09-20T12:00:00.000Z'))).toEqual(
+      new Date('2026-09-20T12:00:00.000Z'),
+    );
   });
 });
