@@ -8,4 +8,13 @@ describe('Flash', () => {
 
     expect(screen.getByRole('alert')).toHaveTextContent('API injoignable');
   });
+
+  it('[ENF-UTI-03] confirms a completed action politely, without interrupting the user', () => {
+    render(<Flash tone="success">Candidature ajoutée.</Flash>);
+
+    const message = screen.getByRole('status');
+    expect(message).toHaveTextContent('Candidature ajoutée.');
+    expect(message).toHaveAttribute('aria-live', 'polite');
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
 });

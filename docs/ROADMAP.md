@@ -57,9 +57,9 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
   `PATCH /api/emails/:id` (rattachement manuel).
   *Exigences* : EF-CAN-02, 03, 04, 06, 07, 08, 09, 10, 12, 13, 14, ENF-SEC-04.
   *Fini quand* : un test par exigence ; validation 400 testée pour chaque corps de requête.
-- [ ] **T-103 Écran Candidatures** — groupement par entreprise, filtres, recherche, chronologie, lien Gmail,
+- [x] **T-103 Écran Candidatures** — groupement par entreprise, filtres, recherche, chronologie, lien Gmail,
   ajout manuel, changement de statut, badge « à relancer ».
-  *Exigences* : EF-CAN-01 à 05, 12.
+  *Exigences* : EF-CAN-01 à 05, 12 ; interface d'EF-CAN-06, 07, 14.
   *Fini quand* : tests Testing Library sur filtre, recherche, ouverture de chronologie.
 
 ## Lot 2 — Orchestration IA

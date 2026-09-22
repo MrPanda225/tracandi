@@ -1,0 +1,88 @@
+.chronology {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* A thin rail and one dot per message: the order reads as time passing, oldest at the top. */
+.chronology__item {
+  position: relative;
+  padding: 0.25rem 0 0.9rem 1.4rem;
+  border-left: 2px solid var(--color-line);
+  margin-left: 0.35rem;
+}
+
+.chronology__item:last-child {
+  padding-bottom: 0.25rem;
+}
+
+.chronology__item::before {
+  content: '';
+  position: absolute;
+  top: 0.55rem;
+  left: -0.4rem;
+  width: 0.7rem;
+  height: 0.7rem;
+  border: 2px solid var(--color-canvas-raised);
+  border-radius: 50%;
+  background: var(--color-mist);
+}
+
+.chronology__item--outbound::before {
+  background: var(--color-accent);
+}
+
+.chronology__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.6rem;
+  margin: 0;
+  color: var(--color-mauve-deep);
+  font-size: 0.8125rem;
+}
+
+.chronology__direction {
+  font-weight: 700;
+}
+
+.chronology__category {
+  padding: 0.05rem 0.5rem;
+  border-radius: 999px;
+  background: var(--color-mist-soft);
+  color: var(--color-ink);
+  font-weight: 600;
+}
+
+.chronology__subject {
+  margin: 0.3rem 0 0;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+.chronology__snippet {
+  margin: 0.15rem 0 0;
+  color: var(--color-mauve-deep);
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+}
+
+.chronology__link {
+  display: inline-block;
+  margin-top: 0.35rem;
+  font-size: 0.875rem;
+  font-weight: 650;
+}
+
+.chronology__loading {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.chronology__empty {
+  margin: 0;
+  color: var(--color-mauve-deep);
+  font-size: 0.875rem;
+}

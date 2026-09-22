@@ -2,18 +2,14 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from './auth/AuthContext';
 import { LOGIN_PATH, RedirectIfAuthenticated, RequireAuth } from './auth/guards';
 import { AppShell } from './components/layout/AppShell';
+import { ApplicationsPage } from './pages/applications/ApplicationsPage';
 import { AuthPage } from './pages/auth/AuthPage';
 import { DashboardPage } from './pages/dashboard/DashboardPage';
 import { DashboardCacheProvider } from './pages/dashboard/useDashboard';
 import { UpcomingPage } from './pages/UpcomingPage';
 
-/** The 5 screens not built yet (T-003 shell), each stating what it will offer instead of an empty page. */
+/** The screens not built yet (T-003 shell), each stating what it will offer instead of an empty page. */
 const UPCOMING_SCREENS = [
-  {
-    path: '/candidatures',
-    title: 'Candidatures',
-    promise: 'Le suivi détaillé de chaque candidature, groupée par entreprise, avec sa chronologie de messages.',
-  },
   {
     path: '/offres',
     title: 'Offres',
@@ -62,6 +58,7 @@ export function App() {
           }
         >
           <Route path="/" element={<DashboardPage />} />
+          <Route path="/candidatures" element={<ApplicationsPage />} />
           {UPCOMING_SCREENS.map((screen) => (
             <Route
               key={screen.path}
