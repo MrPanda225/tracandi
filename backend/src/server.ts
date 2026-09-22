@@ -3,15 +3,22 @@ import { type Config, loadConfig } from './config/env.js';
 import { connectDatabase } from './db/client.js';
 import { systemClock } from './lib/clock.js';
 import { createLogger } from './lib/logger.js';
+import { connectClaude } from './llm/providers/claude.js';
+import { connectGemini } from './llm/providers/gemini.js';
+import { createLlmJournal } from './llm/repository.js';
+import { createLlmRouter } from './llm/router.js';
 import { createApplicationsModule } from './modules/applications/routes.js';
 import { createApplicationsService } from './modules/applications/service.js';
 import { OWASP_SCRYPT_PARAMS } from './modules/auth/password.js';
 import { createAuthModules } from './modules/auth/routes.js';
 import { createAuthService } from './modules/auth/service.js';
 import { createGmailConnectionService } from './modules/emails/connection.js';
+import { createMessageFetcher } from './modules/emails/fetcher.js';
 import { connectGoogleOAuth } from './modules/emails/googleOAuth.js';
+import { connectGmailMailbox } from './modules/emails/mailbox.js';
 import { createOAuthStateStore } from './modules/emails/oauthState.js';
 import { createGmailModules } from './modules/emails/routes.js';
+import { createGmailSync } from './modules/emails/sync.js';
 import { createStatsModule } from './modules/stats/routes.js';
 import { createStatsService } from './modules/stats/service.js';
 
@@ -46,6 +53,28 @@ const gmailService = createGmailConnectionService({
   logger,
 });
 
+// EF-IA-05: only the providers whose key is configured.
+const llmRouter = createLlmRouter({
+  providers: {
+    ...(config.llm.claude ? { claude: connectClaude(config.llm.claude) } : {}),
+    ...(config.llm.gemini ? { gemini: connectGemini(config.llm.gemini) } : {}),
+  },
+  journal: createLlmJournal(database.db),
+});
+
+const gmailSync = createGmailSync({
+  db: database.db,
+  fetcher: createMessageFetcher({
+    db: database.db,
+    openMailbox: connectGmailMailbox(config.gmail),
+    encryptionKey: config.gmail.tokenEncryptionKey,
+    clock: systemClock,
+  }),
+  router: llmRouter,
+  clock: systemClock,
+  logger,
+});
+
 const app = createApp({
   config,
   logger,
@@ -54,7 +83,7 @@ const app = createApp({
     ...createAuthModules({ service: authService, isCookieSecure: config.isCookieSecure }),
     createApplicationsModule(createApplicationsService({ db: database.db, clock: systemClock })),
     createStatsModule(createStatsService({ db: database.db, clock: systemClock })),
-    ...createGmailModules({ service: gmailService, frontendOrigin: config.frontendOrigin }),
+    ...createGmailModules({ service: gmailService, sync: gmailSync, frontendOrigin: config.frontendOrigin }),
   ],
 });
 

@@ -148,6 +148,23 @@ export const upsertCompany = async (
   return row.id;
 };
 
+/**
+ * Applications of one company, with what RG-03 needs to choose among them (served by `ix_applications_company_activity`).
+ * @req RG-03
+ */
+export const listCompanyApplications = async (
+  db: Executor,
+  companyId: number,
+): Promise<{ id: number; jobTitleKey: string; lastActivityAt: Date }[]> =>
+  db
+    .select({
+      id: applications.id,
+      jobTitleKey: applications.jobTitleKey,
+      lastActivityAt: applications.lastActivityAt,
+    })
+    .from(applications)
+    .where(eq(applications.companyId, companyId));
+
 /** Inserts an application and returns its id. @throws unique violation on (company, job title key). */
 export const insertApplication = async (
   db: Executor,

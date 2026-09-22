@@ -6,9 +6,14 @@ import { normalizeKey } from '../../lib/text.js';
 import * as repository from './repository.js';
 import type { ApplicationRow, EmailRow, Executor } from './repository.js';
 import {
+  type ApplicationStatus,
+  type ContractType,
+  decideAttachment,
+  type EmailCategory,
   isFollowUpDue,
   lastActivityAfterDateChange,
   laterOf,
+  resolveCompanyName,
   shouldReplaceStatus,
   statusOfCategory,
 } from './rules.js';
@@ -93,7 +98,7 @@ const rethrowDuplicate = (error: unknown): never => {
 const applyAttachedMessage = async (
   tx: Executor,
   application: ApplicationRow,
-  email: EmailRow,
+  email: Pick<EmailRow, 'id' | 'category' | 'receivedAt'>,
 ): Promise<void> => {
   const incoming = statusOfCategory(email.category);
   const isStatusChange = incoming !== null && shouldReplaceStatus(application.status, incoming);
@@ -213,6 +218,86 @@ const reattachEmail = async (
   const target = move.applicationId === null ? null : await findOwned(tx, userId, move.applicationId);
   await repository.setEmailApplication(tx, move.emailId, move.applicationId);
   if (target) await applyAttachedMessage(tx, target, email);
+};
+
+/** A classified message, already stored as `emailId`, to attach to an application of its user. */
+export interface IncomingMessage {
+  userId: number;
+  emailId: number;
+  /** A category that implies a status (RG-02): never a job alert. */
+  category: EmailCategory;
+  receivedAt: Date;
+  employer: string | null;
+  platform: { id: number; name: string } | null;
+  jobTitle: string | null;
+  /** EF-GML-19: the contract type the message mentions, or null. */
+  contractType: ContractType | null;
+}
+
+/** EF-GML-12: application created from a message, at the status and date of that message. */
+const createFromMessage = async (
+  tx: Executor,
+  message: IncomingMessage,
+  { companyId, jobTitle, status }: { companyId: number; jobTitle: string; status: ApplicationStatus },
+): Promise<number> => {
+  const id = await repository.insertApplication(tx, {
+    companyId,
+    jobTitle,
+    jobTitleKey: normalizeKey(jobTitle),
+    status,
+    contractType: message.contractType ?? 'non_precise',
+    source: 'email',
+    platformId: message.platform?.id ?? null,
+    appliedAt: message.receivedAt,
+    lastActivityAt: message.receivedAt,
+  });
+  await repository.insertStatusChange(tx, {
+    applicationId: id,
+    status,
+    changedAt: message.receivedAt,
+    origin: 'email',
+    emailId: message.emailId,
+  });
+  return id;
+};
+
+/**
+ * RG-03: attaches a message to the application of its company it belongs to, or to a new one (EF-GML-12), then
+ * applies RG-02 and RG-04. Runs in the caller's transaction, so that the message and its effect are stored together.
+ * @returns the id of the application.
+ * @throws Error for a job alert, which belongs to no application (RG-02).
+ * @req RG-03, RG-04, EF-GML-11, EF-GML-12, EF-GML-19, EF-CAN-11
+ */
+export const attachIncomingMessage = async (tx: Executor, message: IncomingMessage): Promise<number> => {
+  const status = statusOfCategory(message.category);
+  if (!status) throw new Error('a job alert belongs to no application');
+  const companyName = resolveCompanyName({
+    employer: message.employer,
+    platform: message.platform?.name ?? null,
+  });
+  const companyId = await repository.upsertCompany(tx, {
+    userId: message.userId,
+    name: companyName,
+    nameKey: normalizeKey(companyName),
+  });
+  const decision = decideAttachment(
+    message.jobTitle,
+    await repository.listCompanyApplications(tx, companyId),
+  );
+  const applicationId =
+    decision.kind === 'existing'
+      ? decision.applicationId
+      : await createFromMessage(tx, message, { companyId, jobTitle: decision.jobTitle, status });
+  await repository.setEmailApplication(tx, message.emailId, applicationId);
+  if (decision.kind === 'existing') {
+    const application = await findOwned(tx, message.userId, applicationId);
+    await applyAttachedMessage(tx, application, {
+      id: message.emailId,
+      category: message.category,
+      receivedAt: message.receivedAt,
+    });
+  }
+  return applicationId;
 };
 
 /**

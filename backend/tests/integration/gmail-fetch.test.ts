@@ -180,9 +180,9 @@ describe('MessageFetcher — pre-filter (RG-10)', () => {
       .select({ id: platforms.id })
       .from(platforms)
       .where(eq(platforms.name, 'APEC'));
-    expect(retained.find((message) => message.gmailMessageId === APEC_INNOVA.id)?.platformId).toBe(apec?.id);
+    expect(retained.find((message) => message.gmailMessageId === APEC_INNOVA.id)?.platform).toEqual({ id: apec?.id, name: 'APEC' });
     expect(
-      retained.find((message) => message.gmailMessageId === MCDONALDS_ACKNOWLEDGEMENT.id)?.platformId,
+      retained.find((message) => message.gmailMessageId === MCDONALDS_ACKNOWLEDGEMENT.id)?.platform,
     ).toBeNull();
   });
 
@@ -201,7 +201,7 @@ describe('MessageFetcher — pre-filter (RG-10)', () => {
         'fromAddress',
         'gmailMessageId',
         'gmailThreadId',
-        'platformId',
+        'platform',
         'receivedAt',
         'sender',
         'snippet',

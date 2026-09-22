@@ -1,7 +1,8 @@
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import type { Database } from '../../db/client.js';
 import {
   appSettings,
+  emails,
   gmailAccounts,
   type messageOutcome,
   platformDomains,
@@ -182,11 +183,14 @@ export const saveKnownPlatforms = async (
  * Every known sender domain with its platform (RG-10): a small reference table, read whole.
  * @req RG-10, EF-GML-10
  */
-export const findPlatformDomains = async (db: Executor): Promise<Map<string, number>> => {
+export const findPlatformDomains = async (
+  db: Executor,
+): Promise<Map<string, { id: number; name: string }>> => {
   const rows = await db
-    .select({ domain: platformDomains.domain, platformId: platformDomains.platformId })
-    .from(platformDomains);
-  return new Map(rows.map((row) => [row.domain.toLowerCase(), row.platformId]));
+    .select({ domain: platformDomains.domain, id: platforms.id, name: platforms.name })
+    .from(platformDomains)
+    .innerJoin(platforms, eq(platforms.id, platformDomains.platformId));
+  return new Map(rows.map(({ domain, id, name }) => [domain.toLowerCase(), { id, name }]));
 };
 
 /**
@@ -229,4 +233,44 @@ export const insertProcessedMessages = async (
       .values(ids.map((gmailMessageId) => ({ userId, gmailMessageId, outcome, processedAt })))
       .onConflictDoNothing();
   }
+};
+
+/**
+ * Returns the id of the platform with this normalized name, recording it when absent (EF-GML-10).
+ * @req EF-GML-10, RG-14
+ */
+export const upsertPlatform = async (db: Executor, platform: { name: string; nameKey: string }): Promise<number> => {
+  const [row] = await db
+    .insert(platforms)
+    .values(platform)
+    .onConflictDoUpdate({
+      target: platforms.nameKey,
+      // No-op update so that RETURNING yields the existing row.
+      set: { nameKey: sql`excluded.name_key` },
+    })
+    .returning({ id: platforms.id });
+  if (!row) throw new Error('platform upsert returned no row');
+  return row.id;
+};
+
+/**
+ * Stores a classified message: metadata and excerpt only (ENF-RGP-01). Its `processed_messages` row must exist.
+ * @returns the id of the stored message.
+ * @req EF-GML-08, ENF-RGP-01
+ */
+export const insertEmail = async (
+  db: Executor,
+  email: Omit<typeof emails.$inferInsert, 'id' | 'applicationId'>,
+): Promise<number> => {
+  const [row] = await db.insert(emails).values(email).returning({ id: emails.id });
+  if (!row) throw new Error('email insert returned no row');
+  return row.id;
+};
+
+/**
+ * Sets the date of the last complete synchronisation, from which the next one reads (EF-CFG-01, EF-GML-06).
+ * @req EF-CFG-01, EF-GML-06
+ */
+export const setLastSyncAt = async (db: Executor, userId: number, lastSyncAt: Date): Promise<void> => {
+  await db.update(gmailAccounts).set({ lastSyncAt }).where(eq(gmailAccounts.userId, userId));
 };

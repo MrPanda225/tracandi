@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { createPrefilter, DEFAULT_JOB_KEYWORDS, KNOWN_PLATFORMS } from './prefilter.js';
 
-const APEC_ID = 7;
-const INDEED_ID = 9;
+const APEC = { id: 7, name: 'APEC' };
+const INDEED = { id: 9, name: 'Indeed' };
 
 const prefilter = createPrefilter({
   keywords: ['candidature', 'offre d’emploi', 'CDI'],
   platformDomains: new Map([
-    ['apec.fr', APEC_ID],
-    ['indeedemail.com', INDEED_ID],
+    ['apec.fr', APEC],
+    ['indeedemail.com', INDEED],
   ]),
 });
 
@@ -58,11 +58,11 @@ describe('createPrefilter — known platforms (RG-10, EF-GML-10)', () => {
   });
 
   it.each([
-    ['its domain', 'ne-pas-repondre@apec.fr', APEC_ID],
-    ['a sub-domain', 'alertes@mail.apec.fr', APEC_ID],
-    ['whatever the case', 'Reply@IndeedEmail.com', INDEED_ID],
-  ])('[EF-GML-10] recognises a platform sender by %s', (_case, address, platformId) => {
-    expect(prefilter.platformOf(address)).toBe(platformId);
+    ['its domain', 'ne-pas-repondre@apec.fr', APEC],
+    ['a sub-domain', 'alertes@mail.apec.fr', APEC],
+    ['whatever the case', 'Reply@IndeedEmail.com', INDEED],
+  ])('[EF-GML-10] recognises a platform sender by %s', (_case, address, platform) => {
+    expect(prefilter.platformOf(address)).toEqual(platform);
   });
 
   it.each([

@@ -1,6 +1,13 @@
 import { useEffect, useId, useState } from 'react';
 import { isAbortError, messageOf } from '../../api/client';
-import { disconnectGmail, fetchGmailAuthorizationUrl, fetchGmailStatus, type GmailStatus } from '../../api/gmail';
+import {
+  disconnectGmail,
+  fetchGmailAuthorizationUrl,
+  fetchGmailStatus,
+  type GmailStatus,
+  synchroniseGmail,
+  type SyncReport,
+} from '../../api/gmail';
 import { Flash } from '../../components/Flash';
 import { Skeleton } from '../../components/Skeleton';
 import { leaveFor } from '../../lib/browser';
@@ -13,12 +20,55 @@ export interface Notice {
 
 type LoadState = { status: 'loading' } | { status: 'error'; message: string } | { status: 'ready'; gmail: GmailStatus };
 
+const countOf = (count: number, singular: string, plural: string) => `${count} ${count > 1 ? plural : singular}`;
+
+/** EF-GML-04: what a synchronisation did, in words. */
+const describeReport = ({ read, retained, classified }: SyncReport) =>
+  `Synchronisation terminée : ${countOf(read, 'message lu', 'messages lus')}, ${countOf(retained, 'retenu', 'retenus')}, ` +
+  `${countOf(classified, 'classé', 'classés')}.`;
+
+/** EF-GML-04: manual synchronisation; the button waits until the API answers (ENF-UTI-03). */
+function SynchroniseButton({
+  onSynchronised,
+  onFailure,
+}: {
+  onSynchronised: (report: SyncReport) => void;
+  onFailure: (message: string) => void;
+}) {
+  const [isRunning, setIsRunning] = useState(false);
+
+  const handleSynchronise = async () => {
+    setIsRunning(true);
+    try {
+      onSynchronised(await synchroniseGmail());
+    } catch (failure) {
+      onFailure(messageOf(failure));
+    } finally {
+      setIsRunning(false);
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      className="btn"
+      disabled={isRunning}
+      aria-busy={isRunning}
+      onClick={() => void handleSynchronise()}
+    >
+      {isRunning ? 'Synchronisation…' : 'Synchroniser maintenant'}
+    </button>
+  );
+}
+
 function ConnectedMailbox({
   gmail,
+  onSynchronised,
   onDisconnected,
   onFailure,
 }: {
   gmail: Extract<GmailStatus, { connected: true }>;
+  onSynchronised: (report: SyncReport) => void;
   onDisconnected: () => void;
   onFailure: (message: string) => void;
 }) {
@@ -68,9 +118,12 @@ function ConnectedMailbox({
             </button>
           </>
         ) : (
-          <button type="button" className="btn btn--quiet" onClick={() => setIsConfirming(true)}>
-            Déconnecter Gmail
-          </button>
+          <>
+            <SynchroniseButton onSynchronised={onSynchronised} onFailure={onFailure} />
+            <button type="button" className="btn btn--quiet" onClick={() => setIsConfirming(true)}>
+              Déconnecter Gmail
+            </button>
+          </>
         )}
       </div>
     </>
@@ -79,7 +132,8 @@ function ConnectedMailbox({
 
 /**
  * Gmail block of the settings: connected address, connection day and last synchronisation (EF-CFG-01), connection
- * through Google's consent page (EF-GML-01), disconnection after confirmation (EF-GML-02).
+ * through Google's consent page (EF-GML-01), manual synchronisation (EF-GML-04), disconnection after confirmation
+ * (EF-GML-02).
  */
 export function GmailSettings({ initialNotice }: { initialNotice: Notice | null }) {
   const titleId = useId();
@@ -87,13 +141,16 @@ export function GmailSettings({ initialNotice }: { initialNotice: Notice | null 
   const [notice, setNotice] = useState<Notice | null>(initialNotice);
   const [isLeaving, setIsLeaving] = useState(false);
 
-  useEffect(() => {
-    const controller = new AbortController();
-    fetchGmailStatus(controller.signal)
+  const loadStatus = (signal?: AbortSignal) =>
+    fetchGmailStatus(signal)
       .then((gmail) => setState({ status: 'ready', gmail }))
       .catch((error: unknown) => {
         if (!isAbortError(error)) setState({ status: 'error', message: messageOf(error) });
       });
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void loadStatus(controller.signal);
     return () => controller.abort();
   }, []);
 
@@ -130,6 +187,11 @@ export function GmailSettings({ initialNotice }: { initialNotice: Notice | null 
       {state.status === 'ready' && state.gmail.connected && (
         <ConnectedMailbox
           gmail={state.gmail}
+          onSynchronised={(report) => {
+            setNotice({ tone: 'success', text: describeReport(report) });
+            // The date of the last synchronisation is the API's.
+            void loadStatus();
+          }}
           onDisconnected={() => {
             setState({ status: 'ready', gmail: { connected: false } });
             setNotice({ tone: 'success', text: 'Gmail est déconnecté : plus aucun accès à votre boîte n’est conservé.' });

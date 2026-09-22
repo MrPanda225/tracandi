@@ -5,14 +5,20 @@ import request from 'supertest';
 import { createApp } from '../../src/app.js';
 import { connectDatabase, type DatabaseHandle } from '../../src/db/client.js';
 import { createLogger } from '../../src/lib/logger.js';
+import { createLlmJournal } from '../../src/llm/repository.js';
+import { createLlmRouter } from '../../src/llm/router.js';
+import type { LlmProvider, ProviderName } from '../../src/llm/types.js';
 import { createApplicationsModule } from '../../src/modules/applications/routes.js';
 import { createApplicationsService } from '../../src/modules/applications/service.js';
 import { createAuthModules } from '../../src/modules/auth/routes.js';
 import { createAuthService } from '../../src/modules/auth/service.js';
 import { createGmailConnectionService } from '../../src/modules/emails/connection.js';
+import { createMessageFetcher } from '../../src/modules/emails/fetcher.js';
 import type { GoogleOAuth } from '../../src/modules/emails/googleOAuth.js';
+import type { OpenMailbox } from '../../src/modules/emails/mailbox.js';
 import { createOAuthStateStore } from '../../src/modules/emails/oauthState.js';
 import { createGmailModules } from '../../src/modules/emails/routes.js';
+import { createGmailSync } from '../../src/modules/emails/sync.js';
 import { createStatsModule } from '../../src/modules/stats/routes.js';
 import { createStatsService } from '../../src/modules/stats/service.js';
 import { testDatabaseUrl } from './test-database.js';
@@ -56,10 +62,36 @@ const unreachableGoogle: GoogleOAuth = {
   revoke: () => Promise.reject(new Error('Google must not be called in this test')),
 };
 
-/** Real application on the local test database, with an injectable clock and a fake Google. */
+/** Gmail that must never be reached: tests reading a mailbox pass their own fake. */
+const unreachableMailbox: OpenMailbox = () => ({
+  listMessageIds: () => Promise.reject(new Error('Gmail must not be called in this test')),
+  getMessage: () => Promise.reject(new Error('Gmail must not be called in this test')),
+});
+
+/** AI that must never be reached: tests needing a classification pass their own scripted provider. */
+const unreachableAi: Partial<Record<ProviderName, LlmProvider>> = {
+  gemini: {
+    name: 'gemini',
+    model: 'unreachable',
+    complete: () => Promise.reject(new Error('No AI provider must be called in this test')),
+  },
+};
+
+/** Doubles of the external services; every one is unreachable unless a test gives its own. */
+export interface ExternalServices {
+  google?: GoogleOAuth;
+  openMailbox?: OpenMailbox;
+  aiProviders?: Partial<Record<ProviderName, LlmProvider>>;
+}
+
+/** Real application on the local test database, with an injectable clock and fake external services. */
 export const createTestContext = (
   database: DatabaseHandle,
-  { google = unreachableGoogle }: { google?: GoogleOAuth } = {},
+  {
+    google = unreachableGoogle,
+    openMailbox = unreachableMailbox,
+    aiProviders = unreachableAi,
+  }: ExternalServices = {},
 ): TestContext => {
   const clock = createTestClock(new Date('2026-09-22T08:00:00.000Z'));
   const logger = createLogger({ write: () => undefined });
@@ -77,6 +109,13 @@ export const createTestContext = (
     clock: clock.now,
     logger,
   });
+  const sync = createGmailSync({
+    db: database.db,
+    fetcher: createMessageFetcher({ db: database.db, openMailbox, encryptionKey, clock: clock.now }),
+    router: createLlmRouter({ providers: aiProviders, journal: createLlmJournal(database.db) }),
+    clock: clock.now,
+    logger,
+  });
   const app = createApp({
     config: { frontendOrigin: FRONTEND_ORIGIN },
     logger,
@@ -85,7 +124,7 @@ export const createTestContext = (
       ...createAuthModules({ service: authService, isCookieSecure: true }),
       createApplicationsModule(createApplicationsService({ db: database.db, clock: clock.now })),
       createStatsModule(createStatsService({ db: database.db, clock: clock.now })),
-      ...createGmailModules({ service: gmailService, frontendOrigin: FRONTEND_ORIGIN }),
+      ...createGmailModules({ service: gmailService, sync, frontendOrigin: FRONTEND_ORIGIN }),
     ],
   });
   return { app, database, clock, encryptionKey };

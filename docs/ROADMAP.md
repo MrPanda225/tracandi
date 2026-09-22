@@ -98,10 +98,14 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
   synchronisation, plateformes connues enregistrées dans `platforms`). Les messages retenus ne sont marqués traités
   qu'après leur classement : la route `POST /api/gmail/sync`, ses compteurs et la date de dernière synchronisation
   arrivent donc avec T-303.
-- [ ] **T-303 Classement et rattachement** — tâche IA de classement par lots de 10, rattachement RG-03,
+- [x] **T-303 Classement et rattachement** — tâche IA de classement par lots de 10, rattachement RG-03,
   statuts RG-04, persistance des messages.
   *Exigences* : EF-GML-08 à 12, EF-GML-19, EF-CAN-11 ; fin d'EF-GML-04 et 06, ENF-FIA-03 (route de synchronisation).
   *Fini quand* : scénario McDonald's (envoi → accusé → entretien) et fixture APEC/LHH passent.
+  *Livré* : `modules/emails/sync.ts` (lots de 10 par le routeur, un lot = une transaction, date de dernière
+  synchronisation avancée seulement quand tout est classé), `attachIncomingMessage` (service candidatures),
+  `POST /api/gmail/sync` et bouton « Synchroniser maintenant » dans Réglages. Une synchronisation à la fois par
+  utilisateur (verrou en mémoire, repris par T-305).
 - [ ] **T-304 Libellés Gmail** — gestionnaire de libellés (cache, création à la demande), RG-05, alertes, mode lecture seule.
   *Exigences* : EF-GML-13 à 17.
   *Fini quand* : appels `threads.modify` vérifiés pour chaque statut.

@@ -12,3 +12,13 @@ export const fetchGmailAuthorizationUrl = () => request<{ url: string }>('/gmail
 
 /** EF-GML-02: revokes the connection; no token remains. */
 export const disconnectGmail = () => request<undefined>('/gmail/connection', { method: 'DELETE' });
+
+/** Counters of a synchronisation (schema `GmailSyncReport` in /api/docs, EF-GML-04). */
+export interface SyncReport {
+  read: number;
+  retained: number;
+  classified: number;
+}
+
+/** EF-GML-04: reads and classifies the new messages now. */
+export const synchroniseGmail = () => request<SyncReport>('/gmail/sync', { method: 'POST' });

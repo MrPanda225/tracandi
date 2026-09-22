@@ -148,6 +148,47 @@ describe('SettingsPage — Gmail', () => {
     expect(calls).toContain('DELETE /gmail/connection');
   });
 
+  it('[EF-GML-04] synchronises on demand and tells what was read, retained and classified', async () => {
+    let status: object = CONNECTED;
+    let answer: (response: Response) => void = () => undefined;
+    const calls = mockApi({
+      'GET /gmail/status': () => json(200, status),
+      'POST /gmail/sync': () =>
+        new Promise<Response>((resolve) => {
+          answer = resolve;
+        }),
+    });
+    renderPage();
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: 'Synchroniser maintenant' }));
+
+    expect(screen.getByRole('button', { name: 'Synchronisation…' })).toBeDisabled();
+    status = { ...CONNECTED, lastSyncAt: '2026-09-22T08:30:00.000Z' };
+    answer(json(200, { read: 12, retained: 3, classified: 1 }));
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      'Synchronisation terminée : 12 messages lus, 3 retenus, 1 classé.',
+    );
+    expect(await screen.findByText(/Dernière synchronisation : 22 sept\. 2026/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Synchroniser maintenant' })).toBeEnabled();
+    expect(calls.filter((call) => call === 'POST /gmail/sync')).toHaveLength(1);
+  });
+
+  it('[EF-GML-04] [EF-IA-04] shows why a synchronisation failed', async () => {
+    mockApi({
+      'GET /gmail/status': () => json(200, CONNECTED),
+      'POST /gmail/sync': () =>
+        json(502, { error: 'Aucun service d’IA n’a pu traiter la demande. Réessayez dans quelques minutes.' }),
+    });
+    renderPage();
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: 'Synchroniser maintenant' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Aucun service d’IA n’a pu traiter la demande.');
+    expect(screen.getByRole('button', { name: 'Synchroniser maintenant' })).toBeEnabled();
+  });
+
   it('[EF-GML-02] keeps the connection when the user cancels', async () => {
     const calls = mockApi({ 'GET /gmail/status': () => json(200, CONNECTED) });
     renderPage();

@@ -5,7 +5,13 @@ import { decryptSecret } from '../../lib/crypto.js';
 import { HttpError } from '../../lib/errors.js';
 import { normalizeKey } from '../../lib/text.js';
 import type { MailboxMessage, OpenMailbox } from './mailbox.js';
-import { createPrefilter, DEFAULT_JOB_KEYWORDS, KNOWN_PLATFORMS, type PrefilterLists } from './prefilter.js';
+import {
+  createPrefilter,
+  DEFAULT_JOB_KEYWORDS,
+  KNOWN_PLATFORMS,
+  type PlatformRef,
+  type PrefilterLists,
+} from './prefilter.js';
 import * as repository from './repository.js';
 
 /** No mailbox is connected: there is nothing to synchronise (409). */
@@ -17,7 +23,7 @@ export class GmailNotConnectedError extends HttpError {
 
 /** A new message kept by the pre-filter, with the known platform of its sender (EF-GML-10). */
 export interface RetainedMessage extends MailboxMessage {
-  platformId: number | null;
+  platform: PlatformRef | null;
 }
 
 export interface FetchResult {
@@ -85,7 +91,7 @@ const createListsLoader = (db: Database): ((userId: number) => Promise<Prefilter
     return DEFAULT_JOB_KEYWORDS;
   };
 
-  const platformDomains = async (): Promise<Map<string, number>> => {
+  const platformDomains = async (): Promise<Map<string, PlatformRef>> => {
     if (!arePlatformsSaved) {
       const known = KNOWN_PLATFORMS.map((platform) => ({
         ...platform,
@@ -153,7 +159,7 @@ export const createMessageFetcher = ({
       const retained = messages
         .filter((message) => isKept.get(message))
         .sort(byReceptionDate)
-        .map((message) => ({ ...message, platformId: prefilter.platformOf(message.fromAddress) }));
+        .map((message) => ({ ...message, platform: prefilter.platformOf(message.fromAddress) }));
       return { readCount: messages.length, retained };
     },
   };

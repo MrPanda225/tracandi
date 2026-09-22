@@ -1,6 +1,11 @@
 import type { RouteConfig } from '@asteasolutions/zod-to-openapi';
 import { errorResponses, jsonResponse, type OpenAPIRegistry, SESSION_SECURITY } from '../../lib/openapi.js';
-import { AuthorizationAnswerQuerySchema, AuthorizationUrlSchema, GmailStatusSchema } from './schemas.js';
+import {
+  AuthorizationAnswerQuerySchema,
+  AuthorizationUrlSchema,
+  GmailStatusSchema,
+  SyncReportSchema,
+} from './schemas.js';
 
 const TAG = ['Gmail'];
 
@@ -48,6 +53,21 @@ const ROUTES: RouteConfig[] = [
     description:
       'EF-GML-02. Révoque le jeton chez Google quand c’est possible ; aucun jeton ne reste en base.',
     responses: { 204: { description: 'Déconnectée (ou déjà non connectée)' }, ...errorResponses(401, 415) },
+  },
+  {
+    tags: TAG,
+    security: SESSION_SECURITY,
+    method: 'post',
+    path: '/gmail/sync',
+    summary: 'Synchroniser Gmail maintenant',
+    description:
+      'EF-GML-04. Lit les nouveaux messages reçus et envoyés, écarte sans IA ceux sans indicateur d’emploi (RG-10), ' +
+      'classe les autres par lots de 10 et met à jour les candidatures (RG-03, RG-04). 409 sans boîte connectée ou ' +
+      'pendant une synchronisation ; 502 si aucun fournisseur d’IA ne répond (les lots déjà classés sont conservés).',
+    responses: {
+      200: jsonResponse('Compteurs de la synchronisation', SyncReportSchema),
+      ...errorResponses(401, 409, 415, 502),
+    },
   },
 ];
 

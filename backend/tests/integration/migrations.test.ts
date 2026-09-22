@@ -93,6 +93,7 @@ describe('migrations', () => {
         'GET /gmail/authorization-url',
         'GET /gmail/callback',
         'GET /gmail/status',
+        'POST /gmail/sync',
         'DELETE /gmail/connection',
       ].sort(),
     );

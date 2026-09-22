@@ -35,3 +35,12 @@ export const GmailStatusSchema = z
     }),
   ])
   .openapi('GmailStatus');
+
+/** EF-GML-04 */
+export const SyncReportSchema = z
+  .object({
+    read: z.number().int().nonnegative().openapi({ description: 'Nouveaux messages lus dans la boîte' }),
+    retained: z.number().int().nonnegative().openapi({ description: 'Messages retenus par le pré-filtre (RG-10)' }),
+    classified: z.number().int().nonnegative().openapi({ description: 'Messages classés par l’IA et enregistrés' }),
+  })
+  .openapi('GmailSyncReport');

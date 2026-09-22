@@ -63,15 +63,16 @@ export const BANK_STATEMENT = metadata({
   snippet: 'Bonjour, votre relevé est disponible dans votre espace client. Connectez-vous pour le consulter.',
 });
 
-/** EF-GML-09: forwarded by APEC, retained by its sender alone (no job keyword). */
+/** EF-GML-09: relayed by APEC, retained by its sender alone (no job keyword); the employer is in the text. */
 export const APEC_INNOVA = metadata({
   id: '18f0a1b2c3d4e504',
   threadId: '18f0a1b2c3d4e504',
   receivedAt: '2026-09-10T11:00:00.000Z',
   from: 'APEC <ne-pas-repondre@mail.apec.fr>',
-  subject: 'Innova Solutions a consulté votre profil',
+  subject: 'Innova Solutions a bien reçu votre dossier',
   snippet:
-    'Bonne nouvelle : Innova Solutions s&#39;intéresse à votre profil de data analyst. Consultez son message.',
+    'Bonne nouvelle : votre dossier pour le poste de data analyst a été transmis à Innova Solutions, ' +
+    'qui reviendra vers vous.',
 });
 
 /** EF-GML-05: 83 days before the test clock (2026-09-22): read back with N = 120, not with N = 30. */
@@ -94,3 +95,70 @@ export const LONG_NEWSLETTER = metadata({
   subject: 'Les offres d’emploi de la semaine',
   snippet: `${'Nouvelles offres   à Lyon : développeur, data analyst, chargé de projet. '.repeat(6)}Fin.`,
 });
+
+/** Interview of the McDonald's scenario: no job title in it, attached by RG-03 (c). */
+export const MCDONALDS_INTERVIEW = metadata({
+  id: '18f0a1b2c3d4e507',
+  threadId: '18f0a1b2c3d4e507',
+  receivedAt: '2026-09-08T09:30:00.000Z',
+  from: '"McDonald\'s Recrutement" <recrutement@mcdonalds.example>',
+  subject: 'Invitation à un entretien',
+  snippet: 'Bonjour Alex, nous souhaitons vous rencontrer jeudi à 14 h au restaurant de Lyon Part-Dieu.',
+});
+
+/** EF-GML-10: relayed by the LHH firm for its client Studio Ardent, fixed-term contract. */
+export const LHH_STUDIO_ARDENT = metadata({
+  id: '18f0a1b2c3d4e508',
+  threadId: '18f0a1b2c3d4e508',
+  receivedAt: '2026-09-14T08:45:00.000Z',
+  from: 'LHH Recruitment Solutions <talents@lhh.com>',
+  subject: 'Votre candidature — Chargé de projet digital',
+  snippet:
+    'Bonjour, notre client Studio Ardent a bien reçu votre candidature au poste de chargé de projet digital ' +
+    'en CDD de 12 mois.',
+});
+
+/** EF-GML-12: a refusal from a company without any application yet. */
+export const MAISON_LUMEN_REJECTION = metadata({
+  id: '18f0a1b2c3d4e509',
+  threadId: '18f0a1b2c3d4e509',
+  receivedAt: '2026-09-16T16:20:00.000Z',
+  from: 'Maison Lumen <rh@maison-lumen.example>',
+  subject: 'Suite à votre candidature',
+  snippet:
+    'Nous vous remercions de l&#39;intérêt porté à Maison Lumen. Après étude, nous ne donnerons pas suite à ' +
+    'votre candidature au poste d&#39;UX designer.',
+});
+
+/** EF-GML-19: the contract type is written in the subject. */
+export const ALTERNANCE_ACKNOWLEDGEMENT = metadata({
+  id: '18f0a1b2c3d4e50a',
+  threadId: '18f0a1b2c3d4e50a',
+  receivedAt: '2026-09-18T07:05:00.000Z',
+  from: 'Atelier Nova <jobs@atelier-nova.example>',
+  subject: 'Accusé de réception — Alternance Data Analyst',
+  snippet: 'Votre candidature en alternance au poste de Data Analyst a bien été reçue par Atelier Nova.',
+});
+
+/** Q-08: holds a keyword, yet unrelated to any application (classified off topic). */
+export const MARATHON_REGISTRATION = metadata({
+  id: '18f0a1b2c3d4e50b',
+  threadId: '18f0a1b2c3d4e50b',
+  receivedAt: '2026-09-19T12:00:00.000Z',
+  from: 'Marathon de Lyon <inscriptions@marathon-lyon.example>',
+  subject: 'Candidat au marathon : votre dossard',
+  snippet: 'Votre dossard numéro 4812 est prêt. Retrait au village du marathon samedi.',
+});
+
+/** `count` job alerts from the same site, one a day from 2026-09-01, to fill several classification batches. */
+export const jobAlerts = (count: number): gmail_v1.Schema$Message[] =>
+  Array.from({ length: count }, (_, index) =>
+    metadata({
+      id: `18f0b0000000${String(index).padStart(4, '0')}`,
+      threadId: `18f0b0000000${String(index).padStart(4, '0')}`,
+      receivedAt: new Date(Date.UTC(2026, 8, 1 + index, 6)).toISOString(),
+      from: 'Emplois Lyon <lettre@emplois-lyon.example>',
+      subject: `Alerte emploi n° ${index + 1} : 5 nouvelles offres`,
+      snippet: 'Cinq nouvelles offres correspondent à votre recherche de data analyst à Lyon.',
+    }),
+  );

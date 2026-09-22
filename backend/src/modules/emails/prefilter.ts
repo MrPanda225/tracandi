@@ -62,11 +62,17 @@ export const KNOWN_PLATFORMS: readonly KnownPlatform[] = [
   { name: 'Hays', domains: ['hays.fr'] },
 ];
 
+/** A recorded platform (table `platforms`). */
+export interface PlatformRef {
+  id: number;
+  name: string;
+}
+
 /** The two lists of RG-10 for one user. */
 export interface PrefilterLists {
   keywords: readonly string[];
-  /** Platform id by sender domain (lower case). */
-  platformDomains: ReadonlyMap<string, number>;
+  /** Platform by sender domain (lower case). */
+  platformDomains: ReadonlyMap<string, PlatformRef>;
 }
 
 /** What the pre-filter reads of a message: metadata and excerpt only (ENF-RGP-01). */
@@ -77,8 +83,8 @@ export interface PrefilteredFields {
 }
 
 export interface Prefilter {
-  /** Id of the known platform the address writes for, or null (EF-GML-10). */
-  platformOf: (fromAddress: string | null) => number | null;
+  /** The known platform the address writes for, or null (EF-GML-10). */
+  platformOf: (fromAddress: string | null) => PlatformRef | null;
   /** RG-10: kept for the classification when the subject or the excerpt holds a keyword, or the sender is a platform. */
   isRetained: (message: PrefilteredFields) => boolean;
 }
@@ -111,7 +117,7 @@ export const createPrefilter = ({ keywords, platformDomains }: PrefilterLists): 
     return keywordKeys.some((key) => padded.includes(` ${key} `));
   };
 
-  const platformOf = (fromAddress: string | null): number | null => {
+  const platformOf = (fromAddress: string | null): PlatformRef | null => {
     const domain = fromAddress ? domainOf(fromAddress) : null;
     if (!domain) return null;
     const known = domainAndParents(domain).find((candidate) => platformDomains.has(candidate));
