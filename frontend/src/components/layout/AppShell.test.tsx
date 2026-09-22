@@ -1,10 +1,11 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { App } from '../../App';
 
 const ACCOUNT = { id: 1, email: 'alex.martin@example.com' };
+const OTHER_ACCOUNT = { id: 2, email: 'camille.durand@example.com' };
 const EMPTY_DASHBOARD = {
   totals: { applications: 0, reachedInterview: 0, responseRate: 0 },
   byStatus: [],
@@ -87,5 +88,34 @@ describe('AppShell', () => {
     await user.click(screen.getByRole('button', { name: 'Se déconnecter' }));
 
     expect(await screen.findByRole('heading', { name: 'Bon retour.' })).toBeInTheDocument();
+  });
+
+  it("[EF-AUT-06] never shows the previous session's figures to the next account", async () => {
+    let answerDashboard: Handler = () =>
+      json(200, { ...EMPTY_DASHBOARD, totals: { applications: 12, reachedInterview: 0, responseRate: 0 } });
+    mockApi({
+      '/auth/me': () => json(200, ACCOUNT),
+      '/stats/dashboard': () => answerDashboard(),
+      '/auth/logout': () => new Response(null, { status: 204 }),
+      '/auth/login': () => json(200, OTHER_ACCOUNT),
+    });
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <App />
+      </MemoryRouter>,
+    );
+    const user = userEvent.setup();
+    const kpis = within(await screen.findByRole('group', { name: 'Indicateurs clés' }));
+    expect(await kpis.findByText('12')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Se déconnecter' }));
+    await screen.findByRole('heading', { name: 'Bon retour.' });
+    answerDashboard = () => new Promise<Response>(() => undefined);
+    await user.type(screen.getByLabelText('Adresse e-mail'), OTHER_ACCOUNT.email);
+    await user.type(screen.getByLabelText('Mot de passe'), 'another-long-password');
+    await user.click(screen.getByRole('button', { name: 'Se connecter' }));
+
+    expect(await screen.findByText('Chargement du tableau de bord…')).toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: 'Indicateurs clés' })).not.toBeInTheDocument();
   });
 });

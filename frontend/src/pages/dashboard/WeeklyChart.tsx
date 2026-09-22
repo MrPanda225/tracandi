@@ -11,10 +11,13 @@ import {
 } from 'recharts';
 import type { Dashboard } from '../../api/stats';
 import { formatDayMonth, formatShortMonth } from '../../lib/format';
+import { prefersReducedMotion } from '../../lib/motion';
 import './WeeklyChart.css';
 
 interface WeeklyChartProps {
   weekly: Dashboard['weekly'];
+  /** Draws the curves progressively; ignored when the user asked the system to reduce motion. */
+  isAnimated: boolean;
 }
 
 const SERIES = [
@@ -27,8 +30,9 @@ const SERIES = [
 const isTickWeek = (_value: string, index: number) => index % 2 === 0;
 
 /** EF-TDB-04: sent, interviewed and rejected applications for each of the last 16 weeks. */
-export function WeeklyChart({ weekly }: WeeklyChartProps) {
+export function WeeklyChart({ weekly, isAnimated }: WeeklyChartProps) {
   const titleId = useId();
+  const shouldAnimate = isAnimated && !prefersReducedMotion();
   const data = weekly.map((week) => ({ ...week, label: formatShortMonth(week.weekStart) }));
   const hasActivity = weekly.some((week) => week.sent > 0 || week.interviews > 0 || week.rejected > 0);
 
@@ -90,6 +94,7 @@ export function WeeklyChart({ weekly }: WeeklyChartProps) {
                 fill={`url(#fill-${series.key})`}
                 strokeWidth={2}
                 activeDot={{ r: 4 }}
+                isAnimationActive={shouldAnimate}
               />
             ))}
           </AreaChart>

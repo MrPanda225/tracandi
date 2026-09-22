@@ -1,7 +1,9 @@
 import { render, screen, within } from '@testing-library/react';
+import type { ReactElement } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Dashboard } from '../../api/stats';
 import { DashboardPage } from './DashboardPage';
+import { DashboardCacheProvider } from './useDashboard';
 
 const DASHBOARD: Dashboard = {
   totals: { applications: 12, reachedInterview: 5, responseRate: 42 },
@@ -61,26 +63,94 @@ const json = (status: number, body?: unknown) =>
 
 const kpiGroup = () => screen.getByRole('group', { name: 'Indicateurs clés' });
 
+const renderPage = () =>
+  render(
+    <DashboardCacheProvider>
+      <DashboardPage />
+    </DashboardCacheProvider>,
+  );
+
+/** Leaves the dashboard for another screen, then comes back, within the same session. */
+const leaveAndComeBack = (rerender: (ui: ReactElement) => void) => {
+  rerender(
+    <DashboardCacheProvider>
+      <p>Autre écran</p>
+    </DashboardCacheProvider>,
+  );
+  rerender(
+    <DashboardCacheProvider>
+      <DashboardPage />
+    </DashboardCacheProvider>,
+  );
+};
+
+const pending = () => {
+  let answer: (response: Response) => void = () => undefined;
+  const response = new Promise<Response>((resolve) => (answer = resolve));
+  return { response, answer: (value: Response) => answer(value) };
+};
+
 afterEach(() => {
   vi.unstubAllGlobals();
 });
 
 describe('DashboardPage', () => {
-  it('[ENF-UTI-03] shows a waiting state while the figures load', () => {
+  it('[ENF-UTI-03] shows a skeleton of the dashboard while the figures load', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(() => new Promise(() => undefined)),
     );
 
-    render(<DashboardPage />);
+    renderPage();
 
     expect(screen.getByRole('status')).toHaveTextContent('Chargement du tableau de bord…');
+    expect(screen.queryByRole('group', { name: 'Indicateurs clés' })).not.toBeInTheDocument();
+  });
+
+  it('[ENF-PERF-01] shows the last figures at once when coming back, then refreshes them', async () => {
+    const refresh = pending();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValueOnce(json(200, DASHBOARD)).mockReturnValueOnce(refresh.response),
+    );
+    const { rerender } = renderPage();
+    await screen.findByText('Candidatures suivies');
+
+    leaveAndComeBack(rerender);
+
+    expect(within(kpiGroup()).getByText('12')).toBeInTheDocument();
+    expect(screen.queryByText('Chargement du tableau de bord…')).not.toBeInTheDocument();
+    expect(screen.getByText(/actualisation…/)).toBeInTheDocument();
+
+    refresh.answer(json(200, { ...DASHBOARD, totals: { ...DASHBOARD.totals, applications: 13 } }));
+
+    expect(await within(kpiGroup()).findByText('13')).toBeInTheDocument();
+    expect(screen.queryByText(/actualisation…/)).not.toBeInTheDocument();
+  });
+
+  it('[ENF-UTI-03] keeps the last figures and says why they could not be refreshed', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce(json(200, DASHBOARD))
+        .mockResolvedValueOnce(json(500, { error: 'Une erreur inattendue est survenue.' })),
+    );
+    const { rerender } = renderPage();
+    await screen.findByText('Candidatures suivies');
+
+    leaveAndComeBack(rerender);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Chiffres de votre dernière visite. Une erreur inattendue est survenue.',
+    );
+    expect(within(kpiGroup()).getByText('12')).toBeInTheDocument();
   });
 
   it('[EF-TDB-01] [EF-TDB-02] [EF-TDB-03] shows the headline numbers', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json(200, DASHBOARD)));
 
-    render(<DashboardPage />);
+    renderPage();
     await screen.findByText('Candidatures suivies');
     const kpis = within(kpiGroup());
 
@@ -92,7 +162,7 @@ describe('DashboardPage', () => {
   it('[EF-TDB-08] shows the number of new offers above the threshold', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json(200, DASHBOARD)));
 
-    render(<DashboardPage />);
+    renderPage();
     await screen.findByText('Candidatures suivies');
     const kpis = within(kpiGroup());
 
@@ -103,7 +173,7 @@ describe('DashboardPage', () => {
   it('[EF-TDB-05] labels every status in French, in its own section', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json(200, DASHBOARD)));
 
-    render(<DashboardPage />);
+    renderPage();
     const byStatus = within(await screen.findByRole('region', { name: 'Par statut' }));
 
     expect(byStatus.getByText('Envoyée')).toBeInTheDocument();
@@ -114,7 +184,7 @@ describe('DashboardPage', () => {
   it('[EF-TDB-09] labels every contract type and its RG-07 response rate', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json(200, DASHBOARD)));
 
-    render(<DashboardPage />);
+    renderPage();
     const byContract = within(await screen.findByRole('region', { name: 'Par type de contrat' }));
 
     expect(byContract.getByText('CDI')).toBeInTheDocument();
@@ -126,7 +196,7 @@ describe('DashboardPage', () => {
   it('[EF-TDB-06] splits applications between direct and platform channels', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json(200, DASHBOARD)));
 
-    render(<DashboardPage />);
+    renderPage();
     const byChannel = within(await screen.findByRole('region', { name: 'Par canal' }));
 
     expect(byChannel.getByText('Envoi direct')).toBeInTheDocument();
@@ -137,7 +207,7 @@ describe('DashboardPage', () => {
   it('[EF-TDB-07] lists the applications to follow up, with the delay applied', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json(200, DASHBOARD)));
 
-    render(<DashboardPage />);
+    renderPage();
     const followUps = within(await screen.findByRole('region', { name: 'À relancer' }));
 
     expect(followUps.getByText('Atelier Nova')).toBeInTheDocument();
@@ -148,7 +218,7 @@ describe('DashboardPage', () => {
   it('[EF-TDB-07] tells the user there is nothing to follow up', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json(200, EMPTY_DASHBOARD)));
 
-    render(<DashboardPage />);
+    renderPage();
     const followUps = within(await screen.findByRole('region', { name: 'À relancer' }));
 
     expect(followUps.getByText('Rien à relancer pour l’instant : c’est à jour.')).toBeInTheDocument();
@@ -157,7 +227,7 @@ describe('DashboardPage', () => {
   it('[ENF-UTI-03] shows a readable message when the API fails', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json(401, { error: 'Authentification requise' })));
 
-    render(<DashboardPage />);
+    renderPage();
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Authentification requise');
   });
