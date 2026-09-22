@@ -41,8 +41,8 @@ describe('createGmailMailbox — listing', () => {
 
   it('[EF-GML-05] refuses an answer that is not Gmail’s', async () => {
     const mailbox = createGmailMailbox({
+      ...createFakeGmail([]).client,
       list: () => Promise.resolve({ data: { messages: [{ threadId: 'no-id' }] } }),
-      get: () => Promise.reject(new Error('not called')),
     });
 
     await expect(mailbox.listMessageIds('after:1')).rejects.toThrow();

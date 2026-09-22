@@ -6,9 +6,10 @@ import { normalizeKey } from '../../lib/text.js';
 import { buildClassifyEmailsPrompt, type MessageToClassify } from '../../llm/prompts/classifyEmails.js';
 import type { LlmRouter } from '../../llm/router.js';
 import type { ProviderName } from '../../llm/types.js';
-import { attachIncomingMessage } from '../applications/service.js';
+import { attachIncomingMessage, findApplicationThreads } from '../applications/service.js';
 import { type ClassifiedMessage, ClassificationSchema } from './classification.js';
 import type { MessageFetcher, RetainedMessage } from './fetcher.js';
+import { createThreadLabeler, databaseLabelCache, type ThreadLabeler } from './labels.js';
 import type { PlatformRef } from './prefilter.js';
 import * as repository from './repository.js';
 import type { Executor } from './repository.js';
@@ -56,6 +57,12 @@ interface ClassifiedPair {
   classification: ClassifiedMessage;
 }
 
+/** What a recorded batch changed, for the Gmail labels: the applications touched and the job alert threads. */
+interface RecordedBatch {
+  applicationIds: number[];
+  alertThreadIds: string[];
+}
+
 const toMessageToClassify = (message: RetainedMessage): MessageToClassify => ({
   direction: message.direction,
   receivedAt: message.receivedAt,
@@ -94,14 +101,15 @@ const platformOf = async (
 
 /**
  * Stores one classified message and attaches it (RG-02, RG-03); job alerts are stored alone.
+ * @returns the application the message was attached to, or null.
  * @req EF-GML-08, EF-GML-09, EF-GML-10, EF-GML-11, EF-GML-12, EF-GML-19
  */
 const recordMessage = async (
   tx: Executor,
   { userId, pair, provider }: { userId: number; pair: ClassifiedPair; provider: ProviderName },
-): Promise<void> => {
+): Promise<number | null> => {
   const { message, classification } = pair;
-  if (classification.category === 'off_topic') return;
+  if (classification.category === 'off_topic') return null;
   const platform = await platformOf(tx, pair);
   const emailId = await repository.insertEmail(tx, {
     userId,
@@ -116,8 +124,8 @@ const recordMessage = async (
     receivedAt: message.receivedAt,
     classifiedBy: provider,
   });
-  if (classification.category === 'job_alert') return;
-  await attachIncomingMessage(tx, {
+  if (classification.category === 'job_alert') return null;
+  return attachIncomingMessage(tx, {
     userId,
     emailId,
     category: classification.category,
@@ -141,7 +149,7 @@ const recordBatch = async (
     provider,
     processedAt,
   }: { userId: number; pairs: ClassifiedPair[]; provider: ProviderName; processedAt: Date },
-): Promise<void> => {
+): Promise<RecordedBatch> => {
   const idsOf = (isOffTopic: boolean) =>
     pairs
       .filter((pair) => (pair.classification.category === 'off_topic') === isOffTopic)
@@ -158,13 +166,22 @@ const recordBatch = async (
     outcome: 'retained',
     processedAt,
   });
-  for (const pair of pairs) await recordMessage(tx, { userId, pair, provider });
+  const applicationIds = new Set<number>();
+  for (const pair of pairs) {
+    const applicationId = await recordMessage(tx, { userId, pair, provider });
+    if (applicationId !== null) applicationIds.add(applicationId);
+  }
+  const alertThreadIds = pairs
+    .filter((pair) => pair.classification.category === 'job_alert')
+    .map((pair) => pair.message.gmailThreadId);
+  return { applicationIds: [...applicationIds], alertThreadIds };
 };
 
 /**
  * Creates the Gmail synchronisation: incremental fetch (T-302), classification by the AI router (RG-13: Gemini then
- * Claude), storage and attachment. One synchronisation at a time per user.
- * @req EF-GML-04, EF-GML-06, EF-GML-08 to EF-GML-12, EF-GML-19, EF-CAN-11, EF-CFG-01, ENF-FIA-03
+ * Claude), storage and attachment, then Gmail labels unless the user turned them off. One synchronisation at a time
+ * per user.
+ * @req EF-GML-04, EF-GML-06, EF-GML-08 to EF-GML-17, EF-GML-19, EF-CAN-11, EF-CFG-01, ENF-FIA-03
  */
 export const createGmailSync = ({ db, fetcher, router, clock, logger }: GmailSyncDeps): GmailSync => {
   const running = new Set<number>();
@@ -180,13 +197,33 @@ export const createGmailSync = ({ db, fetcher, router, clock, logger }: GmailSyn
     return { provider, pairs: pairAnswers(batch, data.messages) };
   };
 
+  /** EF-GML-13 to 16: labels of what the batch changed, every thread of a touched application relabelled. */
+  const labelBatch = async (userId: number, labeler: ThreadLabeler, recorded: RecordedBatch): Promise<void> => {
+    try {
+      for (const target of await findApplicationThreads(db, userId, recorded.applicationIds)) {
+        await labeler.labelApplication(target);
+      }
+      for (const threadId of recorded.alertThreadIds) await labeler.labelJobAlert(threadId);
+    } catch (error) {
+      // Labels are a convenience (priority S): a Gmail refusal must not fail a synchronisation already recorded.
+      logger.warn('gmail labels not applied', { error });
+    }
+  };
+
   const run = async (userId: number): Promise<SyncReport> => {
     const startedAt = clock();
-    const { readCount, retained } = await fetcher.fetchNewMessages(userId);
+    const { readCount, retained, mailbox, shouldApplyLabels } = await fetcher.fetchNewMessages(userId);
+    // EF-GML-17: read-only mode, no label is ever written.
+    const labeler = shouldApplyLabels
+      ? createThreadLabeler({ mailbox, cache: databaseLabelCache(db, userId) })
+      : null;
     let classified = 0;
     for (const batch of batchesOf(retained)) {
       const { provider, pairs } = await classifyBatch(userId, batch);
-      await db.transaction((tx) => recordBatch(tx, { userId, pairs, provider, processedAt: clock() }));
+      const recorded = await db.transaction((tx) =>
+        recordBatch(tx, { userId, pairs, provider, processedAt: clock() }),
+      );
+      if (labeler) await labelBatch(userId, labeler, recorded);
       classified += pairs.length;
     }
     // A message the AI skipped is still unprocessed: the next pass must read it again from the same date.

@@ -15,12 +15,23 @@ const GMAIL_REQUEST_TIMEOUT_MS = 30_000;
 const HTTP_NOT_FOUND = 404;
 const SENT_LABEL = 'SENT';
 
-/** The part of Gmail's messages API used here, injected so that tests never call Google. */
-export interface GmailMessagesClient {
+/** The part of Gmail's API used here (messages, labels, threads), injected so that tests never call Google. */
+export interface GmailClient {
   list: (
     params: gmail_v1.Params$Resource$Users$Messages$List,
   ) => Promise<{ data: gmail_v1.Schema$ListMessagesResponse }>;
   get: (params: gmail_v1.Params$Resource$Users$Messages$Get) => Promise<{ data: gmail_v1.Schema$Message }>;
+  listLabels: (
+    params: gmail_v1.Params$Resource$Users$Labels$List,
+  ) => Promise<{ data: gmail_v1.Schema$ListLabelsResponse }>;
+  createLabel: (params: gmail_v1.Params$Resource$Users$Labels$Create) => Promise<{ data: gmail_v1.Schema$Label }>;
+  modifyThread: (params: gmail_v1.Params$Resource$Users$Threads$Modify) => Promise<unknown>;
+}
+
+/** A Gmail label: its id and its full name (« Candidatures/Atelier Nova »). */
+export interface GmailLabel {
+  id: string;
+  name: string;
 }
 
 /** A message as the application knows it: metadata and an excerpt, never the body (ENF-RGP-01). */
@@ -37,12 +48,18 @@ export interface MailboxMessage {
   receivedAt: Date;
 }
 
-/** Read access to one mailbox. */
+/** Access to one mailbox: reading messages, and labels (never sending nor deleting, ENF-SEC-07). */
 export interface GmailMailbox {
   /** Ids of the messages matching a Gmail search, all pages read. */
   listMessageIds: (query: string) => Promise<string[]>;
   /** A message, or null when it was deleted since the listing. @throws on any other Gmail failure. */
   getMessage: (id: string) => Promise<MailboxMessage | null>;
+  /** Every label of the mailbox, system ones included. */
+  listLabels: () => Promise<GmailLabel[]>;
+  /** Creates a label shown in the label list and on messages; returns its id. */
+  createLabel: (name: string) => Promise<string>;
+  /** Adds and removes labels on every message of a thread (EF-GML-13 to 16). */
+  modifyThread: (threadId: string, change: { add: readonly string[]; remove: readonly string[] }) => Promise<void>;
 }
 
 /** Opens the mailbox authorised by a (clear) refresh token. */
@@ -67,6 +84,11 @@ const MessageAnswerSchema = z.object({
     .nullish(),
 });
 type MessageAnswer = z.infer<typeof MessageAnswerSchema>;
+
+const LabelsAnswerSchema = z.object({
+  labels: z.array(z.object({ id: z.string().min(1), name: z.string().min(1) })).nullish(),
+});
+const CreatedLabelSchema = z.object({ id: z.string().min(1) });
 
 const NAMED_ENTITIES: Readonly<Record<string, string>> = {
   amp: '&',
@@ -123,16 +145,17 @@ const toMailboxMessage = (message: MessageAnswer): MailboxMessage => {
   };
 };
 
-const isNotFound = (error: unknown): boolean =>
-  typeof error === 'object' && error !== null && 'status' in error && error.status === HTTP_NOT_FOUND;
+/** True when a Gmail call failed with this HTTP status. */
+export const hasHttpStatus = (error: unknown, status: number): boolean =>
+  typeof error === 'object' && error !== null && 'status' in error && error.status === status;
 
 /**
- * Gmail mailbox on a messages API: searches, then reads the metadata of one message (From and Subject headers,
- * excerpt, date, labels). The body is never requested (ENF-RGP-01).
+ * Gmail mailbox on Gmail's API: searches, then reads the metadata of one message (From and Subject headers,
+ * excerpt, date, labels), and sets labels on threads. The body is never requested (ENF-RGP-01).
  * @throws when Gmail fails or answers outside its format, except a message deleted since the listing (null).
- * @req EF-GML-03, EF-GML-05, ENF-RGP-01
+ * @req EF-GML-03, EF-GML-05, EF-GML-13, EF-GML-14, EF-GML-15, EF-GML-16, ENF-RGP-01
  */
-export const createGmailMailbox = (client: GmailMessagesClient): GmailMailbox => ({
+export const createGmailMailbox = (client: GmailClient): GmailMailbox => ({
   async listMessageIds(query) {
     const ids: string[] = [];
     let pageToken: string | undefined;
@@ -155,25 +178,53 @@ export const createGmailMailbox = (client: GmailMessagesClient): GmailMailbox =>
       });
       return toMailboxMessage(MessageAnswerSchema.parse(data));
     } catch (error) {
-      if (isNotFound(error)) return null;
+      if (hasHttpStatus(error, HTTP_NOT_FOUND)) return null;
       throw error;
     }
+  },
+
+  async listLabels() {
+    const { data } = await client.listLabels({ userId: 'me' });
+    return LabelsAnswerSchema.parse(data).labels ?? [];
+  },
+
+  async createLabel(name) {
+    const { data } = await client.createLabel({
+      userId: 'me',
+      requestBody: { name, labelListVisibility: 'labelShow', messageListVisibility: 'show' },
+    });
+    return CreatedLabelSchema.parse(data).id;
+  },
+
+  async modifyThread(threadId, { add, remove }) {
+    await client.modifyThread({
+      userId: 'me',
+      id: threadId,
+      requestBody: { addLabelIds: [...add], removeLabelIds: [...remove] },
+    });
   },
 });
 
 /**
  * Opens mailboxes on the real Gmail API with the OAuth client of the configuration; the access token is renewed from
  * the refresh token by the Google client.
- * @req EF-GML-03
+ * @req EF-GML-03, EF-GML-13
  */
 export const connectGmailMailbox =
   ({ clientId, clientSecret, redirectUri }: GoogleOAuthConfig): OpenMailbox =>
   (refreshToken) => {
     const client = new auth.OAuth2(clientId, clientSecret, redirectUri);
     client.setCredentials({ refresh_token: refreshToken });
-    const { messages } = gmail({ version: 'v1', auth: client, timeout: GMAIL_REQUEST_TIMEOUT_MS }).users;
+    const { messages, labels, threads } = gmail({
+      version: 'v1',
+      auth: client,
+      timeout: GMAIL_REQUEST_TIMEOUT_MS,
+    }).users;
     return createGmailMailbox({
       list: (params) => messages.list(params),
       get: (params) => messages.get(params),
+      listLabels: (params) => labels.list(params),
+      createLabel: (params) => labels.create(params),
+      modifyThread: (params) => threads.modify(params),
     });
   };

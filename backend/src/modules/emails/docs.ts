@@ -1,8 +1,15 @@
 import type { RouteConfig } from '@asteasolutions/zod-to-openapi';
-import { errorResponses, jsonResponse, type OpenAPIRegistry, SESSION_SECURITY } from '../../lib/openapi.js';
+import {
+  errorResponses,
+  jsonBody,
+  jsonResponse,
+  type OpenAPIRegistry,
+  SESSION_SECURITY,
+} from '../../lib/openapi.js';
 import {
   AuthorizationAnswerQuerySchema,
   AuthorizationUrlSchema,
+  GmailSettingsBodySchema,
   GmailStatusSchema,
   SyncReportSchema,
 } from './schemas.js';
@@ -41,7 +48,8 @@ const ROUTES: RouteConfig[] = [
     method: 'get',
     path: '/gmail/status',
     summary: 'État de la connexion Gmail',
-    description: 'EF-CFG-01. Adresse connectée, date de connexion et de dernière synchronisation.',
+    description:
+      'EF-CFG-01, EF-GML-17. Adresse connectée, date de connexion et de dernière synchronisation, écriture des libellés.',
     responses: { 200: jsonResponse('Connexion Gmail', GmailStatusSchema), ...errorResponses(401) },
   },
   {
@@ -57,12 +65,24 @@ const ROUTES: RouteConfig[] = [
   {
     tags: TAG,
     security: SESSION_SECURITY,
+    method: 'patch',
+    path: '/gmail/settings',
+    summary: 'Régler l’écriture des libellés Gmail',
+    description:
+      'EF-GML-17. `applyLabels: false` passe en lecture seule : aucune synchronisation ne modifie plus les libellés.',
+    request: { body: jsonBody(GmailSettingsBodySchema) },
+    responses: { 204: { description: 'Réglage enregistré' }, ...errorResponses(400, 401, 415) },
+  },
+  {
+    tags: TAG,
+    security: SESSION_SECURITY,
     method: 'post',
     path: '/gmail/sync',
     summary: 'Synchroniser Gmail maintenant',
     description:
       'EF-GML-04. Lit les nouveaux messages reçus et envoyés, écarte sans IA ceux sans indicateur d’emploi (RG-10), ' +
-      'classe les autres par lots de 10 et met à jour les candidatures (RG-03, RG-04). 409 sans boîte connectée ou ' +
+      'classe les autres par lots de 10, met à jour les candidatures (RG-03, RG-04) puis les libellés Gmail des fils ' +
+      '(RG-05, sauf lecture seule). 409 sans boîte connectée ou ' +
       'pendant une synchronisation ; 502 si aucun fournisseur d’IA ne répond (les lots déjà classés sont conservés).',
     responses: {
       200: jsonResponse('Compteurs de la synchronisation', SyncReportSchema),

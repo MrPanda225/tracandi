@@ -4,7 +4,7 @@ import type { Clock } from '../../lib/clock.js';
 import { decryptSecret } from '../../lib/crypto.js';
 import { HttpError } from '../../lib/errors.js';
 import { normalizeKey } from '../../lib/text.js';
-import type { MailboxMessage, OpenMailbox } from './mailbox.js';
+import type { GmailMailbox, MailboxMessage, OpenMailbox } from './mailbox.js';
 import {
   createPrefilter,
   DEFAULT_JOB_KEYWORDS,
@@ -34,6 +34,10 @@ export interface FetchResult {
    * does it, so that an interruption before it leaves them to the next pass (ENF-FIA-03).
    */
   retained: RetainedMessage[];
+  /** The opened mailbox, for the labels of the same pass (T-304). */
+  mailbox: GmailMailbox;
+  /** EF-GML-17: false when the user turned the writing of labels off. */
+  shouldApplyLabels: boolean;
 }
 
 export interface MessageFetcher {
@@ -160,7 +164,7 @@ export const createMessageFetcher = ({
         .filter((message) => isKept.get(message))
         .sort(byReceptionDate)
         .map((message) => ({ ...message, platform: prefilter.platformOf(message.fromAddress) }));
-      return { readCount: messages.length, retained };
+      return { readCount: messages.length, retained, mailbox, shouldApplyLabels: source.shouldApplyLabels };
     },
   };
 };

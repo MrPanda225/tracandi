@@ -300,6 +300,35 @@ export const attachIncomingMessage = async (tx: Executor, message: IncomingMessa
   return applicationId;
 };
 
+/** An application as its Gmail labels show it: company, status and every attached thread (RG-05). */
+export interface ApplicationThreads {
+  companyName: string;
+  status: ApplicationStatus;
+  threadIds: string[];
+}
+
+/**
+ * The threads of these applications of the user, grouped by application, for their Gmail labels.
+ * @req EF-GML-13, EF-GML-14, EF-AUT-06
+ */
+export const findApplicationThreads = async (
+  db: Executor,
+  userId: number,
+  applicationIds: readonly number[],
+): Promise<ApplicationThreads[]> => {
+  const byApplication = new Map<number, ApplicationThreads>();
+  for (const row of await repository.listApplicationThreads(db, userId, applicationIds)) {
+    const group = byApplication.get(row.applicationId) ?? {
+      companyName: row.companyName,
+      status: row.status,
+      threadIds: [],
+    };
+    group.threadIds.push(row.gmailThreadId);
+    byApplication.set(row.applicationId, group);
+  }
+  return [...byApplication.values()];
+};
+
 /**
  * Creates the applications service. Every operation is scoped to the given user (EF-AUT-06);
  * writes run in a transaction; a duplicate (company, job title) becomes a 409.

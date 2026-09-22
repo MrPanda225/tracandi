@@ -32,9 +32,20 @@ export const GmailStatusSchema = z
       emailAddress: z.string().email(),
       connectedAt: DateTimeSchema,
       lastSyncAt: DateTimeSchema.nullable(),
+      applyLabels: z.boolean().openapi({ description: 'Écriture des libellés dans Gmail (EF-GML-17)' }),
     }),
   ])
   .openapi('GmailStatus');
+
+/** EF-GML-17 */
+export const GmailSettingsBodySchema = z
+  .object({
+    applyLabels: z
+      .boolean()
+      .openapi({ description: 'false : mode lecture seule, Tracandi ne modifie aucun libellé dans Gmail' }),
+  })
+  .strict()
+  .openapi('GmailSettingsBody');
 
 /** EF-GML-04 */
 export const SyncReportSchema = z

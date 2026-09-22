@@ -165,6 +165,29 @@ export const listCompanyApplications = async (
     .from(applications)
     .where(eq(applications.companyId, companyId));
 
+/**
+ * Every Gmail thread attached to these applications of the user, with the company and status of its application.
+ * @req EF-GML-13, EF-GML-14, EF-AUT-06
+ */
+export const listApplicationThreads = async (
+  db: Executor,
+  userId: number,
+  applicationIds: readonly number[],
+): Promise<{ applicationId: number; companyName: string; status: ApplicationStatus; gmailThreadId: string }[]> =>
+  applicationIds.length === 0
+    ? []
+    : db
+        .selectDistinct({
+          applicationId: applications.id,
+          companyName: companies.name,
+          status: applications.status,
+          gmailThreadId: emails.gmailThreadId,
+        })
+        .from(applications)
+        .innerJoin(companies, eq(companies.id, applications.companyId))
+        .innerJoin(emails, eq(emails.applicationId, applications.id))
+        .where(and(ownedBy(userId), inArray(applications.id, [...applicationIds])));
+
 /** Inserts an application and returns its id. @throws unique violation on (company, job title key). */
 export const insertApplication = async (
   db: Executor,

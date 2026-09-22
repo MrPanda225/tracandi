@@ -5,6 +5,7 @@ import {
   fetchGmailAuthorizationUrl,
   fetchGmailStatus,
   type GmailStatus,
+  setGmailApplyLabels,
   synchroniseGmail,
   type SyncReport,
 } from '../../api/gmail';
@@ -61,6 +62,45 @@ function SynchroniseButton({
   );
 }
 
+/** EF-GML-17: writing of Gmail labels, on by default; the box goes back if the API refuses the change. */
+function LabelsOption({ isOn, onFailure }: { isOn: boolean; onFailure: (message: string) => void }) {
+  const hintId = useId();
+  const [isChecked, setIsChecked] = useState(isOn);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleChange = async (applyLabels: boolean) => {
+    setIsChecked(applyLabels);
+    setIsSaving(true);
+    try {
+      await setGmailApplyLabels(applyLabels);
+    } catch (failure) {
+      setIsChecked(!applyLabels);
+      onFailure(messageOf(failure));
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <div className="gmail-settings__option">
+      <label className="gmail-settings__option-label">
+        <input
+          type="checkbox"
+          checked={isChecked}
+          disabled={isSaving}
+          aria-describedby={hintId}
+          onChange={(event) => void handleChange(event.target.checked)}
+        />
+        Ranger les fils avec des libellés Gmail
+      </label>
+      <p id={hintId} className="gmail-settings__meta">
+        Libellés « Candidatures/‹Entreprise› », « Statut/… » et « Alertes emploi ». Décoché, Tracandi lit votre boîte
+        sans rien y modifier.
+      </p>
+    </div>
+  );
+}
+
 function ConnectedMailbox({
   gmail,
   onSynchronised,
@@ -98,6 +138,7 @@ function ConnectedMailbox({
             : 'Dernière synchronisation : pas encore'}
         </p>
       </div>
+      <LabelsOption isOn={gmail.applyLabels} onFailure={onFailure} />
       <div className="gmail-settings__actions">
         {isConfirming ? (
           <>
@@ -132,8 +173,8 @@ function ConnectedMailbox({
 
 /**
  * Gmail block of the settings: connected address, connection day and last synchronisation (EF-CFG-01), connection
- * through Google's consent page (EF-GML-01), manual synchronisation (EF-GML-04), disconnection after confirmation
- * (EF-GML-02).
+ * through Google's consent page (EF-GML-01), manual synchronisation (EF-GML-04), writing of labels (EF-GML-17),
+ * disconnection after confirmation (EF-GML-02).
  */
 export function GmailSettings({ initialNotice }: { initialNotice: Notice | null }) {
   const titleId = useId();

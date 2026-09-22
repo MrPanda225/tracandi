@@ -63,10 +63,10 @@ const unreachableGoogle: GoogleOAuth = {
 };
 
 /** Gmail that must never be reached: tests reading a mailbox pass their own fake. */
-const unreachableMailbox: OpenMailbox = () => ({
-  listMessageIds: () => Promise.reject(new Error('Gmail must not be called in this test')),
-  getMessage: () => Promise.reject(new Error('Gmail must not be called in this test')),
-});
+const unreachableMailbox: OpenMailbox = () => {
+  const refuse = () => Promise.reject(new Error('Gmail must not be called in this test'));
+  return { listMessageIds: refuse, getMessage: refuse, listLabels: refuse, createLabel: refuse, modifyThread: refuse };
+};
 
 /** AI that must never be reached: tests needing a classification pass their own scripted provider. */
 const unreachableAi: Partial<Record<ProviderName, LlmProvider>> = {

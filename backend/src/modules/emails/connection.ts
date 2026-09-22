@@ -12,7 +12,7 @@ export type AuthorizationOutcome = 'connected' | 'refused' | 'expired' | 'failed
 /** What the settings screen shows of the Gmail connection (EF-CFG-01). */
 export type GmailStatus =
   | { connected: false }
-  | { connected: true; emailAddress: string; connectedAt: Date; lastSyncAt: Date | null };
+  | { connected: true; emailAddress: string; connectedAt: Date; lastSyncAt: Date | null; applyLabels: boolean };
 
 /** Google's redirection parameters, as received (none is trusted). */
 export interface AuthorizationAnswer {
@@ -32,6 +32,8 @@ export interface GmailConnectionService {
   status: (userId: number) => Promise<GmailStatus>;
   /** Revokes the token at Google when reachable, then removes it: none remains in the database (EF-GML-02). */
   disconnect: (userId: number) => Promise<void>;
+  /** EF-GML-17: turns the writing of labels in Gmail on or off. */
+  setApplyLabels: (userId: number, applyLabels: boolean) => Promise<void>;
 }
 
 interface GmailConnectionDeps {
@@ -43,10 +45,27 @@ interface GmailConnectionDeps {
   logger: Logger;
 }
 
+/** EF-CFG-01, EF-GML-17: what the settings screen shows of the connection of the user. */
+const statusOf = async (db: Database, userId: number): Promise<GmailStatus> => {
+  const [account, applyLabels] = await Promise.all([
+    repository.findGmailAccount(db, userId),
+    repository.findApplyLabels(db, userId),
+  ]);
+  if (!account) return { connected: false };
+  return {
+    connected: true,
+    emailAddress: account.emailAddress,
+    connectedAt: account.connectedAt,
+    lastSyncAt: account.lastSyncAt,
+    // The settings row exists from the registration; labels are on by default (app_settings).
+    applyLabels: applyLabels ?? true,
+  };
+};
+
 /**
  * Creates the Gmail connection service: OAuth authorization with the gmail.modify scope, refresh token encrypted with
  * AES-256-GCM, one connection per user.
- * @req EF-GML-01, EF-GML-02, EF-CFG-01, ENF-SEC-02, ENF-SEC-07, ENF-SEC-14
+ * @req EF-GML-01, EF-GML-02, EF-GML-17, EF-CFG-01, ENF-SEC-02, ENF-SEC-07, ENF-SEC-14
  */
 export const createGmailConnectionService = ({
   db,
@@ -86,16 +105,9 @@ export const createGmailConnectionService = ({
       return exchange(userId, code);
     },
 
-    async status(userId) {
-      const account = await repository.findGmailAccount(db, userId);
-      if (!account) return { connected: false };
-      return {
-        connected: true,
-        emailAddress: account.emailAddress,
-        connectedAt: account.connectedAt,
-        lastSyncAt: account.lastSyncAt,
-      };
-    },
+    status: (userId) => statusOf(db, userId),
+
+    setApplyLabels: (userId, applyLabels) => repository.setApplyLabels(db, userId, applyLabels),
 
     async disconnect(userId) {
       const account = await repository.findGmailAccount(db, userId);

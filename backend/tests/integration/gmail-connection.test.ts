@@ -110,6 +110,7 @@ describe('Gmail connection', () => {
       emailAddress: 'alice.candidate@example.com',
       connectedAt: '2026-09-22T08:00:00.000Z',
       lastSyncAt: null,
+      applyLabels: true,
     });
     expect((await api(bob).get('/api/gmail/status')).body).toEqual({ connected: false });
   });

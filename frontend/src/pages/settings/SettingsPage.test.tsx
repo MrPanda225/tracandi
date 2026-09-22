@@ -13,6 +13,7 @@ const CONNECTED = {
   emailAddress: 'alex.martin@example.com',
   connectedAt: '2026-09-20T09:00:00.000Z',
   lastSyncAt: null,
+  applyLabels: true,
 };
 
 const json = (status: number, body?: unknown) =>
@@ -187,6 +188,46 @@ describe('SettingsPage — Gmail', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Aucun service d’IA n’a pu traiter la demande.');
     expect(screen.getByRole('button', { name: 'Synchroniser maintenant' })).toBeEnabled();
+  });
+
+  it('[EF-GML-17] turns the writing of Gmail labels off, then on again', async () => {
+    const bodies: unknown[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: string, init?: RequestInit) => {
+        if (init?.method === 'PATCH' && input.endsWith('/gmail/settings')) {
+          bodies.push(JSON.parse(String(init.body)));
+          return Promise.resolve(new Response(null, { status: 204 }));
+        }
+        return Promise.resolve(json(200, CONNECTED));
+      }),
+    );
+    renderPage();
+    const user = userEvent.setup();
+    const option = await screen.findByRole('checkbox', { name: /Ranger les fils avec des libellés Gmail/ });
+
+    expect(option).toBeChecked();
+    await user.click(option);
+    expect(option).not.toBeChecked();
+    await waitFor(() => expect(option).toBeEnabled());
+    await user.click(option);
+
+    await waitFor(() => expect(bodies).toEqual([{ applyLabels: false }, { applyLabels: true }]));
+    expect(option).toBeChecked();
+  });
+
+  it('[EF-GML-17] keeps the previous setting when the API refuses the change', async () => {
+    mockApi({
+      'GET /gmail/status': () => json(200, CONNECTED),
+      'PATCH /gmail/settings': () => json(500, { error: 'Une erreur inattendue est survenue.' }),
+    });
+    renderPage();
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('checkbox', { name: /Ranger les fils avec des libellés Gmail/ }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Une erreur inattendue est survenue.');
+    expect(screen.getByRole('checkbox', { name: /Ranger les fils avec des libellés Gmail/ })).toBeChecked();
   });
 
   it('[EF-GML-02] keeps the connection when the user cancels', async () => {

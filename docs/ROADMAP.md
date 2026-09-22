@@ -106,9 +106,13 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
   synchronisation avancée seulement quand tout est classé), `attachIncomingMessage` (service candidatures),
   `POST /api/gmail/sync` et bouton « Synchroniser maintenant » dans Réglages. Une synchronisation à la fois par
   utilisateur (verrou en mémoire, repris par T-305).
-- [ ] **T-304 Libellés Gmail** — gestionnaire de libellés (cache, création à la demande), RG-05, alertes, mode lecture seule.
+- [x] **T-304 Libellés Gmail** — gestionnaire de libellés (cache, création à la demande), RG-05, alertes, mode lecture seule.
   *Exigences* : EF-GML-13 à 17.
   *Fini quand* : appels `threads.modify` vérifiés pour chaque statut.
+  *Livré* : `modules/emails/labels.ts` (cache `gmail_labels`, création à la demande avec le parent), libellés posés
+  après chaque lot enregistré sur tous les fils des candidatures touchées ; un refus de Gmail n'annule pas la
+  synchronisation. Lecture seule : `PATCH /api/gmail/settings` et case à cocher dans Réglages. Un changement de statut
+  manuel n'est reporté dans Gmail qu'au prochain message de la candidature.
 - [ ] **T-305 Planification et suivi** — scheduler (fuseau `SCHEDULER_TIMEZONE`), verrou anti-concurrence, journal `job_runs`, écran Réglages.
   *Exigences* : EF-GML-03, EF-GML-18, ENF-FIA-01, EF-CFG-01, 02.
   *Fini quand* : test d'une exception dans la tâche sans arrêt du scheduler.

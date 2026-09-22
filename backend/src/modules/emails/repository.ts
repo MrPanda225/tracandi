@@ -4,6 +4,7 @@ import {
   appSettings,
   emails,
   gmailAccounts,
+  gmailLabels,
   type messageOutcome,
   platformDomains,
   platforms,
@@ -92,16 +93,17 @@ export const deleteGmailAccount = async (db: Executor, userId: number): Promise<
   await db.delete(gmailAccounts).where(eq(gmailAccounts.userId, userId));
 };
 
-/** What a synchronisation starts from: the sealed token, the last synchronisation and N (EF-GML-05). */
+/** What a synchronisation starts from: the sealed token, the last synchronisation, N (EF-GML-05), labels (EF-GML-17). */
 export interface SyncSource {
   refreshToken: SealedSecret;
   lastSyncAt: Date | null;
   lookbackDays: number;
+  shouldApplyLabels: boolean;
 }
 
 /**
  * The Gmail connection of the user with its synchronisation settings, or null when no mailbox is connected.
- * @req EF-GML-05
+ * @req EF-GML-05, EF-GML-17
  */
 export const findSyncSource = async (db: Executor, userId: number): Promise<SyncSource | null> => {
   const [row] = await db
@@ -111,6 +113,7 @@ export const findSyncSource = async (db: Executor, userId: number): Promise<Sync
       tag: gmailAccounts.tokenTag,
       lastSyncAt: gmailAccounts.lastSyncAt,
       lookbackDays: appSettings.gmailLookbackDays,
+      shouldApplyLabels: appSettings.gmailApplyLabels,
     })
     .from(gmailAccounts)
     .innerJoin(appSettings, eq(appSettings.userId, gmailAccounts.userId))
@@ -273,4 +276,49 @@ export const insertEmail = async (
  */
 export const setLastSyncAt = async (db: Executor, userId: number, lastSyncAt: Date): Promise<void> => {
   await db.update(gmailAccounts).set({ lastSyncAt }).where(eq(gmailAccounts.userId, userId));
+};
+
+/**
+ * Label ids already resolved for the user, by label name (EF-GML-13 cache).
+ * @req EF-GML-13
+ */
+export const findGmailLabels = async (db: Executor, userId: number): Promise<Map<string, string>> => {
+  const rows = await db
+    .select({ name: gmailLabels.name, id: gmailLabels.gmailLabelId })
+    .from(gmailLabels)
+    .where(eq(gmailLabels.userId, userId));
+  return new Map(rows.map((row) => [row.name, row.id]));
+};
+
+/** Remembers the Gmail id of a label of the user, replacing a previous one. @req EF-GML-13 */
+export const saveGmailLabel = async (
+  db: Executor,
+  label: { userId: number; name: string; gmailLabelId: string },
+): Promise<void> => {
+  await db
+    .insert(gmailLabels)
+    .values(label)
+    .onConflictDoUpdate({
+      target: [gmailLabels.userId, gmailLabels.name],
+      set: { gmailLabelId: label.gmailLabelId },
+    });
+};
+
+/** Forgets every label id of the user (one was refused by Gmail). @req EF-GML-13 */
+export const deleteGmailLabels = async (db: Executor, userId: number): Promise<void> => {
+  await db.delete(gmailLabels).where(eq(gmailLabels.userId, userId));
+};
+
+/** Whether the user lets Tracandi write labels in Gmail (EF-GML-17); null when the settings row is missing. */
+export const findApplyLabels = async (db: Executor, userId: number): Promise<boolean | null> => {
+  const [row] = await db
+    .select({ applyLabels: appSettings.gmailApplyLabels })
+    .from(appSettings)
+    .where(eq(appSettings.userId, userId));
+  return row?.applyLabels ?? null;
+};
+
+/** Turns the writing of labels in Gmail on or off for the user (EF-GML-17). */
+export const setApplyLabels = async (db: Executor, userId: number, applyLabels: boolean): Promise<void> => {
+  await db.update(appSettings).set({ gmailApplyLabels: applyLabels }).where(eq(appSettings.userId, userId));
 };
