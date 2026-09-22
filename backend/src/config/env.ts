@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { describeDatabaseUrlProblem } from '../db/url.js';
 
 const DEFAULT_HOST = '127.0.0.1';
 const DEFAULT_PORT = 4000;
@@ -18,6 +19,16 @@ const EnvSchema = z.object({
   PORT: z.coerce.number().int().min(1).max(MAX_PORT).default(DEFAULT_PORT),
   // ENF-SEC-11: exact origin of the interface, the only one allowed to call the API.
   FRONTEND_ORIGIN: z.string().url().refine(isHttpOrigin, 'must be an http(s) origin without path'),
+  // ENF-SEC-15, ENF-SEC-17: application role only, TLS verified for a remote database.
+  DATABASE_URL_APP: z.string().superRefine((value, context) => {
+    const problem = describeDatabaseUrlProblem(value);
+    if (problem) context.addIssue({ code: z.ZodIssueCode.custom, message: problem });
+  }),
+  // ADR-09: browsers accept Secure cookies on http://127.0.0.1 and http://localhost.
+  COOKIE_SECURE: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((value) => value === 'true'),
 });
 
 /** Validated runtime configuration. */
@@ -25,6 +36,8 @@ export interface Config {
   host: string;
   port: number;
   frontendOrigin: string;
+  databaseUrl: string;
+  isCookieSecure: boolean;
 }
 
 /**
@@ -39,10 +52,10 @@ export class ConfigError extends Error {
 }
 
 /**
- * Validates the environment and returns the configuration, applying defaults (HOST 127.0.0.1, PORT 4000).
- * Secrets are read from the environment only, never from the repository (ENF-SEC-03).
+ * Validates the environment and returns the configuration, applying defaults (HOST 127.0.0.1, PORT 4000,
+ * COOKIE_SECURE true). Secrets are read from the environment only, never from the repository (ENF-SEC-03).
  * @throws ConfigError when a variable is missing or invalid; the server must then stop.
- * @req ENF-SEC-03, ENF-SEC-08, ENF-SEC-11
+ * @req ENF-SEC-03, ENF-SEC-08, ENF-SEC-11, ENF-SEC-15
  */
 export const loadConfig = (env: Record<string, string | undefined>): Config => {
   const result = EnvSchema.safeParse(env);
@@ -50,6 +63,12 @@ export const loadConfig = (env: Record<string, string | undefined>): Config => {
     const reasons = result.error.issues.map((issue) => `${issue.path.join('.')} (${issue.message})`);
     throw new ConfigError(`Invalid environment variables: ${reasons.join(', ')}`);
   }
-  const { HOST, PORT, FRONTEND_ORIGIN } = result.data;
-  return { host: HOST, port: PORT, frontendOrigin: FRONTEND_ORIGIN };
+  const { HOST, PORT, FRONTEND_ORIGIN, DATABASE_URL_APP, COOKIE_SECURE } = result.data;
+  return {
+    host: HOST,
+    port: PORT,
+    frontendOrigin: FRONTEND_ORIGIN,
+    databaseUrl: DATABASE_URL_APP,
+    isCookieSecure: COOKIE_SECURE,
+  };
 };

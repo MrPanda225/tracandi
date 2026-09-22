@@ -1,0 +1,47 @@
+.dashboard__status {
+  padding: 2rem 0;
+  color: var(--color-mauve-deep);
+  font-size: 0.9375rem;
+}
+
+.dashboard__status--error {
+  color: var(--color-danger);
+  font-weight: 600;
+}
+
+.dashboard {
+  display: grid;
+  gap: clamp(0.75rem, 0.4rem + 1vw, 1.25rem);
+}
+
+.dashboard__panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: clamp(1.25rem, 1rem + 0.8vw, 1.6rem);
+  border-radius: var(--radius-md);
+  background: var(--color-canvas-raised);
+  box-shadow: var(--shadow-soft);
+}
+
+.dashboard__panel > * {
+  min-width: 0;
+}
+
+/*
+ * Par statut / Par type de contrat / Par canal: a set of exactly 3, so the column count is 1 or 3 — never 2,
+ * which would strand the third panel alone on a half-empty row (Gestalt continuity: an uneven last row reads
+ * as unfinished, not as "grouped"). Measured against `.shell__main`'s own width (container query), which
+ * already accounts for the side panel — a viewport media query would not (ux-design: space at its disposal).
+ */
+.dashboard__breakdowns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: clamp(0.75rem, 0.4rem + 1vw, 1.25rem);
+}
+
+@container shell-main (min-width: 54rem) {
+  .dashboard__breakdowns {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}

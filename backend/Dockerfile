@@ -14,6 +14,8 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci --omit=dev --ignore-scripts
 COPY --from=build /app/dist ./dist
+# Migrations générées par drizzle-kit, appliquées par le service `migrate`
+COPY drizzle ./drizzle
 USER node
 # Migrations : service `migrate` distinct (docker-compose.yml), avec son propre compte MySQL.
 CMD ["node", "dist/server.js"]

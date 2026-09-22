@@ -20,7 +20,7 @@ paths:
 | Type | Emplacement | Contraintes |
 |---|---|---|
 | Unitaire backend | `src/**/x.test.ts` à côté du code | aucun réseau, aucune base, dépendances injectées simulées |
-| Intégration backend | `tests/integration/` | MySQL `jobpilot_test` via Docker, Supertest sur `createApp()` |
+| Intégration backend | `tests/integration/` | PostgreSQL local `tracandi_test` (Docker), Supertest sur `createApp()`, jamais Neon |
 | Composant frontend | `src/**/X.test.tsx` | Testing Library, requêtes par rôle/texte, API simulée |
 
 ## Doubles de test

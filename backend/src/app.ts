@@ -2,10 +2,25 @@ import cors from 'cors';
 import express, { Router, type Express } from 'express';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
+import swaggerUi from 'swagger-ui-express';
 import type { Config } from './config/env.js';
 import { handleErrors } from './lib/error-handler.js';
 import type { Logger } from './lib/logger.js';
-import { logRequests, notFound, rejectForeignOrigin, requireJsonForWrites } from './lib/middleware.js';
+import {
+  logRequests,
+  notFound,
+  rejectForeignOrigin,
+  requireJsonForWrites,
+  requireSession,
+} from './lib/middleware.js';
+import type { ApiModule } from './lib/module.js';
+import {
+  buildOpenApiDocument,
+  createOpenApiRegistry,
+  jsonResponse,
+  type OpenAPIRegistry,
+  z,
+} from './lib/openapi.js';
 
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX_REQUESTS = 300;
@@ -16,26 +31,52 @@ const ALLOWED_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
 export interface AppOptions {
   config: Pick<Config, 'frontendOrigin'>;
   logger: Logger;
-  /** Module routers mounted under `/api`, in order. */
-  routers?: readonly Router[];
+  /** Resolves a session token to its user, or null (EF-AUT-05). */
+  authenticate: (token: string) => Promise<number | null>;
+  /** Feature modules mounted under `/api`: public ones first, then the others behind the session guard. */
+  modules?: readonly ApiModule[];
 }
 
-const createApiRouter = (routers: readonly Router[]): Router => {
+const registerHealthDocs = (registry: OpenAPIRegistry): void => {
+  registry.registerPath({
+    method: 'get',
+    path: '/health',
+    tags: ['Système'],
+    summary: "État de l'API",
+    responses: { 200: jsonResponse('API disponible', z.object({ status: z.literal('ok') })) },
+  });
+};
+
+const createApiRouter = ({ authenticate, modules = [] }: AppOptions): Router => {
+  const registry = createOpenApiRegistry();
+  registerHealthDocs(registry);
+  for (const module of modules) module.registerDocs(registry);
+  const document = buildOpenApiDocument(registry);
+
   const api = Router();
   api.get('/health', (_req, res) => {
     res.status(200).json({ status: 'ok' });
   });
-  for (const router of routers) api.use(router);
+  // EF-DOC-01, EF-DOC-02: public documentation.
+  api.get('/openapi.json', (_req, res) => {
+    res.status(200).json(document);
+  });
+  api.use('/docs', swaggerUi.serve, swaggerUi.setup(document, { customSiteTitle: 'Tracandi API' }));
+  for (const module of modules.filter((candidate) => candidate.isPublic)) api.use(module.router);
+  // EF-AUT-05: everything mounted below requires a valid session.
+  api.use(requireSession(authenticate));
+  for (const module of modules.filter((candidate) => !candidate.isPublic)) api.use(module.router);
   return api;
 };
 
 /**
  * Assembles the Express application: security headers, request log, rate limit, origin guard, CORS, JSON-only guard,
- * JSON body parsing, `/api` routes, JSON 404 and central error handler — in this order, so that a rejected request
- * never reaches a handler. Does not listen on any port.
- * @req ENF-SEC-08, ENF-SEC-11, ENF-SEC-12
+ * JSON body parsing, `/api` (health, documentation, public modules, session guard, protected modules), JSON 404 and
+ * central error handler — in this order, so that a rejected request never reaches a handler. Does not listen on any port.
+ * @req ENF-SEC-08, ENF-SEC-11, ENF-SEC-12, EF-AUT-05, EF-DOC-01, EF-DOC-02
  */
-export const createApp = ({ config, logger, routers = [] }: AppOptions): Express => {
+export const createApp = (options: AppOptions): Express => {
+  const { config, logger } = options;
   const app = express();
   app.use(helmet());
   app.use(logRequests(logger));
@@ -49,12 +90,18 @@ export const createApp = ({ config, logger, routers = [] }: AppOptions): Express
     }),
   );
   app.use(rejectForeignOrigin(config.frontendOrigin));
+  // `credentials`: the interface sends the session cookie with each request (ADR-09).
   app.use(
-    cors({ origin: config.frontendOrigin, methods: ALLOWED_METHODS, allowedHeaders: ['Content-Type'] }),
+    cors({
+      origin: config.frontendOrigin,
+      credentials: true,
+      methods: ALLOWED_METHODS,
+      allowedHeaders: ['Content-Type'],
+    }),
   );
   app.use(requireJsonForWrites);
   app.use(express.json({ limit: JSON_BODY_LIMIT }));
-  app.use('/api', createApiRouter(routers));
+  app.use('/api', createApiRouter(options));
   app.use(notFound);
   app.use(handleErrors(logger));
   return app;

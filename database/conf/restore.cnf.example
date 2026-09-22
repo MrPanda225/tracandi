@@ -1,4 +1,0 @@
-# Copier en restore.cnf (ignoré par Git), droits 600. Utilisé uniquement par scripts/db/restore.sh.
-[client]
-user     = jobpilot_migrator
-password = remplace-moi

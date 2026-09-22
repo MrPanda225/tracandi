@@ -1,0 +1,41 @@
+.status-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+  color: var(--tag-color);
+  background: var(--tag-soft);
+}
+
+.status-tag__dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.status-tag--idle {
+  --tag-color: var(--status-idle);
+  --tag-soft: var(--status-idle-soft);
+}
+.status-tag--waiting {
+  --tag-color: var(--status-waiting);
+  --tag-soft: var(--status-waiting-soft);
+}
+.status-tag--interview {
+  --tag-color: var(--status-interview);
+  --tag-soft: var(--status-interview-soft);
+}
+.status-tag--offer {
+  --tag-color: var(--status-offer);
+  --tag-soft: var(--status-offer-soft);
+}
+.status-tag--rejected {
+  --tag-color: var(--status-rejected);
+  --tag-soft: var(--status-rejected-soft);
+}

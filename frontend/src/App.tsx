@@ -1,9 +1,74 @@
-/** Placeholder until T-003 (frontend shell) replaces it with the router and the six pages. */
+import { Navigate, Route, Routes } from 'react-router-dom';
+import { AuthProvider } from './auth/AuthContext';
+import { LOGIN_PATH, RedirectIfAuthenticated, RequireAuth } from './auth/guards';
+import { AppShell } from './components/layout/AppShell';
+import { AuthPage } from './pages/auth/AuthPage';
+import { DashboardPage } from './pages/dashboard/DashboardPage';
+import { UpcomingPage } from './pages/UpcomingPage';
+
+/** The 5 screens not built yet (T-003 shell), each stating what it will offer instead of an empty page. */
+const UPCOMING_SCREENS = [
+  {
+    path: '/candidatures',
+    title: 'Candidatures',
+    promise: 'Le suivi détaillé de chaque candidature, groupée par entreprise, avec sa chronologie de messages.',
+  },
+  {
+    path: '/offres',
+    title: 'Offres',
+    promise: 'Les offres détectées par la veille des sites carrières, triées par pertinence.',
+  },
+  {
+    path: '/sites',
+    title: 'Sites surveillés',
+    promise: 'La liste des entreprises et sites carrières suivis, et l’ajout de nouvelles sources.',
+  },
+  {
+    path: '/atelier-cv',
+    title: 'Atelier CV',
+    promise: 'La génération d’un CV adapté à chaque offre et d’une réponse de motivation.',
+  },
+  {
+    path: '/reglages',
+    title: 'Réglages',
+    promise: 'La connexion de votre boîte Gmail et les seuils de suivi.',
+  },
+] as const;
+
+/**
+ * Application routes: the login page is public (EF-AUT-05), the 6 screens of the shell require a session
+ * and share the navigation frame (T-003).
+ */
 export function App() {
   return (
-    <main>
-      <h1>JobPilot</h1>
-      <p>Socle en place — prochaine étape : T-003 dans docs/ROADMAP.md.</p>
-    </main>
+    <AuthProvider>
+      <Routes>
+        <Route
+          path={LOGIN_PATH}
+          element={
+            <RedirectIfAuthenticated>
+              <AuthPage />
+            </RedirectIfAuthenticated>
+          }
+        />
+        <Route
+          element={
+            <RequireAuth>
+              <AppShell />
+            </RequireAuth>
+          }
+        >
+          <Route path="/" element={<DashboardPage />} />
+          {UPCOMING_SCREENS.map((screen) => (
+            <Route
+              key={screen.path}
+              path={screen.path}
+              element={<UpcomingPage title={screen.title} promise={screen.promise} />}
+            />
+          ))}
+        </Route>
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </AuthProvider>
   );
 }

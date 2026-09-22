@@ -1,0 +1,67 @@
+.kpi-cards {
+  display: grid;
+  /*
+   * Exactly 4 cards, so the column count is 1, 2 or 4 — never 3, which would strand the 4th card alone on
+   * a mostly-empty row (Gestalt continuity). Measured against `.shell__main`'s own width (container query,
+   * `AppShell.css`), which already accounts for the side panel — a viewport media query would not.
+   */
+  grid-template-columns: minmax(0, 1fr);
+  gap: clamp(0.75rem, 0.4rem + 1vw, 1.25rem);
+  margin-bottom: clamp(1rem, 0.6rem + 1.5vw, 1.5rem);
+}
+
+@container shell-main (min-width: 30rem) {
+  .kpi-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container shell-main (min-width: 54rem) {
+  .kpi-cards {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.kpi-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-height: 9.75rem;
+  padding: clamp(1.1rem, 0.9rem + 0.6vw, 1.5rem) clamp(1.2rem, 1rem + 0.6vw, 1.6rem);
+  border-radius: var(--radius-md);
+  background: var(--color-canvas-raised);
+  box-shadow: var(--shadow-soft);
+}
+
+.kpi-card__label {
+  margin: 0;
+  color: var(--color-mauve-deep);
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.kpi-card__value {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 1.7rem + 1vw, 2.5rem);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.kpi-card__value--hero {
+  color: var(--color-accent-strong);
+}
+
+.kpi-card__caption {
+  /* Pinned to the card's bottom edge, whether or not a caption is present, so every card in the row
+     keeps the same rhythm (label → value → footer) rather than trailing empty space. */
+  margin: auto 0 0;
+  color: var(--color-mist);
+  font-size: 0.8125rem;
+  line-height: 1.4;
+}
+
+.kpi-card--hero {
+  border: 1px solid var(--color-accent-soft);
+}

@@ -1,0 +1,23 @@
+.upcoming {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  max-width: 40rem;
+  padding: 1.25rem 1.5rem;
+  border: 1px dashed var(--color-mist);
+  border-radius: var(--radius-md);
+  color: var(--color-mauve-deep);
+}
+
+.upcoming p {
+  margin: 0;
+}
+
+.upcoming__mark {
+  flex: none;
+  width: 0.625rem;
+  height: 0.625rem;
+  border-radius: 50%;
+  background: var(--color-accent);
+  box-shadow: 0 0 0 6px var(--color-accent-soft);
+}

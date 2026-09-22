@@ -1,4 +1,4 @@
-# JobPilot
+# Tracandi
 
 Carnet de candidatures automatisé : suivi Gmail, veille des sites carrières, CV adaptés (Claude + Gemini).
 Projet **structuré pour être développé par Claude Code**, tâche par tâche, avec tests à chaque étape.
@@ -44,7 +44,7 @@ En fin de lot, demande une démonstration avant d'ouvrir le suivant.
 
 ## Neon (avant T-002)
 Créer un projet Neon en région UE (Francfort, Q-14), noter la chaîne de connexion du rôle propriétaire.
-Les rôles `jobpilot_app` et `jobpilot_backup` sont créés par la migration initiale (T-002) ; leurs mots de passe se définissent dans la console Neon.
+Les rôles `tracandi_app` et `tracandi_backup` sont créés par la migration initiale (T-002) ; leurs mots de passe se définissent dans la console Neon.
 
 ## Gmail (avant le lot 3)
 Google Cloud Console → projet → activer **Gmail API** → écran de consentement **Externe** (toi en utilisateur test) →

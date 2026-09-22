@@ -1,0 +1,53 @@
+/*
+ * Design tokens — palette 60 / 30 / 10 (Business Owner, 22/09/2026).
+ * 60 % canvas (light surfaces), 30 % ink + mauves (dark panel, text, structure), 10 % rust accent (actions, focus).
+ * Contrast on canvas: ink 10:1, accent 5.6:1 (AA), mauve-deep 6.4:1; mauve (#8F7577) is kept for large text only (4:1).
+ */
+:root {
+  --color-canvas: #faf8fa;
+  --color-ink: #3e3d47;
+  --color-mauve: #8f7577;
+  --color-mist: #afa2a4;
+  --color-accent: #9b4e35;
+
+  --color-canvas-raised: #ffffff;
+  --color-ink-deep: #2f2e37;
+  --color-mauve-deep: #6b5658;
+  --color-accent-strong: #83412b;
+  --color-accent-soft: rgb(155 78 53 / 0.12);
+  --color-mist-soft: rgb(175 162 164 / 0.35);
+  --color-line: rgb(62 61 71 / 0.12);
+  --color-danger: #9b2f35;
+
+  --font-display: 'Fraunces Variable', 'Iowan Old Style', Georgia, serif;
+  --font-body: 'Manrope Variable', 'Segoe UI', system-ui, sans-serif;
+
+  --radius-sm: 0.625rem;
+  --radius-md: 1rem;
+  --radius-lg: 1.75rem;
+
+  --shadow-soft: 0 1px 2px rgb(62 61 71 / 0.06), 0 12px 32px -12px rgb(62 61 71 / 0.18);
+  --shadow-lift: 0 2px 4px rgb(62 61 71 / 0.08), 0 24px 48px -16px rgb(62 61 71 / 0.28);
+
+  /*
+   * Status colours (rules/frontend.md: aligned on the Gmail labels — Refusée dark red, Entretien green,
+   * waiting yellow). Muted to sit inside the palette; always shown with their text label (WCAG 1.4.1).
+   * Text on its soft background ≥ 4.5:1; the solid colour ≥ 3:1 on the canvas (charts, WCAG 1.4.11).
+   */
+  --status-waiting: #8a6a1c;
+  --status-waiting-soft: #f4ead0;
+  --status-interview: #3f7250;
+  --status-interview-soft: #dfece2;
+  --status-rejected: #9b2f35;
+  --status-rejected-soft: #f4e1e2;
+  --status-offer: var(--color-accent-strong);
+  --status-offer-soft: var(--color-accent-soft);
+  --status-idle: var(--color-mauve-deep);
+  --status-idle-soft: var(--color-mist-soft);
+
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --duration-fast: 180ms;
+  --duration-base: 320ms;
+
+  color-scheme: light;
+}

@@ -1,56 +1,43 @@
-# Tout est exposé sur 127.0.0.1 uniquement (ENF-SEC-01).
+# API et interface exposées sur 127.0.0.1 uniquement (ENF-SEC-01).
+# La base de production est hébergée par Neon (ADR-11) ; le service `db` est la base LOCALE de test (ADR-12).
+# Les variables vides ne bloquent pas Compose : le backend valide sa configuration au démarrage et s'arrête si elle est invalide.
+name: tracandi
 services:
+  # PostgreSQL local pour les tests d'intégration et la restauration de contrôle : jamais de donnée réelle.
   db:
-    image: mysql:8.4
+    image: postgres:18
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?}
-      MYSQL_DATABASE: jobpilot
-      MYSQL_APP_PASSWORD: ${MYSQL_APP_PASSWORD:?}
-      MYSQL_MIGRATOR_PASSWORD: ${MYSQL_MIGRATOR_PASSWORD:?}
-      MYSQL_BACKUP_PASSWORD: ${MYSQL_BACKUP_PASSWORD:?}
-      MYSQL_TEST_PASSWORD: ${MYSQL_TEST_PASSWORD:?}
+      POSTGRES_DB: ${TEST_DB_NAME:-tracandi_test}
+      POSTGRES_USER: ${TEST_DB_USER:-tracandi_test}
+      # Valeur par défaut acceptable : base jetable, sans donnée réelle, joignable seulement depuis 127.0.0.1.
+      POSTGRES_PASSWORD: ${TEST_DB_PASSWORD:-tracandi_test}
     volumes:
-      - mysql-data:/var/lib/mysql
-      - ./database/conf/my.cnf:/etc/mysql/conf.d/jobpilot.cnf:ro
-      - ./database/init:/docker-entrypoint-initdb.d:ro
-      - ./database/conf/backup.cnf:/etc/mysql/backup.cnf:ro
-      - ./database/conf/restore.cnf:/etc/mysql/restore.cnf:ro
+      - pg-test-data:/var/lib/postgresql
     ports:
-      - "127.0.0.1:3306:3306"
+      - "127.0.0.1:${TEST_DB_PORT:-5432}:5432"
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "--silent"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       retries: 20
 
-  # Exécution unique des migrations avec le compte DDL ; le backend ne reçoit jamais ce mot de passe (ENF-SEC-09).
+  # Exécution unique des migrations avec le rôle propriétaire ; le backend ne reçoit jamais cette URL (ENF-SEC-09).
   migrate:
     build: ./backend
     command: ["node", "dist/db/migrate.js"]
     environment:
-      DB_HOST: db
-      DB_PORT: 3306
-      DB_NAME: ${DB_NAME:-jobpilot}
-      MYSQL_MIGRATOR_PASSWORD: ${MYSQL_MIGRATOR_PASSWORD:?}
-      MIGRATIONS_DIR: /app/migrations
-    volumes:
-      - ./database/migrations:/app/migrations:ro
+      DATABASE_URL_MIGRATOR: ${DATABASE_URL_MIGRATOR}
     read_only: true
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
-    depends_on:
-      db:
-        condition: service_healthy
 
-  # Moindre privilège : seules les variables utiles à l'application, jamais les mots de passe root, migration, sauvegarde ou test.
+  # Moindre privilège : seules les variables utiles à l'application.
   backend:
     build: ./backend
     environment:
       HOST: 0.0.0.0
       PORT: 4000
-      DB_HOST: db
-      DB_PORT: 3306
-      DB_NAME: ${DB_NAME:-jobpilot}
-      MYSQL_APP_PASSWORD: ${MYSQL_APP_PASSWORD:?}
+      DATABASE_URL_APP: ${DATABASE_URL_APP}
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
@@ -58,13 +45,9 @@ services:
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-}
-      GMAIL_APPLY_LABELS: ${GMAIL_APPLY_LABELS:-true}
-      GMAIL_INITIAL_LOOKBACK_DAYS: ${GMAIL_INITIAL_LOOKBACK_DAYS:-120}
-      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:?}
-      TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY:?}
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN}
+      TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY}
       SCRAPER_CONTACT_EMAIL: ${SCRAPER_CONTACT_EMAIL:-}
-      FOLLOW_UP_DAYS: ${FOLLOW_UP_DAYS:-10}
-      OFFER_ALERT_THRESHOLD: ${OFFER_ALERT_THRESHOLD:-60}
       SCHEDULER_TIMEZONE: ${SCHEDULER_TIMEZONE:-Europe/Paris}
       CRON_GMAIL: ${CRON_GMAIL:-*/30 * * * *}
       CRON_SCRAPER: ${CRON_SCRAPER:-0 7,13,19 * * *}
@@ -94,4 +77,4 @@ services:
       - backend
 
 volumes:
-  mysql-data:
+  pg-test-data:

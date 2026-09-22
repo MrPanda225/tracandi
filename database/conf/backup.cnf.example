@@ -1,5 +1,0 @@
-# Copier en backup.cnf (ignoré par Git), droits 600. Monté en lecture seule dans le conteneur.
-# Évite tout mot de passe dans les scripts ou dans la liste des processus (skill dba-mysql).
-[client]
-user     = jobpilot_backup
-password = remplace-moi

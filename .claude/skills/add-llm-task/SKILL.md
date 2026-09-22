@@ -1,7 +1,7 @@
 ---
 name: add-llm-task
 description: >
-  Procédure pour ajouter une nouvelle tâche IA à JobPilot (classement, notation, extraction, rédaction)
+  Procédure pour ajouter une nouvelle tâche IA à Tracandi (classement, notation, extraction, rédaction)
   en passant par le routeur Claude/Gemini. Utiliser dès qu'une fonctionnalité doit appeler un modèle de langage.
 ---
 

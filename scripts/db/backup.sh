@@ -1,12 +1,12 @@
 #!/bin/sh
-# Sauvegarde logique quotidienne de la base jobpilot (ENF-FIA-04, ENF-FIA-08).
+# Sauvegarde logique quotidienne de la base tracandi (ENF-FIA-04, ENF-FIA-08).
 # - --single-transaction : instantané cohérent InnoDB sans verrouiller les écritures
 # - identifiants lus depuis un fichier d'options (jamais dans la ligne de commande)
 # - vérification de l'archive, rétention, journalisation, code retour non nul en cas d'échec
 # Usage : scripts/db/backup.sh            (cron : 0 3 * * * /chemin/scripts/db/backup.sh >> /chemin/backups/backup.log 2>&1)
 set -eu
 
-DATABASE="${DATABASE:-jobpilot}"
+DATABASE="${DATABASE:-tracandi}"
 BACKUP_DIR="${BACKUP_DIR:-$(dirname "$0")/../../backups}"
 KEEP_DAYS="${KEEP_DAYS:-30}"
 # Préfixe d'exécution : dans Docker par défaut ; MYSQL_EXEC="" pour un MySQL installé localement.

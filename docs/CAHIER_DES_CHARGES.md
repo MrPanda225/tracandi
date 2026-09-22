@@ -1,9 +1,10 @@
-# Cahier des charges — JobPilot
+# Cahier des charges — Tracandi
 
 | Version | Date | Auteur | Statut |
 |---|---|---|---|
 | 1.0 | 21/09/2026 | Sahiré YAPI (Business Owner) | À valider |
 | 1.1 | 22/09/2026 | Sahiré YAPI (Business Owner) | À valider — base hébergée Neon (PostgreSQL), accès par ORM (BES-10, BES-11) ; recherche en CDI, CDD, alternance ou job étudiant et suivi par type de contrat (BES-12) ; CV optimisé pour les ATS, sans CV générique (BES-13) ; questions Q-05 à Q-15 |
+| 1.2 | 22/09/2026 | Sahiré YAPI (Business Owner) | À valider — comptes utilisateurs et données séparées (BES-14), documentation OpenAPI / Swagger (BES-15), connexion Gmail par utilisateur depuis l'interface (BES-16) ; Q-16 |
 
 > Document de référence pour le développement. Toute évolution de périmètre passe par une mise à jour
 > de ce fichier **avant** le code. Chaque exigence porte un identifiant stable, repris dans
@@ -33,7 +34,7 @@ des candidatures, la veille des offres et la production de CV adaptés.
 
 | Terme | Définition |
 |---|---|
-| Candidat | L'utilisateur unique du système (Sahiré YAPI). |
+| Candidat / utilisateur | Personne disposant d'un compte (v1.2) ; chaque utilisateur ne voit que ses propres données. Sahiré YAPI est le premier utilisateur. |
 | Candidature | Démarche du candidat auprès d'une entreprise pour un poste donné. Identifiée par le couple (entreprise, intitulé de poste). |
 | Entreprise | Employeur réel visé par une candidature (≠ plateforme intermédiaire). |
 | Plateforme intermédiaire | Jobboard ou cabinet par lequel transite un message (APEC, LHH, Indeed…). |
@@ -95,6 +96,9 @@ des candidatures, la veille des offres et la production de CV adaptés.
 | BES-10 | « Pour la BD on va utiliser Neon. » |
 | BES-11 | « Accès base via Drizzle ORM plutôt que SQL écrit à la main, pour éviter les injections SQL. » |
 | BES-12 | « Le but de cette application est pour mes candidatures de CDI et CDD ou l'alternance et leur suivi. » (précisé : « pas besoin de retirer les jobs étudiants ») |
+| BES-14 | « Il faudra des comptes user pour l'utilisateur qui se connecte pour suivre ses candidatures et tout le reste. » |
+| BES-15 | « Ajoute un Swagger qui documente bien mes API. » |
+| BES-16 | « L'autorisation pour son Gmail devra être effectuée depuis l'app web. » |
 | BES-13 | « Pas de CV générique : un CV optimisé pour passer les ATS et dont les expériences sont reformulées (sans mentir) pour correspondre aux besoins de l'offre ou en couvrir une bonne partie. » |
 
 ### 4.2 Exigences métier (indépendantes de la solution)
@@ -109,6 +113,8 @@ des candidatures, la veille des offres et la production de CV adaptés.
 | EXM-06 | Le système doit évaluer l'adéquation de chaque nouvelle offre au profil du candidat. | BES-05 |
 | EXM-07 | Le système doit produire un CV fidèle au profil, adapté à une offre, dans la charte graphique du candidat. | BES-06, BES-13 |
 | EXM-12 | Le système doit maximiser les chances qu'un CV franchisse le tri automatique des logiciels de recrutement, sans affirmation absente du profil. | BES-13 |
+| EXM-13 | Le système doit réserver l'accès aux données de chaque utilisateur à cet utilisateur, après authentification. | BES-14 |
+| EXM-14 | Le système doit fournir une documentation à jour et consultable de toutes ses interfaces de programmation. | BES-15 |
 | EXM-08 | Le système doit proposer des réponses rédigées aux questions de formulaires de candidature. | BES-07 |
 | EXM-09 | Le système doit fournir des indicateurs de suivi de la recherche d'emploi. | BES-08 |
 | EXM-10 | Le système doit répartir les traitements automatisés entre deux fournisseurs IA, avec continuité de service si l'un est indisponible. | BES-09 |
@@ -126,7 +132,8 @@ sauvegarde et restauration de la base.
 - Envoi automatique de relances : le système signale, le candidat relance lui-même.
 - Collecte sur LinkedIn, Indeed, Welcome to the Jungle ou toute plateforme dont les conditions interdisent l'automatisation.
 - Messageries autres que Gmail.
-- Usage multi-utilisateur, hébergement en ligne de l'application (API, interface), application mobile native.
+- Partage de données entre utilisateurs, rôles d'administration, hébergement en ligne de l'application (API, interface),
+  application mobile native. (Le multi-utilisateur avec comptes séparés est dans le périmètre depuis v1.2, BES-14.)
   Seule la base de données est hébergée (BES-10).
 - Rendu des pages carrières exécutant du JavaScript côté client (navigateur automatisé).
 
@@ -140,7 +147,7 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 
 | ID | Exigence | Prio | Source | Vérif. | Critère d'acceptation |
 |---|---|---|---|---|---|
-| EF-GML-01 | Le candidat peut connecter une boîte Gmail au système par autorisation OAuth. | M | EXM-01 | D | Après consentement Google, l'écran Réglages affiche l'adresse connectée. |
+| EF-GML-01 | L'utilisateur peut connecter sa propre boîte Gmail depuis l'interface web, par autorisation OAuth lancée et reçue par l'application. | M | EXM-01, BES-16 | D | Après consentement Google, l'écran Réglages de cet utilisateur affiche l'adresse connectée ; un autre utilisateur ne la voit pas. |
 | EF-GML-02 | Le candidat peut révoquer la connexion Gmail depuis l'interface. | M | EXM-01 | T | Après révocation, aucun jeton n'est présent en base. |
 | EF-GML-03 | Le système doit synchroniser les messages reçus et envoyés toutes les 30 minutes lorsqu'une boîte est connectée. | M | EXM-01 | T | Le planificateur déclenche la tâche selon l'expression cron configurée. |
 | EF-GML-04 | Le candidat peut déclencher une synchronisation manuelle. | M | EXM-01 | T | L'appel renvoie le nombre de messages lus, retenus et classés. |
@@ -261,6 +268,26 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | EF-CFG-02 | Le système doit afficher les fournisseurs IA configurés et la tâche attribuée à chacun. | S | EXM-10 | D |
 | EF-CFG-03 | Le système doit afficher le coût IA estimé du mois en cours. | C | ENF-COU-01 | T |
 
+### 6.8 Comptes et accès (AUT)
+
+| ID | Exigence | Prio | Source | Vérif. | Critère d'acceptation |
+|---|---|---|---|---|---|
+| EF-AUT-01 | Une personne peut créer un compte avec une adresse e-mail et un mot de passe. | M | EXM-13 | T | Réponse 201 et session ouverte ; adresse déjà utilisée : réponse 409. |
+| EF-AUT-02 | Le système doit refuser un mot de passe de moins de 12 ou de plus de 128 caractères. | M | EXM-13 | T | Mot de passe de 11 caractères : réponse 400. |
+| EF-AUT-03 | L'utilisateur peut se connecter avec son adresse et son mot de passe. | M | EXM-13 | T | Réponse 200 et cookie de session `HttpOnly`, `SameSite=Strict`. |
+| EF-AUT-04 | L'utilisateur peut se déconnecter ; sa session est alors invalidée côté serveur. | M | EXM-13 | T | Requête suivante avec l'ancien cookie : réponse 401. |
+| EF-AUT-05 | Le système doit refuser avec le code 401 toute requête sans session valide, à l'exception de la création de compte, de la connexion, de l'état de santé et de la documentation. | M | EXM-13 | T | `GET /api/applications` sans cookie : 401. |
+| EF-AUT-06 | Le système doit limiter chaque lecture et chaque modification aux données de l'utilisateur connecté. | M | EXM-13 | T | Candidature d'un autre utilisateur : réponse 404, jamais 403 (pas de divulgation d'existence). |
+| EF-AUT-07 | Une session doit expirer 7 jours après son ouverture. | M | EXM-13 | T | Horloge simulée à J+7 : réponse 401. |
+| EF-AUT-08 | L'utilisateur peut consulter l'adresse de son compte. | S | EXM-13 | T | `GET /api/auth/me` : adresse de l'utilisateur connecté. |
+
+### 6.9 Documentation des API (DOC)
+
+| ID | Exigence | Prio | Source | Vérif. | Critère d'acceptation |
+|---|---|---|---|---|---|
+| EF-DOC-01 | Le système doit publier une description OpenAPI 3 de chaque route : chemin, paramètres, corps, réponses, codes d'erreur et exigence d'authentification. | M | EXM-14 | T | Chaque route de l'API figure dans `/api/openapi.json`. |
+| EF-DOC-02 | Le système doit proposer une interface web de consultation et d'essai de cette description. | S | EXM-14 | D | `/api/docs` affiche la documentation ; un appel d'essai fonctionne après connexion. |
+
 ## 7. Exigences non fonctionnelles
 
 ### 7.1 Performance
@@ -290,6 +317,9 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | ENF-SEC-14 | Le callback OAuth doit rejeter toute réponse dont le paramètre `state` ne correspond pas à celui émis dans les 10 dernières minutes. | T |
 | ENF-SEC-15 | Toute connexion à la base de données hébergée doit être chiffrée, avec vérification du certificat du serveur. | T (connexion sans chiffrement refusée) |
 | ENF-SEC-16 | Le code applicatif ne doit construire aucune requête par assemblage de chaînes : toute valeur est transmise comme paramètre, tout nom de table ou de colonne est vérifié à la compilation. | I (règle lint + revue) |
+| ENF-SEC-18 | Les mots de passe doivent être stockés sous forme d'empreinte salée calculée par une fonction lente (scrypt, paramètres OWASP), jamais en clair ni dans les journaux. | T |
+| ENF-SEC-19 | La connexion doit renvoyer la même réponse pour une adresse inconnue et un mot de passe faux, et accepter au plus 10 tentatives par 15 minutes et par adresse IP. | T |
+| ENF-SEC-20 | Le jeton de session doit être aléatoire (256 bits au moins) et stocké en base sous forme d'empreinte uniquement. | T |
 | ENF-SEC-17 | Les identifiants de connexion à la base hébergée doivent être propres à chaque compte (application, migrations, sauvegarde), distincts et révocables séparément. | I |
 
 ### 7.3 Fiabilité et disponibilité
@@ -334,7 +364,7 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | ID | Exigence | Vérif. |
 |---|---|---|
 | ENF-RGP-01 | Le système ne doit conserver d'un message que ses métadonnées (expéditeur, objet, date) et un extrait de 300 caractères maximum. | T |
-| ENF-RGP-02 | Le candidat peut supprimer l'intégralité de ses données par une commande unique. | T |
+| ENF-RGP-02 | L'utilisateur peut supprimer son compte et l'intégralité de ses données par une action unique. | T |
 | ENF-RGP-03 | Les données doivent être stockées exclusivement sur le poste du candidat et dans la base hébergée, située dans l'Union européenne, à l'exception des contenus transmis aux fournisseurs IA pour traitement. | I |
 
 ### 7.8 Coûts
@@ -350,7 +380,7 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | C-02 | La base de données est PostgreSQL, hébergée par Neon. | Business Owner (v1.1, BES-10) |
 | C-03 | Les fournisseurs IA sont Claude (Anthropic) et Gemini (Google), avec les clés du candidat. | Business Owner |
 | C-04 | La messagerie supportée est Gmail. | Existant |
-| C-05 | Le système est mono-utilisateur ; l'API et l'interface s'exécutent en local, via Docker ; la base est hébergée par Neon. | Business Owner (v1.1) |
+| C-05 | Le système est multi-utilisateur à comptes séparés ; l'API et l'interface s'exécutent en local, via Docker ; la base est hébergée par Neon. | Business Owner (v1.2, BES-14) |
 | C-06 | Le développement est réalisé de manière incrémentale par Claude Code, lot par lot, suivant `docs/ROADMAP.md`. | Organisation |
 | C-07 | Le code respecte les principes des skills `clean-code` et `security` fournis dans `.claude/skills/`, et la règle `.claude/rules/database.md`. | Organisation |
 | C-09 | L'accès aux données passe par l'ORM Drizzle. | Business Owner (v1.1, BES-11) |
@@ -416,6 +446,7 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | Q-12 | Pour un CV adapté à une offre saisie à la main (EF-CVX-05), faut-il conserver l'entreprise, l'intitulé et le texte de l'offre ? (bloque T-504) | Conserver entreprise et intitulé dans `cv_versions` ; pas le texte. |
 | Q-13 | Quelle offre Neon retenir (gratuite ou payante) ? Elle fixe la fenêtre de restauration à un instant donné et la mise en veille de la base. | Offre gratuite ; la sauvegarde quotidienne sur le poste couvre ENF-FIA-04 à 08. |
 | Q-14 | Quelle région Neon ? (ENF-RGP-03 exige l'Union européenne) | Francfort (`aws-eu-central-1`). |
+| Q-16 | Le profil de référence (CV, cibles) devient propre à chaque utilisateur : faut-il le stocker en base plutôt que dans `backend/data/profile.json` ? (bloque T-501) | Oui : en base, par utilisateur, validé par le même schéma. |
 | Q-15 | Pour l'alternance, faut-il suivre des informations propres (école, rythme, date de début) ? | Non en v1.1 : le rythme figure dans le profil (disponibilités), repris dans le CV. |
 
 ## 13. Traçabilité besoins → exigences
@@ -434,6 +465,9 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | BES-10 | — (choix de solution, C-02, C-05) | ENF-SEC-01, ENF-SEC-15, ENF-SEC-17, ENF-RGP-03, ENF-PERF-04 |
 | BES-11 | — (choix de solution, C-09) | ENF-SEC-05, ENF-SEC-16 |
 | BES-13 | EXM-07, EXM-12 | EF-CVX-14 à 17, RG-12, RG-15 |
+| BES-14 | EXM-13 | EF-AUT-01 à 08, ENF-SEC-18 à 20, ENF-RGP-02 |
+| BES-15 | EXM-14 | EF-DOC-01, 02 |
+| BES-16 | EXM-01 | EF-GML-01 |
 | BES-12 | EXM-11 | EF-GML-19, EF-CAN-13, 14, EF-VEI-20 à 22, EF-TDB-09, RG-09, RG-10 |
 
 La traçabilité fine exigence → tâche → test est tenue à jour dans `docs/TRACABILITE.md`.

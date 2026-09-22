@@ -14,6 +14,7 @@ allowed-tools: Bash(git status), Bash(git diff:*), Bash(npm run check), Bash(npm
      (énoncé, critère d'acceptation, règles de gestion RG-xx liées).
    - Si une exigence est ambiguë, incomplète ou contradictoire : **s'arrêter**, poser la question au Business Owner
      et proposer de l'ajouter en §12 « Questions ouvertes ». Ne jamais inventer une règle.
+   - Créer la branche dédiée depuis `main` à jour : `<type>/T-xxx-<résumé-en-kebab-case>` (`docs/CONVENTIONS_GIT.md`).
    - Passer la tâche à `[~]` dans la roadmap.
    - Annoncer en 5 lignes maximum le plan : fichiers créés/modifiés, tests prévus, dépendance éventuelle à installer.
 
@@ -36,6 +37,8 @@ allowed-tools: Bash(git status), Bash(git diff:*), Bash(npm run check), Bash(npm
    - Passer la tâche à `[x]` dans `docs/ROADMAP.md`.
 
 6. **Livrer**
-   - Commit unique : `T-xxx <type>(<module>): <résumé en anglais>` + corps listant les exigences couvertes.
-   - Rapport final au Business Owner : ce qui est fait, comment le vérifier (commande ou écran), points d'attention.
+   - Commit sur la branche : `T-xxx <type>(<module>): <résumé en anglais>` + corps listant les exigences couvertes.
+   - Push de la branche, puis pull request vers `main` : titre au format du commit, description selon
+     `.github/pull_request_template.md` entièrement remplie. La fusion est réservée au Business Owner.
+   - Rapport final au Business Owner : ce qui est fait, lien de la PR, comment le vérifier (commande ou écran), points d'attention.
    - **S'arrêter.** Ne pas enchaîner la tâche suivante sans accord. En fin de lot, proposer une démonstration.

@@ -40,12 +40,26 @@ const buildTestRouter = (): Router => {
   return router;
 };
 
+const VALID_SESSION = 'tracandi_session=valid-token';
+
+const buildProtectedRouter = (): Router => {
+  const router = Router();
+  router.get('/private', (_req, res) => {
+    res.status(200).json({ userId: res.locals.userId });
+  });
+  return router;
+};
+
 const buildApp = () => {
   const captured = createCapturedLogger();
   const app = createApp({
     config: { frontendOrigin: FRONTEND_ORIGIN },
     logger: captured.logger,
-    routers: [buildTestRouter()],
+    authenticate: (token) => Promise.resolve(token === 'valid-token' ? 7 : null),
+    modules: [
+      { router: buildTestRouter(), isPublic: true, registerDocs: () => undefined },
+      { router: buildProtectedRouter(), registerDocs: () => undefined },
+    ],
   });
   return { app, logs: captured };
 };
@@ -92,6 +106,19 @@ describe('cross-origin guard', () => {
 
     expect(response.status).toBe(403);
     expect(response.body).not.toHaveProperty('received');
+  });
+
+  it("[ENF-SEC-11] accepts a same-origin request from the API's own pages (Swagger UI)", async () => {
+    const { app } = buildApp();
+
+    const response = await request(app)
+      .post('/api/echo')
+      .set('Host', '127.0.0.1:4000')
+      .set('Origin', 'http://127.0.0.1:4000')
+      .set('Content-Type', 'application/json')
+      .send({ a: 1 });
+
+    expect(response.status).toBe(200);
   });
 
   it('[ENF-SEC-11] answers the preflight request of the frontend origin', async () => {
@@ -202,13 +229,84 @@ describe('central error handler', () => {
     expect(response.body).toEqual({ error: 'Cette source est déjà surveillée' });
   });
 
-  it('[ENF-SEC-04] answers an unknown API route with a JSON 404', async () => {
+  it('[ENF-SEC-04] answers an unknown API route with a JSON 404 once authenticated', async () => {
+    const { app } = buildApp();
+
+    const response = await request(app).get('/api/unknown').set('Cookie', VALID_SESSION);
+
+    expect(response.status).toBe(404);
+    expect(response.body).toEqual({ error: 'Ressource introuvable' });
+  });
+
+  it('[EF-AUT-05] does not reveal which API routes exist without a session', async () => {
     const { app } = buildApp();
 
     const response = await request(app).get('/api/unknown');
 
-    expect(response.status).toBe(404);
-    expect(response.body).toEqual({ error: 'Ressource introuvable' });
+    expect(response.status).toBe(401);
+  });
+});
+
+describe('session guard', () => {
+  it('[EF-AUT-05] rejects a protected route without session cookie with 401', async () => {
+    const { app } = buildApp();
+
+    const response = await request(app).get('/api/private');
+
+    expect(response.status).toBe(401);
+    expect(response.body).toEqual({ error: 'Authentification requise' });
+  });
+
+  it('[EF-AUT-05] rejects an unknown or expired session token with 401', async () => {
+    const { app } = buildApp();
+
+    const response = await request(app).get('/api/private').set('Cookie', 'tracandi_session=forged');
+
+    expect(response.status).toBe(401);
+  });
+
+  it('[EF-AUT-06] exposes the authenticated user to protected handlers', async () => {
+    const { app } = buildApp();
+
+    const response = await request(app).get('/api/private').set('Cookie', `theme=dark; ${VALID_SESSION}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ userId: 7 });
+  });
+
+  it('[EF-AUT-05] keeps health and documentation public', async () => {
+    const { app } = buildApp();
+
+    const [health, spec] = await Promise.all([
+      request(app).get('/api/health'),
+      request(app).get('/api/openapi.json'),
+    ]);
+
+    expect(health.status).toBe(200);
+    expect(spec.status).toBe(200);
+  });
+});
+
+describe('API documentation', () => {
+  it('[EF-DOC-01] publishes an OpenAPI 3 document with the session security scheme', async () => {
+    const { app } = buildApp();
+
+    const response = await request(app).get('/api/openapi.json');
+
+    expect(response.body).toMatchObject({
+      openapi: expect.stringMatching(/^3\./) as unknown,
+      paths: { '/health': { get: expect.any(Object) as unknown } },
+      components: { securitySchemes: { sessionCookie: { type: 'apiKey', in: 'cookie' } } },
+    });
+  });
+
+  it('[EF-DOC-02] serves the Swagger UI page', async () => {
+    const { app } = buildApp();
+
+    const response = await request(app).get('/api/docs/');
+
+    expect(response.status).toBe(200);
+    expect(response.text).toContain('swagger-ui');
   });
 });
 

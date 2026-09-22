@@ -34,7 +34,7 @@ describe('sanitize', () => {
 
   it('[ENF-SEC-08] removes credentials embedded in connection strings', () => {
     const result = sanitize({
-      detail: 'cannot reach postgresql://jobpilot_app:s3cret@ep-x.neon.tech/db?sslmode=verify-full',
+      detail: 'cannot reach postgresql://tracandi_app:s3cret@ep-x.neon.tech/db?sslmode=verify-full',
     });
 
     expect(JSON.stringify(result)).not.toContain('s3cret');

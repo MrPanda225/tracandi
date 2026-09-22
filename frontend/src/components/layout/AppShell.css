@@ -1,0 +1,279 @@
+/* ---------- Frame: ink panel (30 %) + light canvas (60 %) ---------- */
+
+.shell {
+  display: grid;
+  grid-template-columns: 16.5rem minmax(0, 1fr);
+  min-height: 100dvh;
+}
+
+.shell__skip {
+  position: absolute;
+  top: 0.75rem;
+  left: 0.75rem;
+  z-index: 10;
+  padding: 0.6rem 1rem;
+  border-radius: var(--radius-sm);
+  background: var(--color-canvas-raised);
+  color: var(--color-ink);
+  font-weight: 600;
+  transform: translateY(-200%);
+}
+
+.shell__skip:focus {
+  transform: none;
+}
+
+.shell__panel {
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2.5rem;
+  height: 100dvh;
+  padding: 2rem 1.25rem 1.5rem;
+  background: var(--color-ink);
+  color: var(--color-canvas);
+}
+
+.shell__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.shell__brand {
+  display: grid;
+  gap: 0.15rem;
+  margin: 0;
+  padding-inline: 0.75rem;
+}
+
+.shell__logo {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-style: italic;
+  letter-spacing: -0.01em;
+}
+
+.shell__tag {
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-mist);
+}
+
+.shell__menu-button {
+  display: none;
+}
+
+.shell__menu {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 2rem;
+  min-height: 0;
+}
+
+/* ---------- Navigation ---------- */
+
+.shell__nav {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.shell__link {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  min-height: 2.875rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: var(--radius-sm);
+  color: var(--color-mist);
+  font-weight: 550;
+  text-decoration: none;
+  transition:
+    background var(--duration-fast) ease,
+    color var(--duration-fast) ease;
+}
+
+.shell__link:hover {
+  background: rgb(250 248 250 / 0.06);
+  color: var(--color-canvas);
+}
+
+.shell__link:focus-visible {
+  outline-color: var(--color-canvas);
+}
+
+/* Active page: raised surface, accent marker and heavier weight — not colour alone (WCAG 1.4.1). */
+.shell__link[aria-current='page'] {
+  background: rgb(250 248 250 / 0.1);
+  color: var(--color-canvas);
+  font-weight: 700;
+}
+
+.shell__link[aria-current='page']::before {
+  content: '';
+  position: absolute;
+  left: -1.25rem;
+  top: 0.6rem;
+  bottom: 0.6rem;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--color-accent);
+}
+
+/* ---------- Account ---------- */
+
+.shell__account {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem 0.75rem 0;
+  border-top: 1px solid rgb(250 248 250 / 0.12);
+}
+
+.shell__email {
+  margin: 0;
+  overflow: hidden;
+  font-size: 0.875rem;
+  color: var(--color-mist);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shell__signout {
+  justify-self: start;
+  min-height: 2.75rem;
+  padding: 0.5rem 1rem;
+  border: 1px solid rgb(250 248 250 / 0.28);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-canvas);
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background var(--duration-fast) ease,
+    border-color var(--duration-fast) ease;
+}
+
+.shell__signout:hover:not(:disabled) {
+  background: rgb(250 248 250 / 0.08);
+  border-color: rgb(250 248 250 / 0.5);
+}
+
+.shell__signout:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}
+
+.shell__signout:focus-visible {
+  outline-color: var(--color-canvas);
+}
+
+/* ---------- Content ---------- */
+
+.shell__main {
+  /* Without an explicit width, `margin-inline: auto` on a grid item cancels the default stretch and
+     shrinks the box to its content instead of centering leftover space — the exact opposite of the intent. */
+  width: 100%;
+  min-width: 0;
+  /* Caps line length and card proportions on an ultra-wide monitor (ux-design: 65–75 characters), while the
+     panels inside still reflow to use all of that width harmoniously. */
+  max-width: 100rem;
+  margin-inline: auto;
+  padding: clamp(1.5rem, 1rem + 2.5vw, 3.5rem) clamp(1rem, 0.5rem + 3vw, 4rem) 4rem;
+  /* Panels below size themselves against this element's own width, not the viewport's: the side panel
+     (16.5rem) already ate into the space on offer, and a viewport media query has no way to know that. */
+  container: shell-main / inline-size;
+}
+
+.shell__main:focus {
+  outline: none;
+}
+
+/* ---------- Below 900 px: top bar + disclosure menu ---------- */
+
+@media (max-width: 900px) {
+  .shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .shell__panel {
+    position: sticky;
+    z-index: 5;
+    height: auto;
+    gap: 0;
+    padding: 0.75rem 1rem;
+  }
+
+  .shell__brand {
+    padding-inline: 0;
+  }
+
+  .shell__logo {
+    font-size: 1.25rem;
+  }
+
+  .shell__tag {
+    display: none;
+  }
+
+  .shell__menu-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    min-height: 2.75rem;
+    padding: 0.5rem 0.9rem;
+    border: 1px solid rgb(250 248 250 / 0.28);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--color-canvas);
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .shell__menu-button:focus-visible {
+    outline-color: var(--color-canvas);
+  }
+
+  .shell__menu-icon,
+  .shell__menu-icon::before {
+    display: block;
+    width: 1rem;
+    height: 2px;
+    border-radius: 2px;
+    background: currentColor;
+  }
+
+  .shell__menu-icon {
+    position: relative;
+    transform: translateY(-3px);
+  }
+
+  .shell__menu-icon::before {
+    content: '';
+    position: absolute;
+    top: 6px;
+  }
+
+  .shell__menu {
+    display: none;
+    padding-top: 1rem;
+  }
+
+  .shell__menu--open {
+    display: flex;
+  }
+
+  .shell__link[aria-current='page']::before {
+    left: 0;
+    border-radius: 0 3px 3px 0;
+  }
+}

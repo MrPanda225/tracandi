@@ -24,7 +24,8 @@
 | ADR-06 | Adaptateurs de veille enregistrés dans un registre | Ouvert/fermé (ENF-MAI-03) | `switch` sur le type |
 | ADR-07 | Dates stockées en `timestamp(3) with time zone`, sessions en UTC | Instant absolu sans ambiguïté de fuseau | `timestamp without time zone` |
 | ADR-08 | Encodage `UTF8` ; comparaisons insensibles à la casse et aux accents faites sur les clés normalisées (RG-14), recherche par sous-chaîne via index trigramme `pg_trgm` | Accents français, emojis ; recherche EF-CAN-03 sans parcours complet (ENF-PERF-04, Q-05) | Collations non déterministes (pas d'index `LIKE`) |
-| ADR-09 | Pas d'authentification applicative ; exposition limitée à 127.0.0.1 | Mono-utilisateur local (C-05) ; documenté comme interdit de déploiement public | Login JWT |
+| ADR-09 | Comptes utilisateurs (v1.2) : session serveur (table `sessions`, jeton aléatoire 256 bits haché SHA-256) portée par un cookie `HttpOnly`, `SameSite=Strict` ; mots de passe scrypt ; garde d'authentification globale sur `/api` avec liste blanche ; exposition limitée à 127.0.0.1 | Multi-utilisateur (BES-14) ; révocation immédiate à la déconnexion (EF-AUT-04), jeton inutilisable en cas de fuite de la base ; `SameSite=Strict` + garde JSON + garde d'origine contre le CSRF | JWT (révocation impossible sans liste noire), bibliothèque d'authentification (dépendance) |
+| ADR-13 | Documentation OpenAPI 3 générée depuis les schémas zod (`@asteasolutions/zod-to-openapi`), servie par `swagger-ui-express` | Une seule source de vérité : le schéma qui valide la requête la documente (EF-DOC-01) | Fichier OpenAPI écrit à la main (dérive) |
 | ADR-10 | Sauvegarde logique quotidienne (`pg_dump`, rôle en lecture seule) vers le poste, rétention 30 jours ; restauration Neon à un instant donné en complément | RPO 24 h indépendant de l'offre Neon (Q-03, Q-13), copie hors hébergeur | Seule restauration Neon (fenêtre courte en offre gratuite) |
 | ADR-11 | Base hébergée par Neon, région UE, connexion `sslmode=verify-full` ; API et interface restent locales | Décision du Business Owner (BES-10, C-02, C-05) ; ENF-SEC-15, ENF-RGP-03 | MySQL local en Docker (version 1.0) |
 | ADR-12 | Tests d'intégration et restauration de contrôle sur un PostgreSQL local en Docker (`postgres:18`), même version majeure que Neon (18, constaté le 22/09/2026) | Tests hors réseau et rapides, aucune donnée réelle hors du poste ; aucun appel à Neon en test | Branche Neon de test (réseau, quotas) |
@@ -53,45 +54,57 @@ backend/tests/
   fixtures/                  mails, réponses ATS, réponses IA simulées
 ```
 
-## 4. Modèle de données
+## 4. Modèle de données (v1.2, 3e forme normale)
 
-Modèle physique : `backend/src/db/schema.ts` (source de vérité, T-002) et migrations générées dans `backend/drizzle/`.
-`database/migrations/001_initial_schema.sql` (syntaxe MySQL, jamais appliquée) sert de référence fonctionnelle
-pour écrire `schema.ts` : mêmes tables, contraintes et index justifiés ; il est retiré en T-002.
-Écart v1.1 à intégrer dans `schema.ts` : type de contrat (`contract_type` : cdi, cdd, alternance, job_etudiant, autre, non_precise)
-sur `applications` et `job_offers` (BES-12, EXM-11).
-`cv_versions.provider` devient obligatoire : plus de CV générique sans IA (EF-CVX-03 supprimée) ; ajout du taux de couverture
-des mots-clés (`keyword_coverage`, 0–100) et des mots-clés non couverts (`jsonb`) (EF-CVX-16).
+Source de vérité : `backend/src/db/schema.ts` ; migrations générées dans `backend/drizzle/`.
+Propriété des données (EF-AUT-06) : `user_id` figure uniquement sur les entités racines ; les autres tables en héritent
+par clé étrangère (`applications → companies → users`, `job_offers → watched_sites → companies → users`…).
 
 ```
-companies 1───n applications n───1 job_offers n───1 watched_sites
-                    │  1                  │ 1
-                    │                     └──n cv_versions
-                    n
-                 emails
-
-settings (clé/valeur JSON)   job_runs (journal des tâches)   llm_calls (journal IA)
+users ──< sessions
+  ├──< companies ──< applications ──< application_status_history
+  │         │            └──< emails >── processed_messages >── users
+  │         ├──< watched_sites ──< job_offers
+  │         └──< cv_versions ──< cv_keywords
+  ├── app_settings (1)   gmail_accounts (0..1)   gmail_labels   prefilter_keywords
+  ├──< job_runs ──< job_run_counters
+  └──< llm_calls >── llm_model_prices (référentiel)
+platforms ──< platform_domains (référentiel commun) ; platforms ──< applications, emails
 ```
 
-| Table | Rôle | Volume estimé (H-01) |
+| Table | Rôle | Clés et contraintes principales |
 |---|---|---|
-| companies | Employeurs, dédoublonnés par clé normalisée | < 2 000 |
-| applications | Candidatures (couple entreprise + intitulé) | < 5 000 |
-| emails | Métadonnées des messages rattachés | < 50 000 |
-| watched_sites | Sources surveillées | < 200 |
-| job_offers | Offres détectées | < 50 000 |
-| cv_versions | CV générés | < 2 000 |
-| job_runs | Journal des synchros et veilles | ~ 60 / jour |
-| llm_calls | Journal des appels IA | < 200 000 |
+| users | Comptes | `email` unique (minuscules), `password_hash` scrypt |
+| sessions | Sessions ouvertes | `token_hash` unique, `expires_at` (EF-AUT-07) |
+| companies | Employeurs d'un utilisateur | unique (`user_id`, `name_key`) — RG-14 |
+| platforms, platform_domains | Plateformes intermédiaires et domaines d'expéditeur (RG-10) | `name_key` unique, `domain` unique |
+| prefilter_keywords | Mots-clés d'emploi du pré-filtre (RG-10, Q-09) | PK (`user_id`, `keyword`) |
+| app_settings | Paramètres D, S, T, N, écriture des libellés | PK `user_id` |
+| applications | Candidatures | unique (`company_id`, `job_title_key`) ; `offer_id` unique ; `status`, `last_activity_at` = redondance contrôlée (RG-06) |
+| application_status_history | Historique des statuts (Q-06) | origine `email` / `manual` / `offer` |
+| processed_messages | Messages Gmail déjà traités, sans contenu (Q-08) | PK (`user_id`, `gmail_message_id`) |
+| emails | Métadonnées des messages retenus | unique (`user_id`, `gmail_message_id`) → `processed_messages` ; extrait ≤ 300 car. |
+| watched_sites | Sources surveillées | unique (`company_id`, `adapter`, `identifier`) |
+| job_offers | Offres détectées | unique (`site_id`, `external_id`) ; score 0–100 |
+| cv_versions | CV générés (instantané : entreprise et intitulé visés) | `file_stem` UUID unique ; `provider` obligatoire |
+| cv_keywords | Mots-clés de l'offre, couverts ou non (EF-CVX-16) | PK (`cv_version_id`, `keyword`) ; taux calculé |
+| gmail_accounts | Connexion Gmail d'un utilisateur | PK `user_id` ; jeton chiffré AES-256-GCM |
+| gmail_labels | Cache des libellés créés | PK (`user_id`, `name`) |
+| job_runs, job_run_counters | Journal des exécutions et compteurs | PK (`run_id`, `counter`) |
+| llm_calls, llm_model_prices | Journal IA et tarifs (coût calculé, EF-CFG-03) | PK tarifs (`provider`, `model`, `valid_from`) |
+
+Valeurs calculées, jamais stockées : « à relancer » (RG-06), taux de réponse (RG-07), taux de couverture (EF-CVX-16),
+coût IA (EF-CFG-03). Seule redondance assumée : `applications.status` et `last_activity_at`, mis à jour dans la même
+transaction que l'historique, pour les index de filtre et de relance.
 
 ## 5. Rôles PostgreSQL (moindre privilège, ENF-SEC-09, ENF-SEC-17)
 
 | Rôle | Droits | Utilisé par |
 |---|---|---|
-| `jobpilot_owner` | Propriétaire du schéma (DDL) | service `migrate` uniquement |
-| `jobpilot_app` | SELECT, INSERT, UPDATE, DELETE sur les tables, USAGE sur les séquences (`ALTER DEFAULT PRIVILEGES`) | backend (exécution) |
-| `jobpilot_backup` | SELECT sur les tables et séquences | `pg_dump` quotidien |
-| `jobpilot_test` | Propriétaire de `jobpilot_test` sur le PostgreSQL **local** | tests d'intégration |
+| `tracandi_owner` | Propriétaire du schéma (DDL) | service `migrate` uniquement |
+| `tracandi_app` | SELECT, INSERT, UPDATE, DELETE sur les tables, USAGE sur les séquences (`ALTER DEFAULT PRIVILEGES`) | backend (exécution) |
+| `tracandi_backup` | SELECT sur les tables et séquences | `pg_dump` quotidien |
+| `tracandi_test` | Propriétaire de `tracandi_test` sur le PostgreSQL **local** | tests d'intégration |
 
 Chaque rôle a sa propre chaîne de connexion (`DATABASE_URL_APP`, `DATABASE_URL_MIGRATOR`, `DATABASE_URL_BACKUP`),
 révocable séparément depuis la console Neon.
