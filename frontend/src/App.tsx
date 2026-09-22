@@ -3,6 +3,7 @@ import { AuthProvider } from './auth/AuthContext';
 import { LOGIN_PATH, RedirectIfAuthenticated, RequireAuth } from './auth/guards';
 import { AppShell } from './components/layout/AppShell';
 import { ApplicationsPage } from './pages/applications/ApplicationsPage';
+import { ApplicationsCacheProvider } from './pages/applications/useApplications';
 import { AuthPage } from './pages/auth/AuthPage';
 import { DashboardPage } from './pages/dashboard/DashboardPage';
 import { DashboardCacheProvider } from './pages/dashboard/useDashboard';
@@ -52,7 +53,9 @@ export function App() {
           element={
             <RequireAuth>
               <DashboardCacheProvider>
-                <AppShell />
+                <ApplicationsCacheProvider>
+                  <AppShell />
+                </ApplicationsCacheProvider>
               </DashboardCacheProvider>
             </RequireAuth>
           }

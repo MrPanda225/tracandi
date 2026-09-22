@@ -90,6 +90,54 @@ describe('AppShell', () => {
     expect(await screen.findByRole('heading', { name: 'Bon retour.' })).toBeInTheDocument();
   });
 
+  it("[EF-AUT-06] never shows the previous session's applications to the next account", async () => {
+    const FIRST_PAGE = '/applications?limit=100&offset=0';
+    let answerApplications: Handler = () =>
+      json(200, {
+        items: [
+          {
+            id: 1,
+            company: { id: 1, name: 'Atelier Nova' },
+            jobTitle: 'Développeur',
+            contractType: 'cdi',
+            status: 'sent',
+            source: 'manual',
+            platform: null,
+            notes: null,
+            appliedAt: '2026-09-01T09:00:00.000Z',
+            lastActivityAt: '2026-09-01T09:00:00.000Z',
+            isFollowUpDue: false,
+          },
+        ],
+        total: 1,
+      });
+    mockApi({
+      '/auth/me': () => json(200, ACCOUNT),
+      '/stats/dashboard': () => json(200, EMPTY_DASHBOARD),
+      [FIRST_PAGE]: () => answerApplications(),
+      '/auth/logout': () => new Response(null, { status: 204 }),
+      '/auth/login': () => json(200, OTHER_ACCOUNT),
+    });
+    render(
+      <MemoryRouter initialEntries={['/candidatures']}>
+        <App />
+      </MemoryRouter>,
+    );
+    const user = userEvent.setup();
+    await screen.findByRole('region', { name: 'Atelier Nova' });
+
+    await user.click(screen.getByRole('button', { name: 'Se déconnecter' }));
+    await screen.findByRole('heading', { name: 'Bon retour.' });
+    answerApplications = () => new Promise<Response>(() => undefined);
+    await user.type(screen.getByLabelText('Adresse e-mail'), OTHER_ACCOUNT.email);
+    await user.type(screen.getByLabelText('Mot de passe'), 'another-long-password');
+    await user.click(screen.getByRole('button', { name: 'Se connecter' }));
+    await user.click(await screen.findByRole('link', { name: /Candidatures/ }));
+
+    expect(await screen.findByText('Chargement des candidatures…')).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Atelier Nova' })).not.toBeInTheDocument();
+  });
+
   it("[EF-AUT-06] never shows the previous session's figures to the next account", async () => {
     let answerDashboard: Handler = () =>
       json(200, { ...EMPTY_DASHBOARD, totals: { applications: 12, reachedInterview: 0, responseRate: 0 } });

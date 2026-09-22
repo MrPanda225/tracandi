@@ -16,7 +16,7 @@ import {
 } from '../../lib/format';
 import { ApplicationItem } from './ApplicationItem';
 import { NewApplicationForm } from './NewApplicationForm';
-import { type ApplicationList, useApplications } from './useApplications';
+import { type ApplicationList, useApplications, useLastApplicationFilters } from './useApplications';
 import './ApplicationsPage.css';
 
 const SEARCH_MAX_LENGTH = 100;
@@ -175,7 +175,12 @@ function CompanyGroups({ list }: { list: ApplicationList }) {
 export function ApplicationsPage() {
   const formId = useId();
   const addButtonRef = useRef<HTMLButtonElement>(null);
-  const [filters, setFilters] = useState<Filters>({ q: '' });
+  const lastFilters = useLastApplicationFilters();
+  const [filters, setFilters] = useState<Filters>(() => ({
+    status: lastFilters?.status,
+    contractType: lastFilters?.contractType,
+    q: lastFilters?.q ?? '',
+  }));
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [confirmation, setConfirmation] = useState<string | null>(null);
   const list = useApplications(filters);

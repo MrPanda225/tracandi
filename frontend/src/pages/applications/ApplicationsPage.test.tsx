@@ -1,9 +1,11 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import type { ReactElement } from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Application, ApplicationEmail } from '../../api/applications';
 import { ApplicationsPage } from './ApplicationsPage';
+import { ApplicationsCacheProvider } from './useApplications';
 
 const application = (overrides: Partial<Application>): Application => ({
   id: 1,
@@ -113,12 +115,25 @@ const filteredList: Route = (url) => {
   );
 };
 
-const renderPage = () =>
-  render(
-    <MemoryRouter>
-      <ApplicationsPage />
-    </MemoryRouter>,
-  );
+const withinSession = (page: ReactElement) => (
+  <MemoryRouter>
+    <ApplicationsCacheProvider>{page}</ApplicationsCacheProvider>
+  </MemoryRouter>
+);
+
+const renderPage = () => render(withinSession(<ApplicationsPage />));
+
+/** Leaves the screen for another one, then comes back, within the same session. */
+const leaveAndComeBack = (rerender: (ui: ReactElement) => void) => {
+  rerender(withinSession(<p>Autre écran</p>));
+  rerender(withinSession(<ApplicationsPage />));
+};
+
+const pending = () => {
+  let answer: (response: Response) => void = () => undefined;
+  const response = new Promise<Response>((resolve) => (answer = resolve));
+  return { response, answer: (value: Response) => answer(value) };
+};
 
 const companyNames = () =>
   screen.getAllByRole('region').map((region) => within(region).getByRole('heading', { level: 2 }).textContent);
@@ -149,6 +164,42 @@ describe('ApplicationsPage', () => {
     renderPage();
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Une erreur inattendue est survenue.');
+  });
+
+  it('[ENF-PERF-01] shows the last list at once when coming back, then refreshes it', async () => {
+    const refresh = pending();
+    let calls = 0;
+    mockApi({
+      'GET /applications': () => {
+        calls += 1;
+        return calls === 1 ? listOf(ALL) : refresh.response;
+      },
+    });
+    const { rerender } = renderPage();
+    await screen.findByRole('region', { name: 'Atelier Nova' });
+
+    leaveAndComeBack(rerender);
+
+    expect(screen.getByRole('region', { name: 'Atelier Nova' })).toBeInTheDocument();
+    expect(screen.queryByText('Chargement des candidatures…')).not.toBeInTheDocument();
+
+    refresh.answer(listOf([LUMEN_UX]));
+
+    await waitFor(() => expect(companyNames()).toEqual(['Maison Lumen']));
+  });
+
+  it('[ENF-PERF-01] keeps the filters chosen before leaving the screen', async () => {
+    mockApi({ 'GET /applications': filteredList });
+    const { rerender } = renderPage();
+    await screen.findByRole('region', { name: 'Atelier Nova' });
+    const user = userEvent.setup();
+    await user.selectOptions(screen.getByLabelText('Statut'), 'rejected');
+    await waitFor(() => expect(companyNames()).toEqual(['Maison Lumen']));
+
+    leaveAndComeBack(rerender);
+
+    expect(screen.getByLabelText('Statut')).toHaveValue('rejected');
+    expect(companyNames()).toEqual(['Maison Lumen']);
   });
 
   it('[EF-CAN-01] groups the applications by company, companies in alphabetical order', async () => {

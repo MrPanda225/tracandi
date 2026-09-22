@@ -48,6 +48,8 @@ Commande de contrôle : `/project:check-req EF-CAN-07`.
 | EF-CAN-14 (interface) | T-103 | `ApplicationsPage.test.tsx` (filtre « Alternance ») | couverte |
 | ENF-UTI-02 (Candidatures) | T-103 | Captures 360 px et 1440 px (Chrome sans interface, API simulée : liste, fiche ouverte, formulaire) | couverte |
 | ENF-UTI-03 (Candidatures) | T-103 | `ApplicationsPage.test.tsx` (squelette, message d'erreur) ; `Flash.test.tsx` (confirmation polie) | couverte |
+| ENF-PERF-01 (Candidatures) | T-103, T-703 | `ApplicationsPage.test.tsx` (retour sur l'écran : dernière liste et filtres affichés aussitôt) — mesure sur le jeu de charge en T-703 | partielle |
+| EF-AUT-06 (Candidatures) | T-103 | `AppShell.test.tsx` (liste de la session précédente jamais montrée au compte suivant) | couverte |
 | EF-AUT-01 | T-004 | `tests/integration/auth.test.ts` | couverte |
 | EF-AUT-02 | T-004 | `auth.test.ts` (11, 12, 129 caractères) | couverte |
 | EF-AUT-03 | T-004 | `auth.test.ts` (cookie HttpOnly, SameSite=Strict, Secure) | couverte |
