@@ -140,9 +140,10 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
 
 ## Lot 6 — Tableau de bord
 
-- [~] **T-601 API statistiques** — indicateurs EF-TDB-01 à 09, RG-07.
+- [x] **T-601 API statistiques** — indicateurs EF-TDB-01 à 09, RG-07.
   *Avancée à la demande du Business Owner (22/09/2026), avec T-602 et le shell de T-003, avant T-103.*
-  *Fini quand* : chaque requête vérifiée par `EXPLAIN` sur le jeu de charge (pas de `Seq Scan` sur les grandes tables) — ENF-PERF-04.
+  *Fini quand* : chaque requête du tableau de bord s'exécute en moins de 50 ms sur le jeu de charge (`EXPLAIN ANALYZE`,
+  test d'intégration) — ENF-PERF-05 ; ENF-PERF-04 ne vise plus ces agrégats (Q-17, cahier des charges v1.3).
 - [~] **T-602 Écran tableau de bord**.
 
 ## Lot 7 — Exploitation

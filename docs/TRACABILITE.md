@@ -80,5 +80,9 @@ Commande de contrôle : `/project:check-req EF-CAN-07`.
 | ENF-UTI-03 (shell) | T-003 | `frontend/src/components/Flash.test.tsx` (erreur en alerte) ; `DashboardPage.test.tsx` (squelette au premier chargement, derniers chiffres conservés si l'actualisation échoue) ; `api/client.test.ts` (API injoignable) | couverte |
 | EF-AUT-06 (interface) | T-003 | `AppShell.test.tsx` (chiffres de la session précédente jamais montrés au compte suivant) | couverte |
 | ENF-PERF-01 | T-003, T-703 | `DashboardPage.test.tsx` (retour au tableau de bord : derniers chiffres affichés aussitôt) — mesure sur le jeu de charge en T-703 | partielle |
-| EF-TDB-01 à 09 | T-601, T-602 | en cours | à faire |
+| EF-TDB-01 à 09 (API) | T-601 | `backend/tests/integration/stats.test.ts` (un test par indicateur, isolation EF-AUT-06, 401) ; `src/modules/stats/rules.test.ts` (RG-07, semaines) | couverte |
+| RG-07 | T-601 | `stats/rules.test.ts` (arrondi, total nul) ; `stats.test.ts` (taux global et par type de contrat) | couverte |
+| ENF-PERF-05 | T-601 | `tests/integration/stats-query-plans.test.ts` (`EXPLAIN ANALYZE` de chaque requête du tableau de bord sur le jeu de charge : < 50 ms) | couverte |
+| ENF-PERF-04 | T-102, T-703 | Agrégats du tableau de bord exclus (Q-17) ; requêtes sélectives : jeu de charge `tests/integration/load-dataset.ts` disponible, vérification à étendre en T-703 | partielle |
+| EF-TDB-01 à 09 (écran) | T-602 | `frontend/src/pages/dashboard/DashboardPage.test.tsx` — tâche en cours | à faire |
 <!-- Ajouter une ligne par exigence au fur et à mesure. Statuts : à faire | couverte | vérifiée (démo BO) -->

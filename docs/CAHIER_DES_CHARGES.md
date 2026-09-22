@@ -5,6 +5,7 @@
 | 1.0 | 21/09/2026 | Sahiré YAPI (Business Owner) | À valider |
 | 1.1 | 22/09/2026 | Sahiré YAPI (Business Owner) | À valider — base hébergée Neon (PostgreSQL), accès par ORM (BES-10, BES-11) ; recherche en CDI, CDD, alternance ou job étudiant et suivi par type de contrat (BES-12) ; CV optimisé pour les ATS, sans CV générique (BES-13) ; questions Q-05 à Q-15 |
 | 1.2 | 22/09/2026 | Sahiré YAPI (Business Owner) | À valider — comptes utilisateurs et données séparées (BES-14), documentation OpenAPI / Swagger (BES-15), connexion Gmail par utilisateur depuis l'interface (BES-16) ; Q-16 |
+| 1.3 | 22/09/2026 | Sahiré YAPI (Business Owner) | Validée — ENF-PERF-04 limitée aux requêtes sélectives ; indicateurs du tableau de bord bornés à 50 ms par requête (BES-17, ENF-PERF-05) ; Q-17 |
 | 1.4 | 22/09/2026 | Sahiré YAPI (Business Owner) | À valider — description de l'offre et date de candidature saisies par le candidat (BES-18, EF-CAN-15, EF-CAN-16, RG-16) |
 
 > Document de référence pour le développement. Toute évolution de périmètre passe par une mise à jour
@@ -101,6 +102,7 @@ des candidatures, la veille des offres et la production de CV adaptés.
 | BES-15 | « Ajoute un Swagger qui documente bien mes API. » |
 | BES-16 | « L'autorisation pour son Gmail devra être effectuée depuis l'app web. » |
 | BES-13 | « Pas de CV générique : un CV optimisé pour passer les ATS et dont les expériences sont reformulées (sans mentir) pour correspondre aux besoins de l'offre ou en couvrir une bonne partie. » |
+| BES-17 | « Exempter [les agrégats du tableau de bord de l'interdiction du Seq Scan], borner à 50 ms. » (choix du 22/09/2026, après mesure : moins de 1 ms par requête avec le jeu de charge) |
 | BES-18 | « Il faudrait pouvoir mettre une description de l'offre et la date de candidature. » |
 
 ### 4.2 Exigences métier (indépendantes de la solution)
@@ -300,7 +302,8 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | ENF-PERF-01 | Chaque page de l'interface doit s'afficher en moins de 2 secondes avec 1 000 candidatures, 10 000 messages et 5 000 offres en base. | T (jeu de charge) |
 | ENF-PERF-02 | Une synchronisation incrémentale de 100 nouveaux messages doit s'achever en moins de 3 minutes. | T |
 | ENF-PERF-03 | 95 % des générations de CV adapté doivent s'achever en moins de 60 secondes. | T (mesure `llm_calls`) |
-| ENF-PERF-04 | Avec le jeu de charge d'ENF-PERF-01, aucune requête de l'application ne doit effectuer de parcours séquentiel complet (`Seq Scan` dans `EXPLAIN`) sur les tables `applications`, `emails` ou `job_offers`. | I (EXPLAIN) |
+| ENF-PERF-04 | Avec le jeu de charge d'ENF-PERF-01, aucune requête sélective de l'application (liste, recherche, détail, rattachement) ne doit effectuer de parcours séquentiel complet (`Seq Scan` dans `EXPLAIN`) sur les tables `applications`, `emails` ou `job_offers`. | I (EXPLAIN) |
+| ENF-PERF-05 | Avec le jeu de charge d'ENF-PERF-01, chaque requête de calcul des indicateurs du tableau de bord (EF-TDB-01 à 09) doit s'exécuter en moins de 50 ms sur la base locale de test. | T (`EXPLAIN ANALYZE`) |
 
 ### 7.2 Sécurité
 | ID | Exigence | Vérif. |
@@ -453,6 +456,7 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | Q-14 | Quelle région Neon ? (ENF-RGP-03 exige l'Union européenne) | Francfort (`aws-eu-central-1`). |
 | Q-16 | Le profil de référence (CV, cibles) devient propre à chaque utilisateur : faut-il le stocker en base plutôt que dans `backend/data/profile.json` ? (bloque T-501) | Oui : en base, par utilisateur, validé par le même schéma. |
 | Q-15 | Pour l'alternance, faut-il suivre des informations propres (école, rythme, date de début) ? | Non en v1.1 : le rythme figure dans le profil (disponibilités), repris dans le CV. |
+| Q-17 | Les indicateurs EF-TDB-01, 05, 06 et 09 portent sur toutes les candidatures de l'utilisateur, donc sur toute la table `applications` (application mono-utilisateur) : le planificateur choisit le `Seq Scan`, interdit par ENF-PERF-04 ; un index couvrant ne change pas son choix. Que faire ? (bloque T-601) | Tranchée le 22/09/2026 : ENF-PERF-04 limitée aux requêtes sélectives ; indicateurs bornés à 50 ms par requête (ENF-PERF-05). |
 
 ## 13. Traçabilité besoins → exigences
 
@@ -474,6 +478,7 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | BES-15 | EXM-14 | EF-DOC-01, 02 |
 | BES-16 | EXM-01 | EF-GML-01 |
 | BES-12 | EXM-11 | EF-GML-19, EF-CAN-13, 14, EF-VEI-20 à 22, EF-TDB-09, RG-09, RG-10 |
+| BES-17 | EXM-09 | ENF-PERF-04, ENF-PERF-05 |
 | BES-18 | EXM-02, EXM-04 | EF-CAN-15, EF-CAN-16, RG-16 |
 
 La traçabilité fine exigence → tâche → test est tenue à jour dans `docs/TRACABILITE.md`.
