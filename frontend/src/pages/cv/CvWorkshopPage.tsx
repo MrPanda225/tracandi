@@ -6,11 +6,11 @@ import {
   emptyProfile,
   fetchProfile,
   saveProfile,
-  STUDY_LEVEL_LABELS,
 } from '../../api/profile';
 import { Flash } from '../../components/Flash';
 import { PageHeader } from '../../components/PageHeader';
 import { Skeleton } from '../../components/Skeleton';
+import { CvPreview } from './CvPreview';
 import { ProfileForm } from './ProfileForm';
 import './CvWorkshopPage.css';
 
@@ -22,23 +22,16 @@ type LoadState =
 
 const NOT_FOUND = 404;
 
-/** EF-CVX-01 : le profil tel qu'il est enregistré, section par section. */
-function ProfileView({ profile }: { profile: CandidateProfile }) {
-  const { identity, cvSource } = profile;
+/**
+ * EF-CVX-01 : ce que le profil porte et que le CV n'affiche pas — la zone de recherche et les cibles, qui
+ * servent à noter les offres (RG-09). Tout le reste se lit sur l'aperçu du CV, tel qu'il sera envoyé.
+ */
+function WatchSettings({ profile }: { profile: CandidateProfile }) {
   return (
     <div className="profile">
-      <section className="profile__block" aria-labelledby="profil-identite">
-        <h2 id="profil-identite">Identité</h2>
-        <p className="profile__name">{identity.name}</p>
-        <p className="profile__meta">
-          {[identity.city, identity.phone, identity.email, identity.extra].filter(Boolean).join(' · ')}
-        </p>
+      <section className="profile__block" aria-labelledby="profil-recherche">
+        <h2 id="profil-recherche">Ce que vous cherchez</h2>
         <p className="profile__meta">Zone de recherche : {profile.location.searchArea}</p>
-        <p className="profile__meta">Disponibilités : {profile.availability}</p>
-      </section>
-
-      <section className="profile__block" aria-labelledby="profil-cibles">
-        <h2 id="profil-cibles">Cibles</h2>
         <ul className="profile__list">
           {profile.targets.map((target) => (
             <li key={target.label}>
@@ -51,98 +44,6 @@ function ProfileView({ profile }: { profile: CandidateProfile }) {
           ))}
         </ul>
       </section>
-
-      <section className="profile__block" aria-labelledby="profil-cv">
-        <h2 id="profil-cv">CV</h2>
-        <p className="profile__name">{cvSource.defaultTitle}</p>
-        <p className="profile__meta">{cvSource.defaultSubtitle}</p>
-        <p>{cvSource.profile}</p>
-      </section>
-
-      <section className="profile__block" aria-labelledby="profil-experiences">
-        <h2 id="profil-experiences">Expériences professionnelles</h2>
-        <ul className="profile__list">
-          {cvSource.experiences.map((experience) => (
-            <li key={`${experience.company}-${experience.dates}`}>
-              <strong>{experience.role}</strong> — {experience.company}
-              <p className="profile__meta">
-                {[experience.dates, experience.place, experience.duration].filter(Boolean).join(' · ')}
-              </p>
-              <ul className="profile__bullets">
-                {experience.bullets.map((bullet) => (
-                  <li key={bullet}>{bullet}</li>
-                ))}
-              </ul>
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      <section className="profile__block" aria-labelledby="profil-formation">
-        <h2 id="profil-formation">Formation</h2>
-        <ul className="profile__list">
-          {cvSource.education.map((degree) => (
-            <li key={`${degree.school}-${degree.dates}`}>
-              <strong>{degree.degree ?? degree.school}</strong>
-              <p className="profile__meta">
-                {[degree.dates, degree.degree ? degree.school : null, degree.place, degree.detail]
-                  .filter(Boolean)
-                  .join(' · ')}
-              </p>
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      {profile.studyLevel.level !== null && (
-        <section className="profile__block" aria-labelledby="profil-niveau">
-          <h2 id="profil-niveau">Niveau d’études</h2>
-          <p className="profile__name">
-            {STUDY_LEVEL_LABELS[profile.studyLevel.level]}
-            {profile.studyLevel.isInProgress ? ' — en cours' : ' — obtenu'}
-          </p>
-        </section>
-      )}
-
-      <section className="profile__block" aria-labelledby="profil-competences">
-        <h2 id="profil-competences">Compétences</h2>
-        <ul className="profile__list">
-          {cvSource.skills.map((skill) => (
-            <li key={skill.label}>
-              <strong>{skill.label}</strong> : {skill.value}
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      {cvSource.certifications.length > 0 && (
-        <section className="profile__block" aria-labelledby="profil-certifications">
-          <h2 id="profil-certifications">Certifications</h2>
-          <ul className="profile__list">
-            {cvSource.certifications.map((certification) => (
-              <li key={certification.name}>
-                <strong>{certification.name}</strong>
-                {[certification.issuer, certification.year].filter(Boolean).length > 0 && (
-                  <p className="profile__meta">
-                    {[certification.issuer, certification.year].filter(Boolean).join(' · ')}
-                  </p>
-                )}
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {cvSource.interests.length > 0 && (
-        <section className="profile__block" aria-labelledby="profil-interets">
-          <h2 id="profil-interets">Centres d’intérêt</h2>
-          <ul className="profile__list">
-            {cvSource.interests.map((interest) => (
-              <li key={interest}>{interest}</li>
-            ))}
-          </ul>
-        </section>
-      )}
     </div>
   );
 }
@@ -249,7 +150,8 @@ export function CvWorkshopPage() {
               Modifier le profil
             </button>
           </div>
-          <ProfileView profile={state.profile} />
+          <CvPreview profile={state.profile} />
+          <WatchSettings profile={state.profile} />
         </>
       )}
 
