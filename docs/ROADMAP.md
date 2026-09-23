@@ -269,8 +269,13 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
   *Performance* : la requête agrège tous les messages reçus du candidat, comme les indicateurs du tableau de
   bord ; elle est donc mesurée au temps (< 50 ms sur le jeu de charge, ENF-PERF-05) et non au plan, un `Seq Scan`
   y étant le bon plan (Q-17).
+  *Complément (cahier v1.14, BES-26)* : bouton « Surveiller les N » qui ajoute toutes les propositions d'un seul
+  geste (EF-VEI-26). Les ajouts se font l'un après l'autre et **celles que l'API refuse sont nommées avec leur
+  raison** : un lot n'échoue jamais en bloc. RG-19 tient toujours — rien n'est ajouté sans un geste du candidat,
+  qu'il porte sur une proposition ou sur toutes.
   *Reste à faire* : deviner le slug exact d'un job board demanderait de sonder l'ATS ; l'identifiant proposé est
-  le nom normalisé de l'entreprise, que le candidat corrige au besoin.
+  le nom normalisé de l'entreprise, que le candidat corrige au besoin. Une source ajoutée en lot peut donc
+  échouer à sa première consultation, ce que l'écran annonce sous le bouton.
 
 ## Lot 5 — CV et réponses
 

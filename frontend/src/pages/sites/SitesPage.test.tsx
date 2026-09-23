@@ -320,6 +320,46 @@ describe('SitesPage', () => {
     expect(identifier).toHaveValue('https://arkema.com/carrieres');
   });
 
+  it('[EF-VEI-26] adds every proposal in one go', async () => {
+    let added = false;
+    const sent = mockApi({
+      'GET /sites/types': () => json(200, { items: TYPES }),
+      'GET /sites': () => json(200, { items: added ? [SOURCE] : [] }),
+      'GET /sites/suggestions': () =>
+        json(200, { items: added ? [] : [SUGGESTION, { ...SUGGESTION, companyId: 13, companyName: 'Nova' }] }),
+      'POST /sites': () => {
+        added = true;
+        return json(201, SOURCE);
+      },
+    });
+    renderPage();
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: 'Surveiller les 2' }));
+
+    expect(sent).toHaveLength(2);
+    expect(sent[1]).toMatchObject({ companyName: 'Nova' });
+    expect(await screen.findByText('2 sources ajoutées.')).toBeInTheDocument();
+  });
+
+  it('[EF-VEI-26] names the proposals it could not add, with the reason', async () => {
+    mockApi({
+      ...withSources(),
+      'GET /sites/suggestions': () =>
+        json(200, { items: [SUGGESTION, { ...SUGGESTION, companyId: 13, companyName: 'Nova' }] }),
+      'POST /sites': () => json(409, { error: 'Cette source est déjà surveillée pour cette entreprise' }),
+    });
+    renderPage();
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: 'Surveiller les 2' }));
+
+    const refused = await screen.findByRole('status');
+    expect(refused).toHaveTextContent('Arkema');
+    expect(refused).toHaveTextContent('Nova');
+    expect(refused).toHaveTextContent('déjà surveillée');
+  });
+
   it('[EF-VEI-25] sets a proposal aside, and stops showing it', async () => {
     let dismissed = false;
     mockApi({

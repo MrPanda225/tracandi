@@ -19,7 +19,7 @@ import { PageHeader } from '../../components/PageHeader';
 import { Skeleton } from '../../components/Skeleton';
 import { formatDateTime } from '../../lib/format';
 import { NewSourceForm } from './NewSourceForm';
-import { Suggestions } from './Suggestions';
+import { Suggestions, type WatchAllFailure } from './Suggestions';
 import './SitesPage.css';
 
 /** EF-VEI-07 : ce qu'une passe a produit, lu dans les compteurs de son exécution (EF-EXE-03). */
@@ -191,6 +191,30 @@ export function SitesPage() {
     await load();
   };
 
+  /**
+   * EF-VEI-26 : ajoute les propositions l'une après l'autre, et rend celles qui ont été refusées. Séquentiel à
+   * dessein : chaque ajout crée une entreprise si besoin, et le lot reste court.
+   */
+  const handleWatchAll = async (proposed: readonly SourceSuggestion[]): Promise<WatchAllFailure[]> => {
+    const failures: WatchAllFailure[] = [];
+    let added = 0;
+    for (const suggestion of proposed) {
+      try {
+        await addSource({
+          companyName: suggestion.companyName,
+          adapter: suggestion.adapter,
+          identifier: suggestion.identifier,
+        });
+        added += 1;
+      } catch (failure) {
+        failures.push({ companyName: suggestion.companyName, reason: messageOf(failure) });
+      }
+    }
+    setNotice(added === 0 ? null : `${String(added)} source${added > 1 ? 's' : ''} ajoutée${added > 1 ? 's' : ''}.`);
+    await load();
+    return failures;
+  };
+
   const handleRun = async () => {
     setError(null);
     setNotice(null);
@@ -238,6 +262,7 @@ export function SitesPage() {
 
       <Suggestions
         suggestions={suggestions}
+        onWatchAll={handleWatchAll}
         onWatch={(suggestion) =>
           setPrefill({
             companyName: suggestion.companyName,
