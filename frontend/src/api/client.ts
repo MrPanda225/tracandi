@@ -1,6 +1,9 @@
 /** Base URL of the API: proxied `/api` in development (vite.config.ts), absolute URL in the Docker image. */
 const API_BASE_URL: string = import.meta.env.VITE_API_URL ?? '/api';
 
+/** Address of a route of the API, for what does not go through `request()` — un flux d'événements par exemple. */
+export const apiUrl = (path: string): string => `${API_BASE_URL}${path}`;
+
 export const UNREACHABLE_MESSAGE = 'API injoignable : vérifiez que le serveur Tracandi est démarré.';
 const GENERIC_MESSAGE = 'Une erreur inattendue est survenue.';
 
@@ -34,7 +37,7 @@ export const isAbortError = (error: unknown): boolean =>
 export const messageOf = (error: unknown): string => (error instanceof ApiError ? error.message : GENERIC_MESSAGE);
 
 interface RequestOptions {
-  method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   body?: unknown;
   signal?: AbortSignal;
 }

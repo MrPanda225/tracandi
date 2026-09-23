@@ -21,6 +21,16 @@ const EXAMPLE = JSON.parse(
   readFileSync(fileURLToPath(new URL('../fixtures/profile.example.json', import.meta.url)), 'utf8'),
 ) as Record<string, unknown>;
 
+/**
+ * The same profile as the API hands it back: the document is re-read through the schema, which fills the fields
+ * added in v1.12 (EF-CVX-18, EF-CVX-19). A profile written before them keeps opening, with nothing invented.
+ */
+const STORED = {
+  ...EXAMPLE,
+  studyLevel: { level: null, isInProgress: false },
+  cvSource: { ...(EXAMPLE['cvSource'] as Record<string, unknown>), certifications: [] },
+};
+
 const api = (cookie: string) => ({
   read: () => request(context.app).get('/api/profile').set('Cookie', cookie),
   save: (profile: unknown) =>
@@ -55,7 +65,7 @@ describe('GET/PUT /api/profile', () => {
     const read = await api(alice).read();
 
     expect(read.status).toBe(200);
-    expect(read.body).toEqual(EXAMPLE);
+    expect(read.body).toEqual(STORED);
   });
 
   it('[EF-CVX-02] replaces the whole profile rather than merging it', async () => {
@@ -87,7 +97,7 @@ describe('GET/PUT /api/profile', () => {
 
       expect(refused.status).toBe(400);
       expect((refused.body as { details: unknown[] }).details.length).toBeGreaterThan(0);
-      expect((await api(alice).read()).body).toEqual(EXAMPLE);
+      expect((await api(alice).read()).body).toEqual(STORED);
     },
   );
 
@@ -105,6 +115,39 @@ describe('GET/PUT /api/profile', () => {
 
     expect(response.status).toBe(404);
     expect((response.body as { error: string }).error).toContain('ne correspond plus');
+  });
+
+  it('[EF-CVX-18] [EF-CVX-19] stores the level of study and the certifications, and hands them back', async () => {
+    const complete = {
+      ...EXAMPLE,
+      studyLevel: { level: 'bac_5', isInProgress: true },
+      cvSource: {
+        ...(EXAMPLE['cvSource'] as Record<string, unknown>),
+        certifications: [{ name: 'Tableau Desktop Specialist', issuer: 'Tableau', year: 2025 }],
+      },
+    };
+
+    await api(alice).save(complete).expect(204);
+
+    expect((await api(alice).read()).body).toMatchObject({
+      studyLevel: { level: 'bac_5', isInProgress: true },
+      cvSource: { certifications: [{ name: 'Tableau Desktop Specialist', issuer: 'Tableau', year: 2025 }] },
+    });
+  });
+
+  it.each([
+    ['a level outside RG-18', { studyLevel: { level: 'bac_4' } }],
+    [
+      'a certification without a name',
+      { cvSource: { ...(EXAMPLE['cvSource'] as object), certifications: [{ issuer: 'Tableau' }] } },
+    ],
+  ])('[EF-CVX-18] [EF-CVX-19] [ENF-SEC-04] refuses %s, and keeps the profile as it was', async (_case, changes) => {
+    await api(alice).save(EXAMPLE).expect(204);
+
+    const refused = await api(alice).save({ ...EXAMPLE, ...changes });
+
+    expect(refused.status).toBe(400);
+    expect((await api(alice).read()).body).toEqual(STORED);
   });
 
   it('[EF-AUT-06] keeps the profile of each account apart', async () => {

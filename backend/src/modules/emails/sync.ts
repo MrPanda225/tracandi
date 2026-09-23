@@ -1,5 +1,5 @@
 import type { Database } from '../../db/client.js';
-import type { JobJournal, RunCounters } from '../../jobs/journal.js';
+import type { JobQueue, RunCounters } from '../../jobs/queue.js';
 import type { TriggerType } from '../../jobs/repository.js';
 import type { Clock } from '../../lib/clock.js';
 import { HttpError } from '../../lib/errors.js';
@@ -40,13 +40,6 @@ export interface SyncReport {
   pending: boolean;
 }
 
-/** A synchronisation of this user is already running: a second one would read the same messages. */
-export class SyncAlreadyRunningError extends HttpError {
-  constructor() {
-    super(409, 'Une synchronisation Gmail est déjà en cours.');
-  }
-}
-
 /** Q-11: Google refused the authorisation (7 days in test mode, or revoked): Gmail must be connected again. */
 export class GmailAuthorizationExpiredError extends HttpError {
   constructor() {
@@ -70,17 +63,17 @@ export class GmailQuotaExceededError extends HttpError {
 
 export interface GmailSync {
   /**
-   * Reads the new messages, classifies the retained ones by batches of 10, stores them and updates the applications
-   * (RG-03, RG-04), then moves the date of the last synchronisation. Every execution is journaled in `job_runs`.
-   * @throws GmailNotConnectedError (409), SyncAlreadyRunningError (409), GmailAuthorizationExpiredError (409, the
-   * connection is marked expired), GmailQuotaExceededError (503, Gmail's quota still refused the calls),
-   * LlmUnavailableError (502: the batches classified before are kept, the others wait for the next pass), or a Gmail
-   * or database failure.
+   * Puts one synchronisation in the queue of the candidate and hands back at once (EF-EXE-01): the pass reads the
+   * new messages, classifies the retained ones by batches of 10, stores them and updates the applications (RG-03,
+   * RG-04), then moves the date of the last synchronisation. Its state and its counters are followed through
+   * `/api/jobs` (EF-EXE-03); a failure — Gmail unreachable, authorisation expired, quota spent, no AI provider —
+   * closes the execution in failure with its message, and never an HTTP error.
+   * @returns the identifier of the execution.
    */
-  synchronise: (userId: number, trigger: TriggerType) => Promise<SyncReport>;
+  synchronise: (userId: number, trigger: TriggerType) => Promise<number>;
   /**
-   * EF-GML-03: synchronises, one after the other, every connected mailbox whose authorisation holds. Never throws:
-   * the failure of one user is journaled and logged, the others still run (ENF-FIA-01).
+   * EF-GML-03: queues a synchronisation for every connected mailbox whose authorisation holds; a mailbox that
+   * already has one waiting or running is written off as skipped (EF-GML-18). Never throws (ENF-FIA-01).
    */
   synchroniseEveryMailbox: () => Promise<void>;
 }
@@ -89,7 +82,7 @@ interface GmailSyncDeps {
   db: Database;
   fetcher: MessageFetcher;
   router: LlmRouter;
-  journal: JobJournal;
+  queue: JobQueue;
   clock: Clock;
   logger: Logger;
 }
@@ -98,6 +91,7 @@ const countersOf = (report: SyncReport): RunCounters => ({
   messages_read: report.read,
   messages_retained: report.retained,
   messages_classified: report.classified,
+  messages_pending: report.pending ? 1 : 0,
 });
 
 interface ClassifiedPair {
@@ -254,7 +248,7 @@ const recordBatch = async (
  * and the recording of a window of batches in their order.
  * @req EF-GML-08 to EF-GML-17, EF-GML-19, EF-CAN-11, ENF-FIA-03, ENF-PERF-02, RG-04, RG-17
  */
-const createBatchPipeline = ({ db, router, clock, logger }: Omit<GmailSyncDeps, 'journal' | 'fetcher'>) => {
+const createBatchPipeline = ({ db, router, clock, logger }: Omit<GmailSyncDeps, 'queue' | 'fetcher'>) => {
   const classifyBatch = async (userId: number, batch: RetainedMessage[]) => {
     const { system, prompt } = buildClassifyEmailsPrompt(batch.map(toMessageToClassify));
     const { data, provider } = await router.runTask('classify_emails', {
@@ -316,14 +310,17 @@ const createBatchPipeline = ({ db, router, clock, logger }: Omit<GmailSyncDeps, 
  * @req EF-GML-04, EF-GML-06, EF-GML-08 to EF-GML-17, EF-GML-19, EF-CAN-11, EF-CFG-01, ENF-FIA-03,
  * ENF-PERF-02, RG-17
  */
-const createSyncRun = (deps: Omit<GmailSyncDeps, 'journal'>): ((userId: number) => Promise<SyncReport>) => {
+const createSyncRun = (
+  deps: Omit<GmailSyncDeps, 'queue'>,
+): ((userId: number, report: (counters: RunCounters) => void) => Promise<SyncReport>) => {
   const { db, fetcher, clock, logger } = deps;
   const { classifyBatch, recordWindow } = createBatchPipeline(deps);
 
-  const run = async (userId: number): Promise<SyncReport> => {
+  const run = async (userId: number, report: (counters: RunCounters) => void): Promise<SyncReport> => {
     const startedAt = clock();
     const { readCount, retained, mailbox, shouldApplyLabels, hasMore } =
       await fetcher.fetchNewMessages(userId);
+    report({ messages_read: readCount, messages_retained: retained.length, messages_classified: 0 });
     // EF-GML-17: read-only mode, no label is ever written.
     const labeler = shouldApplyLabels
       ? createThreadLabeler({ mailbox, cache: databaseLabelCache(db, userId) })
@@ -333,6 +330,8 @@ const createSyncRun = (deps: Omit<GmailSyncDeps, 'journal'>): ((userId: number) 
       // The batches of a window are classified at once, then recorded in their order (RG-04).
       const answers = await Promise.allSettled(window.map((batch) => classifyBatch(userId, batch)));
       classified += await recordWindow(userId, answers, labeler);
+      // EF-EXE-03: the interface follows the pass batch after batch, not only at its end.
+      report({ messages_read: readCount, messages_retained: retained.length, messages_classified: classified });
     }
     // A message the AI skipped, or one the bounded pass left behind, is still unprocessed: the next pass must list
     // it again from the same date.
@@ -355,13 +354,16 @@ const createSyncRun = (deps: Omit<GmailSyncDeps, 'journal'>): ((userId: number) 
  * @req EF-GML-03, EF-GML-04, EF-GML-18, ENF-FIA-01, Q-11
  */
 export const createGmailSync = (deps: GmailSyncDeps): GmailSync => {
-  const { db, journal, clock, logger } = deps;
+  const { db, queue, clock, logger } = deps;
   const run = createSyncRun(deps);
-  const running = new Set<number>();
 
-  const runOnce = async (userId: number): Promise<SyncReport> => {
+  /**
+   * One pass, its failures turned into what they mean for the candidate before the queue journals them: an
+   * authorisation Google refused is marked expired (Q-11), a quota spent says so (ENF-FIA-09).
+   */
+  const runOnce = async (userId: number, report: (counters: RunCounters) => void): Promise<RunCounters> => {
     try {
-      return await run(userId);
+      return countersOf(await run(userId, report));
     } catch (error) {
       if (isRateLimited(error)) throw new GmailQuotaExceededError();
       if (!isInvalidGrant(error)) throw error;
@@ -370,31 +372,22 @@ export const createGmailSync = (deps: GmailSyncDeps): GmailSync => {
     }
   };
 
-  const synchronise = async (userId: number, trigger: TriggerType): Promise<SyncReport> => {
-    const entry = { userId, job: 'gmail_sync' as const, trigger };
-    if (running.has(userId)) {
-      await journal.recordSkipped(entry);
-      throw new SyncAlreadyRunningError();
-    }
-    running.add(userId);
-    try {
-      return await journal.record(entry, () => runOnce(userId), countersOf);
-    } finally {
-      running.delete(userId);
-    }
-  };
+  const workFor = (userId: number, trigger: TriggerType) => ({
+    userId,
+    job: 'gmail_sync' as const,
+    trigger,
+    run: (report: (counters: RunCounters) => void) => runOnce(userId, report),
+  });
 
   return {
-    synchronise,
+    synchronise: (userId, trigger) => queue.enqueue(workFor(userId, trigger)),
+
     async synchroniseEveryMailbox() {
       for (const userId of await repository.listSyncableUserIds(db)) {
-        try {
-          await synchronise(userId, 'schedule');
-        } catch (error) {
-          // A pass already running is the lock doing its work (EF-GML-18), not a failure of the scheduled run.
-          if (error instanceof SyncAlreadyRunningError) {
-            logger.info('scheduled gmail synchronisation skipped, one is already running', { userId });
-          } else logger.warn('scheduled gmail synchronisation failed', { userId, error });
+        // EF-GML-18: a mailbox that already has a pass waiting or running is written off, not queued twice.
+        const runId = await queue.enqueueUnlessPending(workFor(userId, 'schedule'));
+        if (runId === null) {
+          logger.info('scheduled gmail synchronisation skipped, one is already queued', { userId });
         }
       }
     },

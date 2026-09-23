@@ -13,6 +13,7 @@
 | 1.8 | 23/09/2026 | Sahiré YAPI (Business Owner) | À valider — RG-13 exprimée en trois **emplacements** Groq configurables (le catalogue gratuit de Groq n'offre ni Llama 3.3 70B ni Kimi K2 sur le compte du candidat) |
 | 1.9 | 23/09/2026 | Sahiré YAPI (Business Owner) | À valider — indice lexical de refus : un refus poli ouvert par un accusé de réception ne doit plus être classé « accusé de réception » (BES-21, RG-17) |
 | 1.10 | 23/09/2026 | Sahiré YAPI (Business Owner) | À valider — RG-17 étendue : liste des expressions de refus et d'accusé de réception donnée par le Business Owner, en français et en anglais (BES-22) |
+| 1.11 | 23/09/2026 | Sahiré YAPI (Business Owner) | À valider — traitements longs exécutés en file d'attente, l'interface répondant aussitôt et suivant l'avancement en direct (BES-23, EXM-15, EF-EXE-01 à 05, ENF-PERF-06) |
 
 > Document de référence pour le développement. Toute évolution de périmètre passe par une mise à jour
 > de ce fichier **avant** le code. Chaque exigence porte un identifiant stable, repris dans
@@ -113,7 +114,9 @@ des candidatures, la veille des offres et la production de CV adaptés.
 | BES-19 | « Pour la synchronisation on peut définir la période à vérifier qui doit être modifiable sur l'écran, mais pour éviter ces rate limits on peut passer par les mails sur la période 1 mois. » (après refus de quota de l'API Gmail, 22/09/2026) |
 | BES-20 | « J'ai l'abonnement max avec Claude et je ne veux pas payer de crédit en plus […] je veux utiliser ces trois là Llama 3.3 70B, Qwen, Kimi K2 de Groq. » (22/09/2026) |
 | BES-21 | « Il faut qu'il puisse bien labéliser les offres (quand c'est refusé ne pas confondre avec accusé de réception etc.) en vérifiant la présence de certains mots dans le mail. » (23/09/2026) |
+| BES-24 | « Ajoute une section Profil pour définir ses expériences, ce que l'on recherche aussi, et ses formations (niveau d'études master, licence, etc.) et les certificats passés et tout. » (23/09/2026) |
 | BES-22 | « Pour reconnaître les statuts des mails il faut regarder le contenu et voir la présence de ces termes. Statut/Refusée : “pas retenue”, “ne correspond malheureusement pas”, “au regret”, “suite favorable”, “nous ne pouvons y donner”. Statut/En attente : “bien reçu votre candidature”, “accusé de réception de votre candidature”, “candidature a bien été”. Fais pareil pour les termes en anglais et rajoute quelques termes qui vont dans le sens du statut. » (23/09/2026) |
+| BES-23 | « Applique un système de queue pour mes traitements trop longs et même des websockets, avec une architecture asynchrone. » (23/09/2026) |
 
 ### 4.2 Exigences métier (indépendantes de la solution)
 
@@ -129,6 +132,7 @@ des candidatures, la veille des offres et la production de CV adaptés.
 | EXM-12 | Le système doit maximiser les chances qu'un CV franchisse le tri automatique des logiciels de recrutement, sans affirmation absente du profil. | BES-13 |
 | EXM-13 | Le système doit réserver l'accès aux données de chaque utilisateur à cet utilisateur, après authentification. | BES-14 |
 | EXM-14 | Le système doit fournir une documentation à jour et consultable de toutes ses interfaces de programmation. | BES-15 |
+| EXM-15 | Le système doit rendre la main immédiatement sur un traitement long et en montrer l'avancement. | BES-23 |
 | EXM-08 | Le système doit proposer des réponses rédigées aux questions de formulaires de candidature. | BES-07 |
 | EXM-09 | Le système doit fournir des indicateurs de suivi de la recherche d'emploi. | BES-08 |
 | EXM-10 | Le système doit répartir les traitements automatisés entre deux fournisseurs IA, avec continuité de service si l'un est indisponible. | BES-09 |
@@ -250,6 +254,9 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | EF-CVX-15 | Le système doit reformuler les expériences, le profil et les compétences du CV adapté avec le vocabulaire de l'offre, pour chaque exigence de l'offre à laquelle une donnée du profil répond. | M | EXM-12 | T | Offre exigeant « gestion des stocks », profil mentionnant « rotation des stocks » : l'expression de l'offre figure dans le CV. |
 | EF-CVX-16 | Le système doit afficher, pour chaque CV adapté, le taux de couverture des mots-clés de l'offre et la liste des mots-clés non couverts. | S | EXM-12 | T | Taux entier de 0 à 100 ; un mot-clé est couvert s'il figure dans le texte du CV. |
 | EF-CVX-17 | Le système doit signaler un CV adapté dont le taux de couverture est inférieur à T %, T paramétrable avec 60 par défaut. | S | EXM-12 | T | Couverture de 45 % avec T = 60 : avertissement affiché. |
+| EF-CVX-18 | Le candidat peut renseigner dans son profil de référence son niveau d'études, choisi dans la liste RG-18, et préciser s'il est obtenu ou en cours. | S | EXM-07 | T | Niveau hors liste : réponse 400. Profil sans niveau : accepté, le niveau vaut « non précisé ». |
+| EF-CVX-19 | Le candidat peut renseigner dans son profil de référence ses certifications, chacune avec son intitulé, l'organisme qui la délivre et son année. | S | EXM-07 | T | Certification sans intitulé : réponse 400. Profil sans certification : accepté. |
+| EF-CVX-20 | Le système doit faire figurer dans le CV généré le niveau d'études du candidat et, lorsqu'il en a, une section « Certifications ». | S | EXM-07 | T | CV d'un profil sans certification : aucune section vide. |
 
 ### 6.5 Tableau de bord (TDB)
 
@@ -305,6 +312,16 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | EF-DOC-01 | Le système doit publier une description OpenAPI 3 de chaque route : chemin, paramètres, corps, réponses, codes d'erreur et exigence d'authentification. | M | EXM-14 | T | Chaque route de l'API figure dans `/api/openapi.json`. |
 | EF-DOC-02 | Le système doit proposer une interface web de consultation et d'essai de cette description. | S | EXM-14 | D | `/api/docs` affiche la documentation ; un appel d'essai fonctionne après connexion. |
 
+### 6.10 Exécution des traitements longs (EXE)
+
+| ID | Exigence | Prio | Source | Vérif. | Critère d'acceptation |
+|---|---|---|---|---|---|
+| EF-EXE-01 | Le système doit accepter une demande de traitement long (synchronisation de la messagerie, veille des offres, génération de CV) sans attendre sa fin, et répondre l'identifiant de l'exécution. | M | EXM-15 | T | La réponse arrive en moins d'une seconde et porte un identifiant d'exécution. |
+| EF-EXE-02 | Le système doit exécuter les traitements d'un même candidat un par un, dans l'ordre de leur demande, sans en perdre. | M | EXM-15 | T | Trois demandes enchaînées : trois exécutions, dans l'ordre, aucune ignorée. |
+| EF-EXE-03 | Le candidat doit pouvoir consulter l'état et l'avancement d'une exécution : en attente, en cours, terminée ou en échec, avec ses compteurs. | M | EXM-15 | T | — |
+| EF-EXE-04 | Le système doit pousser l'avancement vers l'interface sans que celle-ci ait à redemander, et la reprise du flux après coupure ne doit rien perdre. | S | EXM-15 | T | Le flux émet un événement à chaque changement d'état ; une reconnexion retrouve l'état courant. |
+| EF-EXE-05 | Le système doit reprendre ou marquer en échec toute exécution restée « en cours » après un arrêt du serveur. | S | ENF-FIA-01 | T | Une exécution « en cours » au démarrage est close en échec, jamais laissée telle quelle. |
+
 ## 7. Exigences non fonctionnelles
 
 ### 7.1 Performance
@@ -315,6 +332,7 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | ENF-PERF-03 | 95 % des générations de CV adapté doivent s'achever en moins de 60 secondes. | T (mesure `llm_calls`) |
 | ENF-PERF-04 | Avec le jeu de charge d'ENF-PERF-01, aucune requête sélective de l'application (liste, recherche, détail, rattachement) ne doit effectuer de parcours séquentiel complet (`Seq Scan` dans `EXPLAIN`) sur les tables `applications`, `emails` ou `job_offers`. | I (EXPLAIN) |
 | ENF-PERF-05 | Avec le jeu de charge d'ENF-PERF-01, chaque requête de calcul des indicateurs du tableau de bord (EF-TDB-01 à 09) doit s'exécuter en moins de 50 ms sur la base locale de test. | T (`EXPLAIN ANALYZE`) |
+| ENF-PERF-06 | Aucune route de l'API ne doit dépasser 2 secondes : un traitement plus long est mis en file et suivi (EF-EXE-01). | T |
 
 ### 7.2 Sécurité
 | ID | Exigence | Vérif. |
@@ -426,6 +444,7 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | RG-13 | Routage IA (v1.8) : trois emplacements Groq (modèles gratuits, choisis dans la configuration) sont essayés dans l'ordre, puis les secours historiques. Classement des messages, notation des offres, extraction de pages → Groq 1, 2, 3, Gemini, Claude. CV adapté, réponse de motivation → Groq 1, 2, 3, Claude, Gemini. Un emplacement vide est ignoré. |
 | RG-17 | Indices lexicaux de statut (v1.10) : dans un message **reçu**, l'objet et l'extrait conservé sont comparés, sans accents ni casse, à une liste d'expressions de refus puis à une liste d'expressions d'accusé de réception, en français et en anglais. Une expression de refus impose « refus » (un refus poli ouvert par « nous avons bien reçu votre candidature » est donc classé « refus ») ; certaines expressions — « suite favorable », « suite positive » — ne valent refus que sous une négation proche. À défaut de refus, une expression d'accusé de réception impose « accusé de réception » lorsque l'IA n'a rien reconnu de plus fort. Jamais corrigés : une proposition d'embauche, un entretien reconnu (vers l'accusé de réception), une alerte emploi (vers le refus), un message envoyé par le candidat. |
 | RG-14 | Clé normalisée d'un nom : minuscules, accents supprimés, tout caractère non alphanumérique remplacé par une espace, espaces multiples réduits, espaces de bord supprimées. |
+| RG-18 | Niveaux d'études (v1.12) : **Bac**, **Bac+2** (BTS, DUT, BUT 2), **Bac+3** (licence, bachelor, BUT 3), **Bac+5** (master, diplôme d'ingénieur), **Doctorat**, **Autre**. Le niveau est celui le plus élevé atteint ; il est marqué « obtenu » ou « en cours ». Un profil qui n'en déclare aucun vaut « non précisé » et n'en fait rien figurer sur le CV. |
 | RG-16 | Date de candidature saisie par le candidat : à la création, la date de dernière activité et la date du statut initial valent la date de candidature. Quand la date de candidature est modifiée, la date de dernière activité prend la nouvelle date si aucune activité n'a eu lieu depuis la création, sinon la plus récente des deux. |
 
 ## 10. Cas d'utilisation principaux
@@ -482,6 +501,7 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | BES-04 | EXM-04 | EF-CAN-12, EF-TDB-07 |
 | BES-05 | EXM-05, EXM-06 | EF-VEI-01 à 18, ENF-COL-01 à 04 |
 | BES-06 | EXM-07 | EF-CVX-01, 02, 04 à 11 |
+| BES-24 | EXM-07 | EF-CVX-18, 19, 20, RG-18 |
 | BES-07 | EXM-08 | EF-CVX-12, 13 |
 | BES-08 | EXM-09 | EF-TDB-01 à 08 |
 | BES-09 | EXM-10 | EF-IA-01 à 06, EF-CFG-02, 03, ENF-COU-01 |
@@ -498,5 +518,6 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | BES-20 | EXM-10 | RG-13, EF-IA-01, EF-IA-05, ENF-COU-01 |
 | BES-21 | EXM-01 | RG-17, EF-GML-08, EF-GML-11, EF-CAN-11 |
 | BES-22 | EXM-01 | RG-17 |
+| BES-23 | EXM-15 | EF-EXE-01 à 05, ENF-PERF-06 |
 
 La traçabilité fine exigence → tâche → test est tenue à jour dans `docs/TRACABILITE.md`.

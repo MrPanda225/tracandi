@@ -248,10 +248,19 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
   *Écart assumé* : `data/profile.json` de la ligne d'origine est remplacé par la base, conformément à Q-16
   (cahier v1.2) ; le fichier d'exemple `tests/fixtures/profile.example.json` sert de jeu de test.
   *Reste à faire* : l'écran de consultation et de modification arrive avec T-506.
-- [ ] **T-502 Rendu Word** — rendu conforme RG-11 à partir d'un contenu validé.
+- [x] **T-502 Rendu Word** — rendu conforme RG-11 à partir d'un contenu validé.
   *Exigences* : EF-CVX-06, 08, 14 (RG-11, RG-15 : mise en page sans tableau).
   *Fini quand* : test de structure du .docx (aucun `w:tbl`, `w:txbxContent`, contenu d'en-tête ou de pied de page)
   + comparaison visuelle manuelle avec le modèle (capture jointe à la PR).
+  *Livré* : `modules/cv/render.ts` — `renderCvDocx(content)` et `CvContentSchema` (ce qu'un CV porte une fois écrit).
+  En-tête deux colonnes par tabulation droite (jamais de tableau, RG-15), titre et sous-titre centrés, bandeaux de
+  section `D9E2F3` bordés `AAB5CE`, lignes « dates | contenu » alignées à 2150 twips, Calibri 10 pt, A4 avec
+  10 620 twips utiles. `formatDates` écrit les mois en chiffres (RG-15) et laisse intact ce qu'il ne reconnaît pas
+  (RG-12). Aucune photo insérée (Q-01). Dépendance `docx` installée (`npm run audit` : rien de haut ni critique).
+  Les tests relisent le .docx produit avec un lecteur de zip écrit sur `node:zlib` (`tests/fixtures/docx/`), pour
+  ne pas ajouter de dépendance de test.
+  *Reste à faire* : la comparaison visuelle avec le modèle Word du candidat (exemplaire fourni au Business Owner)
+  et le téléchargement (EF-CVX-11) qui arrive avec T-504 et T-506.
 - [ ] **T-503 Conversion PDF** — LibreOffice sans shell (`execFile`), délai 60 s, contrôle 1 page A4.
   *Exigences* : EF-CVX-07, ENF-SEC-13.
 - [ ] **T-504 CV adapté** — tâche IA, contrôle de fidélité RG-12, historique des versions, téléchargement.
@@ -259,8 +268,30 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
   *Fini quand* : test avec entreprise inventée rejetée.
 - [ ] **T-505 Réponse de motivation** — tâche IA, contrôle 80–140 mots.
   *Exigences* : EF-CVX-12.
-- [ ] **T-506 Écran Atelier CV** — génération, téléchargement, réponse de motivation modifiable.
+- [~] **T-506 Écran Atelier CV** — génération, téléchargement, réponse de motivation modifiable.
   *Exigences* : EF-CVX-13.
+  *Livré (23/09/2026, partie profil)* : écran `/atelier-cv` — consultation du profil de référence section par
+  section (EF-CVX-01) et modification complète (EF-CVX-02 : identité, recherche, cibles avec leurs types de contrat
+  et mots-clés, CV, expériences, formations, compétences, centres d'intérêt ; listes saisies une valeur par ligne,
+  entrées répétables). Les champs refusés par l'API sont nommés et le formulaire est conservé. L'écran est chargé à
+  la demande (son formulaire ne pèse pas sur le premier chargement).
+  *Reste à faire* : génération d'un CV adapté (T-504), téléchargement Word et PDF (EF-CVX-11, T-503), réponse de
+  motivation (T-505, EF-CVX-13).
+
+- [x] **T-507 Niveau d'études et certifications du profil** — *demande du Business Owner du 23/09/2026
+  (cahier v1.12, BES-24)* : le profil de référence porte le niveau d'études (RG-18) et les certifications, l'écran
+  Atelier CV les affiche et les modifie, et le CV généré les reprend.
+  *Exigences* : EF-CVX-18, EF-CVX-19, EF-CVX-20, RG-18.
+  *Fini quand* : niveau hors liste et certification sans intitulé refusés ; un profil écrit avant v1.12 continue
+  de s'ouvrir ; aucune section vide sur le CV.
+  *Livré* : `modules/cv/schemas.ts` — `STUDY_LEVELS`, `StudyLevelSchema`, `CertificationSchema`, repris dans
+  `CandidateProfileSchema` **et** `CvContentSchema` ; `render.ts` écrit le niveau sous la section FORMATION et
+  ouvre une section CERTIFICATIONS seulement si le candidat en a. Écran : section de consultation, sélecteur de
+  niveau avec la case « en cours », groupe répétable de certifications que le candidat peut vider entièrement.
+  *Choix assumés* : les deux champs sont **facultatifs** — un profil enregistré avant cette version reste lisible
+  (EF-CVX-01), là où un champ obligatoire l'aurait rendu introuvable, le document étant reparsé à chaque lecture.
+  Le niveau est un champ du profil, distinct de la liste des diplômes de `cvSource.education` qu'il résume.
+  Une année de certification qui n'est pas un entier reste absente plutôt que fausse.
 
 ## Lot 6 — Tableau de bord
 
@@ -289,4 +320,18 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
 - [ ] **T-704 Revue de sécurité finale** — checklist du skill `security`, `npm audit`, revue des journaux,
   exposition réseau, localisation des données, démarrage `docker compose up` après `scripts/setup.sh`.
   *Exigences* : ENF-SEC-01, ENF-SEC-10, ENF-RGP-03, ENF-POR-01.
+- [x] **T-706 File d'exécution et suivi en direct** — *hors ordre, à la demande du Business Owner (23/09/2026).*
+  File d'attente des traitements longs, API qui rend la main aussitôt, suivi poussé vers l'interface.
+  *Exigences* : EF-EXE-01 à 05, ENF-PERF-06 (cahier v1.11, BES-23).
+  *Fini quand* : demandes enchaînées exécutées dans l'ordre sans perte, état et compteurs consultables, flux qui
+  émet à chaque changement, exécution restée en cours à l'arrêt close en échec.
+  *Livré* : `jobs/queue.ts` (une chaîne par candidat, journal `job_runs` étendu de l'état `queued`, compteurs
+  publiés en cours de route), `GET /api/jobs/{id}` et `GET /api/jobs/stream`, `POST /api/gmail/sync` qui répond
+  **202** avec l'identifiant d'exécution, écran Réglages qui suit l'avancement et survit à un rechargement.
+  Migrations 0009 (état `queued`) et 0010 (compteur `messages_pending`).
+  *Choix technique signalé* : **événements envoyés par le serveur** (SSE) plutôt que WebSocket — l'interface ne fait
+  qu'écouter, le flux passe par le même proxy, se reconnecte seul et n'ajoute aucune dépendance. Une bascule vers
+  `ws` reste possible si un besoin bidirectionnel apparaît.
+  *Reste à faire* : la veille (T-404) et la génération de CV (T-504) se brancheront sur la même file.
+
 - [ ] **T-705 Coûts IA** — agrégat mensuel `llm_calls`, affichage EF-CFG-03, contrôle ENF-COU-01.

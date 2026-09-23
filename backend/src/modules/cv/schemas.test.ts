@@ -73,6 +73,57 @@ describe('CandidateProfileSchema', () => {
     );
   });
 
+  it('[EF-CVX-18] accepts a profile that declares no level of study, and reads it as unstated', () => {
+    const parsed = CandidateProfileSchema.parse(EXAMPLE);
+
+    // The profiles written before v1.12 carry no level: they must keep opening (EF-CVX-01).
+    expect(parsed.studyLevel.level).toBeNull();
+    expect(parsed.studyLevel.isInProgress).toBe(false);
+    expect(parsed.cvSource.certifications).toEqual([]);
+  });
+
+  it('[EF-CVX-18] [RG-18] keeps a level of the list and whether it is obtained or under way', () => {
+    const parsed = CandidateProfileSchema.parse({
+      ...EXAMPLE,
+      studyLevel: { level: 'bac_5', isInProgress: true },
+    });
+
+    expect(parsed.studyLevel).toEqual({ level: 'bac_5', isInProgress: true });
+  });
+
+  it('[EF-CVX-18] [RG-18] refuses a level outside the list', () => {
+    expect(
+      CandidateProfileSchema.safeParse({ ...EXAMPLE, studyLevel: { level: 'bac_4' } }).success,
+    ).toBe(false);
+  });
+
+  it('[EF-CVX-19] keeps a certification with its issuer and its year', () => {
+    const parsed = CandidateProfileSchema.parse(
+      withCvSource({
+        certifications: [{ name: 'Tableau Desktop Specialist', issuer: 'Tableau', year: 2025 }],
+      }),
+    );
+
+    expect(parsed.cvSource.certifications).toEqual([
+      { name: 'Tableau Desktop Specialist', issuer: 'Tableau', year: 2025 },
+    ]);
+  });
+
+  it('[EF-CVX-19] accepts a certification stated by its name alone', () => {
+    const parsed = CandidateProfileSchema.parse(withCvSource({ certifications: [{ name: 'TOEIC' }] }));
+
+    expect(parsed.cvSource.certifications[0]).toEqual({ name: 'TOEIC', issuer: null, year: null });
+  });
+
+  it.each([
+    ['without a name', { certifications: [{ issuer: 'Tableau', year: 2025 }] }],
+    ['with an empty name', { certifications: [{ name: '   ' }] }],
+    ['with a year before the candidate was of age to pass it', { certifications: [{ name: 'X', year: 1899 }] }],
+    ['with a year that is not one', { certifications: [{ name: 'X', year: 20.5 }] }],
+  ])('[EF-CVX-19] refuses a certification %s', (_case, changes) => {
+    expect(CandidateProfileSchema.safeParse(withCvSource(changes)).success).toBe(false);
+  });
+
   it('[ENF-SEC-04] refuses a text longer than the profile allows', () => {
     const parsed = CandidateProfileSchema.safeParse({
       ...EXAMPLE,

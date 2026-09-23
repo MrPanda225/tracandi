@@ -4,6 +4,8 @@ import type { ReactNode } from 'react';
 export interface NavItem {
   path: string;
   label: string;
+  /** ENF-UTI-02: what the bottom bar of a phone shows under the icon; the full label stays the accessible name. */
+  shortLabel: string;
   icon: ReactNode;
 }
 
@@ -29,6 +31,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   {
     path: '/',
     label: 'Tableau de bord',
+    shortLabel: 'Accueil',
     icon: (
       <Icon>
         <rect x="3.5" y="3.5" width="7" height="9" rx="1.5" />
@@ -41,6 +44,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   {
     path: '/candidatures',
     label: 'Candidatures',
+    shortLabel: 'Suivi',
     icon: (
       <Icon>
         <rect x="3.5" y="5.5" width="17" height="13" rx="2" />
@@ -51,6 +55,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   {
     path: '/offres',
     label: 'Offres',
+    shortLabel: 'Offres',
     icon: (
       <Icon>
         <circle cx="11" cy="11" r="6.5" />
@@ -61,6 +66,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   {
     path: '/sites',
     label: 'Sites surveillés',
+    shortLabel: 'Sites',
     icon: (
       <Icon>
         <circle cx="12" cy="12" r="8.5" />
@@ -71,6 +77,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   {
     path: '/atelier-cv',
     label: 'Atelier CV',
+    shortLabel: 'CV',
     icon: (
       <Icon>
         <path d="M14 3.5H7a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8.5Z" />
@@ -81,6 +88,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   {
     path: '/reglages',
     label: 'Réglages',
+    shortLabel: 'Réglages',
     icon: (
       <Icon>
         <path d="M4 7h10M18 7h2M4 17h2M10 17h10" />

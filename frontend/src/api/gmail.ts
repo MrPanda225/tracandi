@@ -27,17 +27,9 @@ export const fetchGmailAuthorizationUrl = () => request<{ url: string }>('/gmail
 /** EF-GML-02: revokes the connection; no token remains. */
 export const disconnectGmail = () => request<undefined>('/gmail/connection', { method: 'DELETE' });
 
-/** Counters of a synchronisation (schema `GmailSyncReport` in /api/docs, EF-GML-04). */
-export interface SyncReport {
-  read: number;
-  retained: number;
-  classified: number;
-  /** EF-GML-04 : des messages restent à traiter, une passe est bornée. */
-  pending: boolean;
-}
-
-/** EF-GML-04: reads and classifies the new messages now. */
-export const synchroniseGmail = () => request<SyncReport>('/gmail/sync', { method: 'POST' });
+/** EF-EXE-01 : la passe est mise en file ; son avancement se suit par `/jobs` (EF-EXE-03). */
+export const synchroniseGmail = () =>
+  request<{ runId: number }>('/gmail/sync', { method: 'POST' });
 
 /** EF-GML-17: turns the writing of labels in Gmail on or off. */
 export const setGmailApplyLabels = (applyLabels: boolean) =>

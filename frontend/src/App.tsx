@@ -16,6 +16,10 @@ const AuthPage = lazy(async () => ({ default: (await import('./pages/auth/AuthPa
 const DashboardPage = lazy(async () => ({
   default: (await import('./pages/dashboard/DashboardPage')).DashboardPage,
 }));
+// Le formulaire du profil ne sert qu'à l'Atelier CV : il voyage avec son écran (ENF-PERF-01).
+const CvWorkshopPage = lazy(async () => ({
+  default: (await import('./pages/cv/CvWorkshopPage')).CvWorkshopPage,
+}));
 
 /** The screens not built yet (T-003 shell), each stating what it will offer instead of an empty page. */
 const UPCOMING_SCREENS = [
@@ -28,11 +32,6 @@ const UPCOMING_SCREENS = [
     path: '/sites',
     title: 'Sites surveillés',
     promise: 'La liste des entreprises et sites carrières suivis, et l’ajout de nouvelles sources.',
-  },
-  {
-    path: '/atelier-cv',
-    title: 'Atelier CV',
-    promise: 'La génération d’un CV adapté à chaque offre et d’une réponse de motivation.',
   },
 ] as const;
 
@@ -74,6 +73,14 @@ export function App() {
             }
           />
           <Route path="/candidatures" element={<ApplicationsPage />} />
+          <Route
+            path="/atelier-cv"
+            element={
+              <Suspense fallback={<ScreenLoading label="Chargement de l’Atelier CV…" />}>
+                <CvWorkshopPage />
+              </Suspense>
+            }
+          />
           <Route path="/reglages" element={<SettingsPage />} />
           {UPCOMING_SCREENS.map((screen) => (
             <Route

@@ -10,7 +10,7 @@
   position: absolute;
   top: 0.75rem;
   left: 0.75rem;
-  z-index: 10;
+  z-index: 30;
   padding: 0.6rem 1rem;
   border-radius: var(--radius-sm);
   background: var(--color-canvas-raised);
@@ -44,6 +44,7 @@
 
 .shell__brand {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.15rem;
   margin: 0;
   padding-inline: 0.75rem;
@@ -63,16 +64,9 @@
   color: var(--color-mist);
 }
 
-.shell__menu-button {
-  display: none;
-}
-
-.shell__menu {
-  display: flex;
+/* The navigation takes the free height, which pushes the account block to the bottom of the panel. */
+.shell__nav-wrap {
   flex: 1;
-  flex-direction: column;
-  justify-content: space-between;
-  gap: 2rem;
   min-height: 0;
 }
 
@@ -80,6 +74,7 @@
 
 .shell__nav {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.25rem;
   margin: 0;
   padding: 0;
@@ -129,10 +124,16 @@
   background: var(--color-accent);
 }
 
+/* Wide enough for the full name of a screen: the short one is for the bottom bar of a phone. */
+.shell__label--short {
+  display: none;
+}
+
 /* ---------- Account ---------- */
 
 .shell__account {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.75rem;
   padding: 1rem 0.75rem 0;
   border-top: 1px solid rgb(250 248 250 / 0.12);
@@ -204,7 +205,7 @@
   font-weight: 700;
 }
 
-/* ---------- Below 900 px: top bar + disclosure menu ---------- */
+/* ---------- Below 900 px: the frame of a mobile application ---------- */
 
 @media (max-width: 900px) {
   /* Auto rows share the free space of `min-height: 100dvh`: without an explicit 1fr content row, a short page
@@ -214,12 +215,21 @@
     grid-template-rows: auto 1fr;
   }
 
+  /* Top bar: the name of the application and the account, nothing else — the destinations moved to the bottom. */
   .shell__panel {
     position: sticky;
-    z-index: 5;
+    z-index: 10;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
     height: auto;
-    gap: 0;
-    padding: 0.75rem 1rem;
+    padding: 0.6rem 1rem;
+    padding-top: max(0.6rem, env(safe-area-inset-top));
+  }
+
+  .shell__bar {
+    min-width: 0;
   }
 
   .shell__brand {
@@ -234,55 +244,85 @@
     display: none;
   }
 
-  .shell__menu-button {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.6rem;
-    min-height: 2.75rem;
-    padding: 0.5rem 0.9rem;
-    border: 1px solid rgb(250 248 250 / 0.28);
-    border-radius: 999px;
-    background: transparent;
-    color: var(--color-canvas);
-    font-weight: 600;
-    cursor: pointer;
-  }
-
-  .shell__menu-button:focus-visible {
-    outline-color: var(--color-canvas);
-  }
-
-  .shell__menu-icon,
-  .shell__menu-icon::before {
-    display: block;
-    width: 1rem;
-    height: 2px;
-    border-radius: 2px;
-    background: currentColor;
-  }
-
-  .shell__menu-icon {
-    position: relative;
-    transform: translateY(-3px);
-  }
-
-  .shell__menu-icon::before {
-    content: '';
-    position: absolute;
-    top: 6px;
-  }
-
-  .shell__menu {
-    display: none;
-    padding-top: 1rem;
-  }
-
-  .shell__menu--open {
+  .shell__account {
     display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0;
+    border-top: 0;
   }
 
+  /* No room for the address beside the name of the application; it stays readable on a wider screen. */
+  .shell__email {
+    display: none;
+  }
+
+  .shell__signout {
+    min-height: 2.25rem;
+    padding: 0.35rem 0.8rem;
+    font-size: 0.8125rem;
+  }
+
+  /* Bottom bar: the six destinations, within reach of a thumb, above the home indicator of the phone. */
+  .shell__nav-wrap {
+    position: fixed;
+    inset: auto 0 0 0;
+    z-index: 20;
+    flex: none;
+    padding: 0.25rem 0.25rem calc(0.25rem + env(safe-area-inset-bottom));
+    background: var(--color-ink);
+    border-top: 1px solid rgb(250 248 250 / 0.14);
+  }
+
+  /* `minmax(0, …)`: six equal columns that may shrink below the width of their label, so « Réglages » is
+     trimmed instead of pushing the bar past a 360 px screen. */
+  /* Laid out by flow rather than a fixed count, so adding a destination keeps the columns equal on its own. */
+  .shell__nav {
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+
+  .shell__nav > li {
+    min-width: 0;
+  }
+
+  .shell__link {
+    flex-direction: column;
+    gap: 0.1rem;
+    min-height: 3.25rem;
+    padding: 0.4rem 0.15rem 0.3rem;
+    border-radius: var(--radius-sm);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-align: center;
+  }
+
+  /* The marker of the current page moves above the icon, where a mobile application puts it. */
   .shell__link[aria-current='page']::before {
-    left: 0;
-    border-radius: 0 3px 3px 0;
+    left: 50%;
+    top: 0;
+    bottom: auto;
+    width: 1.5rem;
+    height: 3px;
+    border-radius: 0 0 3px 3px;
+    transform: translateX(-50%);
+  }
+
+  .shell__label {
+    display: none;
+  }
+
+  .shell__label--short {
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* The fixed bar would cover the end of a page: the content keeps its height clear. */
+  .shell__main {
+    padding-bottom: calc(5rem + env(safe-area-inset-bottom));
   }
 }
