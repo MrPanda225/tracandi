@@ -74,20 +74,40 @@ afterEach(() => {
 });
 
 describe('CvWorkshopPage', () => {
-  it('[EF-CVX-01] shows the reference profile, section by section', async () => {
+  it('[EF-CVX-01] [RG-11] shows the profile as the CV it will become, in one page', async () => {
     mockApi({ 'GET /profile': () => json(200, PROFILE) });
 
     renderPage();
 
-    expect(await screen.findByText('Alex MARTIN')).toBeInTheDocument();
-    expect(screen.getByText(/Villeurbanne · 06 00 00 00 00/)).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Cibles' })).toBeInTheDocument();
+    const cv = within(await screen.findByRole('region', { name: 'Aperçu du CV' }));
+    // RG-11: contacts on the left of the header, availability on the right.
+    expect(cv.getByText('Alex MARTIN')).toBeInTheDocument();
+    expect(cv.getByText('Villeurbanne')).toBeInTheDocument();
+    expect(cv.getByText('CDI : immédiatement')).toBeInTheDocument();
+    // RG-11: title and subtitle, then the usual French sections (RG-15).
+    expect(cv.getByText('Data Analyst')).toBeInTheDocument();
+    expect(cv.getByText('CDI ou alternance')).toBeInTheDocument();
+    for (const section of ['PROFIL', 'EXPÉRIENCES PROFESSIONNELLES', 'FORMATION', 'COMPÉTENCES']) {
+      expect(cv.getByText(section)).toBeInTheDocument();
+    }
+    expect(cv.getByText('Équipier polyvalent')).toBeInTheDocument();
+    expect(cv.getByText('Rotation des stocks.')).toBeInTheDocument();
+    expect(cv.getByText('Master MIAGE')).toBeInTheDocument();
+    expect(cv.getByText('Basketball')).toBeInTheDocument();
+  });
+
+  it('[EF-CVX-01] [RG-09] keeps visible what the profile holds and the CV does not show', async () => {
+    mockApi({ 'GET /profile': () => json(200, PROFILE) });
+
+    renderPage();
+
+    // The targets and the search area score the offers; they have no place on a CV.
+    expect(await screen.findByRole('heading', { name: 'Ce que vous cherchez' })).toBeInTheDocument();
+    expect(screen.getByText(/Lyon ou télétravail/)).toBeInTheDocument();
     expect(screen.getByText('Data analyst')).toBeInTheDocument();
     expect(screen.getByText('CDI, Alternance')).toBeInTheDocument();
-    expect(screen.getByText('Équipier polyvalent')).toBeInTheDocument();
-    expect(screen.getByText('Rotation des stocks.')).toBeInTheDocument();
-    expect(screen.getByText('Master MIAGE')).toBeInTheDocument();
-    expect(screen.getByText('Basketball')).toBeInTheDocument();
+    const cv = within(screen.getByRole('region', { name: 'Aperçu du CV' }));
+    expect(cv.queryByText('CDI, Alternance')).not.toBeInTheDocument();
   });
 
   it('[EF-CVX-01] invites the candidate to create a profile when none is saved', async () => {
@@ -120,7 +140,8 @@ describe('CvWorkshopPage', () => {
 
     expect(await screen.findByRole('status')).toHaveTextContent('Profil enregistré.');
     expect(sent[0]).toMatchObject({ availability: 'Disponible en mai' });
-    expect(await screen.findByText(/Disponibilités : Disponible en mai/)).toBeInTheDocument();
+    const cv = within(await screen.findByRole('region', { name: 'Aperçu du CV' }));
+    expect(cv.getByText('Disponible en mai')).toBeInTheDocument();
   });
 
   it('[EF-CVX-02] [ENF-SEC-04] names the fields the API refused, and keeps the form open', async () => {
@@ -163,8 +184,10 @@ describe('CvWorkshopPage', () => {
 
     renderPage();
 
-    expect(await screen.findByRole('heading', { name: 'Niveau d’études' })).toBeInTheDocument();
-    expect(screen.getByText(/Bac\+5 \(master, diplôme d’ingénieur\) — en cours/)).toBeInTheDocument();
+    const cv = within(await screen.findByRole('region', { name: 'Aperçu du CV' }));
+    // RG-18: written under the degrees it sums up, as the document writes it.
+    expect(cv.getByText(/Bac\+5 \(master, diplôme d’ingénieur\)/)).toBeInTheDocument();
+    expect(cv.getByText(/\(en cours\)/)).toBeInTheDocument();
   });
 
   it('[EF-CVX-18] shows no level at all when the profile states none', async () => {
@@ -175,7 +198,7 @@ describe('CvWorkshopPage', () => {
     renderPage();
 
     await screen.findByText('Alex MARTIN');
-    expect(screen.queryByRole('heading', { name: 'Niveau d’études' })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Niveau d’études/)).not.toBeInTheDocument();
   });
 
   it('[EF-CVX-19] shows the certifications with their issuer and their year', async () => {
@@ -183,9 +206,10 @@ describe('CvWorkshopPage', () => {
 
     renderPage();
 
-    expect(await screen.findByRole('heading', { name: 'Certifications' })).toBeInTheDocument();
-    expect(screen.getByText('Tableau Desktop Specialist')).toBeInTheDocument();
-    expect(screen.getByText('Tableau · 2025')).toBeInTheDocument();
+    const cv = within(await screen.findByRole('region', { name: 'Aperçu du CV' }));
+    expect(cv.getByText('CERTIFICATIONS')).toBeInTheDocument();
+    expect(cv.getByText('Tableau Desktop Specialist')).toBeInTheDocument();
+    expect(cv.getByText('2025')).toBeInTheDocument();
   });
 
   it('[EF-CVX-19] opens no section when the candidate holds no certification', async () => {
@@ -194,7 +218,7 @@ describe('CvWorkshopPage', () => {
     renderPage();
 
     await screen.findByText('Alex MARTIN');
-    expect(screen.queryByRole('heading', { name: 'Certifications' })).not.toBeInTheDocument();
+    expect(screen.queryByText('CERTIFICATIONS')).not.toBeInTheDocument();
   });
 
   it('[EF-CVX-18] [EF-CVX-19] records a level and a certification, and sends them to the API', async () => {
