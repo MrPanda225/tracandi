@@ -6,8 +6,12 @@ import * as schema from './schema.js';
 // The dashboard sends 7 queries at once (stats service): a smaller pool queues some of them for one more round trip
 // to Neon, which costs far more than the queries themselves (< 1 ms each, ENF-PERF-05).
 const POOL_MAX_CONNECTIONS = 10;
-// Coming back to a screen within minutes reuses open TLS connections instead of opening new ones to Neon.
-const IDLE_TIMEOUT_MS = 5 * 60_000;
+/**
+ * Coming back to a screen reuses an open TLS connection instead of opening a new one. It stays well under the idle
+ * cut of a hosted database: a connection the host recycled before us is handed out dead, and the query fails with
+ * « Connection terminated unexpectedly » (ENF-FIA-01).
+ */
+const IDLE_TIMEOUT_MS = 60_000;
 // Neon suspends idle computes: the first connection may take a few seconds (cold start). Beyond that the database
 // is down rather than asleep, and the request is answered 503 rather than left hanging (ENF-PERF-01).
 const CONNECTION_TIMEOUT_MS = 8_000;
@@ -33,6 +37,8 @@ export const connectDatabase = (connectionString: string, logger: Logger): Datab
     max: POOL_MAX_CONNECTIONS,
     idleTimeoutMillis: IDLE_TIMEOUT_MS,
     connectionTimeoutMillis: CONNECTION_TIMEOUT_MS,
+    // Keeps an idle connection alive across a NAT or a load balancer that would drop it without telling us.
+    keepAlive: true,
   });
   pool.on('error', (error) => {
     logger.error('idle database connection error', { error });
