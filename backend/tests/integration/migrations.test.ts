@@ -99,6 +99,8 @@ describe('migrations', () => {
         'GET /settings/ai',
         'GET /profile',
         'PUT /profile',
+        'GET /jobs/{id}',
+        'GET /jobs/stream',
         'DELETE /gmail/connection',
       ].sort(),
     );

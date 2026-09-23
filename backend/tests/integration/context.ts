@@ -4,13 +4,14 @@ import type { Express } from 'express';
 import request from 'supertest';
 import { createApp } from '../../src/app.js';
 import { connectDatabase, type DatabaseHandle } from '../../src/db/client.js';
-import { createJobJournal } from '../../src/jobs/journal.js';
+import { createJobQueue, type JobQueue } from '../../src/jobs/queue.js';
 import { createLogger } from '../../src/lib/logger.js';
 import { describeAssignments } from '../../src/llm/assignments.js';
 import { createLlmJournal } from '../../src/llm/repository.js';
 import { createLlmRouter } from '../../src/llm/router.js';
 import type { LlmProvider, ProviderName } from '../../src/llm/types.js';
 import { createApplicationsModule } from '../../src/modules/applications/routes.js';
+import { createJobsModule } from '../../src/modules/jobs/routes.js';
 import { createProfileModule } from '../../src/modules/cv/routes.js';
 import { createProfileService } from '../../src/modules/cv/service.js';
 import { createApplicationsService } from '../../src/modules/applications/service.js';
@@ -60,6 +61,8 @@ export interface TestContext {
   encryptionKey: Buffer;
   /** The Gmail synchronisation behind the routes, for the scheduled runs (EF-GML-03). */
   gmailSync: GmailSync;
+  /** EF-EXE-01 : file d'attente des traitements longs, pour attendre leur fin dans un test. */
+  queue: JobQueue;
 }
 
 /** Google that must never be reached: tests needing Google pass their own fake. */
@@ -108,6 +111,7 @@ export const createTestContext = (
     clock: clock.now,
     passwordParams: TEST_PASSWORD_PARAMS,
   });
+  const queue = createJobQueue({ db: database.db, clock: clock.now, logger });
   const gmailService = createGmailConnectionService({
     db: database.db,
     google,
@@ -120,7 +124,7 @@ export const createTestContext = (
     db: database.db,
     fetcher: createMessageFetcher({ db: database.db, openMailbox, encryptionKey, clock: clock.now }),
     router: createLlmRouter({ providers: aiProviders, journal: createLlmJournal(database.db), logger }),
-    journal: createJobJournal({ db: database.db, clock: clock.now }),
+    queue,
     clock: clock.now,
     logger,
   });
@@ -133,11 +137,12 @@ export const createTestContext = (
       createApplicationsModule(createApplicationsService({ db: database.db, clock: clock.now })),
       createStatsModule(createStatsService({ db: database.db, clock: clock.now })),
       ...createGmailModules({ service: gmailService, sync, frontendOrigin: FRONTEND_ORIGIN }),
+      createJobsModule(queue),
       createProfileModule(createProfileService({ db: database.db, clock: clock.now })),
       createSettingsModule(describeAssignments(aiProviders)),
     ],
   });
-  return { app, database, clock, encryptionKey, gmailSync: sync };
+  return { app, database, clock, encryptionKey, gmailSync: sync, queue };
 };
 
 export const openTestDatabase = (): DatabaseHandle =>

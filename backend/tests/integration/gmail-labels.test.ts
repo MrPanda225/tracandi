@@ -56,8 +56,16 @@ const setUp = async (messages: readonly gmail_v1.Schema$Message[]) => {
   });
 };
 
-const synchronise = () =>
-  request(context.app).post('/api/gmail/sync').set('Cookie', alice).set('Content-Type', 'application/json');
+/** EF-EXE-01: the pass is queued; the tests wait for the queue before looking at Gmail. */
+const synchronise = async () => {
+  const accepted = await request(context.app)
+    .post('/api/gmail/sync')
+    .set('Cookie', alice)
+    .set('Content-Type', 'application/json');
+  await context.queue.drain();
+  const runId = (accepted.body as { runId?: number }).runId;
+  return runId === undefined ? null : await context.queue.stateOf(aliceId, runId);
+};
 
 const setApplyLabels = (body: unknown, cookie = alice) =>
   request(context.app)
@@ -78,7 +86,7 @@ describe('Gmail labels written by the synchronisation', () => {
   it('[EF-GML-13] labels the thread of an attached message « Candidatures/‹Entreprise› » and its RG-05 status', async () => {
     await setUp([MAISON_LUMEN_REJECTION]);
 
-    await synchronise().expect(200);
+    await synchronise();
 
     expect(gmail.labelsOfThread(MAISON_LUMEN_REJECTION.threadId ?? '')).toEqual([
       'Candidatures/Maison Lumen',
@@ -90,12 +98,12 @@ describe('Gmail labels written by the synchronisation', () => {
 
   it('[EF-GML-14] moves every thread of an application from « En attente » to « Entretien »', async () => {
     await setUp([SENT_APPLICATION, MCDONALDS_ACKNOWLEDGEMENT]);
-    await synchronise().expect(200);
+    await synchronise();
     expect(gmail.labelsOfThread(MCDONALDS_THREAD)).toContain('Statut/En attente');
 
     gmail.deliver({ ...MCDONALDS_INTERVIEW, internalDate: String(Date.parse('2026-09-22T12:00:00.000Z')) });
     context.clock.set(new Date('2026-09-22T14:00:00.000Z'));
-    await synchronise().expect(200);
+    await synchronise();
 
     for (const thread of [MCDONALDS_THREAD, INTERVIEW_THREAD]) {
       expect(gmail.labelsOfThread(thread)).toContain('Statut/Entretien');
@@ -107,14 +115,14 @@ describe('Gmail labels written by the synchronisation', () => {
   it('[EF-GML-15] [EF-GML-16] labels a job alert « Alertes emploi » and takes it out of the inbox', async () => {
     await setUp([LONG_NEWSLETTER]);
 
-    await synchronise().expect(200);
+    await synchronise();
 
     expect(gmail.labelsOfThread(ALERT_THREAD)).toEqual(['Alertes emploi', 'UNREAD']);
   });
 
   it('[EF-GML-13] remembers the label ids, so that the next synchronisation does not list the labels again', async () => {
     await setUp([MAISON_LUMEN_REJECTION]);
-    await synchronise().expect(200);
+    await synchronise();
     const remembered = await database.db
       .select({ name: gmailLabels.name })
       .from(gmailLabels)
@@ -128,7 +136,7 @@ describe('Gmail labels written by the synchronisation', () => {
       internalDate: String(Date.parse('2026-09-22T12:00:00.000Z')),
     });
     context.clock.set(new Date('2026-09-22T14:00:00.000Z'));
-    await synchronise().expect(200);
+    await synchronise();
 
     expect(remembered.map((label) => label.name).sort()).toEqual([
       'Candidatures/Maison Lumen',
@@ -144,8 +152,13 @@ describe('Gmail labels written by the synchronisation', () => {
 
     const response = await synchronise();
 
-    expect(response.status).toBe(200);
-    expect(response.body).toMatchObject({ read: 1, retained: 1, classified: 1 });
+    // EF-GML-13: a refusal of Gmail on the labels never fails the pass already recorded.
+    expect(response?.outcome).toBe('success');
+    expect(response?.counters).toMatchObject({
+      messages_read: 1,
+      messages_retained: 1,
+      messages_classified: 1,
+    });
     expect(await database.db.select({ id: emails.id }).from(emails)).toHaveLength(1);
   });
 });
@@ -155,7 +168,7 @@ describe('PATCH /api/gmail/settings — read-only mode (EF-GML-17)', () => {
     await setUp([MAISON_LUMEN_REJECTION, LONG_NEWSLETTER]);
 
     await setApplyLabels({ applyLabels: false }).expect(204);
-    await synchronise().expect(200);
+    await synchronise();
 
     expect(gmail.modifyCalls).toEqual([]);
     expect(gmail.createdLabels).toEqual([]);

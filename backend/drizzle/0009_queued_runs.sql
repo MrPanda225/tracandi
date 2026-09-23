@@ -1,0 +1,1 @@
+ALTER TYPE "public"."run_outcome" ADD VALUE 'queued' BEFORE 'running';

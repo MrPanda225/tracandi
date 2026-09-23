@@ -1,0 +1,1 @@
+ALTER TYPE "public"."run_counter" ADD VALUE 'messages_pending' BEFORE 'sources_checked';

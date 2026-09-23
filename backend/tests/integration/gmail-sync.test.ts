@@ -87,8 +87,20 @@ const setUp = async (messages: readonly gmail_v1.Schema$Message[]) => {
 const readBack = (days: number) =>
   database.db.update(appSettings).set({ gmailLookbackDays: days }).where(eq(appSettings.userId, aliceId));
 
-const synchronise = (cookie = alice) =>
+const accept = (cookie = alice) =>
   request(context.app).post('/api/gmail/sync').set('Cookie', cookie).set('Content-Type', 'application/json');
+
+/**
+ * EF-EXE-01: the pass is queued and the route answers at once. The tests wait for the queue, then read the
+ * counters the execution journaled.
+ */
+const synchronise = async (cookie = alice) => {
+  const accepted = await accept(cookie);
+  await context.queue.drain();
+  const runId = (accepted.body as { runId?: number }).runId;
+  const state = runId === undefined ? null : await context.queue.stateOf(aliceId, runId);
+  return { accepted, state, counters: state?.counters ?? null, error: state?.error ?? null };
+};
 
 const applicationsOf = () =>
   database.db
@@ -163,8 +175,8 @@ describe('POST /api/gmail/sync — manual synchronisation (EF-GML-04)', () => {
 
     const response = await synchronise();
 
-    expect(response.status).toBe(200);
-    expect(response.body).toMatchObject({ read: 4, retained: 3, classified: 3 });
+    expect(response.accepted.status).toBe(202);
+    expect(response.counters).toMatchObject({ messages_read: 4, messages_retained: 3, messages_classified: 3 });
   });
 
   it('[EF-GML-07] makes no AI call for a bank message', async () => {
@@ -172,12 +184,12 @@ describe('POST /api/gmail/sync — manual synchronisation (EF-GML-04)', () => {
 
     const response = await synchronise();
 
-    expect(response.body).toMatchObject({ read: 1, retained: 0, classified: 0 });
+    expect(response.counters).toMatchObject({ messages_read: 1, messages_retained: 0, messages_classified: 0 });
     expect(ai.requests).toHaveLength(0);
     expect(await outcomeOf(BANK_STATEMENT.id)).toBe('prefiltered');
   });
 
-  it('[EF-GML-04] refuses without a connected mailbox, and without a session', async () => {
+  it('[EF-GML-04] closes the execution in failure without a connected mailbox, and refuses without a session', async () => {
     await setUp([]);
     await database.db.delete(gmailAccounts);
 
@@ -186,31 +198,35 @@ describe('POST /api/gmail/sync — manual synchronisation (EF-GML-04)', () => {
       .post('/api/gmail/sync')
       .set('Content-Type', 'application/json');
 
-    expect(refused.status).toBe(409);
-    expect((refused.body as { error: string }).error).toContain('Aucune boîte Gmail');
+    // EF-EXE-01: the route accepts, the failure closes the execution with its message.
+    expect(refused.accepted.status).toBe(202);
+    expect(refused.error).toContain('Aucune boîte Gmail');
     expect(anonymous.status).toBe(401);
   });
 
-  it('[EF-GML-04] refuses a second synchronisation while one is running', async () => {
+  it('[EF-EXE-02] queues a second demand instead of refusing it, and runs it after the first', async () => {
     await setUp([SENT_APPLICATION]);
     let release: () => void = () => undefined;
     const held = new Promise<void>((resolve) => {
       release = resolve;
     });
     const list = gmail.client.list;
+    let listings = 0;
     gmail.client.list = async (params) => {
-      await held;
+      listings += 1;
+      if (listings === 1) await held;
       return list(params);
     };
 
-    const first = synchronise().then((response) => response);
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    const second = await synchronise();
+    const first = await accept();
+    const second = await accept();
     release();
+    await context.queue.drain();
 
-    expect(second.status).toBe(409);
-    expect((second.body as { error: string }).error).toBe('Une synchronisation Gmail est déjà en cours.');
-    expect((await first).status).toBe(200);
+    expect([first.status, second.status]).toEqual([202, 202]);
+    const ids = [first, second].map((answer) => (answer.body as { runId: number }).runId);
+    expect(ids[0]).toBeLessThan(ids[1] ?? 0);
+    for (const id of ids) expect((await context.queue.stateOf(aliceId, id))?.outcome).toBe('success');
   });
 
   it('[EF-CFG-01] dates the last synchronisation at its start, shown in the status', async () => {
@@ -374,7 +390,7 @@ describe('classification and attachment', () => {
   it('[RG-17] files a refusal opened by an acknowledgement as a refusal, not as an acknowledgement', async () => {
     await setUp([POLITE_REJECTION]);
 
-    await synchronise().expect(200);
+    await synchronise();
 
     // The recorded AI answer for this message is « acknowledged »: the wording of the message decides.
     expect((await emailsOf()).map((email) => email.category)).toEqual(['rejected']);
@@ -424,7 +440,7 @@ describe('classification and attachment', () => {
 
     const response = await synchronise();
 
-    expect(response.body).toMatchObject({ read: 1, retained: 1, classified: 1 });
+    expect(response.counters).toMatchObject({ messages_read: 1, messages_retained: 1, messages_classified: 1 });
     expect(await emailsOf()).toEqual([]);
     expect(await outcomeOf(MARATHON_REGISTRATION.id)).toBe('off_topic');
   });
@@ -453,7 +469,7 @@ describe('incremental and interrupted synchronisations', () => {
 
     const second = await synchronise();
 
-    expect(second.body).toMatchObject({ read: 0, retained: 0, classified: 0 });
+    expect(second.counters).toMatchObject({ messages_read: 0, messages_retained: 0, messages_classified: 0 });
     expect(await countRows()).toEqual(afterFirst);
     expect(ai.requests).toHaveLength(1);
   });
@@ -476,9 +492,9 @@ describe('incremental and interrupted synchronisations', () => {
       }
     };
 
-    const report = await synchronise().expect(200);
+    const report = await synchronise();
 
-    expect(report.body).toMatchObject({ read: 25, retained: 25, classified: 25 });
+    expect(report.counters).toMatchObject({ messages_read: 25, messages_retained: 25, messages_classified: 25 });
     expect(highest).toBe(CLASSIFY_CONCURRENCY);
     expect(ai.requests).toHaveLength(3);
     // RG-04 reads the statuses in the order the messages arrived: the answers are recorded batch after batch.
@@ -498,7 +514,9 @@ describe('incremental and interrupted synchronisations', () => {
 
     const interrupted = await synchronise();
 
-    expect(interrupted.status).toBe(502);
+    // EF-EXE-03: the AI outage closes the execution in failure; what was classified before is kept.
+    expect(interrupted.state?.outcome).toBe('failure');
+    expect(interrupted.error).toContain('IA');
     expect(await lastSyncAt()).toBeNull();
     expect((await emailsOf()).map((email) => email.gmailMessageId)).toEqual(
       alerts.slice(0, 10).map((m) => m.id),
@@ -506,7 +524,7 @@ describe('incremental and interrupted synchronisations', () => {
 
     const resumed = await synchronise();
 
-    expect(resumed.body).toMatchObject({ read: 2, retained: 2, classified: 2 });
+    expect(resumed.counters).toMatchObject({ messages_read: 2, messages_retained: 2, messages_classified: 2 });
     expect((await emailsOf()).map((email) => email.gmailMessageId)).toEqual(alerts.map((m) => m.id));
     expect(await lastSyncAt()).toEqual(SYNC_TIME);
   });
@@ -516,29 +534,29 @@ describe('incremental and interrupted synchronisations', () => {
 
     const first = await synchronise();
 
-    expect(first.body).toMatchObject({ read: MAX_MESSAGES_PER_PASS, retained: 0, classified: 0 });
+    expect(first.counters).toMatchObject({ messages_read: MAX_MESSAGES_PER_PASS, messages_retained: 0, messages_classified: 0 });
     expect(await lastSyncAt()).toBeNull();
     expect(ai.requests).toHaveLength(0);
 
     const second = await synchronise();
 
-    expect(second.body).toMatchObject({ read: 2, retained: 2, classified: 2 });
+    expect(second.counters).toMatchObject({ messages_read: 2, messages_retained: 2, messages_classified: 2 });
     expect(await lastSyncAt()).toEqual(SYNC_TIME);
   });
 
   it('[EF-CFG-01] dates the last pass that ended well, even when it left a backlog behind', async () => {
     await setUp([SENT_APPLICATION, MCDONALDS_ACKNOWLEDGEMENT, ...otherMessages(MAX_MESSAGES_PER_PASS)]);
 
-    const first = await synchronise().expect(200);
+    const first = await synchronise();
 
-    expect(first.body).toMatchObject({ pending: true });
+    expect(first.counters).toMatchObject({ messages_pending: 1 });
     const status = await request(context.app).get('/api/gmail/status').set('Cookie', alice);
     // The screen dates the pass; the watermark of EF-GML-06 only moves once nothing is left.
     expect(status.body).toMatchObject({ lastRunAt: SYNC_TIME.toISOString(), lastSyncAt: null });
 
-    const second = await synchronise().expect(200);
+    const second = await synchronise();
 
-    expect(second.body).toMatchObject({ read: 2, pending: false });
+    expect(second.counters).toMatchObject({ messages_read: 2, messages_pending: 0 });
     expect((await request(context.app).get('/api/gmail/status').set('Cookie', alice)).body).toMatchObject({
       lastSyncAt: SYNC_TIME.toISOString(),
     });
@@ -554,8 +572,8 @@ describe('incremental and interrupted synchronisations', () => {
 
     const refused = await synchronise();
 
-    expect(refused.status).toBe(503);
-    expect((refused.body as { error: string }).error).toContain('Gmail limite temporairement');
+    expect(refused.state?.outcome).toBe('failure');
+    expect(refused.error).toContain('Gmail limite temporairement');
     expect(await lastSyncAt()).toBeNull();
   });
 
@@ -565,14 +583,14 @@ describe('incremental and interrupted synchronisations', () => {
 
     const first = await synchronise();
 
-    expect(first.body).toMatchObject({ read: 2, retained: 2, classified: 1 });
+    expect(first.counters).toMatchObject({ messages_read: 2, messages_retained: 2, messages_classified: 1 });
     expect(await lastSyncAt()).toBeNull();
     expect(await outcomeOf(MCDONALDS_ACKNOWLEDGEMENT.id)).toBeNull();
 
     ai.forgetRef(undefined);
     const second = await synchronise();
 
-    expect(second.body).toMatchObject({ read: 1, retained: 1, classified: 1 });
+    expect(second.counters).toMatchObject({ messages_read: 1, messages_retained: 1, messages_classified: 1 });
     expect(await applicationsOf()).toEqual([expect.objectContaining({ status: 'acknowledged' })]);
   });
 
@@ -581,7 +599,7 @@ describe('incremental and interrupted synchronisations', () => {
 
     const response = await synchronise();
 
-    expect(response.body).toMatchObject({ read: 23, retained: 23, classified: 23 });
+    expect(response.counters).toMatchObject({ messages_read: 23, messages_retained: 23, messages_classified: 23 });
     expect(ai.requests.map((call) => (call.prompt.match(/<email ref=/g) ?? []).length)).toEqual([10, 10, 3]);
   });
 });
