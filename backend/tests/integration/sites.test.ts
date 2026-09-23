@@ -234,6 +234,23 @@ describe('watched sources (EF-VEI-01 to EF-VEI-05)', () => {
     expect((await api(alice).list()).body).toMatchObject({ items: [{ isActive: true }] });
   });
 
+  it('[EF-VEI-01] [ENF-MAI-03] lists the six source types with what to type for each', async () => {
+    const types = await request(context.app).get('/api/sites/types').set('Cookie', alice);
+
+    expect(types.status).toBe(200);
+    const items = (types.body as { items: { id: string; label: string; identifierHint: string }[] }).items;
+    expect(items.map((type) => type.id)).toEqual([
+      'greenhouse',
+      'lever',
+      'smartrecruiters',
+      'recruitee',
+      'workday',
+      'generic',
+    ]);
+    // The screen shows the name and the hint as they are: it never holds the list itself.
+    expect(items.every((type) => type.label !== '' && type.identifierHint !== '')).toBe(true);
+  });
+
   it('[EF-AUT-05] refuses every route without a session', async () => {
     expect((await request(context.app).get('/api/sites')).status).toBe(401);
     expect(

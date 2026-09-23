@@ -53,7 +53,49 @@ export const SourceViewSchema = z
 
 export const SourceListSchema = z.object({ items: z.array(SourceViewSchema) }).openapi('SourceList');
 
+/**
+ * EF-VEI-01 : un type de source proposé au candidat. L'écran lit cette liste au lieu de la tenir lui-même, pour
+ * qu'ajouter un type reste un fichier et une entrée de registre (ENF-MAI-03).
+ */
+export const SourceTypeSchema = z
+  .object({
+    id: z.enum(SOURCE_ADAPTER_IDS),
+    label: z.string(),
+    /** Ce que le candidat doit saisir, en français (RG-08). */
+    identifierHint: z.string(),
+  })
+  .openapi('SourceType');
+
+export const SourceTypeListSchema = z
+  .object({ items: z.array(SourceTypeSchema) })
+  .openapi('SourceTypeList');
+
 /** EF-VEI-07: what one pass of the watch produced, for the candidate who asked for it. */
+/**
+ * EF-VEI-23, EF-VEI-24 : une source proposée au candidat, déduite des entreprises auxquelles il a déjà postulé.
+ * Elle n'est jamais ajoutée d'office : l'écran la présente pré-remplie, le candidat confirme ou écarte (RG-19).
+ */
+export const SourceSuggestionSchema = z
+  .object({
+    companyId: z.number().int(),
+    companyName: z.string(),
+    /** Le domaine d'où l'entreprise a écrit, retenu par RG-19. */
+    domain: z.string(),
+    /** Le type proposé : l'ATS reconnu à l'expéditeur, ou la page carrières à défaut (EF-VEI-24). */
+    adapter: z.enum(SOURCE_ADAPTER_IDS),
+    /** L'identifiant pré-rempli : l'adresse du domaine pour une page carrières, le nom normalisé sinon (RG-08). */
+    identifier: z.string(),
+    /** Combien de messages de cette entreprise ont porté ce domaine, pour que le candidat juge. */
+    messages: z.number().int(),
+  })
+  .openapi('SourceSuggestion');
+
+export const SourceSuggestionListSchema = z
+  .object({ items: z.array(SourceSuggestionSchema) })
+  .openapi('SourceSuggestionList');
+
+export const CompanyIdSchema = z.object({ companyId: z.coerce.number().int().positive() });
+
 export const WatchReportSchema = z
   .object({
     sourcesChecked: z.number().int(),
@@ -69,4 +111,6 @@ export const WatchReportSchema = z
 export type CreateSourceBody = z.infer<typeof CreateSourceSchema>;
 export type UpdateSourceBody = z.infer<typeof UpdateSourceSchema>;
 export type SourceView = z.infer<typeof SourceViewSchema>;
+export type SourceType = z.infer<typeof SourceTypeSchema>;
+export type SourceSuggestion = z.infer<typeof SourceSuggestionSchema>;
 export type WatchReport = z.infer<typeof WatchReportSchema>;

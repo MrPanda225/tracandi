@@ -9,10 +9,14 @@ import {
   type OpenAPIRegistry,
   SESSION_SECURITY,
 } from '../../lib/openapi.js';
+import { SOURCE_ADAPTERS } from '../../scraper/adapters/index.js';
 import {
   CreateSourceSchema,
   SourceIdSchema,
+  CompanyIdSchema,
   SourceListSchema,
+  SourceSuggestionListSchema,
+  SourceTypeListSchema,
   SourceViewSchema,
   UpdateSourceSchema,
 } from './schemas.js';
@@ -34,6 +38,18 @@ const registerSitesDocs = (registry: OpenAPIRegistry): void => {
       'EF-VEI-01. Sources du candidat, par entreprise, avec la date de leur dernière consultation (EF-VEI-10) ' +
       'et l’erreur de la dernière consultation échouée (EF-VEI-11).',
     responses: { 200: jsonResponse('Sources surveillées', SourceListSchema), ...errorResponses(401) },
+  });
+
+  registry.registerPath({
+    tags: ['Veille'],
+    security: SESSION_SECURITY,
+    method: 'get',
+    path: '/sites/types',
+    summary: 'Types de source pris en charge',
+    description:
+      'EF-VEI-01, EF-VEI-08. Les six types de source, avec leur nom et ce que le candidat doit saisir comme ' +
+      'identifiant (RG-08). L’écran lit cette liste plutôt que de la tenir lui-même (ENF-MAI-03).',
+    responses: { 200: jsonResponse('Types de source', SourceTypeListSchema), ...errorResponses(401) },
   });
 
   registry.registerPath({
@@ -77,6 +93,30 @@ const registerSitesDocs = (registry: OpenAPIRegistry): void => {
   registry.registerPath({
     tags: ['Veille'],
     security: SESSION_SECURITY,
+    method: 'get',
+    path: '/sites/suggestions',
+    summary: 'Sources à surveiller déduites des candidatures',
+    description:
+      'EF-VEI-23, EF-VEI-24. Les entreprises auxquelles le candidat a postulé et qu’il ne surveille pas encore, ' +
+      'avec le domaine d’où elles lui ont écrit (RG-19) et le type de source que ce domaine désigne. Rien n’est ' +
+      'ajouté d’office : la proposition est pré-remplie, le candidat confirme. Aucune requête sortante.',
+    responses: { 200: jsonResponse('Propositions', SourceSuggestionListSchema), ...errorResponses(401) },
+  });
+
+  registry.registerPath({
+    tags: ['Veille'],
+    security: SESSION_SECURITY,
+    method: 'post',
+    path: '/sites/suggestions/{companyId}/dismiss',
+    summary: 'Écarter une proposition',
+    description: 'EF-VEI-25. L’entreprise n’est plus proposée. Elle reste ajoutable à la main.',
+    request: { params: CompanyIdSchema },
+    responses: { 204: { description: 'Proposition écartée' }, ...errorResponses(400, 401, 404) },
+  });
+
+  registry.registerPath({
+    tags: ['Veille'],
+    security: SESSION_SECURITY,
     method: 'post',
     path: '/sites/run',
     summary: 'Consulter toutes les sources actives maintenant',
@@ -104,6 +144,16 @@ export const createSitesModule = (service: WatchService): ApiModule => {
     }),
   );
 
+  router.get('/sites/types', (_req, res) => {
+    res.status(200).json({
+      items: SOURCE_ADAPTERS.map((adapter) => ({
+        id: adapter.id,
+        label: adapter.label,
+        identifierHint: adapter.identifierHint,
+      })),
+    });
+  });
+
   router.post(
     '/sites',
     asyncHandler(async (req, res) => {
@@ -125,6 +175,22 @@ export const createSitesModule = (service: WatchService): ApiModule => {
     asyncHandler(async (req, res) => {
       const { params } = validate(req, { params: SourceIdSchema });
       await service.remove(currentUserId(res), params.id);
+      res.status(NO_CONTENT).end();
+    }),
+  );
+
+  router.get(
+    '/sites/suggestions',
+    asyncHandler(async (_req, res) => {
+      res.status(200).json({ items: await service.suggestions(currentUserId(res)) });
+    }),
+  );
+
+  router.post(
+    '/sites/suggestions/:companyId/dismiss',
+    asyncHandler(async (req, res) => {
+      const { params } = validate(req, { params: CompanyIdSchema });
+      await service.dismissSuggestion(currentUserId(res), params.companyId);
       res.status(NO_CONTENT).end();
     }),
   );

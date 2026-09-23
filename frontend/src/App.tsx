@@ -20,6 +20,7 @@ const DashboardPage = lazy(async () => ({
 const CvWorkshopPage = lazy(async () => ({
   default: (await import('./pages/cv/CvWorkshopPage')).CvWorkshopPage,
 }));
+const SitesPage = lazy(async () => ({ default: (await import('./pages/sites/SitesPage')).SitesPage }));
 
 /** The screens not built yet (T-003 shell), each stating what it will offer instead of an empty page. */
 const UPCOMING_SCREENS = [
@@ -27,11 +28,6 @@ const UPCOMING_SCREENS = [
     path: '/offres',
     title: 'Offres',
     promise: 'Les offres détectées par la veille des sites carrières, triées par pertinence.',
-  },
-  {
-    path: '/sites',
-    title: 'Sites surveillés',
-    promise: 'La liste des entreprises et sites carrières suivis, et l’ajout de nouvelles sources.',
   },
 ] as const;
 
@@ -78,6 +74,14 @@ export function App() {
             element={
               <Suspense fallback={<ScreenLoading label="Chargement de l’Atelier CV…" />}>
                 <CvWorkshopPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/sites"
+            element={
+              <Suspense fallback={<ScreenLoading label="Chargement des sites surveillés…" />}>
+                <SitesPage />
               </Suspense>
             }
           />
