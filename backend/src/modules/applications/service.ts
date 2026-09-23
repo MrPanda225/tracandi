@@ -300,6 +300,21 @@ export const attachIncomingMessage = async (tx: Executor, message: IncomingMessa
   return applicationId;
 };
 
+/**
+ * The id of the user's company bearing this name, creating it when absent (RG-14 deduplication). Entry point of
+ * the applications module for the other modules, which never reach its repository (clean-code.md).
+ * @req RG-14, EF-VEI-01
+ */
+export const ensureCompany = async (
+  tx: Executor,
+  company: { userId: number; name: string },
+): Promise<number> =>
+  repository.upsertCompany(tx, {
+    userId: company.userId,
+    name: company.name,
+    nameKey: normalizeKey(company.name),
+  });
+
 /** An application as its Gmail labels show it: company, status and every attached thread (RG-05). */
 export interface ApplicationThreads {
   companyName: string;
