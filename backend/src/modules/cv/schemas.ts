@@ -17,6 +17,10 @@ const MAX_BULLETS = 20;
 const MAX_DEGREES = 20;
 const MAX_SKILLS = 30;
 const MAX_INTERESTS = 20;
+const MAX_CERTIFICATIONS = 20;
+/** Bounds of a certification year: old enough for any candidate, never a date in a far future. */
+const FIRST_CERTIFICATION_YEAR = 1950;
+const LAST_CERTIFICATION_YEAR = 2100;
 
 const text = (max: number) => z.string().trim().min(1).max(max);
 /** A field of the profile that may be left out; an empty or blank answer counts as absent. */
@@ -66,6 +70,49 @@ export const EducationSchema = z.object({
 
 export const SkillSchema = z.object({ label: text(SHORT), value: text(LINE) });
 
+/**
+ * RG-18: levels of study, from the lowest to the highest. The order is the one of the list, so a comparison
+ * between two levels is their position in it.
+ */
+export const STUDY_LEVELS = ['bac', 'bac_2', 'bac_3', 'bac_5', 'doctorat', 'autre'] as const;
+
+/**
+ * EF-CVX-18, RG-18: the highest level of study reached, obtained or under way. A profile written before this
+ * field existed declares none, and stays readable: an absent level is « non précisé », never a guess.
+ */
+/** What a profile that declares no level of study reads as (EF-CVX-18). */
+export const NO_STUDY_LEVEL = { level: null, isInProgress: false } as const;
+
+export const StudyLevelSchema = z
+  .object({
+    level: z.enum(STUDY_LEVELS).nullish().default(null),
+    isInProgress: z.boolean().nullish().default(false),
+  })
+  .transform((value) => ({ level: value.level ?? null, isInProgress: value.isInProgress ?? false }));
+
+/** RG-18: how each level is written on the CV and on the screen (ENF-UTI-01). */
+export const STUDY_LEVEL_LABELS: Readonly<Record<(typeof STUDY_LEVELS)[number], string>> = {
+  bac: 'Bac',
+  bac_2: 'Bac+2 (BTS, DUT, BUT 2)',
+  bac_3: 'Bac+3 (licence, bachelor, BUT 3)',
+  bac_5: 'Bac+5 (master, diplôme d’ingénieur)',
+  doctorat: 'Doctorat',
+  autre: 'Autre',
+};
+
+/** EF-CVX-19: a certification the candidate holds. The issuer and the year are optional; the name is not. */
+export const CertificationSchema = z.object({
+  name: text(SHORT),
+  issuer: optionalText(SHORT),
+  year: z
+    .number()
+    .int()
+    .min(FIRST_CERTIFICATION_YEAR)
+    .max(LAST_CERTIFICATION_YEAR)
+    .nullish()
+    .transform((value) => value ?? null),
+});
+
 /** The material every generated CV is written from, and nothing else (RG-12). */
 const CvSourceSchema = z.object({
   defaultTitle: text(SHORT),
@@ -75,6 +122,12 @@ const CvSourceSchema = z.object({
   education: z.array(EducationSchema).min(1).max(MAX_DEGREES),
   skills: z.array(SkillSchema).min(1).max(MAX_SKILLS),
   interests: z.array(text(LINE)).max(MAX_INTERESTS),
+  // EF-CVX-19: absent from a profile written before v1.12, which must keep opening (EF-CVX-01).
+  certifications: z
+    .array(CertificationSchema)
+    .max(MAX_CERTIFICATIONS)
+    .nullish()
+    .transform((value) => value ?? []),
 });
 
 /**
@@ -88,6 +141,8 @@ export const CandidateProfileSchema = z
     identity: IdentitySchema,
     location: z.object({ searchArea: text(LINE) }),
     availability: text(LINE),
+    // EF-CVX-18: optional, so that every profile written before v1.12 stays readable.
+    studyLevel: StudyLevelSchema.nullish().transform((value) => value ?? NO_STUDY_LEVEL),
     targets: z.array(TargetSchema).min(1).max(MAX_TARGETS),
     cvSource: CvSourceSchema,
   })
@@ -113,7 +168,15 @@ export const CvContentSchema = z
     profile: text(PARAGRAPH),
     experiences: z.array(ExperienceSchema).min(1).max(MAX_EXPERIENCES),
     education: z.array(EducationSchema).min(1).max(MAX_DEGREES),
+    // EF-CVX-20: written under the FORMATION section when the profile states one.
+    studyLevel: StudyLevelSchema.nullish().transform((value) => value ?? NO_STUDY_LEVEL),
     skills: z.array(SkillSchema).min(1).max(MAX_SKILLS),
+    // EF-CVX-20: a section of its own, and no section at all when the candidate holds none.
+    certifications: z
+    .array(CertificationSchema)
+    .max(MAX_CERTIFICATIONS)
+    .nullish()
+    .transform((value) => value ?? []),
     interests: z.array(text(LINE)).max(MAX_INTERESTS),
   })
   .strict()

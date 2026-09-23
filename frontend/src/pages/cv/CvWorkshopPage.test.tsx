@@ -15,6 +15,7 @@ const PROFILE = {
   },
   location: { searchArea: 'Lyon ou télétravail' },
   availability: 'CDI : immédiatement',
+  studyLevel: { level: 'bac_5', isInProgress: true },
   targets: [{ label: 'Data analyst', contractTypes: ['cdi', 'alternance'], keywords: ['data', 'sql'] }],
   cvSource: {
     defaultTitle: 'Data Analyst',
@@ -34,6 +35,7 @@ const PROFILE = {
       { dates: '2024 – 2026', school: 'Université de Rennes', place: null, degree: 'Master MIAGE', detail: null },
     ],
     skills: [{ label: 'Outils', value: 'SQL, Python' }],
+    certifications: [{ name: 'Tableau Desktop Specialist', issuer: 'Tableau', year: 2025 }],
     interests: ['Basketball'],
   },
 };
@@ -154,6 +156,89 @@ describe('CvWorkshopPage', () => {
     expect(within(skills).getAllByLabelText('Intitulé')).toHaveLength(2);
     await user.click(within(skills).getAllByRole('button', { name: 'Retirer' })[0] as HTMLElement);
     expect(within(skills).getAllByLabelText('Intitulé')).toHaveLength(1);
+  });
+
+  it('[EF-CVX-18] [RG-18] shows the level of study, and says it is under way', async () => {
+    mockApi({ 'GET /profile': () => json(200, PROFILE) });
+
+    renderPage();
+
+    expect(await screen.findByRole('heading', { name: 'Niveau d’études' })).toBeInTheDocument();
+    expect(screen.getByText(/Bac\+5 \(master, diplôme d’ingénieur\) — en cours/)).toBeInTheDocument();
+  });
+
+  it('[EF-CVX-18] shows no level at all when the profile states none', async () => {
+    mockApi({
+      'GET /profile': () => json(200, { ...PROFILE, studyLevel: { level: null, isInProgress: false } }),
+    });
+
+    renderPage();
+
+    await screen.findByText('Alex MARTIN');
+    expect(screen.queryByRole('heading', { name: 'Niveau d’études' })).not.toBeInTheDocument();
+  });
+
+  it('[EF-CVX-19] shows the certifications with their issuer and their year', async () => {
+    mockApi({ 'GET /profile': () => json(200, PROFILE) });
+
+    renderPage();
+
+    expect(await screen.findByRole('heading', { name: 'Certifications' })).toBeInTheDocument();
+    expect(screen.getByText('Tableau Desktop Specialist')).toBeInTheDocument();
+    expect(screen.getByText('Tableau · 2025')).toBeInTheDocument();
+  });
+
+  it('[EF-CVX-19] opens no section when the candidate holds no certification', async () => {
+    mockApi({ 'GET /profile': () => json(200, { ...PROFILE, cvSource: { ...PROFILE.cvSource, certifications: [] } }) });
+
+    renderPage();
+
+    await screen.findByText('Alex MARTIN');
+    expect(screen.queryByRole('heading', { name: 'Certifications' })).not.toBeInTheDocument();
+  });
+
+  it('[EF-CVX-18] [EF-CVX-19] records a level and a certification, and sends them to the API', async () => {
+    const sent = mockApi({
+      'GET /profile': () =>
+        json(200, {
+          ...PROFILE,
+          studyLevel: { level: null, isInProgress: false },
+          cvSource: { ...PROFILE.cvSource, certifications: [] },
+        }),
+      'PUT /profile': () => new Response(null, { status: 204 }),
+    });
+    renderPage();
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: 'Modifier le profil' }));
+    await user.selectOptions(screen.getByLabelText('Niveau le plus élevé'), 'bac_3');
+    await user.click(screen.getByLabelText('Ce diplôme est en cours'));
+
+    const certifications = screen.getByRole('group', { name: 'Certifications' });
+    await user.click(within(certifications).getByRole('button', { name: 'Ajouter une certification' }));
+    await user.type(within(certifications).getByLabelText('Intitulé'), 'TOEIC');
+    await user.type(within(certifications).getByLabelText('Année'), '2024');
+    await user.click(screen.getByRole('button', { name: 'Enregistrer le profil' }));
+
+    expect(sent[0]).toMatchObject({
+      studyLevel: { level: 'bac_3', isInProgress: true },
+      cvSource: { certifications: [{ name: 'TOEIC', issuer: null, year: 2024 }] },
+    });
+  });
+
+  it('[EF-CVX-19] lets the candidate remove every certification, unlike the required groups', async () => {
+    mockApi({ 'GET /profile': () => json(200, PROFILE) });
+    renderPage();
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: 'Modifier le profil' }));
+    const certifications = screen.getByRole('group', { name: 'Certifications' });
+    await user.click(within(certifications).getByRole('button', { name: 'Retirer' }));
+
+    expect(within(certifications).queryByLabelText('Intitulé')).not.toBeInTheDocument();
+    // A group the profile requires keeps its last entry: the button stays disabled there.
+    const skills = screen.getByRole('group', { name: 'Compétences' });
+    expect(within(skills).getByRole('button', { name: 'Retirer' })).toBeDisabled();
   });
 
   it('[ENF-UTI-03] shows a readable message when the profile cannot be read', async () => {

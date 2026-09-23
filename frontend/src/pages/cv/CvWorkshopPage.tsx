@@ -6,6 +6,7 @@ import {
   emptyProfile,
   fetchProfile,
   saveProfile,
+  STUDY_LEVEL_LABELS,
 } from '../../api/profile';
 import { Flash } from '../../components/Flash';
 import { PageHeader } from '../../components/PageHeader';
@@ -93,6 +94,16 @@ function ProfileView({ profile }: { profile: CandidateProfile }) {
         </ul>
       </section>
 
+      {profile.studyLevel.level !== null && (
+        <section className="profile__block" aria-labelledby="profil-niveau">
+          <h2 id="profil-niveau">Niveau d’études</h2>
+          <p className="profile__name">
+            {STUDY_LEVEL_LABELS[profile.studyLevel.level]}
+            {profile.studyLevel.isInProgress ? ' — en cours' : ' — obtenu'}
+          </p>
+        </section>
+      )}
+
       <section className="profile__block" aria-labelledby="profil-competences">
         <h2 id="profil-competences">Compétences</h2>
         <ul className="profile__list">
@@ -103,6 +114,24 @@ function ProfileView({ profile }: { profile: CandidateProfile }) {
           ))}
         </ul>
       </section>
+
+      {cvSource.certifications.length > 0 && (
+        <section className="profile__block" aria-labelledby="profil-certifications">
+          <h2 id="profil-certifications">Certifications</h2>
+          <ul className="profile__list">
+            {cvSource.certifications.map((certification) => (
+              <li key={certification.name}>
+                <strong>{certification.name}</strong>
+                {[certification.issuer, certification.year].filter(Boolean).length > 0 && (
+                  <p className="profile__meta">
+                    {[certification.issuer, certification.year].filter(Boolean).join(' · ')}
+                  </p>
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {cvSource.interests.length > 0 && (
         <section className="profile__block" aria-labelledby="profil-interets">
