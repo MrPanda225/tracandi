@@ -1,3 +1,6 @@
+// The SOFT and WONK axes of Fraunces are used by this page only: they travel with its own chunk (ENF-PERF-01).
+import '@fontsource-variable/fraunces/full.css';
+import '@fontsource-variable/fraunces/full-italic.css';
 import { createScope, createTimeline, type Scope, stagger } from 'animejs';
 import { Fragment, useLayoutEffect, useRef } from 'react';
 import { Noise } from '../../components/reactbits/Noise';

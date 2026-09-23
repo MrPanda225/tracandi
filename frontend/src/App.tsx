@@ -1,14 +1,21 @@
+import { lazy, Suspense } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from './auth/AuthContext';
 import { LOGIN_PATH, RedirectIfAuthenticated, RequireAuth } from './auth/guards';
 import { AppShell } from './components/layout/AppShell';
 import { ApplicationsPage } from './pages/applications/ApplicationsPage';
 import { ApplicationsCacheProvider } from './pages/applications/useApplications';
-import { AuthPage } from './pages/auth/AuthPage';
-import { DashboardPage } from './pages/dashboard/DashboardPage';
 import { DashboardCacheProvider } from './pages/dashboard/useDashboard';
 import { SettingsPage } from './pages/settings/SettingsPage';
 import { UpcomingPage } from './pages/UpcomingPage';
+import { ScreenLoading } from './components/ScreenLoading';
+
+// ENF-PERF-01: these two screens carry what weighs on the first load — the charts of the dashboard, and the fonts,
+// animations and decor of the login page. They are fetched when their route is opened, not before.
+const AuthPage = lazy(async () => ({ default: (await import('./pages/auth/AuthPage')).AuthPage }));
+const DashboardPage = lazy(async () => ({
+  default: (await import('./pages/dashboard/DashboardPage')).DashboardPage,
+}));
 
 /** The screens not built yet (T-003 shell), each stating what it will offer instead of an empty page. */
 const UPCOMING_SCREENS = [
@@ -41,7 +48,9 @@ export function App() {
           path={LOGIN_PATH}
           element={
             <RedirectIfAuthenticated>
-              <AuthPage />
+              <Suspense fallback={<ScreenLoading label="Chargement de la page de connexion…" />}>
+                <AuthPage />
+              </Suspense>
             </RedirectIfAuthenticated>
           }
         />
@@ -56,7 +65,14 @@ export function App() {
             </RequireAuth>
           }
         >
-          <Route path="/" element={<DashboardPage />} />
+          <Route
+            path="/"
+            element={
+              <Suspense fallback={<ScreenLoading label="Chargement du tableau de bord…" />}>
+                <DashboardPage />
+              </Suspense>
+            }
+          />
           <Route path="/candidatures" element={<ApplicationsPage />} />
           <Route path="/reglages" element={<SettingsPage />} />
           {UPCOMING_SCREENS.map((screen) => (

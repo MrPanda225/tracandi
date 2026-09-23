@@ -16,6 +16,7 @@ import {
 } from '../../src/db/schema.js';
 import { encryptSecret } from '../../src/lib/crypto.js';
 import { MAX_MESSAGES_PER_PASS } from '../../src/modules/emails/fetcher.js';
+import { CLASSIFY_CONCURRENCY } from '../../src/modules/emails/sync.js';
 import { createGmailMailbox } from '../../src/modules/emails/mailbox.js';
 import { saveGmailAccount } from '../../src/modules/emails/repository.js';
 import { createFakeGmail, type FakeGmail } from '../fixtures/emails/fakeGmail.js';
@@ -455,6 +456,33 @@ describe('incremental and interrupted synchronisations', () => {
     expect(second.body).toEqual({ read: 0, retained: 0, classified: 0 });
     expect(await countRows()).toEqual(afterFirst);
     expect(ai.requests).toHaveLength(1);
+  });
+
+  it('[ENF-PERF-02] classifies several batches at once and records them in the order of the messages', async () => {
+    const alerts = jobAlerts(25);
+    await setUp(alerts);
+    let inFlight = 0;
+    let highest = 0;
+    const complete = ai.provider.complete;
+    ai.provider.complete = async (request) => {
+      inFlight += 1;
+      highest = Math.max(highest, inFlight);
+      // Long enough for the calls of one window to overlap, short enough not to slow the suite.
+      await new Promise((done) => setTimeout(done, 5));
+      try {
+        return await complete(request);
+      } finally {
+        inFlight -= 1;
+      }
+    };
+
+    const report = await synchronise().expect(200);
+
+    expect(report.body).toEqual({ read: 25, retained: 25, classified: 25 });
+    expect(highest).toBe(CLASSIFY_CONCURRENCY);
+    expect(ai.requests).toHaveLength(3);
+    // RG-04 reads the statuses in the order the messages arrived: the answers are recorded batch after batch.
+    expect((await emailsOf()).map((email) => email.gmailMessageId)).toEqual(alerts.map((m) => m.id));
   });
 
   it('[ENF-FIA-03] keeps the batches classified before an AI outage, and finishes at the next pass without duplicate', async () => {

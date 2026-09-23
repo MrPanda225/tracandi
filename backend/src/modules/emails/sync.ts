@@ -21,6 +21,12 @@ import type { Executor } from './repository.js';
 
 /** ENF-COU-01: messages classified by one AI call. */
 export const CLASSIFY_BATCH_SIZE = 10;
+/**
+ * ENF-PERF-02: a pass spends its time waiting for the AI, one batch after the other. Several batches are classified
+ * at once, and their answers are recorded strictly in the order of the batches — RG-04 reads the statuses in the
+ * order the messages arrived, and an interruption must leave the oldest messages recorded (ENF-FIA-03).
+ */
+export const CLASSIFY_CONCURRENCY = 3;
 
 /** Counters of one synchronisation (EF-GML-04). */
 export interface SyncReport {
@@ -111,9 +117,10 @@ const toMessageToClassify = (message: RetainedMessage): MessageToClassify => ({
   snippet: message.snippet,
 });
 
-const batchesOf = <T>(items: readonly T[]): T[][] =>
-  Array.from({ length: Math.ceil(items.length / CLASSIFY_BATCH_SIZE) }, (_, index) =>
-    items.slice(index * CLASSIFY_BATCH_SIZE, (index + 1) * CLASSIFY_BATCH_SIZE),
+/** The items in slices of `size`, in order; the last slice holds what is left. */
+const chunksOf = <T>(items: readonly T[], size: number): T[][] =>
+  Array.from({ length: Math.ceil(items.length / size) }, (_, index) =>
+    items.slice(index * size, (index + 1) * size),
   );
 
 /** Each message of the batch with its answer (reference = position + 1); a message left unanswered is left out. */
@@ -237,7 +244,8 @@ const recordBatch = async (
 /**
  * One synchronisation of a user: incremental fetch (T-302), classification by the AI router (RG-13: Gemini then
  * Claude), storage and attachment, then Gmail labels unless the user turned them off.
- * @req EF-GML-04, EF-GML-06, EF-GML-08 to EF-GML-17, EF-GML-19, EF-CAN-11, EF-CFG-01, ENF-FIA-03, RG-17
+ * @req EF-GML-04, EF-GML-06, EF-GML-08 to EF-GML-17, EF-GML-19, EF-CAN-11, EF-CFG-01, ENF-FIA-03,
+ * ENF-PERF-02, RG-17
  */
 const createSyncRun = ({
   db,
@@ -283,13 +291,18 @@ const createSyncRun = ({
       ? createThreadLabeler({ mailbox, cache: databaseLabelCache(db, userId) })
       : null;
     let classified = 0;
-    for (const batch of batchesOf(retained)) {
-      const { provider, pairs } = await classifyBatch(userId, batch);
-      const recorded = await db.transaction((tx) =>
-        recordBatch(tx, { userId, pairs, provider, processedAt: clock() }),
-      );
-      if (labeler) await labelBatch(userId, labeler, recorded);
-      classified += pairs.length;
+    for (const window of chunksOf(chunksOf(retained, CLASSIFY_BATCH_SIZE), CLASSIFY_CONCURRENCY)) {
+      // The batches of a window are classified at once; a failure of one of them leaves the ones before it recorded.
+      const answers = await Promise.allSettled(window.map((batch) => classifyBatch(userId, batch)));
+      for (const answer of answers) {
+        if (answer.status === 'rejected') throw answer.reason;
+        const { provider, pairs } = answer.value;
+        const recorded = await db.transaction((tx) =>
+          recordBatch(tx, { userId, pairs, provider, processedAt: clock() }),
+        );
+        if (labeler) await labelBatch(userId, labeler, recorded);
+        classified += pairs.length;
+      }
     }
     // A message the AI skipped, or one the bounded pass left behind, is still unprocessed: the next pass must list
     // it again from the same date.
