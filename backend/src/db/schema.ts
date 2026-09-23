@@ -230,6 +230,26 @@ export const watchedSites = pgTable(
   (t) => [unique('uq_watched_sites_source').on(t.companyId, t.adapter, t.identifier)],
 );
 
+/**
+ * EF-VEI-25 : les propositions de source que le candidat a écartées. Sans cette trace, la même entreprise lui
+ * serait reproposée à chaque ouverture de l'écran.
+ */
+export const dismissedSourceSuggestions = pgTable(
+  'dismissed_source_suggestions',
+  {
+    userId: integer()
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    companyId: integer()
+      .notNull()
+      .references(() => companies.id, { onDelete: 'cascade' }),
+    dismissedAt: createdAt(),
+  },
+  (t) => [
+    primaryKey({ name: 'pk_dismissed_source_suggestions', columns: [t.userId, t.companyId] }),
+  ],
+);
+
 export const jobOffers = pgTable(
   'job_offers',
   {

@@ -14,6 +14,13 @@ interface CapturedQuery {
   params: unknown[];
 }
 
+/** ENF-PERF-05 : borne d'une requête qui agrège, faute de pouvoir être sélective. */
+const MAX_EXECUTION_MS = 50;
+
+interface AnalyzedPlan {
+  'Execution Time': number;
+}
+
 interface PlanNode {
   'Node Type': string;
   'Relation Name'?: string;
@@ -89,5 +96,25 @@ describe('watch queries on the load of ENF-PERF-01', () => {
     }
 
     expect([...scanned].filter((table) => LARGE_TABLES.has(table))).toEqual([]);
+  });
+});
+
+describe('suggestion of sources on the load of ENF-PERF-01', () => {
+  /*
+   * `listSuggestionDomains` agrège **tous** les messages reçus du candidat pour compter leurs domaines : comme
+   * les indicateurs du tableau de bord, elle lit par nature l'essentiel de la table, et un `Seq Scan` y est le
+   * bon plan, pas un défaut (Q-17). Ce qui doit tenir, c'est son temps.
+   */
+  it(`[ENF-PERF-05] reads the domains of the candidate in less than ${MAX_EXECUTION_MS} ms`, async () => {
+    const queries = await capture(((db: never) => repository.listSuggestionDomains(db, userId)) as never);
+    expect(queries.length).toBeGreaterThan(0);
+
+    for (const query of queries) {
+      const result = await pool.query<{ 'QUERY PLAN': AnalyzedPlan[] }>(
+        `EXPLAIN (ANALYZE, FORMAT JSON) ${query.text}`,
+        query.params,
+      );
+      expect(result.rows[0]?.['QUERY PLAN'][0]?.['Execution Time'] ?? Infinity).toBeLessThan(MAX_EXECUTION_MS);
+    }
   });
 });

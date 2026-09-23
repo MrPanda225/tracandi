@@ -24,15 +24,26 @@ const emptyDraft = (types: readonly SourceType[]): NewSource => ({
  */
 export function NewSourceForm({
   types,
+  prefill,
   onAdd,
 }: {
   types: readonly SourceType[];
+  /** EF-VEI-23 : une proposition acceptée pré-remplit le formulaire, que le candidat vérifie avant d'enregistrer. */
+  prefill: NewSource | null;
   onAdd: (source: NewSource) => Promise<void>;
 }) {
   const companyId = useId();
   const adapterId = useId();
   const identifierId = useId();
   const [draft, setDraft] = useState<NewSource>(() => emptyDraft(types));
+  const [prefilled, setPrefilled] = useState<NewSource | null>(null);
+
+  /* Une proposition acceptée remplace le brouillon en cours ; sans cette comparaison, elle l'écraserait à
+     chaque rendu et le candidat ne pourrait plus rien corriger. */
+  if (prefill !== null && prefill !== prefilled) {
+    setPrefilled(prefill);
+    setDraft(prefill);
+  }
   const [refusals, setRefusals] = useState<Refusals>({});
   const [failure, setFailure] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -48,6 +59,7 @@ export function NewSourceForm({
     try {
       await onAdd({ ...draft, adapter });
       setDraft(emptyDraft(types));
+      setPrefilled(null);
     } catch (error) {
       setFailure(messageOf(error));
       setRefusals(refusalsOf(error));
