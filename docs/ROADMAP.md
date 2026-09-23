@@ -214,7 +214,9 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
   Premiers correctifs livrés hors tâche (cache de session 60 s, délai de connexion 8 s, 503 explicite ;
   classement de 3 lots en parallèle ; écrans lourds chargés à la demande ; modèle saturé passé au suivant sans
   attente et délai `Retry-After` respecté) ; la mesure ENF-PERF-01 à 03 et le choix
-  d'hébergement restent à traiter ici.* — script de génération de données, mesures ENF-PERF-01 à 03.
+  d'hébergement restent à traiter ici. Correctif du 23/09/2026 : une base injoignable était encore renvoyée en 500
+  quand `pg` la signalait par un libellé plutôt que par un code (« Connection terminated unexpectedly ») ; le
+  pool ferme désormais ses connexions inactives avant l'hôte (60 s) et garde la liaison en vie.* — script de génération de données, mesures ENF-PERF-01 à 03.
 - [ ] **T-704 Revue de sécurité finale** — checklist du skill `security`, `npm audit`, revue des journaux,
   exposition réseau, localisation des données, démarrage `docker compose up` après `scripts/setup.sh`.
   *Exigences* : ENF-SEC-01, ENF-SEC-10, ENF-RGP-03, ENF-POR-01.

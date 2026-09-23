@@ -16,7 +16,20 @@ const UNREACHABLE_CODES = new Set([
   '08006', // connection_failure
   '08001', // sqlclient_unable_to_establish_sqlconnection
 ]);
-const POOL_TIMEOUT_MESSAGE = 'timeout exceeded when trying to connect';
+/**
+ * Failures a hosted database causes without any system code: `pg` reports them as plain messages. Neon suspends and
+ * recycles its computes, so a connection handed out by the pool may already be dead.
+ */
+const UNREACHABLE_MESSAGES = [
+  'timeout exceeded when trying to connect',
+  'connection terminated',
+  'connection ended unexpectedly',
+  'is not queryable',
+  'socket hang up',
+  'server closed the connection',
+  'terminating connection',
+  'connection refused',
+];
 
 const codeOf = (error: unknown): unknown =>
   error instanceof Error ? (Reflect.get(error, 'code') ?? codeOf(Reflect.get(error, 'cause'))) : undefined;
@@ -34,13 +47,14 @@ const messagesOf = (error: unknown): string[] =>
     : [];
 
 /**
- * Tells whether a failure means the database could not be reached at all — a hosted database asleep, restarting or
- * cut off — rather than a query the database refused. Lets the API answer 503 with a readable message instead of a
- * masked 500 (api-conventions).
+ * Tells whether a failure means the database could not be reached at all — a hosted database asleep, restarting,
+ * recycling its connections or cut off — rather than a query the database refused. Lets the API answer 503 with a
+ * readable message instead of a masked 500 (api-conventions).
  * @req ENF-SEC-04, ENF-FIA-01
  */
 export const isDatabaseUnreachable = (error: unknown): boolean => {
   const code = codeOf(error);
   if (typeof code === 'string' && UNREACHABLE_CODES.has(code)) return true;
-  return messagesOf(error).some((message) => message.includes(POOL_TIMEOUT_MESSAGE));
+  const wording = messagesOf(error).join(' ').toLowerCase();
+  return UNREACHABLE_MESSAGES.some((message) => wording.includes(message));
 };
