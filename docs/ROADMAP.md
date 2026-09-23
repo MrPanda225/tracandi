@@ -282,6 +282,13 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
   et mots-clés, CV, expériences, formations, compétences, centres d'intérêt ; listes saisies une valeur par ligne,
   entrées répétables). Les champs refusés par l'API sont nommés et le formulaire est conservé. L'écran est chargé à
   la demande (son formulaire ne pèse pas sur le premier chargement).
+  *Aperçu du 23/09/2026* : la consultation n'est plus une liste de champs mais **le CV lui-même**, sur une feuille
+  A4 au ratio exact, une colonne, une page. Les proportions viennent des constantes du rendu `.docx` — largeur
+  utile 10 620 twips, tabulation à 2 150, marges 643 et 567, Calibri 10 pt, bandeaux `#D9E2F3` bordés `#AAB5CE` —
+  exprimées en pourcentage de la feuille (`cqw`), donc justes à toute taille d'écran, sans facteur d'échelle.
+  Quand le contenu dépasse la page, l'écran le dit au lieu de le laisser découvrir (RG-11). Ce que le profil porte
+  et que le CV n'affiche pas — zone de recherche et cibles, qui servent à noter les offres (RG-09) — reste visible
+  sous l'aperçu.
   *Reste à faire* : génération d'un CV adapté (T-504), téléchargement Word et PDF (EF-CVX-11, T-503), réponse de
   motivation (T-505, EF-CVX-13).
 
