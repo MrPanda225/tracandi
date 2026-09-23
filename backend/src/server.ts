@@ -13,6 +13,8 @@ import type { ProviderName } from './llm/types.js';
 import { createLlmJournal } from './llm/repository.js';
 import { createLlmRouter } from './llm/router.js';
 import { createApplicationsModule } from './modules/applications/routes.js';
+import { createProfileModule } from './modules/cv/routes.js';
+import { createProfileService } from './modules/cv/service.js';
 import { createApplicationsService } from './modules/applications/service.js';
 import { OWASP_SCRYPT_PARAMS } from './modules/auth/password.js';
 import { createAuthModules } from './modules/auth/routes.js';
@@ -112,6 +114,7 @@ const app = createApp({
     createApplicationsModule(createApplicationsService({ db: database.db, clock: systemClock })),
     createStatsModule(createStatsService({ db: database.db, clock: systemClock })),
     ...createGmailModules({ service: gmailService, sync: gmailSync, frontendOrigin: config.frontendOrigin }),
+    createProfileModule(createProfileService({ db: database.db, clock: systemClock })),
     createSettingsModule(describeAssignments(config.llm)),
   ],
 });

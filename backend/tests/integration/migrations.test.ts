@@ -22,6 +22,7 @@ const EXPECTED_TABLES = [
   'app_settings',
   'application_status_history',
   'applications',
+  'candidate_profiles',
   'companies',
   'cv_keywords',
   'cv_versions',
@@ -96,6 +97,8 @@ describe('migrations', () => {
         'PATCH /gmail/settings',
         'POST /gmail/sync',
         'GET /settings/ai',
+        'GET /profile',
+        'PUT /profile',
         'DELETE /gmail/connection',
       ].sort(),
     );

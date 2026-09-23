@@ -116,6 +116,8 @@ Commande de contrôle : `/project:check-req EF-CAN-07`.
 | ENF-SEC-18 | T-004 | `src/modules/auth/credentials.test.ts`, `auth.test.ts` | couverte |
 | ENF-SEC-19 | T-004 | `auth.test.ts` (réponse identique, 429 à la 11e tentative) | couverte |
 | ENF-SEC-20 | T-004 | `credentials.test.ts`, `auth.test.ts` | couverte |
+| EF-CVX-01 | T-501 | `backend/tests/integration/profile.test.ts` (404 tant qu'aucun profil, profil rendu tel qu'il a été écrit, 404 si le document stocké ne correspond plus au schéma, isolation entre comptes, 401 sans session) ; `src/modules/cv/schemas.test.ts` (profil d'exemple accepté) | couverte |
+| EF-CVX-02 | T-501 | `profile.test.ts` (remplacement complet, 400 avec détails sur e-mail invalide, aucune cible, type de contrat hors RG-09, champ inconnu — l'ancien profil est conservé ; 415 hors JSON) ; `schemas.test.ts` (14 cas : champs facultatifs, bornes, refus du champ inconnu) | couverte |
 | EF-DOC-01 | T-005 | `src/app.test.ts`, `migrations.test.ts` (chaque route documentée) | couverte |
 | EF-DOC-02 | T-005 | `src/app.test.ts` (page Swagger) + démonstration `/api/docs` | couverte |
 | EF-AUT-01 (interface) | T-006 | `frontend/src/pages/auth/AuthPage.test.tsx` (inscription, adresse déjà utilisée) | couverte |
