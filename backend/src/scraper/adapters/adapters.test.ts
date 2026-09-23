@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import type { CollectedPage, RequestOptions } from '../http.js';
 import { adapterFor, SOURCE_ADAPTERS } from './index.js';
+import { genericAdapter } from './generic.js';
 import { greenhouseAdapter } from './greenhouse.js';
 import { leverAdapter } from './lever.js';
 import { recruiteeAdapter } from './recruitee.js';
@@ -24,6 +25,9 @@ const collector = (...answers: readonly (string | Partial<CollectedPage>)[]) => 
   const calls: Call[] = [];
   let next = 0;
   const deps: AdapterDeps = {
+    // The generic page reads through a model; every other adapter ignores it (ENF-MAI-03).
+    runTask: (<T>(_task: string, input: { schema: { parse: (value: unknown) => T } }) =>
+      Promise.resolve({ data: input.schema.parse({ offers: [] }), provider: 'groq_1' as const })) as AdapterDeps['runTask'],
     fetch: (url, options) => {
       calls.push({ url, options });
       const answer = answers[Math.min(next, answers.length - 1)] ?? '';
@@ -36,16 +40,17 @@ const collector = (...answers: readonly (string | Partial<CollectedPage>)[]) => 
 };
 
 describe('SOURCE_ADAPTERS', () => {
-  it('[ENF-MAI-03] answers for every source type but the generic page, which arrives with T-403', () => {
+  it('[ENF-MAI-03] answers for every source type of the data model, and for no other', () => {
     expect(SOURCE_ADAPTERS.map((adapter) => adapter.id)).toEqual([
       'greenhouse',
       'lever',
       'smartrecruiters',
       'recruitee',
       'workday',
+      'generic',
     ]);
     expect(adapterFor('greenhouse')).toBe(greenhouseAdapter);
-    expect(adapterFor('generic')).toBeUndefined();
+    expect(adapterFor('generic')).toBe(genericAdapter);
   });
 
   it.each(SOURCE_ADAPTERS)('[EF-VEI-01] $id names itself in French for the candidate', (adapter) => {
@@ -53,7 +58,14 @@ describe('SOURCE_ADAPTERS', () => {
     expect(adapter.identifierHint).not.toBe('');
   });
 
-  const slugAdapters: readonly SourceAdapter[] = [
+  /** What the candidate types for each type of source (RG-08). */
+const IDENTIFIERS: Readonly<Record<string, string>> = {
+  workday: 'https://nova.wd3.myworkdayjobs.com/fr-FR/Carrieres',
+  generic: 'https://novagroup.example/nous-rejoindre',
+};
+const identifierOf = (id: string): string => IDENTIFIERS[id] ?? 'novagroup';
+
+const slugAdapters: readonly SourceAdapter[] = [
     greenhouseAdapter,
     leverAdapter,
     smartrecruitersAdapter,
@@ -72,8 +84,7 @@ describe('SOURCE_ADAPTERS', () => {
   it.each(SOURCE_ADAPTERS)(
     '[ENF-FIA-02] $id turns a refusal of the source into a readable failure',
     async (adapter) => {
-      const identifier =
-        adapter.id === 'workday' ? 'https://nova.wd3.myworkdayjobs.com/fr-FR/Carrieres' : 'novagroup';
+      const identifier = identifierOf(adapter.id);
       const { deps } = collector({ status: 503, body: 'Service Unavailable' });
 
       await expect(adapter.fetchOffers(identifier, deps)).rejects.toThrow(SourceFetchError);
@@ -81,14 +92,15 @@ describe('SOURCE_ADAPTERS', () => {
     },
   );
 
-  it.each(SOURCE_ADAPTERS)(
+  /** The generic page reads HTML, not JSON: what an unusable answer means there is tested in `generic.test.ts`. */
+  const jsonAdapters = SOURCE_ADAPTERS.filter((adapter) => adapter.id !== 'generic');
+
+  it.each(jsonAdapters)(
     '[ENF-FIA-02] $id refuses an answer that is not the expected JSON',
     async (adapter) => {
-      const identifier =
-        adapter.id === 'workday' ? 'https://nova.wd3.myworkdayjobs.com/fr-FR/Carrieres' : 'novagroup';
       const { deps } = collector('<html>maintenance</html>');
 
-      await expect(adapter.fetchOffers(identifier, deps)).rejects.toThrow(SourceFetchError);
+      await expect(adapter.fetchOffers(identifierOf(adapter.id), deps)).rejects.toThrow(SourceFetchError);
     },
   );
 });

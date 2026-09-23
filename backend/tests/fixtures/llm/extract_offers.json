@@ -1,0 +1,18 @@
+{
+  "offers": [
+    {
+      "title": "Data Analyst",
+      "url": "https://atelier-aurore.fr/offres/data-analyst",
+      "location": "Paris",
+      "contract": "CDI",
+      "summary": "Construction et maintien des tableaux de bord de la direction."
+    },
+    {
+      "title": "Alternance — Data Engineer",
+      "url": "https://jobs.atelier-aurore.fr/alternance-data-engineer",
+      "location": "Nantes",
+      "contract": "Alternance",
+      "summary": "Participation aux pipelines de la plateforme de données."
+    }
+  ]
+}

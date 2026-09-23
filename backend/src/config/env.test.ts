@@ -41,14 +41,35 @@ describe('loadConfig', () => {
         redirectUri: 'http://localhost:4000/api/gmail/callback',
         tokenEncryptionKey: Buffer.from(ENCRYPTION_KEY_HEX, 'hex'),
       },
-      scheduler: { timezone: 'Europe/Paris', gmailCron: '*/30 * * * *' },
+      scheduler: { timezone: 'Europe/Paris', gmailCron: '*/30 * * * *', watchCron: '0 7,13,19 * * *' },
+      // ENF-COL-03: no contact address by default, so nothing is collected until one is given.
+      scraper: { contact: null },
     });
   });
 
   it('[EF-GML-03] reads the time zone and the cron expression of the Gmail synchronisation', () => {
     const config = loadConfig({ ...VALID_ENV, SCHEDULER_TIMEZONE: 'America/Montreal', CRON_GMAIL: '*/15 8-20 * * *' });
 
-    expect(config.scheduler).toEqual({ timezone: 'America/Montreal', gmailCron: '*/15 8-20 * * *' });
+    expect(config.scheduler).toEqual({
+      timezone: 'America/Montreal',
+      gmailCron: '*/15 8-20 * * *',
+      watchCron: '0 7,13,19 * * *',
+    });
+  });
+
+  it('[EF-VEI-06] reads the schedule of the watch, 7, 13 and 19 o’clock by default', () => {
+    expect(loadConfig(VALID_ENV).scheduler.watchCron).toBe('0 7,13,19 * * *');
+    expect(loadConfig({ ...VALID_ENV, CRON_SCRAPER: '0 9 * * 1-5' }).scheduler.watchCron).toBe('0 9 * * 1-5');
+    expect(() => loadConfig({ ...VALID_ENV, CRON_SCRAPER: 'tous les matins' })).toThrow();
+  });
+
+  it('[ENF-COL-03] reads the contact address the collector identifies itself with', () => {
+    expect(loadConfig({ ...VALID_ENV, SCRAPER_CONTACT_EMAIL: 'alex@example.com' }).scraper.contact).toBe(
+      'alex@example.com',
+    );
+    // Left empty, nothing is collected rather than being collected anonymously.
+    expect(loadConfig({ ...VALID_ENV, SCRAPER_CONTACT_EMAIL: '' }).scraper.contact).toBeNull();
+    expect(() => loadConfig({ ...VALID_ENV, SCRAPER_CONTACT_EMAIL: 'pas-une-adresse' })).toThrow();
   });
 
   it.each([

@@ -1,5 +1,7 @@
 import { z } from 'zod';
 import { contractType, siteAdapter } from '../../db/schema.js';
+import type { RunTaskInput, TaskResult } from '../../llm/router.js';
+import type { LlmTaskName } from '../../llm/types.js';
 import type { CollectedPage, RequestOptions } from '../http.js';
 
 /** One of the source types of the data model (`site_adapter`). */
@@ -46,10 +48,24 @@ export const NormalizedOfferSchema = z.object({
 
 export type NormalizedOffer = z.infer<typeof NormalizedOfferSchema>;
 
-/** What an adapter is given to reach the network: the responsible client and nothing else (rules/scraping.md). */
+/**
+ * What an adapter is given to do its work: the responsible client (rules/scraping.md) and, for the sources that
+ * need one, the AI router. `runTask` is optional because only the generic career page reads a site through a
+ * model; an adapter that needs it and does not get it says so rather than answering nothing (EF-IA-04).
+ */
 export interface AdapterDeps {
   fetch: (url: string, options?: RequestOptions) => Promise<CollectedPage>;
+  runTask?: RunAdapterTask;
 }
+
+/**
+ * The AI router as an adapter sees it: already bound to the candidate whose watch is running, so that no adapter
+ * has to carry a user identifier around to have its call journalled (EF-IA-06).
+ */
+export type RunAdapterTask = <T>(
+  task: LlmTaskName,
+  input: Omit<RunTaskInput<T>, 'userId'>,
+) => Promise<TaskResult<T>>;
 
 /**
  * A type of source of the watch. Adding one means writing a file here and adding it to the registry, nothing else.
