@@ -5,11 +5,13 @@ import {
   addSource,
   fetchSources,
   fetchSourceTypes,
+  fetchSuggestions,
   removeSource,
   runWatch,
   setSourceActive,
   type NewSource,
   type Source,
+  type SourceSuggestion,
   type SourceType,
 } from '../../api/sites';
 import { Flash } from '../../components/Flash';
@@ -17,6 +19,7 @@ import { PageHeader } from '../../components/PageHeader';
 import { Skeleton } from '../../components/Skeleton';
 import { formatDateTime } from '../../lib/format';
 import { NewSourceForm } from './NewSourceForm';
+import { Suggestions } from './Suggestions';
 import './SitesPage.css';
 
 /** EF-VEI-07 : ce qu'une passe a produit, lu dans les compteurs de son exécution (EF-EXE-03). */
@@ -128,14 +131,17 @@ export function SitesPage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [run, setRun] = useState<RunState | null>(null);
+  const [suggestions, setSuggestions] = useState<SourceSuggestion[]>([]);
+  const [prefill, setPrefill] = useState<NewSource | null>(null);
 
   /* Ne lit que les sources : la liste des types ne bouge pas d'une consultation à l'autre, et la recharger à
      chaque fois risquerait de l'effacer avec une valeur capturée trop tôt. */
   const load = useCallback(
     (signal?: AbortSignal) =>
-      fetchSources(signal)
-        .then((items) => {
+      Promise.all([fetchSources(signal), fetchSuggestions(signal)])
+        .then(([items, proposed]) => {
           setSources(items);
+          setSuggestions(proposed);
           setError(null);
         })
         .catch((failure: unknown) => {
@@ -230,7 +236,19 @@ export function SitesPage() {
         )}
       </div>
 
-      <NewSourceForm types={types} onAdd={handleAdd} />
+      <Suggestions
+        suggestions={suggestions}
+        onWatch={(suggestion) =>
+          setPrefill({
+            companyName: suggestion.companyName,
+            adapter: suggestion.adapter,
+            identifier: suggestion.identifier,
+          })
+        }
+        onDismissed={() => void load()}
+      />
+
+      <NewSourceForm types={types} prefill={prefill} onAdd={handleAdd} />
 
       {sources === null && error === null && (
         <div role="status" aria-live="polite" className="sites-loading">

@@ -251,6 +251,27 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
   affiche aussi. Un refus de l'API s'affiche sous le champ qu'il nomme (ENF-SEC-04).
   *Reste à faire* : l'écran Offres (EF-VEI-16 à 20, 22), qui demande d'abord une API des offres.
 
+- [x] **T-407 Sources déduites des candidatures** — *demande du Business Owner du 23/09/2026 (cahier v1.13,
+  BES-25)* : proposer comme sources à surveiller les entreprises auxquelles le candidat a déjà postulé, d'après
+  le domaine d'où elles lui ont écrit.
+  *Exigences* : EF-VEI-23, EF-VEI-24, EF-VEI-25, RG-19.
+  *Fini quand* : une entreprise déjà surveillée n'est pas proposée ; une proposition écartée ne revient pas ;
+  aucune requête sortante.
+  *Livré* : `modules/sites/suggestion-rules.ts` (RG-19 : choix du domaine, exclusion des plateformes, des
+  messageries grand public et des ATS ; EF-VEI-24 : type déduit du domaine de l'expéditeur),
+  `suggestions.ts` (lecture et mise à l'écart), table `dismissed_source_suggestions` (migration 0011),
+  `GET /api/sites/suggestions` et `POST /api/sites/suggestions/{companyId}/dismiss`, section « Entreprises
+  auxquelles vous avez postulé » sur l'écran Sites.
+  *Choix assumés* : **aucune requête sortante** — tout se lit dans ce que la synchronisation Gmail a déjà
+  enregistré, et le type d'ATS est reconnu au domaine de l'expéditeur, pas en sondant le site. **Rien n'est
+  ajouté d'office** : « Surveiller » pré-remplit le formulaire, le candidat vérifie l'identifiant et valide
+  (RG-19). Seule l'adresse de l'expéditeur est lue, jamais le corps des messages (ENF-RGP-01).
+  *Performance* : la requête agrège tous les messages reçus du candidat, comme les indicateurs du tableau de
+  bord ; elle est donc mesurée au temps (< 50 ms sur le jeu de charge, ENF-PERF-05) et non au plan, un `Seq Scan`
+  y étant le bon plan (Q-17).
+  *Reste à faire* : deviner le slug exact d'un job board demanderait de sonder l'ATS ; l'identifiant proposé est
+  le nom normalisé de l'entreprise, que le candidat corrige au besoin.
+
 ## Lot 5 — CV et réponses
 
 - [x] **T-501 Profil de référence** — schéma zod, stockage en base par utilisateur (Q-16), API.

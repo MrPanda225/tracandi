@@ -48,7 +48,17 @@ const mockApi = (routes: Record<string, Route>) => {
 const withSources = (...items: unknown[]): Record<string, Route> => ({
   'GET /sites/types': () => json(200, { items: TYPES }),
   'GET /sites': () => json(200, { items }),
+  'GET /sites/suggestions': () => json(200, { items: [] }),
 });
+
+const SUGGESTION = {
+  companyId: 12,
+  companyName: 'Arkema',
+  domain: 'arkema.com',
+  adapter: 'generic',
+  identifier: 'https://arkema.com',
+  messages: 3,
+};
 
 const renderPage = () =>
   render(
@@ -122,6 +132,7 @@ describe('SitesPage', () => {
     let added = false;
     const sent = mockApi({
       'GET /sites/types': () => json(200, { items: TYPES }),
+      'GET /sites/suggestions': () => json(200, { items: [] }),
       'GET /sites': () => json(200, { items: added ? [SOURCE] : [] }),
       'POST /sites': () => {
         added = true;
@@ -183,6 +194,7 @@ describe('SitesPage', () => {
     let isActive = true;
     const sent = mockApi({
       'GET /sites/types': () => json(200, { items: TYPES }),
+      'GET /sites/suggestions': () => json(200, { items: [] }),
       'GET /sites': () => json(200, { items: [{ ...SOURCE, isActive }] }),
       'PATCH /sites/1': () => {
         isActive = false;
@@ -203,6 +215,7 @@ describe('SitesPage', () => {
     let removed = false;
     mockApi({
       'GET /sites/types': () => json(200, { items: TYPES }),
+      'GET /sites/suggestions': () => json(200, { items: [] }),
       'GET /sites': () => json(200, { items: removed ? [] : [SOURCE] }),
       'DELETE /sites/1': () => {
         removed = true;
@@ -269,6 +282,71 @@ describe('SitesPage', () => {
     renderPage();
 
     expect(await screen.findByRole('button', { name: 'Consulter maintenant' })).toBeDisabled();
+  });
+
+  it('[EF-VEI-23] proposes the companies the candidate applied to and does not watch yet', async () => {
+    mockApi({ ...withSources(), 'GET /sites/suggestions': () => json(200, { items: [SUGGESTION] }) });
+
+    renderPage();
+
+    const proposed = within(await screen.findByRole('list', { name: 'Sources proposées' }));
+    expect(proposed.getByText('Arkema')).toBeInTheDocument();
+    expect(proposed.getByText(/arkema\.com · 3 messages reçus/)).toBeInTheDocument();
+  });
+
+  it('[EF-VEI-23] [RG-19] fills the form with the proposal rather than adding it outright', async () => {
+    mockApi({ ...withSources(), 'GET /sites/suggestions': () => json(200, { items: [SUGGESTION] }) });
+    renderPage();
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: 'Surveiller' }));
+
+    // Rien n'est enregistré : le candidat vérifie l'identifiant, puis valide lui-même.
+    expect(screen.getByLabelText('Entreprise')).toHaveValue('Arkema');
+    expect(screen.getByLabelText('Identifiant')).toHaveValue('https://arkema.com');
+    expect(screen.getByLabelText('Type de source')).toHaveValue('generic');
+  });
+
+  it('[EF-VEI-23] lets the candidate correct what was filled in', async () => {
+    mockApi({ ...withSources(), 'GET /sites/suggestions': () => json(200, { items: [SUGGESTION] }) });
+    renderPage();
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: 'Surveiller' }));
+    const identifier = screen.getByLabelText('Identifiant');
+    await user.clear(identifier);
+    await user.type(identifier, 'https://arkema.com/carrieres');
+
+    expect(identifier).toHaveValue('https://arkema.com/carrieres');
+  });
+
+  it('[EF-VEI-25] sets a proposal aside, and stops showing it', async () => {
+    let dismissed = false;
+    mockApi({
+      ...withSources(),
+      'GET /sites/suggestions': () => json(200, { items: dismissed ? [] : [SUGGESTION] }),
+      'POST /sites/suggestions/12/dismiss': () => {
+        dismissed = true;
+        return new Response(null, { status: 204 });
+      },
+    });
+    renderPage();
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: 'Écarter' }));
+
+    await waitFor(() =>
+      expect(screen.queryByRole('list', { name: 'Sources proposées' })).not.toBeInTheDocument(),
+    );
+  });
+
+  it('[EF-VEI-23] shows no proposal block when there is nothing to propose', async () => {
+    mockApi(withSources(SOURCE));
+
+    renderPage();
+
+    await screen.findByRole('list', { name: 'Sources surveillées' });
+    expect(screen.queryByRole('list', { name: 'Sources proposées' })).not.toBeInTheDocument();
   });
 
   it('[ENF-UTI-03] shows a readable message when the sources cannot be read', async () => {
