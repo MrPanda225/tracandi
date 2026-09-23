@@ -14,6 +14,8 @@
 | 1.9 | 23/09/2026 | Sahiré YAPI (Business Owner) | À valider — indice lexical de refus : un refus poli ouvert par un accusé de réception ne doit plus être classé « accusé de réception » (BES-21, RG-17) |
 | 1.10 | 23/09/2026 | Sahiré YAPI (Business Owner) | À valider — RG-17 étendue : liste des expressions de refus et d'accusé de réception donnée par le Business Owner, en français et en anglais (BES-22) |
 | 1.11 | 23/09/2026 | Sahiré YAPI (Business Owner) | À valider — traitements longs exécutés en file d'attente, l'interface répondant aussitôt et suivant l'avancement en direct (BES-23, EXM-15, EF-EXE-01 à 05, ENF-PERF-06) |
+| 1.13 | 23/09/2026 | Sahiré YAPI (Business Owner) | À valider — sources à surveiller déduites des entreprises auxquelles le candidat a déjà postulé, proposées et jamais ajoutées d'office (BES-25, EF-VEI-23 à 25, RG-19) |
+| 1.14 | 23/09/2026 | Sahiré YAPI (Business Owner) | À valider — toutes les sources proposées ajoutables d'un seul geste (BES-26, EF-VEI-26) |
 
 > Document de référence pour le développement. Toute évolution de périmètre passe par une mise à jour
 > de ce fichier **avant** le code. Chaque exigence porte un identifiant stable, repris dans
@@ -114,6 +116,8 @@ des candidatures, la veille des offres et la production de CV adaptés.
 | BES-19 | « Pour la synchronisation on peut définir la période à vérifier qui doit être modifiable sur l'écran, mais pour éviter ces rate limits on peut passer par les mails sur la période 1 mois. » (après refus de quota de l'API Gmail, 22/09/2026) |
 | BES-20 | « J'ai l'abonnement max avec Claude et je ne veux pas payer de crédit en plus […] je veux utiliser ces trois là Llama 3.3 70B, Qwen, Kimi K2 de Groq. » (22/09/2026) |
 | BES-21 | « Il faut qu'il puisse bien labéliser les offres (quand c'est refusé ne pas confondre avec accusé de réception etc.) en vérifiant la présence de certains mots dans le mail. » (23/09/2026) |
+| BES-26 | « Rajoute un bouton pour surveiller tous les sites de la proposition d'un coup. » (23/09/2026) |
+| BES-25 | « L'idée de cette section, c'est de récupérer depuis les offres que j'ai récupérées leur nom de site à travers les mails, et stocker dans ma BD. » (23/09/2026) |
 | BES-24 | « Ajoute une section Profil pour définir ses expériences, ce que l'on recherche aussi, et ses formations (niveau d'études master, licence, etc.) et les certificats passés et tout. » (23/09/2026) |
 | BES-22 | « Pour reconnaître les statuts des mails il faut regarder le contenu et voir la présence de ces termes. Statut/Refusée : “pas retenue”, “ne correspond malheureusement pas”, “au regret”, “suite favorable”, “nous ne pouvons y donner”. Statut/En attente : “bien reçu votre candidature”, “accusé de réception de votre candidature”, “candidature a bien été”. Fais pareil pour les termes en anglais et rajoute quelques termes qui vont dans le sens du statut. » (23/09/2026) |
 | BES-23 | « Applique un système de queue pour mes traitements trop longs et même des websockets, avec une architecture asynchrone. » (23/09/2026) |
@@ -232,6 +236,10 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | EF-VEI-20 | Le système doit créer une candidature au statut Envoyée lorsque le candidat déclare avoir postulé à une offre. | M | EXM-01 | T | Candidature liée à l'offre et au CV utilisé, avec le type de contrat de l'offre. |
 | EF-VEI-21 | Le système doit attribuer à chaque nouvelle offre un type de contrat. | M | EXM-11 | T | Offre Greenhouse « Apprenti Data Engineer » : type = alternance ; offre sans mention : non précisé. |
 | EF-VEI-22 | Le candidat peut filtrer les offres par type de contrat. | S | EXM-11 | T | — |
+| EF-VEI-23 | Le système doit proposer au candidat, comme sources à surveiller, les entreprises auxquelles il a déjà postulé et qu'il ne surveille pas encore, avec le domaine d'où elles lui ont écrit (RG-19). | S | EXM-05 | T | Entreprise ayant écrit depuis `arkema.com` et sans source : proposée avec ce domaine. Entreprise déjà surveillée : non proposée. |
+| EF-VEI-24 | Le système doit proposer le type de source d'une entreprise lorsque le domaine d'envoi désigne un ATS connu, et « page carrières » sinon. | S | EXM-05 | T | Message envoyé depuis `no-reply@greenhouse.io` : type Greenhouse proposé. |
+| EF-VEI-25 | Le candidat peut écarter une proposition, qui ne lui est alors plus présentée. | S | EXM-05 | T | Proposition écartée : absente de la liste au rappel suivant. |
+| EF-VEI-26 | Le candidat peut ajouter d'un seul geste toutes les sources proposées, et le système lui rend compte de celles qu'il n'a pas pu ajouter, avec la raison. | S | EXM-05 | T | Trois propositions dont une refusée : deux sources ajoutées, la refusée nommée avec sa raison. |
 
 ### 6.4 Production de CV et de réponses (CVX)
 
@@ -445,6 +453,7 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | RG-17 | Indices lexicaux de statut (v1.10) : dans un message **reçu**, l'objet et l'extrait conservé sont comparés, sans accents ni casse, à une liste d'expressions de refus puis à une liste d'expressions d'accusé de réception, en français et en anglais. Une expression de refus impose « refus » (un refus poli ouvert par « nous avons bien reçu votre candidature » est donc classé « refus ») ; certaines expressions — « suite favorable », « suite positive » — ne valent refus que sous une négation proche. À défaut de refus, une expression d'accusé de réception impose « accusé de réception » lorsque l'IA n'a rien reconnu de plus fort. Jamais corrigés : une proposition d'embauche, un entretien reconnu (vers l'accusé de réception), une alerte emploi (vers le refus), un message envoyé par le candidat. |
 | RG-14 | Clé normalisée d'un nom : minuscules, accents supprimés, tout caractère non alphanumérique remplacé par une espace, espaces multiples réduits, espaces de bord supprimées. |
 | RG-18 | Niveaux d'études (v1.12) : **Bac**, **Bac+2** (BTS, DUT, BUT 2), **Bac+3** (licence, bachelor, BUT 3), **Bac+5** (master, diplôme d'ingénieur), **Doctorat**, **Autre**. Le niveau est celui le plus élevé atteint ; il est marqué « obtenu » ou « en cours ». Un profil qui n'en déclare aucun vaut « non précisé » et n'en fait rien figurer sur le CV. |
+| RG-19 | Déduction d'une source (v1.13) : le domaine retenu pour une entreprise est celui de l'expéditeur des messages **reçus** rattachés à ses candidatures, le plus fréquent d'abord. Les domaines des plateformes connues (`platform_domains`) et des fournisseurs de messagerie grand public sont écartés : ils ne désignent pas l'entreprise. Une proposition n'est **jamais** ajoutée d'office ; le candidat la confirme — une par une ou toutes ensemble (EF-VEI-26) — ou l'écarte. L'identifiant proposé pour un job board est une **hypothèse** déduite du nom de l'entreprise : une source ajoutée en lot peut donc échouer à sa première consultation, et le candidat la corrige alors depuis la liste. Rien n'est déduit du corps des messages, dont seuls 300 caractères sont conservés (ENF-RGP-01). |
 | RG-16 | Date de candidature saisie par le candidat : à la création, la date de dernière activité et la date du statut initial valent la date de candidature. Quand la date de candidature est modifiée, la date de dernière activité prend la nouvelle date si aucune activité n'a eu lieu depuis la création, sinon la plus récente des deux. |
 
 ## 10. Cas d'utilisation principaux
@@ -519,5 +528,7 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | BES-21 | EXM-01 | RG-17, EF-GML-08, EF-GML-11, EF-CAN-11 |
 | BES-22 | EXM-01 | RG-17 |
 | BES-23 | EXM-15 | EF-EXE-01 à 05, ENF-PERF-06 |
+| BES-25 | EXM-05 | EF-VEI-23, 24, 25, RG-19 |
+| BES-26 | EXM-05 | EF-VEI-26 |
 
 La traçabilité fine exigence → tâche → test est tenue à jour dans `docs/TRACABILITE.md`.

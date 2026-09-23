@@ -12,9 +12,10 @@ import type { AdapterDeps } from '../../scraper/adapters/types.js';
 import { ensureCompany } from '../applications/service.js';
 import type { ProfileService } from '../cv/service.js';
 import { createWatchPass } from './pass.js';
+import { createSuggestionReader } from './suggestions.js';
 import * as repository from './repository.js';
 import type { SourceRow } from './repository.js';
-import type { CreateSourceBody, SourceView, WatchReport } from './schemas.js';
+import type { CreateSourceBody, SourceSuggestion, SourceView, WatchReport } from './schemas.js';
 
 const SOURCE_NOT_FOUND = 'Source surveillée introuvable';
 const ALREADY_WATCHED = 'Cette source est déjà surveillée pour cette entreprise';
@@ -42,6 +43,10 @@ export interface WatchService {
   checkNow: (userId: number) => Promise<number>;
   /** @req EF-VEI-06, ENF-FIA-02 */
   checkEverySource: () => Promise<void>;
+  /** @req EF-VEI-23, EF-VEI-24 */
+  suggestions: (userId: number) => Promise<SourceSuggestion[]>;
+  /** @req EF-VEI-25 */
+  dismissSuggestion: (userId: number, companyId: number) => Promise<void>;
 }
 
 export interface WatchServiceDeps {
@@ -123,6 +128,7 @@ export const createWatchService = (deps: WatchServiceDeps): WatchService => {
   const { db, profiles, queue, logger } = deps;
   const catalogue = createSourceCatalogue(db);
   const pass = createWatchPass(deps);
+  const suggestions = createSuggestionReader(db);
 
   const thresholdOf = async (userId: number): Promise<number> => {
     const [row] = await db
@@ -163,6 +169,10 @@ export const createWatchService = (deps: WatchServiceDeps): WatchService => {
     ...catalogue,
 
     checkNow: (userId) => queue.enqueue(workFor(userId, 'manual')),
+
+    suggestions: (userId) => suggestions.list(userId),
+
+    dismissSuggestion: (userId, companyId) => suggestions.dismiss(userId, companyId),
 
     async checkEverySource() {
       for (const userId of await repository.listUsersWithActiveSources(db)) {

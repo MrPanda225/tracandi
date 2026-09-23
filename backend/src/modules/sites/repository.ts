@@ -1,6 +1,14 @@
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, count, eq, inArray, notExists, sql } from 'drizzle-orm';
 import type { Database } from '../../db/client.js';
-import { companies, jobOffers, watchedSites } from '../../db/schema.js';
+import {
+  applications,
+  companies,
+  dismissedSourceSuggestions,
+  emails,
+  jobOffers,
+  platformDomains,
+  watchedSites,
+} from '../../db/schema.js';
 import type { NormalizedOffer, SiteAdapterId } from '../../scraper/adapters/types.js';
 
 type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0];
@@ -177,4 +185,88 @@ export const insertOffers = async (
     .onConflictDoNothing({ target: [jobOffers.siteId, jobOffers.externalId] })
     .returning({ id: jobOffers.id });
   return rows.length;
+};
+
+/** Une entreprise sans source, et les domaines d'où elle a écrit au candidat (RG-19). */
+export interface SuggestionRow {
+  companyId: number;
+  companyName: string;
+  domain: string;
+  messages: number;
+}
+
+/**
+ * EF-VEI-23 : les domaines des messages **reçus** rattachés aux candidatures du candidat, pour les entreprises
+ * qu'il ne surveille pas encore et dont il n'a pas écarté la proposition. Un domaine par ligne, avec le nombre de
+ * messages qui en viennent ; le choix entre eux est une règle, pas une requête (RG-19).
+ *
+ * Seule l'adresse de l'expéditeur est lue : jamais le corps, dont 300 caractères seulement sont conservés
+ * (ENF-RGP-01).
+ * @req EF-VEI-23, EF-VEI-25, RG-19, EF-AUT-06
+ */
+export const listSuggestionDomains = async (db: Executor, userId: number): Promise<SuggestionRow[]> => {
+  const domain = sql<string>`lower(split_part(${emails.fromAddress}, '@', 2))`;
+  const rows = await db
+    .select({
+      companyId: companies.id,
+      companyName: companies.name,
+      domain,
+      messages: count(emails.id),
+    })
+    .from(emails)
+    .innerJoin(applications, eq(applications.id, emails.applicationId))
+    .innerJoin(companies, eq(companies.id, applications.companyId))
+    .where(
+      and(
+        /* ENF-PERF-04 : redondant avec `companies.user_id`, mais c'est lui qui ouvre `ix_emails_user_thread` ;
+           sans cette borne, le planificateur lisait toute la table `emails`. */
+        eq(emails.userId, userId),
+        eq(companies.userId, userId),
+        eq(emails.direction, 'inbound'),
+        sql`${emails.fromAddress} like '%@%'`,
+        // Une entreprise déjà surveillée n'a rien à proposer, quelle que soit la source (EF-VEI-23).
+        notExists(
+          db
+            .select({ one: sql`1` })
+            .from(watchedSites)
+            .where(eq(watchedSites.companyId, companies.id)),
+        ),
+        notExists(
+          db
+            .select({ one: sql`1` })
+            .from(dismissedSourceSuggestions)
+            .where(
+              and(
+                eq(dismissedSourceSuggestions.userId, userId),
+                eq(dismissedSourceSuggestions.companyId, companies.id),
+              ),
+            ),
+        ),
+      ),
+    )
+    .groupBy(companies.id, companies.name, domain);
+  return rows;
+};
+
+/** Les domaines des plateformes connues, pour les écarter d'une proposition (RG-19). */
+export const listPlatformDomains = async (db: Executor): Promise<Set<string>> => {
+  const rows = await db.select({ domain: platformDomains.domain }).from(platformDomains);
+  return new Set(rows.map((row) => row.domain.toLowerCase()));
+};
+
+/**
+ * EF-VEI-25 : retient qu'une proposition a été écartée. Deux refus de suite ne sont pas une erreur.
+ * @returns faux quand l'entreprise n'est pas celle du candidat (EF-AUT-06).
+ */
+export const dismissSuggestion = async (db: Executor, userId: number, companyId: number): Promise<boolean> => {
+  const owned = await db
+    .select({ id: companies.id })
+    .from(companies)
+    .where(and(eq(companies.id, companyId), eq(companies.userId, userId)));
+  if (owned.length === 0) return false;
+  await db
+    .insert(dismissedSourceSuggestions)
+    .values({ userId, companyId })
+    .onConflictDoNothing({ target: [dismissedSourceSuggestions.userId, dismissedSourceSuggestions.companyId] });
+  return true;
 };
