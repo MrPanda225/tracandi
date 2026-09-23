@@ -207,8 +207,30 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
   *Fini quand* : test avec entreprise inventée rejetée.
 - [ ] **T-505 Réponse de motivation** — tâche IA, contrôle 80–140 mots.
   *Exigences* : EF-CVX-12.
-- [ ] **T-506 Écran Atelier CV** — génération, téléchargement, réponse de motivation modifiable.
+- [~] **T-506 Écran Atelier CV** — génération, téléchargement, réponse de motivation modifiable.
   *Exigences* : EF-CVX-13.
+  *Livré (23/09/2026, partie profil)* : écran `/atelier-cv` — consultation du profil de référence section par
+  section (EF-CVX-01) et modification complète (EF-CVX-02 : identité, recherche, cibles avec leurs types de contrat
+  et mots-clés, CV, expériences, formations, compétences, centres d'intérêt ; listes saisies une valeur par ligne,
+  entrées répétables). Les champs refusés par l'API sont nommés et le formulaire est conservé. L'écran est chargé à
+  la demande (son formulaire ne pèse pas sur le premier chargement).
+  *Reste à faire* : génération d'un CV adapté (T-504), téléchargement Word et PDF (EF-CVX-11, T-503), réponse de
+  motivation (T-505, EF-CVX-13).
+
+- [x] **T-507 Niveau d'études et certifications du profil** — *demande du Business Owner du 23/09/2026
+  (cahier v1.12, BES-24)* : le profil de référence porte le niveau d'études (RG-18) et les certifications, l'écran
+  Atelier CV les affiche et les modifie, et le CV généré les reprend.
+  *Exigences* : EF-CVX-18, EF-CVX-19, EF-CVX-20, RG-18.
+  *Fini quand* : niveau hors liste et certification sans intitulé refusés ; un profil écrit avant v1.12 continue
+  de s'ouvrir ; aucune section vide sur le CV.
+  *Livré* : `modules/cv/schemas.ts` — `STUDY_LEVELS`, `StudyLevelSchema`, `CertificationSchema`, repris dans
+  `CandidateProfileSchema` **et** `CvContentSchema` ; `render.ts` écrit le niveau sous la section FORMATION et
+  ouvre une section CERTIFICATIONS seulement si le candidat en a. Écran : section de consultation, sélecteur de
+  niveau avec la case « en cours », groupe répétable de certifications que le candidat peut vider entièrement.
+  *Choix assumés* : les deux champs sont **facultatifs** — un profil enregistré avant cette version reste lisible
+  (EF-CVX-01), là où un champ obligatoire l'aurait rendu introuvable, le document étant reparsé à chaque lecture.
+  Le niveau est un champ du profil, distinct de la liste des diplômes de `cvSource.education` qu'il résume.
+  Une année de certification qui n'est pas un entier reste absente plutôt que fausse.
 
 ## Lot 6 — Tableau de bord
 

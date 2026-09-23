@@ -1,5 +1,11 @@
+/*
+ * `minmax(0, 1fr)`, never the implicit `auto` column: an `auto` track grows to the max-content of its items, so
+ * the chart — whose SVG keeps the width recharts last measured — widened the whole page past the screen and
+ * dragged the rest of the dashboard out of view on a phone (ENF-UTI-02).
+ */
 .dashboard {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: clamp(0.75rem, 0.4rem + 1vw, 1.25rem);
 }
 

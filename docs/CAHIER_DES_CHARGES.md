@@ -114,6 +114,7 @@ des candidatures, la veille des offres et la production de CV adaptés.
 | BES-19 | « Pour la synchronisation on peut définir la période à vérifier qui doit être modifiable sur l'écran, mais pour éviter ces rate limits on peut passer par les mails sur la période 1 mois. » (après refus de quota de l'API Gmail, 22/09/2026) |
 | BES-20 | « J'ai l'abonnement max avec Claude et je ne veux pas payer de crédit en plus […] je veux utiliser ces trois là Llama 3.3 70B, Qwen, Kimi K2 de Groq. » (22/09/2026) |
 | BES-21 | « Il faut qu'il puisse bien labéliser les offres (quand c'est refusé ne pas confondre avec accusé de réception etc.) en vérifiant la présence de certains mots dans le mail. » (23/09/2026) |
+| BES-24 | « Ajoute une section Profil pour définir ses expériences, ce que l'on recherche aussi, et ses formations (niveau d'études master, licence, etc.) et les certificats passés et tout. » (23/09/2026) |
 | BES-22 | « Pour reconnaître les statuts des mails il faut regarder le contenu et voir la présence de ces termes. Statut/Refusée : “pas retenue”, “ne correspond malheureusement pas”, “au regret”, “suite favorable”, “nous ne pouvons y donner”. Statut/En attente : “bien reçu votre candidature”, “accusé de réception de votre candidature”, “candidature a bien été”. Fais pareil pour les termes en anglais et rajoute quelques termes qui vont dans le sens du statut. » (23/09/2026) |
 | BES-23 | « Applique un système de queue pour mes traitements trop longs et même des websockets, avec une architecture asynchrone. » (23/09/2026) |
 
@@ -253,6 +254,9 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | EF-CVX-15 | Le système doit reformuler les expériences, le profil et les compétences du CV adapté avec le vocabulaire de l'offre, pour chaque exigence de l'offre à laquelle une donnée du profil répond. | M | EXM-12 | T | Offre exigeant « gestion des stocks », profil mentionnant « rotation des stocks » : l'expression de l'offre figure dans le CV. |
 | EF-CVX-16 | Le système doit afficher, pour chaque CV adapté, le taux de couverture des mots-clés de l'offre et la liste des mots-clés non couverts. | S | EXM-12 | T | Taux entier de 0 à 100 ; un mot-clé est couvert s'il figure dans le texte du CV. |
 | EF-CVX-17 | Le système doit signaler un CV adapté dont le taux de couverture est inférieur à T %, T paramétrable avec 60 par défaut. | S | EXM-12 | T | Couverture de 45 % avec T = 60 : avertissement affiché. |
+| EF-CVX-18 | Le candidat peut renseigner dans son profil de référence son niveau d'études, choisi dans la liste RG-18, et préciser s'il est obtenu ou en cours. | S | EXM-07 | T | Niveau hors liste : réponse 400. Profil sans niveau : accepté, le niveau vaut « non précisé ». |
+| EF-CVX-19 | Le candidat peut renseigner dans son profil de référence ses certifications, chacune avec son intitulé, l'organisme qui la délivre et son année. | S | EXM-07 | T | Certification sans intitulé : réponse 400. Profil sans certification : accepté. |
+| EF-CVX-20 | Le système doit faire figurer dans le CV généré le niveau d'études du candidat et, lorsqu'il en a, une section « Certifications ». | S | EXM-07 | T | CV d'un profil sans certification : aucune section vide. |
 
 ### 6.5 Tableau de bord (TDB)
 
@@ -440,6 +444,7 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | RG-13 | Routage IA (v1.8) : trois emplacements Groq (modèles gratuits, choisis dans la configuration) sont essayés dans l'ordre, puis les secours historiques. Classement des messages, notation des offres, extraction de pages → Groq 1, 2, 3, Gemini, Claude. CV adapté, réponse de motivation → Groq 1, 2, 3, Claude, Gemini. Un emplacement vide est ignoré. |
 | RG-17 | Indices lexicaux de statut (v1.10) : dans un message **reçu**, l'objet et l'extrait conservé sont comparés, sans accents ni casse, à une liste d'expressions de refus puis à une liste d'expressions d'accusé de réception, en français et en anglais. Une expression de refus impose « refus » (un refus poli ouvert par « nous avons bien reçu votre candidature » est donc classé « refus ») ; certaines expressions — « suite favorable », « suite positive » — ne valent refus que sous une négation proche. À défaut de refus, une expression d'accusé de réception impose « accusé de réception » lorsque l'IA n'a rien reconnu de plus fort. Jamais corrigés : une proposition d'embauche, un entretien reconnu (vers l'accusé de réception), une alerte emploi (vers le refus), un message envoyé par le candidat. |
 | RG-14 | Clé normalisée d'un nom : minuscules, accents supprimés, tout caractère non alphanumérique remplacé par une espace, espaces multiples réduits, espaces de bord supprimées. |
+| RG-18 | Niveaux d'études (v1.12) : **Bac**, **Bac+2** (BTS, DUT, BUT 2), **Bac+3** (licence, bachelor, BUT 3), **Bac+5** (master, diplôme d'ingénieur), **Doctorat**, **Autre**. Le niveau est celui le plus élevé atteint ; il est marqué « obtenu » ou « en cours ». Un profil qui n'en déclare aucun vaut « non précisé » et n'en fait rien figurer sur le CV. |
 | RG-16 | Date de candidature saisie par le candidat : à la création, la date de dernière activité et la date du statut initial valent la date de candidature. Quand la date de candidature est modifiée, la date de dernière activité prend la nouvelle date si aucune activité n'a eu lieu depuis la création, sinon la plus récente des deux. |
 
 ## 10. Cas d'utilisation principaux
@@ -496,6 +501,7 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | BES-04 | EXM-04 | EF-CAN-12, EF-TDB-07 |
 | BES-05 | EXM-05, EXM-06 | EF-VEI-01 à 18, ENF-COL-01 à 04 |
 | BES-06 | EXM-07 | EF-CVX-01, 02, 04 à 11 |
+| BES-24 | EXM-07 | EF-CVX-18, 19, 20, RG-18 |
 | BES-07 | EXM-08 | EF-CVX-12, 13 |
 | BES-08 | EXM-09 | EF-TDB-01 à 08 |
 | BES-09 | EXM-10 | EF-IA-01 à 06, EF-CFG-02, 03, ENF-COU-01 |

@@ -37,7 +37,7 @@ export const isAbortError = (error: unknown): boolean =>
 export const messageOf = (error: unknown): string => (error instanceof ApiError ? error.message : GENERIC_MESSAGE);
 
 interface RequestOptions {
-  method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   body?: unknown;
   signal?: AbortSignal;
 }
