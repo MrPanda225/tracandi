@@ -8,8 +8,9 @@ import * as schema from './schema.js';
 const POOL_MAX_CONNECTIONS = 10;
 // Coming back to a screen within minutes reuses open TLS connections instead of opening new ones to Neon.
 const IDLE_TIMEOUT_MS = 5 * 60_000;
-// Neon suspends idle computes: the first connection may take several seconds (cold start).
-const CONNECTION_TIMEOUT_MS = 15_000;
+// Neon suspends idle computes: the first connection may take a few seconds (cold start). Beyond that the database
+// is down rather than asleep, and the request is answered 503 rather than left hanging (ENF-PERF-01).
+const CONNECTION_TIMEOUT_MS = 8_000;
 
 /** Typed Drizzle database, the only entry point to PostgreSQL for repositories (ADR-02). */
 export type Database = NodePgDatabase<typeof schema>;

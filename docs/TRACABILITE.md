@@ -130,7 +130,7 @@ Commande de contrôle : `/project:check-req EF-CAN-07`.
 | ENF-UTI-02 (shell) | T-003 | `AppShell.test.tsx` (écran courant signalé) ; captures 360 px et 1440 px (Chrome sans interface, menu fermé) | couverte |
 | ENF-UTI-03 (shell) | T-003 | `frontend/src/components/Flash.test.tsx` (erreur en alerte) ; `DashboardPage.test.tsx` (squelette au premier chargement, derniers chiffres conservés si l'actualisation échoue) ; `api/client.test.ts` (API injoignable) | couverte |
 | EF-AUT-06 (interface) | T-003 | `AppShell.test.tsx` (chiffres de la session précédente jamais montrés au compte suivant) | couverte |
-| ENF-PERF-01 | T-003, T-703 | `DashboardPage.test.tsx` (retour au tableau de bord : derniers chiffres affichés aussitôt) — mesure sur le jeu de charge en T-703 | partielle |
+| ENF-PERF-01 | T-003, T-703 | `DashboardPage.test.tsx` (retour au tableau de bord : derniers chiffres affichés aussitôt) — mesure sur le jeu de charge en T-703 ; `src/modules/auth/service.ts` (session résolue gardée 60 s en mémoire : un aller-retour base en moins par requête, oubliée à la déconnexion) ; `tests/integration/auth.test.ts` (déconnexion → 401 immédiat, session expirée à J+7 → 401) | partielle |
 | EF-TDB-01 à 09 (API) | T-601 | `backend/tests/integration/stats.test.ts` (un test par indicateur, isolation EF-AUT-06, 401) ; `src/modules/stats/rules.test.ts` (RG-07, semaines) | couverte |
 | RG-07 | T-601 | `stats/rules.test.ts` (arrondi, total nul) ; `stats.test.ts` (taux global et par type de contrat) | couverte |
 | ENF-PERF-05 | T-601 | `tests/integration/stats-query-plans.test.ts` (`EXPLAIN ANALYZE` de chaque requête du tableau de bord sur le jeu de charge : < 50 ms) | couverte |

@@ -209,7 +209,10 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
   *Fini quand* : une sauvegarde puis une restauration de contrôle réussissent ; durée de restauration mesurée.
 - [ ] **T-702 Purge RGPD** — commande `npm run data:purge` avec confirmation.
   *Exigences* : ENF-RGP-02.
-- [ ] **T-703 Jeu de charge et performance** — script de génération de données, mesures ENF-PERF-01 à 03.
+- [ ] **T-703 Jeu de charge et performance** — *ouvert le 23/09/2026 par les journaux de production : chaque requête
+  payait deux allers-retours vers Neon (session puis données), et une base injoignable répondait 500 après 15 s.
+  Premiers correctifs livrés hors tâche (cache de session 60 s, délai de connexion 8 s, 503 explicite) ; la mesure
+  ENF-PERF-01 à 03 et le choix d'hébergement restent à traiter ici.* — script de génération de données, mesures ENF-PERF-01 à 03.
 - [ ] **T-704 Revue de sécurité finale** — checklist du skill `security`, `npm audit`, revue des journaux,
   exposition réseau, localisation des données, démarrage `docker compose up` après `scripts/setup.sh`.
   *Exigences* : ENF-SEC-01, ENF-SEC-10, ENF-RGP-03, ENF-POR-01.
