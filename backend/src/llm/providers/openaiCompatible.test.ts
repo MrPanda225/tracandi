@@ -18,8 +18,8 @@ const completion = {
 
 const providerWith = (fetchImpl: typeof fetch) =>
   createOpenAiCompatibleProvider({
-    name: 'groq_llama',
-    model: 'llama-3.3-70b-versatile',
+    name: 'groq_1',
+    model: 'openai/gpt-oss-120b',
     baseUrl: GROQ_BASE_URL,
     apiKey: 'gsk-test-key',
     fetchImpl,
@@ -36,7 +36,7 @@ describe('createOpenAiCompatibleProvider', () => {
     expect(init.method).toBe('POST');
     expect(init.signal).toBe(REQUEST.signal);
     expect(JSON.parse(String(init.body))).toEqual({
-      model: 'llama-3.3-70b-versatile',
+      model: 'openai/gpt-oss-120b',
       max_tokens: 16_000,
       response_format: { type: 'json_object' },
       messages: [

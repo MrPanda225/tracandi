@@ -5,13 +5,14 @@ import type { Logger } from '../lib/logger.js';
 import { type Sleep, wait } from '../lib/rateLimiter.js';
 import type { LlmCompletion, LlmOutcome, LlmProvider, LlmTaskName, ProviderName } from './types.js';
 
-const VOLUME_ROUTE = ['groq_llama', 'groq_kimi', 'groq_qwen', 'gemini', 'claude'] as const;
-const WRITING_ROUTE = ['groq_kimi', 'groq_llama', 'groq_qwen', 'gemini', 'claude'] as const;
+// RG-13 (v1.8): the three Groq slots in order, then the historical fallbacks — Gemini first for the volume tasks,
+// Claude first for the writing ones.
+const VOLUME_ROUTE = ['groq_1', 'groq_2', 'groq_3', 'gemini', 'claude'] as const;
+const WRITING_ROUTE = ['groq_1', 'groq_2', 'groq_3', 'claude', 'gemini'] as const;
 
 /**
- * RG-13 (v1.7): providers of each task, in order of preference — the free Groq models first, Gemini then Claude as
- * fallbacks. Adding a task = one entry here, one prompt, one schema (skill `add-llm-task`); adding a task never
- * changes an adapter (ENF-MAI-04).
+ * Providers of each task, in order of preference. Adding a task = one entry here, one prompt, one schema
+ * (skill `add-llm-task`); adding a task never changes an adapter (ENF-MAI-04).
  */
 export const TASK_ROUTES: Readonly<Record<LlmTaskName, readonly ProviderName[]>> = {
   classify_emails: VOLUME_ROUTE,

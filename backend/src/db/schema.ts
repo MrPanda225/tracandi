@@ -64,14 +64,7 @@ export const emailCategory = pgEnum('email_category', [
   'job_alert',
 ]);
 // Who classified a message: one of the AI route entries of RG-13, or the candidate (EF-CAN-10).
-export const classifier = pgEnum('classifier', [
-  'claude',
-  'gemini',
-  'groq_llama',
-  'groq_qwen',
-  'groq_kimi',
-  'manual',
-]);
+export const classifier = pgEnum('classifier', ['claude', 'gemini', 'groq_1', 'groq_2', 'groq_3', 'manual']);
 export const messageOutcome = pgEnum('message_outcome', ['retained', 'prefiltered', 'off_topic']);
 export const siteAdapter = pgEnum('site_adapter', [
   'greenhouse',
@@ -82,15 +75,9 @@ export const siteAdapter = pgEnum('site_adapter', [
   'generic',
 ]);
 export const offerStatus = pgEnum('offer_status', ['new', 'saved', 'dismissed', 'applied']);
-// RG-13 (v1.7): one value per route entry. The free Groq models carry their own, so `llm_calls` and the
-// monthly cost (EF-CFG-03) tell them apart; the model itself is configured, never hard-coded (rules/llm.md).
-export const llmProvider = pgEnum('llm_provider', [
-  'claude',
-  'gemini',
-  'groq_llama',
-  'groq_qwen',
-  'groq_kimi',
-]);
+// RG-13 (v1.8): one value per route entry. The three Groq entries are numbered slots, not model families: the
+// catalogue of a free account changes, the model of each slot is configured (rules/llm.md) and journaled beside it.
+export const llmProvider = pgEnum('llm_provider', ['claude', 'gemini', 'groq_1', 'groq_2', 'groq_3']);
 export const llmTask = pgEnum('llm_task', [
   'classify_emails',
   'score_offers',

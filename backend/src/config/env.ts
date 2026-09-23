@@ -53,11 +53,11 @@ const EnvSchema = z.object({
   ANTHROPIC_MODEL: optionalValue,
   GEMINI_API_KEY: optionalValue,
   GEMINI_MODEL: optionalValue,
-  // RG-13 (v1.7): the free Groq models; one key, one model name per route entry, each one optional.
+  // RG-13 (v1.8): three Groq slots, tried in this order; the model of each one is free to change.
   GROQ_API_KEY: optionalValue,
-  GROQ_MODEL_LLAMA: optionalValue,
-  GROQ_MODEL_QWEN: optionalValue,
-  GROQ_MODEL_KIMI: optionalValue,
+  GROQ_MODEL_1: optionalValue,
+  GROQ_MODEL_2: optionalValue,
+  GROQ_MODEL_3: optionalValue,
   // EF-GML-01: OAuth client of the Google Cloud project, for the Gmail connection from the interface.
   GOOGLE_CLIENT_ID: z.string().min(1),
   GOOGLE_CLIENT_SECRET: z.string().min(1),
@@ -78,11 +78,11 @@ const EnvSchema = z.object({
 
 type Env = z.infer<typeof EnvSchema>;
 
-/** The Groq model names, in the order of RG-13; an empty one leaves its route entry out (EF-IA-05). */
+/** The model of each Groq slot, in the order of RG-13; an empty slot leaves its route entry out (EF-IA-05). */
 const groqModelsOf = (env: Env): Partial<Record<ProviderName, string>> => ({
-  ...(env.GROQ_MODEL_LLAMA ? { groq_llama: env.GROQ_MODEL_LLAMA } : {}),
-  ...(env.GROQ_MODEL_KIMI ? { groq_kimi: env.GROQ_MODEL_KIMI } : {}),
-  ...(env.GROQ_MODEL_QWEN ? { groq_qwen: env.GROQ_MODEL_QWEN } : {}),
+  ...(env.GROQ_MODEL_1 ? { groq_1: env.GROQ_MODEL_1 } : {}),
+  ...(env.GROQ_MODEL_2 ? { groq_2: env.GROQ_MODEL_2 } : {}),
+  ...(env.GROQ_MODEL_3 ? { groq_3: env.GROQ_MODEL_3 } : {}),
 });
 
 /** EF-IA-05: at least one key, and every configured key needs the name of the model it serves. */
@@ -97,7 +97,7 @@ const requireAiProviders = (env: Env, context: z.RefinementCtx): void => {
   }
   if (env.GEMINI_API_KEY && !env.GEMINI_MODEL) issue('GEMINI_MODEL', 'required with GEMINI_API_KEY');
   if (env.GROQ_API_KEY && Object.keys(groqModelsOf(env)).length === 0) {
-    issue('GROQ_MODEL_LLAMA, GROQ_MODEL_QWEN or GROQ_MODEL_KIMI', 'at least one model is required with GROQ_API_KEY');
+    issue('GROQ_MODEL_1, GROQ_MODEL_2 or GROQ_MODEL_3', 'at least one model is required with GROQ_API_KEY');
   }
 };
 

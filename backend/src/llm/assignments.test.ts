@@ -7,23 +7,23 @@ describe('describeAssignments', () => {
       describeAssignments({
         claude: { model: 'claude-sonnet-5' },
         gemini: { model: 'gemini-3.6-flash' },
-        groq_llama: { model: 'llama-3.3-70b-versatile' },
-        groq_kimi: { model: 'moonshotai/kimi-k2-instruct' },
+        groq_1: { model: 'openai/gpt-oss-120b' },
+        groq_3: { model: 'openai/gpt-oss-20b' },
       }),
     ).toEqual({
       providers: [
-        { name: 'groq_llama', model: 'llama-3.3-70b-versatile' },
-        { name: 'groq_kimi', model: 'moonshotai/kimi-k2-instruct' },
+        { name: 'groq_1', model: 'openai/gpt-oss-120b' },
+        { name: 'groq_3', model: 'openai/gpt-oss-20b' },
         { name: 'gemini', model: 'gemini-3.6-flash' },
         { name: 'claude', model: 'claude-sonnet-5' },
       ],
-      // RG-13 (v1.7); Qwen, left out of the configuration, is left out of the routing.
+      // RG-13 (v1.8); the second Groq slot, left empty, is left out of the routing.
       tasks: [
-        { task: 'classify_emails', providers: ['groq_llama', 'groq_kimi', 'gemini', 'claude'] },
-        { task: 'score_offers', providers: ['groq_llama', 'groq_kimi', 'gemini', 'claude'] },
-        { task: 'extract_offers', providers: ['groq_llama', 'groq_kimi', 'gemini', 'claude'] },
-        { task: 'tailor_cv', providers: ['groq_kimi', 'groq_llama', 'gemini', 'claude'] },
-        { task: 'write_motivation', providers: ['groq_kimi', 'groq_llama', 'gemini', 'claude'] },
+        { task: 'classify_emails', providers: ['groq_1', 'groq_3', 'gemini', 'claude'] },
+        { task: 'score_offers', providers: ['groq_1', 'groq_3', 'gemini', 'claude'] },
+        { task: 'extract_offers', providers: ['groq_1', 'groq_3', 'gemini', 'claude'] },
+        { task: 'tailor_cv', providers: ['groq_1', 'groq_3', 'claude', 'gemini'] },
+        { task: 'write_motivation', providers: ['groq_1', 'groq_3', 'claude', 'gemini'] },
       ],
     });
   });

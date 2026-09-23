@@ -4,10 +4,11 @@ import { type AiAssignments, type AiTask, fetchAiAssignments, type ProviderName 
 import { Flash } from '../../components/Flash';
 import { Skeleton } from '../../components/Skeleton';
 
+// EF-CFG-02: the model of each Groq slot is shown beside its label, since it is free to change (RG-13 v1.8).
 const PROVIDER_LABELS: Readonly<Record<ProviderName, string>> = {
-  groq_llama: 'Groq · Llama',
-  groq_qwen: 'Groq · Qwen',
-  groq_kimi: 'Groq · Kimi',
+  groq_1: 'Groq 1',
+  groq_2: 'Groq 2',
+  groq_3: 'Groq 3',
   gemini: 'Gemini',
   claude: 'Claude',
 };

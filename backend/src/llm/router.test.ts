@@ -71,16 +71,16 @@ describe('TASK_ROUTES', () => {
     }
   });
 
-  it('[RG-13] puts the free Groq models first, Gemini then Claude as fallbacks', () => {
-    // v1.7: Llama 3.3 70B leads the volume tasks, Kimi K2 the writing ones.
-    expect(TASK_ROUTES.classify_emails[0]).toBe('groq_llama');
-    expect(TASK_ROUTES.score_offers[0]).toBe('groq_llama');
-    expect(TASK_ROUTES.extract_offers[0]).toBe('groq_llama');
-    expect(TASK_ROUTES.tailor_cv[0]).toBe('groq_kimi');
-    expect(TASK_ROUTES.write_motivation[0]).toBe('groq_kimi');
+  it('[RG-13] puts the three Groq slots first, Gemini and Claude as fallbacks', () => {
+    // v1.8: the Groq slots lead every task; Gemini serves the volume tasks first, Claude the writing ones.
     for (const route of Object.values(TASK_ROUTES)) {
-      expect(route.slice(-2)).toEqual(['gemini', 'claude']);
+      expect(route.slice(0, 3)).toEqual(['groq_1', 'groq_2', 'groq_3']);
     }
+    expect(TASK_ROUTES.classify_emails.slice(-2)).toEqual(['gemini', 'claude']);
+    expect(TASK_ROUTES.score_offers.slice(-2)).toEqual(['gemini', 'claude']);
+    expect(TASK_ROUTES.extract_offers.slice(-2)).toEqual(['gemini', 'claude']);
+    expect(TASK_ROUTES.tailor_cv.slice(-2)).toEqual(['claude', 'gemini']);
+    expect(TASK_ROUTES.write_motivation.slice(-2)).toEqual(['claude', 'gemini']);
   });
 });
 
@@ -187,18 +187,18 @@ describe('runTask — why a provider was set aside', () => {
 
 describe('runTask', () => {
   it('[EF-IA-01] gives the task to the priority provider of RG-13 only', async () => {
-    const llama = fakeProvider('groq_llama', () => Promise.resolve(answer({ category: 'interview' })));
-    const kimi = fakeProvider('groq_kimi', () => Promise.resolve(answer({ category: 'rejected' })));
+    const first = fakeProvider('groq_1', () => Promise.resolve(answer({ category: 'interview' })));
+    const second = fakeProvider('groq_2', () => Promise.resolve(answer({ category: 'rejected' })));
     const gemini = fakeProvider('gemini', () => Promise.resolve(answer({ category: 'interview' })));
-    const { router } = setup({ groq_llama: llama, groq_kimi: kimi, gemini });
+    const { router } = setup({ groq_1: first, groq_2: second, gemini });
 
     const classified = await router.runTask('classify_emails', INPUT);
     const tailored = await router.runTask('tailor_cv', INPUT);
 
-    expect(classified).toEqual({ data: { category: 'interview' }, provider: 'groq_llama' });
-    expect(tailored).toEqual({ data: { category: 'rejected' }, provider: 'groq_kimi' });
-    expect(llama.complete).toHaveBeenCalledTimes(1);
-    expect(kimi.complete).toHaveBeenCalledTimes(1);
+    expect(classified).toEqual({ data: { category: 'interview' }, provider: 'groq_1' });
+    expect(tailored).toEqual({ data: { category: 'interview' }, provider: 'groq_1' });
+    expect(first.complete).toHaveBeenCalledTimes(2);
+    expect(second.complete).not.toHaveBeenCalled();
     expect(gemini.complete).not.toHaveBeenCalled();
   });
 

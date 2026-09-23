@@ -12,8 +12,8 @@ const database = openTestDatabase();
 let userId: number;
 
 const failing: LlmProvider = {
-  name: 'groq_llama',
-  model: 'llama-3.3-70b-versatile',
+  name: 'groq_1',
+  model: 'openai/gpt-oss-120b',
   complete: () => Promise.reject(new Error('quota')),
 };
 const answering: LlmProvider = {
@@ -39,7 +39,7 @@ afterAll(async () => {
 describe('LLM calls journal', () => {
   it('[EF-IA-06] [RG-13] stores one llm_calls row per provider call, without any content', async () => {
     const router = createLlmRouter({
-      providers: { groq_llama: failing, gemini: answering },
+      providers: { groq_1: failing, gemini: answering },
       journal: createLlmJournal(database.db),
       logger: createLogger({ write: () => undefined }),
     });
@@ -68,8 +68,8 @@ describe('LLM calls journal', () => {
     expect(rows).toEqual([
       expect.objectContaining({
         task: 'score_offers',
-        provider: 'groq_llama',
-        model: 'llama-3.3-70b-versatile',
+        provider: 'groq_1',
+        model: 'openai/gpt-oss-120b',
         outcome: 'error',
         inputTokens: null,
       }),

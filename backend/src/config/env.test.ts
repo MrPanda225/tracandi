@@ -14,9 +14,9 @@ const GOOGLE = {
 };
 const GROQ = {
   GROQ_API_KEY: 'gsk-test-key',
-  GROQ_MODEL_LLAMA: 'llama-3.3-70b-versatile',
-  GROQ_MODEL_QWEN: 'qwen/qwen3-32b',
-  GROQ_MODEL_KIMI: 'moonshotai/kimi-k2-instruct',
+  GROQ_MODEL_1: 'openai/gpt-oss-120b',
+  GROQ_MODEL_2: 'qwen/qwen3.8-27b',
+  GROQ_MODEL_3: 'openai/gpt-oss-20b',
 };
 const BASE_ENV = { FRONTEND_ORIGIN: 'http://127.0.0.1:5173', DATABASE_URL_APP: NEON_URL, ...GOOGLE };
 const VALID_ENV = { ...BASE_ENV, ...ANTHROPIC, ...GEMINI };
@@ -92,22 +92,22 @@ describe('loadConfig', () => {
     const config = loadConfig({ ...BASE_ENV, ...GROQ });
 
     expect(config.llm).toEqual({
-      groq_llama: { apiKey: 'gsk-test-key', model: 'llama-3.3-70b-versatile' },
-      groq_qwen: { apiKey: 'gsk-test-key', model: 'qwen/qwen3-32b' },
-      groq_kimi: { apiKey: 'gsk-test-key', model: 'moonshotai/kimi-k2-instruct' },
+      groq_1: { apiKey: 'gsk-test-key', model: 'openai/gpt-oss-120b' },
+      groq_2: { apiKey: 'gsk-test-key', model: 'qwen/qwen3.8-27b' },
+      groq_3: { apiKey: 'gsk-test-key', model: 'openai/gpt-oss-20b' },
     });
   });
 
-  it('[EF-IA-05] leaves out a Groq model that is not configured', () => {
-    const config = loadConfig({ ...BASE_ENV, ...GROQ, GROQ_MODEL_QWEN: '' });
+  it('[EF-IA-05] leaves out a Groq slot that is not configured', () => {
+    const config = loadConfig({ ...BASE_ENV, ...GROQ, GROQ_MODEL_2: '' });
 
-    expect(Object.keys(config.llm)).toEqual(['groq_llama', 'groq_kimi']);
+    expect(Object.keys(config.llm)).toEqual(['groq_1', 'groq_3']);
   });
 
   it('[EF-IA-05] refuses a Groq key without a single model', () => {
     const env = { ...BASE_ENV, GROQ_API_KEY: 'gsk-test-key' };
 
-    expect(() => loadConfig(env)).toThrow('GROQ_MODEL_LLAMA, GROQ_MODEL_QWEN or GROQ_MODEL_KIMI');
+    expect(() => loadConfig(env)).toThrow('GROQ_MODEL_1, GROQ_MODEL_2 or GROQ_MODEL_3');
   });
 
   it('[EF-IA-05] refuses to start without any AI key', () => {

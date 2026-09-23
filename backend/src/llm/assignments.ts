@@ -9,7 +9,7 @@ export interface AiAssignments {
 }
 
 // Display order of the providers.
-const PROVIDER_ORDER: readonly ProviderName[] = ['groq_llama', 'groq_kimi', 'groq_qwen', 'gemini', 'claude'];
+const PROVIDER_ORDER: readonly ProviderName[] = ['groq_1', 'groq_2', 'groq_3', 'gemini', 'claude'];
 
 /**
  * The configured providers (name and model) and the providers of each task, from the single routing table.

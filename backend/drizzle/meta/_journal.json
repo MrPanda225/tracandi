@@ -50,6 +50,13 @@
       "when": 1790114262938,
       "tag": "0006_groq_classifiers",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1790142893121,
+      "tag": "0007_groq_slots",
+      "breakpoints": true
     }
   ]
 }

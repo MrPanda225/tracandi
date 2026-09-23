@@ -77,10 +77,11 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
   *Correctif du 22/09/2026* : raison du fournisseur écarté journalisée (erreur, délai, champs refusés par le schéma,
   sans le prompt ni la réponse) ; un fournisseur momentanément surchargé est redemandé 3 fois (2 s puis 5 s) avant la
   bascule (ENF-FIA-10, cahier v1.6).
-  *Évolution du 22/09/2026 (cahier v1.7, BES-20)* : adaptateur unique pour les API compatibles OpenAI
-  (`llm/providers/openaiCompatible.ts`, par `fetch`, sans dépendance nouvelle) et trois modèles gratuits de Groq
-  (Llama 3.3 70B, Qwen, Kimi K2) en tête de RG-13, Gemini puis Claude en secours ; migrations 0005 et 0006
-  (énumérations `llm_provider` et `classifier`).
+  *Évolution du 22/09/2026 (cahier v1.7 puis v1.8, BES-20)* : adaptateur unique pour les API compatibles OpenAI
+  (`llm/providers/openaiCompatible.ts`, par `fetch`, sans dépendance nouvelle) et trois **emplacements** Groq
+  (`groq_1/2/3`, modèles configurés) en tête de RG-13, Gemini puis Claude en secours ; migrations 0005 à 0007
+  (énumérations `llm_provider` et `classifier`). Les emplacements ne nomment pas de famille de modèle : le catalogue
+  gratuit de Groq change (ni Llama 3.3 70B ni Kimi K2 sur le compte du candidat le 23/09/2026).
 
 - [x] **T-202 Prompts** — module `prompts/` : un fichier par tâche, contenu externe délimité et déclaré non fiable.
   *Exigences* : ENF-SEC-06.
