@@ -1,5 +1,5 @@
-import { useEffect, useId, useState } from 'react';
-import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { useState } from 'react';
+import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { GmailExpiryBanner } from './GmailExpiryBanner';
 import { NAV_ITEMS } from './navigation';
@@ -9,18 +9,13 @@ const MAIN_ID = 'contenu';
 
 /**
  * Frame of every signed-in page: ink side panel (30 %) with the navigation of the 6 screens, light canvas (60 %)
- * for the content. Below 900 px the panel becomes a top bar whose menu opens on demand (ENF-UTI-02).
+ * for the content. On a phone the frame becomes that of an application: a slim top bar for the name and the
+ * account, and a fixed bottom bar holding the same six destinations, thumb-reachable (ENF-UTI-02).
  */
 export function AppShell() {
   const { state, signOut } = useAuth();
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
-  const location = useLocation();
-  const menuId = useId();
   const email = state.status === 'authenticated' ? state.account.email : '';
-
-  // A navigation closes the mobile menu.
-  useEffect(() => setIsMenuOpen(false), [location.pathname]);
 
   const handleSignOut = async () => {
     setIsSigningOut(true);
@@ -39,46 +34,40 @@ export function AppShell() {
             <span className="shell__logo">Tracandi</span>
             <span className="shell__tag">Carnet de candidatures</span>
           </p>
-          <button
-            type="button"
-            className="shell__menu-button"
-            aria-expanded={isMenuOpen}
-            aria-controls={menuId}
-            onClick={() => setIsMenuOpen((open) => !open)}
-          >
-            <span className="shell__menu-icon" aria-hidden="true" />
-            {isMenuOpen ? 'Fermer' : 'Menu'}
-          </button>
         </div>
 
-        <div id={menuId} className={`shell__menu ${isMenuOpen ? 'shell__menu--open' : ''}`}>
-          <nav aria-label="Navigation principale">
-            <ul className="shell__nav">
-              {NAV_ITEMS.map((item) => (
-                <li key={item.path}>
-                  <NavLink to={item.path} end={item.path === '/'} className="shell__link">
-                    {item.icon}
-                    <span>{item.label}</span>
-                  </NavLink>
-                </li>
-              ))}
-            </ul>
-          </nav>
+        <nav className="shell__nav-wrap" aria-label="Navigation principale">
+          <ul className="shell__nav">
+            {NAV_ITEMS.map((item) => (
+              <li key={item.path}>
+                {/* The accessible name stays the full one, whichever label the screen is wide enough to show. */}
+                <NavLink to={item.path} end={item.path === '/'} className="shell__link" aria-label={item.label}>
+                  {item.icon}
+                  <span className="shell__label" aria-hidden="true">
+                    {item.label}
+                  </span>
+                  <span className="shell__label shell__label--short" aria-hidden="true">
+                    {item.shortLabel}
+                  </span>
+                </NavLink>
+              </li>
+            ))}
+          </ul>
+        </nav>
 
-          <div className="shell__account">
-            <p className="shell__email" title={email}>
-              {email}
-            </p>
-            <button
-              type="button"
-              className="shell__signout"
-              onClick={() => void handleSignOut()}
-              disabled={isSigningOut}
-              aria-busy={isSigningOut}
-            >
-              {isSigningOut ? 'Déconnexion…' : 'Se déconnecter'}
-            </button>
-          </div>
+        <div className="shell__account">
+          <p className="shell__email" title={email}>
+            {email}
+          </p>
+          <button
+            type="button"
+            className="shell__signout"
+            onClick={() => void handleSignOut()}
+            disabled={isSigningOut}
+            aria-busy={isSigningOut}
+          >
+            {isSigningOut ? 'Déconnexion…' : 'Se déconnecter'}
+          </button>
         </div>
       </aside>
 

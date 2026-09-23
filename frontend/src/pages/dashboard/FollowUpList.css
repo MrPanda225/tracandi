@@ -47,6 +47,7 @@
 
 .follow-ups__list {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   align-content: start;
   flex: 1;
   gap: 0.5rem;
