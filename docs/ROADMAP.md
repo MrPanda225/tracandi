@@ -187,9 +187,25 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
   entreprises fictives ; aucune réponse réelle n'a été appelée (testing.md interdit le réseau en test).
   *Reste à faire* : le type `generic` (page carrières lue par IA) arrive avec T-403 ; `adapterFor('generic')`
   renvoie `undefined` en attendant, pour qu'une source de ce type signale son absence d'adaptateur.
-- [ ] **T-403 Adaptateur générique** — HTML → texte + liens, extraction IA, filtrage des URL hors domaine.
-  *Exigences* : EF-VEI-08.
+- [x] **T-403 Adaptateur générique** — HTML → texte + liens, extraction IA, filtrage des URL hors domaine.
+  *Exigences* : EF-VEI-08, EF-VEI-02 (RG-08), EF-VEI-09, ENF-SEC-06, ENF-COU-01, ENF-FIA-02.
   *Fini quand* : test où l'IA simulée renvoie une URL externe, qui est écartée.
+  *Livré* : `scraper/page.ts` — `readPage(html, url)` (cheerio) rend le texte lisible et les liens résolus en
+  adresses absolues, bornés à 12 000 caractères et 120 liens (ENF-COU-01) ; scripts et styles retirés avant toute
+  lecture, mobilier du site retiré du texte mais **ses liens conservés**, certains sites y listant leurs offres.
+  `llm/prompts/extractOffers.ts` (balises `<page_text>` et `<page_links>`, ENF-SEC-06),
+  `modules/offers/extraction.ts` (`ExtractedOffersSchema`, bornes explicites), `scraper/adapters/generic.ts`.
+  La tâche `extract_offers` existait déjà dans `TASK_ROUTES` (RG-13) : aucun changement de routage.
+  *Garde-fou* : **c'est le code, jamais le modèle, qui décide où le candidat est envoyé.** Une adresse proposée
+  n'est retenue que si elle figure parmi les liens réellement présents sur la page **et** reste sur le site de la
+  source (même hôte, ou sous-domaine de l'un ou de l'autre). Sinon l'offre est conservée mais pointe sur la page
+  carrières. Comparer les noms d'hôte entiers évite d'avoir besoin d'une liste de suffixes publics, qui serait
+  fausse pour `exemple.co.uk`.
+  *Choix assumés* : une page carrières ne date presque jamais ses offres et « publiée récemment » n'est pas une
+  date — `postedAt` reste nul. L'identifiant d'une offre sans lien est un condensé de l'adresse de la page et de
+  son intitulé, stable d'un passage à l'autre (EF-VEI-09). `AdapterDeps` gagne un `runTask` **facultatif** :
+  seule la page générique lit par un modèle, et un adaptateur qui en a besoin sans en disposer le dit (EF-IA-04).
+  Dépendance `cheerio` installée (pré-approuvée pour T-403 ; `npm run audit` : rien de haut ni de critique).
 - [ ] **T-404 Exécution et notation** — gestion des sources (API), dédoublonnage, pré-filtre RG-10, notation RG-09 par lots.
   *Exigences* : EF-VEI-01 à 07, 09 à 14, 21, ENF-FIA-02.
   *Fini quand* : une source en échec n'empêche pas les autres (test).
