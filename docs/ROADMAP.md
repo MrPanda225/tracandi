@@ -169,9 +169,24 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
   le client. Les 17 tests couvrent chaque exigence, y compris l'annulation du flux au-delà de 3 Mo.
   *Reste à faire* : l'adresse de contact (ENF-COL-03) est un paramètre du client ; elle sera lue dans la
   configuration quand T-404 exécutera réellement la veille.
-- [ ] **T-402 Adaptateurs ATS** — Greenhouse, Lever, SmartRecruiters, Recruitee, Workday ; registre d'adaptateurs.
-  *Exigences* : EF-VEI-08, ENF-MAI-03.
+- [x] **T-402 Adaptateurs ATS** — Greenhouse, Lever, SmartRecruiters, Recruitee, Workday ; registre d'adaptateurs.
+  *Exigences* : EF-VEI-08, EF-VEI-02 (RG-08), EF-VEI-22, ENF-MAI-03, ENF-FIA-02.
   *Fini quand* : un test par adaptateur sur réponse enregistrée dans `tests/fixtures/ats/`.
+  *Livré* : `scraper/adapters/` — `types.ts` (contrat `SourceAdapter`, `NormalizedOffer` borné aux colonnes de
+  `job_offers`, `SourceFetchError` dont le message est en français car il est montré au candidat, EF-VEI-11),
+  `description.ts` (HTML → texte sans dépendance nouvelle, correspondance des libellés de contrat français et
+  anglais), un fichier par source, `index.ts` pour le registre. Chaque source est jointe **par sa seule API
+  publique de job board**, sans clé : Greenhouse, Lever et Recruitee rendent tout en une requête ;
+  SmartRecruiters et Workday sont paginés et bornés à 5 pages.
+  *Choix assumés* : SmartRecruiters et Workday ne publient pas le texte de l'offre dans leur liste — le lire
+  coûterait une requête par offre, soit 3 s chacune (ENF-COL-02) ; la description reste nulle et sera lue par
+  T-404 pour les seules offres nouvelles. `postedOn` de Workday (« Posted 5 Days Ago ») n'est pas une date : elle
+  n'est pas devinée. « Full-time » et « Part-time » ne valent pas CDI (EF-VEI-22). `scraper/http.ts` gagne une
+  option `{ method, json }` : la liste d'un site Workday n'existe qu'en POST, et passe par le même client poli.
+  *Écart assumé* : les fixtures de `tests/fixtures/ats/` reproduisent le format documenté de chaque API avec des
+  entreprises fictives ; aucune réponse réelle n'a été appelée (testing.md interdit le réseau en test).
+  *Reste à faire* : le type `generic` (page carrières lue par IA) arrive avec T-403 ; `adapterFor('generic')`
+  renvoie `undefined` en attendant, pour qu'une source de ce type signale son absence d'adaptateur.
 - [ ] **T-403 Adaptateur générique** — HTML → texte + liens, extraction IA, filtrage des URL hors domaine.
   *Exigences* : EF-VEI-08.
   *Fini quand* : test où l'IA simulée renvoie une URL externe, qui est écartée.

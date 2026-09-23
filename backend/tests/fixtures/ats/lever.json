@@ -1,0 +1,22 @@
+[
+  {
+    "id": "6f1c3a2e-9d41-4f0b-9c2a-1b7e5d0a3c88",
+    "text": "Développeur Data (H/F)",
+    "hostedUrl": "https://jobs.lever.co/maisonlumen/6f1c3a2e-9d41-4f0b-9c2a-1b7e5d0a3c88",
+    "applyUrl": "https://jobs.lever.co/maisonlumen/6f1c3a2e-9d41-4f0b-9c2a-1b7e5d0a3c88/apply",
+    "createdAt": 1757923200000,
+    "categories": { "commitment": "Alternance", "location": "Lyon", "team": "Data", "department": "Technique" },
+    "descriptionPlain": "Rejoignez une équipe de six personnes sur la plateforme de données.",
+    "workplaceType": "hybrid"
+  },
+  {
+    "id": "b2d9f710-5a03-41c6-9f5e-8a44e1c20d77",
+    "text": "Ingénieur Analytics",
+    "hostedUrl": "https://jobs.lever.co/maisonlumen/b2d9f710-5a03-41c6-9f5e-8a44e1c20d77",
+    "applyUrl": "https://jobs.lever.co/maisonlumen/b2d9f710-5a03-41c6-9f5e-8a44e1c20d77/apply",
+    "createdAt": 1758009600000,
+    "categories": { "location": "Télétravail", "team": "Data" },
+    "descriptionPlain": "Modélisation et qualité des données produit.",
+    "workplaceType": "remote"
+  }
+]

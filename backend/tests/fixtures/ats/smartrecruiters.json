@@ -1,0 +1,28 @@
+{
+  "offset": 0,
+  "limit": 100,
+  "totalFound": 2,
+  "content": [
+    {
+      "id": "744000012345678",
+      "uuid": "1d3b7f02-77c4-4f3f-8f0e-9a2c5b6d1e44",
+      "name": "Ingénieur Données",
+      "refNumber": "REF-1042",
+      "company": { "identifier": "novagroup", "name": "Nova Group" },
+      "location": { "city": "Nantes", "region": "Pays de la Loire", "country": "fr", "remote": false },
+      "releasedDate": "2026-09-15T09:00:00.000Z",
+      "typeOfEmployment": { "label": "Fixed term" },
+      "ref": "https://api.smartrecruiters.com/v1/companies/novagroup/postings/744000012345678"
+    },
+    {
+      "id": "744000012345679",
+      "uuid": "2e4c8a13-88d5-4a40-9b1f-0b3d6c7e2f55",
+      "name": "Data Steward",
+      "refNumber": "REF-1043",
+      "company": { "identifier": "novagroup", "name": "Nova Group" },
+      "location": { "city": "", "region": "", "country": "fr", "remote": true },
+      "releasedDate": "2026-09-19T07:30:00.000Z",
+      "ref": "https://api.smartrecruiters.com/v1/companies/novagroup/postings/744000012345679"
+    }
+  ]
+}

@@ -142,4 +142,9 @@ Commande de contrôle : `/project:check-req EF-CAN-07`.
 | ENF-PERF-05 | T-601 | `tests/integration/stats-query-plans.test.ts` (`EXPLAIN ANALYZE` de chaque requête du tableau de bord sur le jeu de charge : < 50 ms) | couverte |
 | ENF-PERF-04 | T-102, T-703 | Agrégats du tableau de bord exclus (Q-17) ; requêtes sélectives : jeu de charge `tests/integration/load-dataset.ts` disponible, vérification à étendre en T-703 | partielle |
 | EF-TDB-01 à 09 (écran) | T-602 | `frontend/src/pages/dashboard/DashboardPage.test.tsx` — tâche en cours | à faire |
+| EF-VEI-08 | T-402 | `backend/src/scraper/adapters/adapters.test.ts` (un test par source sur la réponse enregistrée : Greenhouse, Lever, SmartRecruiters, Recruitee, Workday ; adresse appelée, offre normalisée champ par champ ; pagination poursuivie tant qu'une page est pleine ; offres Recruitee non publiées écartées ; site Workday retrouvé avec et sans segment de langue) | couverte |
+| EF-VEI-02 | T-402 | `adapters.test.ts` (RG-08 : `../../etc`, chaîne vide, `a/b`, 82 caractères refusés ; casse ramenée en minuscules ; adresse Workday hors `myworkdayjobs.com`, en http, ou sans nom de site refusée) | couverte |
+| EF-VEI-22 (sources) | T-402 | `adapters.test.ts` (libellé de contrat de la source ; à défaut mot sans ambiguïté du titre — « Alternance — Ingénieur Données » ; « non précisé » quand ni l'un ni l'autre ne dit rien) | couverte |
+| ENF-MAI-03 | T-402 | `adapters.test.ts` (registre : les cinq sources et elles seules ; `generic` sans adaptateur jusqu'à T-403) + revue : aucun autre fichier ne nomme un type de source | couverte |
+| ENF-FIA-02 (sources) | T-402 | `adapters.test.ts` (refus HTTP et réponse non JSON de chaque source transformés en `SourceFetchError` lisible) — l'isolement d'une source en échec pendant une passe est vérifié en T-404 | partielle |
 <!-- Ajouter une ligne par exigence au fur et à mesure. Statuts : à faire | couverte | vérifiée (démo BO) -->

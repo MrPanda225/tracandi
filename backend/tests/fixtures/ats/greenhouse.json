@@ -1,0 +1,28 @@
+{
+  "jobs": [
+    {
+      "id": 4512890,
+      "internal_job_id": 3011002,
+      "title": "Data Analyst",
+      "updated_at": "2026-09-18T08:12:44-04:00",
+      "location": { "name": "Paris, France" },
+      "absolute_url": "https://boards.greenhouse.io/atelieraurore/jobs/4512890",
+      "metadata": [
+        { "id": 1, "name": "Type de contrat", "value": "CDI", "value_type": "single_select" },
+        { "id": 2, "name": "Équipe", "value": "Data", "value_type": "single_select" }
+      ],
+      "content": "&lt;p&gt;Nous cherchons un &lt;strong&gt;Data Analyst&lt;/strong&gt; pour construire nos tableaux de bord.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;SQL &amp;amp; Python&lt;/li&gt;&lt;li&gt;Restitution aupr&amp;egrave;s des m&amp;eacute;tiers&lt;/li&gt;&lt;/ul&gt;"
+    },
+    {
+      "id": 4512891,
+      "internal_job_id": 3011003,
+      "title": "Alternance — Ingénieur Données",
+      "updated_at": "2026-09-20T11:00:00-04:00",
+      "location": { "name": "" },
+      "absolute_url": "https://boards.greenhouse.io/atelieraurore/jobs/4512891",
+      "metadata": [],
+      "content": "&lt;p&gt;Alternance de 24 mois au sein de l&amp;apos;&amp;eacute;quipe plateforme.&lt;/p&gt;"
+    }
+  ],
+  "meta": { "total": 2 }
+}
