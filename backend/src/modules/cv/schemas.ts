@@ -29,7 +29,7 @@ const optionalText = (max: number) =>
     .transform((value) => value || null);
 
 /** Coordinates shown in the header of the CV (RG-15: in the body of the document, never in a Word header). */
-const IdentitySchema = z.object({
+export const IdentitySchema = z.object({
   name: text(SHORT),
   city: text(SHORT),
   phone: text(SHORT),
@@ -47,7 +47,7 @@ const TargetSchema = z.object({
 });
 
 /** One job actually held: RG-12 forbids a CV from changing any of these fields. */
-const ExperienceSchema = z.object({
+export const ExperienceSchema = z.object({
   dates: text(SHORT),
   company: text(SHORT),
   place: optionalText(SHORT),
@@ -56,7 +56,7 @@ const ExperienceSchema = z.object({
   bullets: z.array(text(LINE)).min(1).max(MAX_BULLETS),
 });
 
-const EducationSchema = z.object({
+export const EducationSchema = z.object({
   dates: text(SHORT),
   school: text(SHORT),
   place: optionalText(SHORT),
@@ -64,7 +64,7 @@ const EducationSchema = z.object({
   detail: optionalText(LINE),
 });
 
-const SkillSchema = z.object({ label: text(SHORT), value: text(LINE) });
+export const SkillSchema = z.object({ label: text(SHORT), value: text(LINE) });
 
 /** The material every generated CV is written from, and nothing else (RG-12). */
 const CvSourceSchema = z.object({
@@ -95,3 +95,28 @@ export const CandidateProfileSchema = z
   .openapi('CandidateProfile');
 
 export type CandidateProfile = z.infer<typeof CandidateProfileSchema>;
+
+/**
+ * EF-CVX-06, EF-CVX-08: what one CV holds once it is written — the reference profile reordered and reworded for an
+ * offer (T-504), or the profile as it stands. The rendering draws this and nothing else, so a CV can never show
+ * anything the schema does not carry.
+ * @req EF-CVX-06, EF-CVX-08, EF-CVX-14, RG-11, RG-15
+ */
+export const CvContentSchema = z
+  .object({
+    identity: IdentitySchema,
+    /** RG-11: right side of the header, beside the coordinates. */
+    availability: text(LINE),
+    /** RG-15: the job title targeted by the offer. */
+    title: text(SHORT),
+    subtitle: text(LINE),
+    profile: text(PARAGRAPH),
+    experiences: z.array(ExperienceSchema).min(1).max(MAX_EXPERIENCES),
+    education: z.array(EducationSchema).min(1).max(MAX_DEGREES),
+    skills: z.array(SkillSchema).min(1).max(MAX_SKILLS),
+    interests: z.array(text(LINE)).max(MAX_INTERESTS),
+  })
+  .strict()
+  .openapi('CvContent');
+
+export type CvContent = z.infer<typeof CvContentSchema>;

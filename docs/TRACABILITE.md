@@ -118,6 +118,11 @@ Commande de contrôle : `/project:check-req EF-CAN-07`.
 | ENF-SEC-20 | T-004 | `credentials.test.ts`, `auth.test.ts` | couverte |
 | EF-CVX-01 | T-501 | `backend/tests/integration/profile.test.ts` (404 tant qu'aucun profil, profil rendu tel qu'il a été écrit, 404 si le document stocké ne correspond plus au schéma, isolation entre comptes, 401 sans session) ; `src/modules/cv/schemas.test.ts` (profil d'exemple accepté) | couverte |
 | EF-CVX-02 | T-501 | `profile.test.ts` (remplacement complet, 400 avec détails sur e-mail invalide, aucune cible, type de contrat hors RG-09, champ inconnu — l'ancien profil est conservé ; 415 hors JSON) ; `schemas.test.ts` (14 cas : champs facultatifs, bornes, refus du champ inconnu) | couverte |
+| EF-CVX-06 | T-502 | `backend/src/modules/cv/render.test.ts` (fichier zip commençant par `PK`, `[Content_Types].xml` et `word/document.xml` présents, type MIME WordprocessingML déclaré) | couverte |
+| EF-CVX-08 | T-502 | `render.test.ts` (A4 11906 × 16838 twips, marges 643 pour 10 620 twips utiles ; Calibri 10 pt ; titre centré gras 15 pt et sous-titre centré italique 11 pt ; bandeaux `D9E2F3` bordés `AAB5CE` ; tabulation de contenu à 2150 twips) — comparaison visuelle avec le modèle : capture jointe à la PR | partielle |
+| EF-CVX-14 | T-502 | `render.test.ts` (aucun `w:tbl`, aucun `w:txbxContent`, aucune colonne de section, aucun texte en en-tête ni pied de page ; sections nommées et ordonnées ; chaque expérience et chaque puce présentes dans l'ordre ; coordonnées dans le corps ; dates « MM/AAAA ») | couverte |
+| RG-15 | T-502 | `render.test.ts` (titres de sections usuels, coordonnées dans le corps, intitulé visé en titre) ; `formatDates` (mois français → MM/AAAA, année seule ou libellé inconnu laissés tels quels, RG-12) | couverte |
+| Q-01 | T-502 | `render.test.ts` (aucun `w:drawing`, aucun fichier dans `word/media/` : l'emplacement de la photo reste à remplir à la main) | couverte |
 | EF-DOC-01 | T-005 | `src/app.test.ts`, `migrations.test.ts` (chaque route documentée) | couverte |
 | EF-DOC-02 | T-005 | `src/app.test.ts` (page Swagger) + démonstration `/api/docs` | couverte |
 | EF-AUT-01 (interface) | T-006 | `frontend/src/pages/auth/AuthPage.test.tsx` (inscription, adresse déjà utilisée) | couverte |

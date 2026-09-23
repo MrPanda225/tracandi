@@ -187,10 +187,19 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
   *Écart assumé* : `data/profile.json` de la ligne d'origine est remplacé par la base, conformément à Q-16
   (cahier v1.2) ; le fichier d'exemple `tests/fixtures/profile.example.json` sert de jeu de test.
   *Reste à faire* : l'écran de consultation et de modification arrive avec T-506.
-- [ ] **T-502 Rendu Word** — rendu conforme RG-11 à partir d'un contenu validé.
+- [x] **T-502 Rendu Word** — rendu conforme RG-11 à partir d'un contenu validé.
   *Exigences* : EF-CVX-06, 08, 14 (RG-11, RG-15 : mise en page sans tableau).
   *Fini quand* : test de structure du .docx (aucun `w:tbl`, `w:txbxContent`, contenu d'en-tête ou de pied de page)
   + comparaison visuelle manuelle avec le modèle (capture jointe à la PR).
+  *Livré* : `modules/cv/render.ts` — `renderCvDocx(content)` et `CvContentSchema` (ce qu'un CV porte une fois écrit).
+  En-tête deux colonnes par tabulation droite (jamais de tableau, RG-15), titre et sous-titre centrés, bandeaux de
+  section `D9E2F3` bordés `AAB5CE`, lignes « dates | contenu » alignées à 2150 twips, Calibri 10 pt, A4 avec
+  10 620 twips utiles. `formatDates` écrit les mois en chiffres (RG-15) et laisse intact ce qu'il ne reconnaît pas
+  (RG-12). Aucune photo insérée (Q-01). Dépendance `docx` installée (`npm run audit` : rien de haut ni critique).
+  Les tests relisent le .docx produit avec un lecteur de zip écrit sur `node:zlib` (`tests/fixtures/docx/`), pour
+  ne pas ajouter de dépendance de test.
+  *Reste à faire* : la comparaison visuelle avec le modèle Word du candidat (exemplaire fourni au Business Owner)
+  et le téléchargement (EF-CVX-11) qui arrive avec T-504 et T-506.
 - [ ] **T-503 Conversion PDF** — LibreOffice sans shell (`execFile`), délai 60 s, contrôle 1 page A4.
   *Exigences* : EF-CVX-07, ENF-SEC-13.
 - [ ] **T-504 CV adapté** — tâche IA, contrôle de fidélité RG-12, historique des versions, téléchargement.
