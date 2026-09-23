@@ -1,0 +1,19 @@
+{
+  "total": 2,
+  "jobPostings": [
+    {
+      "title": "Analyste Données",
+      "externalPath": "/job/Paris/Analyste-Donnees_JR-10023",
+      "locationsText": "Paris, France",
+      "postedOn": "Posted 5 Days Ago",
+      "bulletFields": ["JR-10023", "Temps plein"]
+    },
+    {
+      "title": "Alternance Data Platform",
+      "externalPath": "/job/Lille/Alternance-Data-Platform_JR-10099",
+      "locationsText": "2 Locations",
+      "postedOn": "Posted Yesterday",
+      "bulletFields": ["JR-10099", "Apprenticeship"]
+    }
+  ]
+}

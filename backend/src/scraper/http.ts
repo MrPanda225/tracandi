@@ -58,6 +58,16 @@ export interface CollectedPage {
   body: string;
 }
 
+/**
+ * What a source needs beyond a plain read. Workday publishes its offers through a search endpoint that only
+ * answers POST (T-402); everything else is collected with the default GET.
+ */
+export interface RequestOptions {
+  method?: 'GET' | 'POST';
+  /** Sent as `application/json`; ignored on a GET. */
+  json?: unknown;
+}
+
 export interface PoliteFetchDeps {
   /** ENF-COL-03: address a site owner can write to, carried by every request. */
   contact: string;
@@ -110,7 +120,7 @@ export const createPoliteFetch = ({
   fetchImpl = fetch,
   now = Date.now,
   sleep = wait,
-}: PoliteFetchDeps): ((url: string) => Promise<CollectedPage>) => {
+}: PoliteFetchDeps): ((url: string, options?: RequestOptions) => Promise<CollectedPage>) => {
   if (contact.trim() === '') throw new Error('A contact address is required (ENF-COL-03)');
   const userAgent = `${USER_AGENT_PRODUCT}/1.0 (+${contact.trim()})`;
   // One limiter per host: a slow site never holds back the others (ENF-COL-02).
@@ -125,10 +135,17 @@ export const createPoliteFetch = ({
     return limiter;
   };
 
-  const request = async (url: URL): Promise<Response> => {
+  const request = async (url: URL, options: RequestOptions = {}): Promise<Response> => {
     await limiterOf(url.host).take(1);
+    const isPost = options.method === 'POST';
     return fetchImpl(url.href, {
-      headers: { 'User-Agent': userAgent, Accept: 'text/html,application/json;q=0.9,*/*;q=0.5' },
+      method: options.method ?? 'GET',
+      headers: {
+        'User-Agent': userAgent,
+        Accept: 'text/html,application/json;q=0.9,*/*;q=0.5',
+        ...(isPost ? { 'Content-Type': 'application/json' } : {}),
+      },
+      ...(isPost ? { body: JSON.stringify(options.json ?? {}) } : {}),
       redirect: 'follow',
       // ENF-COL-04: a site that never answers must not hold the watch.
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
@@ -153,10 +170,10 @@ export const createPoliteFetch = ({
     return rules?.isAllowed(url.href, USER_AGENT_PRODUCT) ?? true;
   };
 
-  return async (url) => {
+  return async (url, options) => {
     const parsed = secureUrlOf(url);
     if (!(await isAllowed(parsed))) throw new DisallowedByRobotsError(url);
-    const response = await request(parsed);
+    const response = await request(parsed, options);
     return {
       url: response.url || parsed.href,
       status: response.status,
