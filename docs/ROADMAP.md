@@ -131,7 +131,10 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
   (409 « Label name exists or conflicts ») ; la création est devenue idempotente.
   *Correctif du 23/09/2026 (cahier v1.9, BES-21)* : RG-17 — un refus ouvert par une formule d'accusé de réception
   était classé « accusé de réception » par l'IA (l'extrait de 300 caractères commence par la politesse). Contrôle
-  déterministe `modules/emails/cues.ts` appliqué après l'IA, et consigne renforcée dans le prompt. Un changement de statut
+  déterministe `modules/emails/cues.ts` appliqué après l'IA, et consigne renforcée dans le prompt.
+  *Extension du 23/09/2026 (cahier v1.10, BES-22)* : listes d'expressions données par le Business Owner, complétées
+  en français et en anglais ; les accusés de réception ont leur propre liste ; « suite favorable » ne vaut refus que
+  sous une négation proche. Un changement de statut
   manuel n'est reporté dans Gmail qu'au prochain message de la candidature.
 - [x] **T-305 Planification et suivi** — scheduler (fuseau `SCHEDULER_TIMEZONE`), verrou anti-concurrence, journal `job_runs`, écran Réglages.
   *Exigences* : EF-GML-03, EF-GML-18, ENF-FIA-01, EF-CFG-01, 02.

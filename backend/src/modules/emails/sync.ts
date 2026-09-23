@@ -10,7 +10,7 @@ import type { LlmRouter } from '../../llm/router.js';
 import type { ProviderName } from '../../llm/types.js';
 import { attachIncomingMessage, findApplicationThreads } from '../applications/service.js';
 import { type ClassifiedMessage, ClassificationSchema } from './classification.js';
-import { applyRejectionCue } from './cues.js';
+import { applyCategoryCues } from './cues.js';
 import type { MessageFetcher, RetainedMessage } from './fetcher.js';
 import { createThreadLabeler, databaseLabelCache, type ThreadLabeler } from './labels.js';
 import { isInvalidGrant } from './mailbox.js';
@@ -129,15 +129,15 @@ const pairAnswers = (
 };
 
 /**
- * RG-17: a refusal the AI read as something else — a polite refusal opens with an acknowledgement — is filed as a
- * refusal. The correction is logged: only the identifier of the message, never its content (ENF-SEC-08).
+ * RG-17: a message the AI read against its own wording — a polite refusal opens with an acknowledgement — is filed
+ * from that wording. The correction is logged: only the identifier of the message, never its content (ENF-SEC-08).
  */
-const correctRefusals =
+const correctFromWording =
   (logger: Logger) =>
   (pair: ClassifiedPair): ClassifiedPair => {
-    const classification = applyRejectionCue(pair.message, pair.classification);
+    const classification = applyCategoryCues(pair.message, pair.classification);
     if (classification.category === pair.classification.category) return pair;
-    logger.info('classification corrected by a refusal wording', {
+    logger.info('classification corrected by the wording of the message', {
       gmailMessageId: pair.message.gmailMessageId,
       from: pair.classification.category,
       to: classification.category,
@@ -254,7 +254,7 @@ const createSyncRun = ({
       prompt,
       schema: ClassificationSchema,
     });
-    return { provider, pairs: pairAnswers(batch, data.messages).map(correctRefusals(logger)) };
+    return { provider, pairs: pairAnswers(batch, data.messages).map(correctFromWording(logger)) };
   };
 
   /** EF-GML-13 to 16: labels of what the batch changed, every thread of a touched application relabelled. */

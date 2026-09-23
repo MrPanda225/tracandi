@@ -12,6 +12,7 @@
 | 1.7 | 22/09/2026 | Sahiré YAPI (Business Owner) | À valider — trois modèles gratuits de Groq (Llama 3.3 70B, Qwen, Kimi K2) en fournisseurs prioritaires, Gemini puis Claude en secours (BES-20, RG-13 révisée, EF-IA-05 étendue) |
 | 1.8 | 23/09/2026 | Sahiré YAPI (Business Owner) | À valider — RG-13 exprimée en trois **emplacements** Groq configurables (le catalogue gratuit de Groq n'offre ni Llama 3.3 70B ni Kimi K2 sur le compte du candidat) |
 | 1.9 | 23/09/2026 | Sahiré YAPI (Business Owner) | À valider — indice lexical de refus : un refus poli ouvert par un accusé de réception ne doit plus être classé « accusé de réception » (BES-21, RG-17) |
+| 1.10 | 23/09/2026 | Sahiré YAPI (Business Owner) | À valider — RG-17 étendue : liste des expressions de refus et d'accusé de réception donnée par le Business Owner, en français et en anglais (BES-22) |
 
 > Document de référence pour le développement. Toute évolution de périmètre passe par une mise à jour
 > de ce fichier **avant** le code. Chaque exigence porte un identifiant stable, repris dans
@@ -112,6 +113,7 @@ des candidatures, la veille des offres et la production de CV adaptés.
 | BES-19 | « Pour la synchronisation on peut définir la période à vérifier qui doit être modifiable sur l'écran, mais pour éviter ces rate limits on peut passer par les mails sur la période 1 mois. » (après refus de quota de l'API Gmail, 22/09/2026) |
 | BES-20 | « J'ai l'abonnement max avec Claude et je ne veux pas payer de crédit en plus […] je veux utiliser ces trois là Llama 3.3 70B, Qwen, Kimi K2 de Groq. » (22/09/2026) |
 | BES-21 | « Il faut qu'il puisse bien labéliser les offres (quand c'est refusé ne pas confondre avec accusé de réception etc.) en vérifiant la présence de certains mots dans le mail. » (23/09/2026) |
+| BES-22 | « Pour reconnaître les statuts des mails il faut regarder le contenu et voir la présence de ces termes. Statut/Refusée : “pas retenue”, “ne correspond malheureusement pas”, “au regret”, “suite favorable”, “nous ne pouvons y donner”. Statut/En attente : “bien reçu votre candidature”, “accusé de réception de votre candidature”, “candidature a bien été”. Fais pareil pour les termes en anglais et rajoute quelques termes qui vont dans le sens du statut. » (23/09/2026) |
 
 ### 4.2 Exigences métier (indépendantes de la solution)
 
@@ -422,7 +424,7 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | RG-12 | Fidélité du CV : chaque entreprise, établissement de formation, période, intitulé de poste et diplôme cités dans un CV adapté doit exister à l'identique dans le profil de référence ; chaque compétence et chaque outil cités doivent figurer dans le profil. Autorisé : reformuler une activité réellement exercée avec le vocabulaire de l'offre, réordonner, sélectionner, mettre en avant. Interdit : ajouter une compétence, un outil, une certification, une responsabilité, un chiffre ou un résultat absents du profil ; modifier un intitulé de poste, un employeur ou une date. |
 | RG-15 | Lisibilité par les ATS : texte réel (aucun texte en image) ; aucun tableau, zone de texte, colonne de section ni contenu en en-tête ou pied de page Word — la mise en page de RG-11 est obtenue par tabulations et trames de paragraphe ; titres de sections usuels en français (Profil, Expériences professionnelles, Formation, Compétences, Langues, Centres d'intérêt) ; coordonnées dans le corps du document ; dates au format « MM/AAAA – MM/AAAA » ; police standard ; intitulé du poste visé par l'offre en titre du CV. |
 | RG-13 | Routage IA (v1.8) : trois emplacements Groq (modèles gratuits, choisis dans la configuration) sont essayés dans l'ordre, puis les secours historiques. Classement des messages, notation des offres, extraction de pages → Groq 1, 2, 3, Gemini, Claude. CV adapté, réponse de motivation → Groq 1, 2, 3, Claude, Gemini. Un emplacement vide est ignoré. |
-| RG-17 | Indice lexical de refus : dans un message **reçu**, la présence d'une expression caractéristique d'un refus (dans l'objet ou l'extrait conservé, comparaison sans accents ni casse) impose la catégorie « refus », quelle que soit la réponse de l'IA, sauf si celle-ci a reconnu une proposition d'embauche. Un refus poli ouvert par « nous avons bien reçu votre candidature » est donc classé « refus ». |
+| RG-17 | Indices lexicaux de statut (v1.10) : dans un message **reçu**, l'objet et l'extrait conservé sont comparés, sans accents ni casse, à une liste d'expressions de refus puis à une liste d'expressions d'accusé de réception, en français et en anglais. Une expression de refus impose « refus » (un refus poli ouvert par « nous avons bien reçu votre candidature » est donc classé « refus ») ; certaines expressions — « suite favorable », « suite positive » — ne valent refus que sous une négation proche. À défaut de refus, une expression d'accusé de réception impose « accusé de réception » lorsque l'IA n'a rien reconnu de plus fort. Jamais corrigés : une proposition d'embauche, un entretien reconnu (vers l'accusé de réception), une alerte emploi (vers le refus), un message envoyé par le candidat. |
 | RG-14 | Clé normalisée d'un nom : minuscules, accents supprimés, tout caractère non alphanumérique remplacé par une espace, espaces multiples réduits, espaces de bord supprimées. |
 | RG-16 | Date de candidature saisie par le candidat : à la création, la date de dernière activité et la date du statut initial valent la date de candidature. Quand la date de candidature est modifiée, la date de dernière activité prend la nouvelle date si aucune activité n'a eu lieu depuis la création, sinon la plus récente des deux. |
 
@@ -495,5 +497,6 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | BES-19 | EXM-01 | EF-GML-05, EF-CFG-04, ENF-FIA-09 |
 | BES-20 | EXM-10 | RG-13, EF-IA-01, EF-IA-05, ENF-COU-01 |
 | BES-21 | EXM-01 | RG-17, EF-GML-08, EF-GML-11, EF-CAN-11 |
+| BES-22 | EXM-01 | RG-17 |
 
 La traçabilité fine exigence → tâche → test est tenue à jour dans `docs/TRACABILITE.md`.
