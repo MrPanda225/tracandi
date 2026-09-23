@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { eq } from 'drizzle-orm';
 import request from 'supertest';
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { jobOffers, watchedSites } from '../../src/db/schema.js';
+import { jobOffers, users, watchedSites } from '../../src/db/schema.js';
 import type { LlmProvider, ProviderName } from '../../src/llm/types.js';
 import type { AdapterDeps } from '../../src/scraper/adapters/types.js';
 import {
@@ -94,6 +94,14 @@ const api = (cookie: string) => ({
       .set('Content-Type', 'application/json'),
   run: () =>
     request(context.app).post('/api/sites/run').set('Cookie', cookie).set('Content-Type', 'application/json'),
+  runAndWait: async () => {
+    const accepted = await request(context.app)
+      .post('/api/sites/run')
+      .set('Cookie', cookie)
+      .set('Content-Type', 'application/json');
+    await context.queue.drain();
+    return accepted;
+  },
   saveProfile: (profile: unknown) =>
     request(context.app)
       .put('/api/profile')
@@ -131,6 +139,8 @@ beforeEach(async () => {
 });
 
 afterAll(async () => {
+  // Nothing may still be running when the pool closes (EF-EXE-02).
+  await context.queue.drain();
   await database.close();
 });
 
@@ -204,7 +214,7 @@ describe('watched sources (EF-VEI-01 to EF-VEI-05)', () => {
     await api(alice).saveProfile(DATA_PROFILE).expect(204);
     const { body } = await api(alice).add(GREENHOUSE_SOURCE);
     const { id } = body as { id: number };
-    await api(alice).run().expect(200);
+    expect((await api(alice).runAndWait()).status).toBe(202);
     expect(await database.db.select().from(jobOffers)).not.toHaveLength(0);
 
     expect((await api(alice).remove(id)).status).toBe(204);
@@ -232,6 +242,16 @@ describe('watched sources (EF-VEI-01 to EF-VEI-05)', () => {
   });
 });
 
+/** EF-EXE-03: the outcome and the counters of the execution a queued pass answered. */
+const stateOf = async (accepted: request.Response) => {
+  const runId = (accepted.body as { runId?: number }).runId;
+  if (runId === undefined) throw new Error('no run identifier in the answer');
+  const [user] = await database.db.select({ id: users.id }).from(users).orderBy(users.id).limit(1);
+  const state = await context.queue.stateOf(user?.id ?? 0, runId);
+  if (!state) throw new Error('the queue kept no state for this run');
+  return state;
+};
+
 describe('one pass of the watch (EF-VEI-07 to EF-VEI-14)', () => {
   const runWithBoard = async (answer: unknown, board: unknown = GREENHOUSE_BOARD) => {
     const ai = scoringAi(answer);
@@ -241,25 +261,23 @@ describe('one pass of the watch (EF-VEI-07 to EF-VEI-14)', () => {
     return ai;
   };
 
-  it('[EF-VEI-07] [EF-VEI-12] reads the source, scores the new offers and reports the pass', async () => {
+  it('[EF-VEI-07] [EF-EXE-01] queues the pass, answers at once, then journals what it found', async () => {
     await runWithBoard({ offers: [{ ref: 1, score: 82, reason: 'Poste de data analyst en CDI.' }] });
 
-    const report = await api(alice).run();
+    const accepted = await api(alice).runAndWait();
 
-    expect(report.status).toBe(200);
-    expect(report.body).toMatchObject({
-      sourcesChecked: 1,
-      sourcesFailed: 0,
-      offersFound: 2,
-      offersNew: 2,
-      offersRelevant: 1,
-      threshold: 60,
+    expect(accepted.status).toBe(202);
+    expect(await stateOf(accepted)).toMatchObject({
+      job: 'scraper',
+      trigger: 'manual',
+      outcome: 'success',
+      counters: { sources_checked: 1, offers_new: 2, offers_relevant: 1 },
     });
   });
 
   it('[EF-VEI-12] [EF-VEI-13] stores the score, its reason and the target matched', async () => {
     await runWithBoard({ offers: [{ ref: 1, score: 82, reason: 'Poste de data analyst en CDI.' }] });
-    await api(alice).run().expect(200);
+    expect((await api(alice).runAndWait()).status).toBe(202);
 
     const stored = await database.db.select().from(jobOffers).orderBy(jobOffers.externalId);
 
@@ -275,7 +293,7 @@ describe('one pass of the watch (EF-VEI-07 to EF-VEI-14)', () => {
 
   it('[EF-VEI-14] [RG-10] gives 5 without any AI call to an offer no target matches', async () => {
     const ai = await runWithBoard({ offers: [{ ref: 1, score: 82 }] });
-    await api(alice).run().expect(200);
+    expect((await api(alice).runAndWait()).status).toBe(202);
 
     const stored = await database.db.select().from(jobOffers).orderBy(jobOffers.externalId);
     const accountant = stored.find((offer) => offer.title === 'Comptable senior');
@@ -288,7 +306,7 @@ describe('one pass of the watch (EF-VEI-07 to EF-VEI-14)', () => {
 
   it('[EF-VEI-21] gives every offer a contract type, « non précisé » when the source states none', async () => {
     await runWithBoard({ offers: [{ ref: 1, score: 70 }] });
-    await api(alice).run().expect(200);
+    expect((await api(alice).runAndWait()).status).toBe(202);
 
     const stored = await database.db.select().from(jobOffers).orderBy(jobOffers.externalId);
 
@@ -297,11 +315,11 @@ describe('one pass of the watch (EF-VEI-07 to EF-VEI-14)', () => {
 
   it('[EF-VEI-09] stores an offer once, whatever the number of passes', async () => {
     const ai = await runWithBoard({ offers: [{ ref: 1, score: 82 }] });
-    await api(alice).run().expect(200);
+    expect((await api(alice).runAndWait()).status).toBe(202);
 
-    const second = await api(alice).run();
+    const second = await api(alice).runAndWait();
 
-    expect(second.body).toMatchObject({ offersFound: 2, offersNew: 0 });
+    expect(await stateOf(second)).toMatchObject({ counters: { sources_checked: 1, offers_new: 0 } });
     expect(await database.db.select().from(jobOffers)).toHaveLength(2);
     // Nothing new means nothing to score: the second pass costs no AI call at all (ENF-COU-01).
     expect(ai.calls()).toBe(1);
@@ -310,7 +328,7 @@ describe('one pass of the watch (EF-VEI-07 to EF-VEI-14)', () => {
   it('[EF-VEI-10] records when each source was last checked', async () => {
     await runWithBoard({ offers: [{ ref: 1, score: 82 }] });
 
-    await api(alice).run().expect(200);
+    expect((await api(alice).runAndWait()).status).toBe(202);
 
     const [source] = await database.db.select().from(watchedSites);
     expect(source?.lastCheckedAt).toEqual(context.clock.now());
@@ -333,9 +351,13 @@ describe('one pass of the watch (EF-VEI-07 to EF-VEI-14)', () => {
     await api(alice).add({ companyName: 'Brise', adapter: 'greenhouse', identifier: 'brise' }).expect(201);
     await api(alice).add(GREENHOUSE_SOURCE).expect(201);
 
-    const report = await api(alice).run();
+    const accepted = await api(alice).runAndWait();
 
-    expect(report.body).toMatchObject({ sourcesChecked: 1, sourcesFailed: 1, offersNew: 2 });
+    // The pass succeeds: a source in failure is an outcome of the pass, not a failure of it (ENF-FIA-02).
+    expect(await stateOf(accepted)).toMatchObject({
+      outcome: 'success',
+      counters: { sources_checked: 1, offers_new: 2 },
+    });
     const sources = await database.db.select().from(watchedSites).orderBy(watchedSites.identifier);
     expect(sources[0]?.lastError).toBeNull();
     expect(sources[1]?.lastError).toContain('500');
@@ -348,9 +370,9 @@ describe('one pass of the watch (EF-VEI-07 to EF-VEI-14)', () => {
       .update(source?.id ?? 0, { isActive: false })
       .expect(200);
 
-    const report = await api(alice).run();
+    const accepted = await api(alice).runAndWait();
 
-    expect(report.body).toMatchObject({ sourcesChecked: 0, offersNew: 0 });
+    expect(await stateOf(accepted)).toMatchObject({ counters: { sources_checked: 0, offers_new: 0 } });
     expect(await database.db.select().from(jobOffers)).toHaveLength(0);
   });
 
@@ -358,17 +380,23 @@ describe('one pass of the watch (EF-VEI-07 to EF-VEI-14)', () => {
     await withServices({ collect: boardCollector(GREENHOUSE_BOARD) });
     await api(alice).add(GREENHOUSE_SOURCE).expect(201);
 
-    const refused = await api(alice).run();
+    const accepted = await api(alice).runAndWait();
 
-    expect(refused.status).toBe(409);
-    expect((refused.body as { error: string }).error).toContain('profil de référence');
+    // Queued, then closed in failure with the reason the candidate can read (EF-EXE-03).
+    expect(accepted.status).toBe(202);
+    const state = await stateOf(accepted);
+    expect(state.outcome).toBe('failure');
+    expect(state.error).toContain('profil de référence');
   });
 
-  it('[EF-VEI-07] answers an empty report when the candidate watches nothing', async () => {
-    const report = await api(alice).run();
+  it('[EF-VEI-07] journals an empty pass when the candidate watches nothing', async () => {
+    const accepted = await api(alice).runAndWait();
 
-    expect(report.status).toBe(200);
-    expect(report.body).toMatchObject({ sourcesChecked: 0, offersNew: 0 });
+    expect(accepted.status).toBe(202);
+    expect(await stateOf(accepted)).toMatchObject({
+      outcome: 'success',
+      counters: { sources_checked: 0, offers_new: 0 },
+    });
   });
 
   it('[EF-VEI-06] [ENF-FIA-02] runs the scheduled pass for every candidate who watches a source', async () => {
@@ -381,6 +409,7 @@ describe('one pass of the watch (EF-VEI-07 to EF-VEI-14)', () => {
     await api(bob).add(GREENHOUSE_SOURCE).expect(201);
 
     await context.watch.checkEverySource();
+    await context.queue.drain();
 
     const offers = await database.db.select().from(jobOffers);
     // Each candidate has their own copy of the offers of their own source (EF-AUT-06).
@@ -396,6 +425,7 @@ describe('one pass of the watch (EF-VEI-07 to EF-VEI-14)', () => {
     await api(bob).add(GREENHOUSE_SOURCE).expect(201);
 
     await expect(context.watch.checkEverySource()).resolves.toBeUndefined();
+    await context.queue.drain();
 
     const owned = await database.db
       .select()
