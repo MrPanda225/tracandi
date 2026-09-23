@@ -177,8 +177,16 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
 
 ## Lot 5 — CV et réponses
 
-- [ ] **T-501 Profil de référence** — schéma zod, lecture/écriture `data/profile.json`, API.
+- [x] **T-501 Profil de référence** — schéma zod, stockage en base par utilisateur (Q-16), API.
   *Exigences* : EF-CVX-01, 02 (cibles avec types de contrat acceptés, RG-09).
+  *Livré* : `modules/cv/` — `CandidateProfileSchema` (identité, zone de recherche, disponibilités, cibles avec
+  leurs types de contrat RG-09 et leurs mots-clés RG-10, source de CV : titre, profil, expériences, formations,
+  compétences, centres d'intérêt), table `candidate_profiles` (migration 0008, un document `jsonb` par utilisateur),
+  `GET /api/profile` (404 tant qu'aucun profil) et `PUT /api/profile` (remplacement complet, 400 détaillé si invalide).
+  Le document est reparsé à chaque lecture : un profil écrit hors de l'application n'atteint jamais un CV (RG-12).
+  *Écart assumé* : `data/profile.json` de la ligne d'origine est remplacé par la base, conformément à Q-16
+  (cahier v1.2) ; le fichier d'exemple `tests/fixtures/profile.example.json` sert de jeu de test.
+  *Reste à faire* : l'écran de consultation et de modification arrive avec T-506.
 - [ ] **T-502 Rendu Word** — rendu conforme RG-11 à partir d'un contenu validé.
   *Exigences* : EF-CVX-06, 08, 14 (RG-11, RG-15 : mise en page sans tableau).
   *Fini quand* : test de structure du .docx (aucun `w:tbl`, `w:txbxContent`, contenu d'en-tête ou de pied de page)

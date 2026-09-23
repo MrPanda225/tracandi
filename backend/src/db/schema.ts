@@ -141,6 +141,19 @@ export const appSettings = pgTable(
   ],
 );
 
+/**
+ * EF-CVX-01, EF-CVX-02, Q-16: the reference profile of a candidate, one document per user. It is the single source
+ * of every generated CV (RG-12) and of the targets that score the offers (RG-09); the application validates it
+ * against `CandidateProfileSchema` before every write and after every read.
+ */
+export const candidateProfiles = pgTable('candidate_profiles', {
+  userId: integer()
+    .primaryKey()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  document: jsonb().notNull(),
+  updatedAt: instant().notNull().defaultNow(),
+});
+
 // ---------- Reference data ----------
 export const companies = pgTable(
   'companies',

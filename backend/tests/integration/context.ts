@@ -11,6 +11,8 @@ import { createLlmJournal } from '../../src/llm/repository.js';
 import { createLlmRouter } from '../../src/llm/router.js';
 import type { LlmProvider, ProviderName } from '../../src/llm/types.js';
 import { createApplicationsModule } from '../../src/modules/applications/routes.js';
+import { createProfileModule } from '../../src/modules/cv/routes.js';
+import { createProfileService } from '../../src/modules/cv/service.js';
 import { createApplicationsService } from '../../src/modules/applications/service.js';
 import { createAuthModules } from '../../src/modules/auth/routes.js';
 import { createAuthService } from '../../src/modules/auth/service.js';
@@ -131,6 +133,7 @@ export const createTestContext = (
       createApplicationsModule(createApplicationsService({ db: database.db, clock: clock.now })),
       createStatsModule(createStatsService({ db: database.db, clock: clock.now })),
       ...createGmailModules({ service: gmailService, sync, frontendOrigin: FRONTEND_ORIGIN }),
+      createProfileModule(createProfileService({ db: database.db, clock: clock.now })),
       createSettingsModule(describeAssignments(aiProviders)),
     ],
   });
