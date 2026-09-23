@@ -15,12 +15,13 @@ import {
   SourceListSchema,
   SourceViewSchema,
   UpdateSourceSchema,
-  WatchReportSchema,
 } from './schemas.js';
+import { AcceptedRunSchema } from '../jobs/schemas.js';
 import type { WatchService } from './service.js';
 
 const CREATED = 201;
 const NO_CONTENT = 204;
+const ACCEPTED = 202;
 
 const registerSitesDocs = (registry: OpenAPIRegistry): void => {
   registry.registerPath({
@@ -80,9 +81,11 @@ const registerSitesDocs = (registry: OpenAPIRegistry): void => {
     path: '/sites/run',
     summary: 'Consulter toutes les sources actives maintenant',
     description:
-      'EF-VEI-07. Chaque source active est lue, les offres déjà connues sont laissées de côté (EF-VEI-09) et ' +
-      'les nouvelles sont notées (EF-VEI-12). Une source en échec n’interrompt pas les autres (ENF-FIA-02).',
-    responses: { 200: jsonResponse('Résultat de la passe', WatchReportSchema), ...errorResponses(401, 409) },
+      'EF-VEI-07, EF-EXE-01. La passe est mise en file et la réponse ne l’attend pas : elle rend l’identifiant ' +
+      'de l’exécution, à suivre par `GET /jobs/{id}` ou `GET /jobs/stream`. Chaque source active est lue, les ' +
+      'offres déjà connues sont laissées de côté (EF-VEI-09) et les nouvelles sont notées (EF-VEI-12). Une ' +
+      'source en échec n’interrompt pas les autres (ENF-FIA-02).',
+    responses: { 202: jsonResponse('Passe mise en file', AcceptedRunSchema), ...errorResponses(401) },
   });
 };
 
@@ -129,7 +132,8 @@ export const createSitesModule = (service: WatchService): ApiModule => {
   router.post(
     '/sites/run',
     asyncHandler(async (_req, res) => {
-      res.status(200).json(await service.checkNow(currentUserId(res)));
+      // EF-EXE-01: the pass is queued, the answer does not wait for it (ENF-PERF-06).
+      res.status(ACCEPTED).json({ runId: await service.checkNow(currentUserId(res)) });
     }),
   );
 

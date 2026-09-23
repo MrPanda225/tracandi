@@ -214,7 +214,13 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
   (catalogue des sources + orchestration). Routes `GET/POST /api/sites`, `PATCH/DELETE /api/sites/{id}` et
   `POST /api/sites/run`. `modules/offers/scoring.ts` porte RG-09 et RG-10, `llm/prompts/scoreOffers.ts` le prompt
   de la tâche `score_offers` (déjà routée par RG-13). Planification EF-VEI-06 : `CRON_SCRAPER`, 7 h, 13 h et 19 h
-  heure de Paris, journalisée dans `job_runs` (`scraper`) comme la synchronisation Gmail.
+  heure de Paris.
+  *Fusion avec T-706* : une passe de veille est un traitement long ; elle passe par la **file d'attente**
+  (`jobs/queue.ts`) comme la synchronisation Gmail. `POST /api/sites/run` répond **202** avec l'identifiant de
+  l'exécution, à suivre par `GET /jobs/{id}` ou `GET /jobs/stream` (EF-EXE-01, EF-EXE-03). Une passe planifiée
+  déjà en attente pour un candidat est écartée au lieu d'être empilée (EF-GML-18). Les erreurs — profil de
+  référence absent, contact de collecte non renseigné — closent l'exécution avec leur message au lieu de faire
+  échouer une requête que plus personne n'attend.
   *Économie d'appels IA* : RG-10 écarte sans aucun appel une offre ne portant aucun mot-clé d'une cible — elle
   reçoit le score 5 et la raison qui le dit (EF-VEI-14) ; le reste part par lots de 15 (ENF-COU-01). Une seconde
   passe sur un board inchangé ne coûte **aucun** appel, les offres connues étant écartées avant la notation.
@@ -226,7 +232,8 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
   et une page carrières coûte un appel IA ; ce qui compte est qu'un échec reste sur sa source (ENF-FIA-02).
   `SCRAPER_CONTACT_EMAIL` vide fait **refuser** la consultation avec un message clair plutôt que de collecter
   anonymement (ENF-COL-03) ; le reste de l'application n'en est pas affecté. Une passe demandée sans profil de
-  référence répond 409 : les cibles sont ce contre quoi un score se mesure.
+  référence ferme l'exécution en échec, avec le message qui le dit : les cibles sont ce contre quoi un score se
+  mesure.
   *Reste à faire* : la description d'une offre nouvelle chez SmartRecruiters et Workday n'est toujours pas lue
   (une requête par offre, 3 s chacune) — la notation s'y appuie sur l'intitulé, le lieu et le contrat ; à traiter
   avec T-406, qui affichera le détail d'une offre. Le récapitulatif e-mail (EF-VEI-15) est T-405.

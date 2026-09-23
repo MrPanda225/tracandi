@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
 import type { Database } from '../../db/client.js';
 import { appSettings } from '../../db/schema.js';
-import type { JobJournal } from '../../jobs/journal.js';
+import type { JobQueue, RunCounters } from '../../jobs/queue.js';
 import type { Clock } from '../../lib/clock.js';
 import { isUniqueViolation } from '../../lib/db-errors.js';
 import { HttpError, NotFoundError } from '../../lib/errors.js';
@@ -33,8 +33,13 @@ export interface WatchService {
   setActive: (userId: number, id: number, isActive: boolean) => Promise<SourceView>;
   /** @req EF-VEI-05 */
   remove: (userId: number, id: number) => Promise<void>;
-  /** @req EF-VEI-07 */
-  checkNow: (userId: number) => Promise<WatchReport>;
+  /**
+   * Puts one pass in the queue of the candidate and hands back at once (EF-EXE-01): reading a dozen sources and
+   * scoring what they publish takes far longer than a request may.
+   * @returns the identifier of the execution, to follow it (EF-EXE-03).
+   * @req EF-VEI-07, EF-EXE-01
+   */
+  checkNow: (userId: number) => Promise<number>;
   /** @req EF-VEI-06, ENF-FIA-02 */
   checkEverySource: () => Promise<void>;
 }
@@ -44,7 +49,7 @@ export interface WatchServiceDeps {
   clock: Clock;
   profiles: ProfileService;
   router: LlmRouter;
-  journal: JobJournal;
+  queue: JobQueue;
   /** The responsible collector of T-401, shared by every adapter (rules/scraping.md). */
   collect: AdapterDeps['fetch'];
   logger: Logger;
@@ -115,7 +120,7 @@ const createSourceCatalogue = (db: Database) => {
  * @req EF-VEI-01 to EF-VEI-07, EF-AUT-06
  */
 export const createWatchService = (deps: WatchServiceDeps): WatchService => {
-  const { db, profiles, journal, logger } = deps;
+  const { db, profiles, queue, logger } = deps;
   const catalogue = createSourceCatalogue(db);
   const pass = createWatchPass(deps);
 
@@ -141,24 +146,29 @@ export const createWatchService = (deps: WatchServiceDeps): WatchService => {
     return pass.run({ userId, profile, sources, threshold });
   };
 
-  const runJournalled = (userId: number, trigger: 'manual' | 'schedule'): Promise<WatchReport> =>
-    journal.record({ userId, job: 'scraper', trigger }, () => runPass(userId), (report) => ({
-      sources_checked: report.sourcesChecked,
-      offers_new: report.offersNew,
-      offers_relevant: report.offersRelevant,
-    }));
+  const countersOf = (report: WatchReport): RunCounters => ({
+    sources_checked: report.sourcesChecked,
+    offers_new: report.offersNew,
+    offers_relevant: report.offersRelevant,
+  });
+
+  const workFor = (userId: number, trigger: 'manual' | 'schedule') => ({
+    userId,
+    job: 'scraper' as const,
+    trigger,
+    run: async () => countersOf(await runPass(userId)),
+  });
 
   return {
     ...catalogue,
 
-    checkNow: (userId) => runJournalled(userId, 'manual'),
+    checkNow: (userId) => queue.enqueue(workFor(userId, 'manual')),
 
     async checkEverySource() {
       for (const userId of await repository.listUsersWithActiveSources(db)) {
-        // ENF-FIA-02: one candidate's watch failing must not stop the others'.
-        await runJournalled(userId, 'schedule').catch((error: unknown) => {
-          logger.error('scheduled watch failed', { userId, error });
-        });
+        // EF-GML-18: a candidate who already has a pass waiting or running is written off, not queued twice.
+        const runId = await queue.enqueueUnlessPending(workFor(userId, 'schedule'));
+        if (runId === null) logger.info('scheduled watch skipped, one is already queued', { userId });
       }
     },
   };

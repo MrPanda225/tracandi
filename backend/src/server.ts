@@ -111,6 +111,27 @@ const gmailSync = createGmailSync({
   logger,
 });
 
+/**
+ * ENF-COL-03: without a contact address, nothing is collected. The watch then answers a readable refusal instead
+ * of reading a site anonymously; every other feature keeps working.
+ */
+const collect = config.scraper.contact
+  ? createPoliteFetch({ contact: config.scraper.contact })
+  : () =>
+      Promise.reject(
+        new Error('Renseignez SCRAPER_CONTACT_EMAIL pour que la veille puisse consulter un site.'),
+      );
+
+const watchService = createWatchService({
+  db: database.db,
+  clock: systemClock,
+  profiles: createProfileService({ db: database.db, clock: systemClock }),
+  router: llmRouter,
+  queue: jobQueue,
+  collect,
+  logger,
+});
+
 // EF-EXE-05: an execution the previous run left waiting or running is closed before anything else starts.
 await jobQueue.closeInterrupted();
 

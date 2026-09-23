@@ -66,6 +66,8 @@ export interface TestContext {
   gmailSync: GmailSync;
   /** EF-EXE-01 : file d'attente des traitements longs, pour attendre leur fin dans un test. */
   queue: JobQueue;
+  /** The watch behind the routes, for the scheduled pass (EF-VEI-06). */
+  watch: WatchService;
 }
 
 /** Google that must never be reached: tests needing Google pass their own fake. */
@@ -144,7 +146,7 @@ export const createTestContext = (
     clock: clock.now,
     profiles: createProfileService({ db: database.db, clock: clock.now }),
     router: llmRouter,
-    journal: createJobJournal({ db: database.db, clock: clock.now }),
+    queue,
     collect,
     logger,
   });
@@ -163,7 +165,7 @@ export const createTestContext = (
       createSitesModule(watch),
     ],
   });
-  return { app, database, clock, encryptionKey, gmailSync: sync, queue };
+  return { app, database, clock, encryptionKey, gmailSync: sync, queue, watch };
 };
 
 export const openTestDatabase = (): DatabaseHandle =>
