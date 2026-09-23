@@ -116,6 +116,11 @@ describe('formatDates — RG-15', () => {
   it('[RG-15] writes the dates of the CV with their month in figures', () => {
     expect(paragraphs.some((line) => line.startsWith('10/2024'))).toBe(true);
   });
+  it('[RG-15] leaves untouched a period already written the way the screen records it', () => {
+    // The Atelier CV screen writes « MM/AAAA – MM/AAAA » and « MM/AAAA – aujourd’hui » (period.ts).
+    expect(formatDates('10/2024 – 04/2026')).toBe('10/2024 – 04/2026');
+    expect(formatDates('10/2024 – aujourd’hui')).toBe('10/2024 – aujourd’hui');
+  });
 });
 
 describe('renderCvDocx — the charter (EF-CVX-08, RG-11)', () => {

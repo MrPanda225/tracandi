@@ -152,6 +152,13 @@ function ProfileView({ profile }: { profile: CandidateProfile }) {
  * les offres (RG-09). Consultation (EF-CVX-01) et modification (EF-CVX-02) ; la génération d'un CV adapté arrive
  * avec T-504.
  */
+/**
+ * Les chemins que le formulaire sait montrer lui-même. Ce qui tombe hors de cette liste — un refus portant sur
+ * l'objet entier, par exemple — reste affiché en haut, plutôt que d'être perdu.
+ */
+const SHOWN_PATHS =
+  /^body\.(identity\.|location\.|availability$|studyLevel|targets\.\d+\.|cvSource\.(defaultTitle|defaultSubtitle|profile|interests)$|cvSource\.(experiences|education|skills|certifications)\.\d+\.)/;
+
 export function CvWorkshopPage() {
   const [state, setState] = useState<LoadState>({ status: 'loading' });
   const [draft, setDraft] = useState<CandidateProfile | null>(null);
@@ -175,6 +182,10 @@ export function CvWorkshopPage() {
     return () => controller.abort();
   }, []);
 
+  // ENF-SEC-04 : chaque refus est rendu par le champ qu'il nomme ; le formulaire le lit par son chemin.
+  const fieldErrors = Object.fromEntries(rejected.map((issue) => [issue.path, issue.message]));
+  const unclaimed = rejected.filter((issue) => !SHOWN_PATHS.test(issue.path));
+
   const handleSave = async (profile: CandidateProfile) => {
     setIsSaving(true);
     setRejected([]);
@@ -195,15 +206,16 @@ export function CvWorkshopPage() {
     <>
       <PageHeader title="Atelier CV" eyebrow="Profil de référence">
         <p>
-          Tout CV généré est écrit à partir de ce profil, et de lui seul : rien n’y est inventé. Les cibles servent
-          aussi à noter les offres repérées.
+          Tout CV généré est écrit à partir de ce profil, et de lui seul : rien n’y est inventé. Les cibles
+          servent aussi à noter les offres repérées.
         </p>
       </PageHeader>
 
       {notice && <Flash tone={notice.tone}>{notice.text}</Flash>}
-      {rejected.length > 0 && (
+      {/* Les refus qu'aucun champ du formulaire ne montre : le reste s'affiche sous le champ concerné. */}
+      {unclaimed.length > 0 && (
         <ul className="profile__rejected" aria-label="Champs refusés">
-          {rejected.map((issue) => (
+          {unclaimed.map((issue) => (
             <li key={issue.path}>
               <code>{issue.path}</code> — {issue.message}
             </li>
@@ -245,6 +257,7 @@ export function CvWorkshopPage() {
         <ProfileForm
           profile={draft}
           isSaving={isSaving}
+          errors={fieldErrors}
           onSave={(profile) => void handleSave(profile)}
           onCancel={() => {
             setDraft(null);

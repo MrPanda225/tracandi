@@ -123,13 +123,13 @@ describe('CvWorkshopPage', () => {
     expect(await screen.findByText(/Disponibilités : Disponible en mai/)).toBeInTheDocument();
   });
 
-  it('[EF-CVX-02] [ENF-SEC-04] names the fields the API refused, and keeps the form open', async () => {
+  it('[EF-CVX-02] [ENF-SEC-04] shows what the API refused on the field itself, and keeps the form open', async () => {
     mockApi({
       'GET /profile': () => json(200, PROFILE),
       'PUT /profile': () =>
         json(400, {
           error: 'Données invalides',
-          details: [{ path: 'body.identity.email', message: 'Invalid email' }],
+          details: [{ path: 'body.identity.email', message: 'Adresse e-mail invalide' }],
         }),
     });
     renderPage();
@@ -139,9 +139,66 @@ describe('CvWorkshopPage', () => {
     await user.click(screen.getByRole('button', { name: 'Enregistrer le profil' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Données invalides');
-    expect(screen.getByLabelText('Champs refusés')).toHaveTextContent('body.identity.email');
+    const email = screen.getByLabelText('Adresse e-mail');
+    expect(email).toHaveAttribute('aria-invalid', 'true');
+    // The message is tied to the field, so a screen reader announces it with it (WCAG 3.3.1).
+    expect(email).toHaveAccessibleDescription('Adresse e-mail invalide');
+    // No list at the top any more: the refusal is shown where it happened.
+    expect(screen.queryByLabelText('Champs refusés')).not.toBeInTheDocument();
     // Nothing is lost: the form is still there with what was typed.
     expect(screen.getByRole('button', { name: 'Enregistrer le profil' })).toBeInTheDocument();
+  });
+
+  it('[ENF-SEC-04] keeps at the top a refusal no field of the form can show', async () => {
+    mockApi({
+      'GET /profile': () => json(200, PROFILE),
+      'PUT /profile': () =>
+        json(400, { error: 'Données invalides', details: [{ path: 'body', message: 'Champ inconnu' }] }),
+    });
+    renderPage();
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: 'Modifier le profil' }));
+    await user.click(screen.getByRole('button', { name: 'Enregistrer le profil' }));
+
+    expect(await screen.findByLabelText('Champs refusés')).toHaveTextContent('Champ inconnu');
+  });
+
+  it('[EF-CVX-02] marks every field the profile requires, and leaves the optional ones alone', async () => {
+    mockApi({ 'GET /profile': () => json(200, PROFILE) });
+    renderPage();
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: 'Modifier le profil' }));
+
+    expect(screen.getByLabelText('Nom')).toBeRequired();
+    expect(screen.getByLabelText('Disponibilités')).toBeRequired();
+    expect(screen.getByLabelText('Complément')).not.toBeRequired();
+    expect(screen.getByText('Les champs marqués d’un astérisque sont obligatoires.')).toBeInTheDocument();
+  });
+
+  it('[EF-CVX-02] [ENF-UTI-02] lets the candidate pick a period instead of typing it', async () => {
+    const sent = mockApi({
+      'GET /profile': () => json(200, PROFILE),
+      'PUT /profile': () => new Response(null, { status: 204 }),
+    });
+    renderPage();
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: 'Modifier le profil' }));
+    const experiences = screen.getByRole('group', { name: 'Expériences professionnelles' });
+    const start = within(experiences).getByLabelText('Période — début');
+    // « Oct. 2024 – Avril 2026 » of the profile is read back into the two pickers.
+    expect(start).toHaveAttribute('type', 'month');
+    expect(start).toHaveValue('2024-10');
+    expect(within(experiences).getByLabelText('Période — fin')).toHaveValue('2026-04');
+
+    await user.click(within(experiences).getByLabelText('En cours aujourd’hui'));
+    await user.click(screen.getByRole('button', { name: 'Enregistrer le profil' }));
+
+    expect(sent[0]).toMatchObject({
+      cvSource: { experiences: [{ dates: '10/2024 – aujourd’hui' }] },
+    });
   });
 
   it('[EF-CVX-02] adds and removes a repeated entry', async () => {

@@ -282,6 +282,12 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
   et mots-clés, CV, expériences, formations, compétences, centres d'intérêt ; listes saisies une valeur par ligne,
   entrées répétables). Les champs refusés par l'API sont nommés et le formulaire est conservé. L'écran est chargé à
   la demande (son formulaire ne pèse pas sur le premier chargement).
+  *Complément du 23/09/2026* : chaque champ obligatoire porte un astérisque et l'attribut `required` ; un refus de
+  l'API s'affiche **sous le champ qu'il nomme** (`aria-invalid`, message lié par `aria-describedby`) au lieu d'une
+  liste de chemins en haut de page ; les périodes d'expérience et de formation se choisissent dans deux sélecteurs
+  de mois (`<input type="month">`) avec une case « En cours aujourd'hui ». Le modèle de données ne change pas : la
+  période reste du texte, relu et réécrit au format « MM/AAAA – MM/AAAA » attendu par le rendu (RG-15), et une
+  valeur illisible — « Depuis le printemps » — est conservée tant qu'aucune date n'est choisie (RG-12).
   *Reste à faire* : génération d'un CV adapté (T-504), téléchargement Word et PDF (EF-CVX-11, T-503), réponse de
   motivation (T-505, EF-CVX-13).
 
