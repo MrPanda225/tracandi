@@ -12,6 +12,17 @@ const CompletionSchema = z.object({
 
 const ErrorAnswerSchema = z.object({ error: z.object({ message: z.string() }).nullish() }).nullish();
 const ERROR_EXCERPT_LENGTH = 300;
+const RETRY_AFTER = 'retry-after';
+const MS_PER_SECOND = 1000;
+
+/**
+ * The delay the service asks for before another call, in milliseconds; null when it asks for none. A free tier
+ * bounded by tokens per minute answers it on every refusal, and it is far shorter than a blind backoff.
+ */
+const retryAfterMsOf = (response: Response): number | null => {
+  const seconds = Number(response.headers.get(RETRY_AFTER) ?? '');
+  return Number.isFinite(seconds) && seconds >= 0 ? Math.round(seconds * MS_PER_SECOND) : null;
+};
 
 /** The message of a refusal, as the service words it; its body is short and holds no prompt. */
 const describeFailure = async (response: Response): Promise<string> => {
@@ -75,6 +86,7 @@ export const createOpenAiCompatibleProvider = ({
     if (!response.ok) {
       throw Object.assign(new Error(`${model}: ${await describeFailure(response)}`), {
         status: response.status,
+        retryAfterMs: retryAfterMsOf(response),
       });
     }
     const answer = CompletionSchema.parse(await response.json());

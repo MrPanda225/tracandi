@@ -118,6 +118,40 @@ describe('runTask — a provider that refuses for the moment', () => {
     expect(journal).toHaveLength(PROVIDER_ATTEMPTS + 1);
   });
 
+  it('[RG-13] hands a saturated provider over to the next one at once, without waiting', async () => {
+    const saturated = Object.assign(new Error('Rate limit reached: tokens per minute'), {
+      status: 429,
+      retryAfterMs: 21_000,
+    });
+    const first = fakeProvider('groq_1', () => Promise.reject(saturated));
+    const second = fakeProvider('groq_2', () => Promise.resolve(answer({ category: 'interview' })));
+    const { router, waits } = setup({ groq_1: first, groq_2: second });
+
+    const result = await router.runTask('classify_emails', INPUT);
+
+    expect(result.provider).toBe('groq_2');
+    expect(first.complete).toHaveBeenCalledTimes(1);
+    expect(waits).toEqual([]);
+  });
+
+  it('[ENF-FIA-10] waits the delay a saturated provider asks for when it is the last one', async () => {
+    let calls = 0;
+    const saturated = Object.assign(new Error('Rate limit reached: tokens per minute'), {
+      status: 429,
+      retryAfterMs: 1_740,
+    });
+    const only = fakeProvider('groq_1', () => {
+      calls += 1;
+      return calls === 1 ? Promise.reject(saturated) : Promise.resolve(answer({ category: 'interview' }));
+    });
+    const { router, waits } = setup({ groq_1: only });
+
+    await router.runTask('classify_emails', INPUT);
+
+    // The service said « try again in 1.74 s »: that beats a blind backoff.
+    expect(waits).toEqual([1_740]);
+  });
+
   it('[ENF-FIA-10] never asks again when the provider refused the request itself', async () => {
     const credit = apiFailure(400, 'Your credit balance is too low to access the Anthropic API.');
     const claude = fakeProvider('claude', () => Promise.reject(credit));

@@ -103,6 +103,12 @@ interface ClassifiedPair {
   classification: ClassifiedMessage;
 }
 
+/** One batch as the AI answered it: the provider that answered, and each message with its classification. */
+interface ClassifiedBatch {
+  provider: ProviderName;
+  pairs: ClassifiedPair[];
+}
+
 /** What a recorded batch changed, for the Gmail labels: the applications touched and the job alert threads. */
 interface RecordedBatch {
   applicationIds: number[];
@@ -242,18 +248,11 @@ const recordBatch = async (
 };
 
 /**
- * One synchronisation of a user: incremental fetch (T-302), classification by the AI router (RG-13: Gemini then
- * Claude), storage and attachment, then Gmail labels unless the user turned them off.
- * @req EF-GML-04, EF-GML-06, EF-GML-08 to EF-GML-17, EF-GML-19, EF-CAN-11, EF-CFG-01, ENF-FIA-03,
- * ENF-PERF-02, RG-17
+ * Classification and recording of the batches of one pass: the AI call of a batch, the labels of what it changed,
+ * and the recording of a window of batches in their order.
+ * @req EF-GML-08 to EF-GML-17, EF-GML-19, EF-CAN-11, ENF-FIA-03, ENF-PERF-02, RG-04, RG-17
  */
-const createSyncRun = ({
-  db,
-  fetcher,
-  router,
-  clock,
-  logger,
-}: Omit<GmailSyncDeps, 'journal'>): ((userId: number) => Promise<SyncReport>) => {
+const createBatchPipeline = ({ db, router, clock, logger }: Omit<GmailSyncDeps, 'journal' | 'fetcher'>) => {
   const classifyBatch = async (userId: number, batch: RetainedMessage[]) => {
     const { system, prompt } = buildClassifyEmailsPrompt(batch.map(toMessageToClassify));
     const { data, provider } = await router.runTask('classify_emails', {
@@ -282,6 +281,43 @@ const createSyncRun = ({
     }
   };
 
+  /**
+   * Records the answers of one window in the order of its batches, and labels what each one changed.
+   * @returns the messages recorded; a batch the AI refused stops the window, the ones before it staying recorded.
+   * @throws the failure of the first refused batch (ENF-FIA-03).
+   */
+  const recordWindow = async (
+    userId: number,
+    answers: PromiseSettledResult<ClassifiedBatch>[],
+    labeler: ThreadLabeler | null,
+  ): Promise<number> => {
+    let classified = 0;
+    for (const answer of answers) {
+      if (answer.status === 'rejected') throw answer.reason;
+      const { provider, pairs } = answer.value;
+      const recorded = await db.transaction((tx) =>
+        recordBatch(tx, { userId, pairs, provider, processedAt: clock() }),
+      );
+      if (labeler) await labelBatch(userId, labeler, recorded);
+      classified += pairs.length;
+    }
+    return classified;
+  };
+
+
+  return { classifyBatch, recordWindow };
+};
+
+/**
+ * One synchronisation of a user: incremental fetch (T-302), classification by the AI router (RG-13), storage and
+ * attachment, then Gmail labels unless the user turned them off.
+ * @req EF-GML-04, EF-GML-06, EF-GML-08 to EF-GML-17, EF-GML-19, EF-CAN-11, EF-CFG-01, ENF-FIA-03,
+ * ENF-PERF-02, RG-17
+ */
+const createSyncRun = (deps: Omit<GmailSyncDeps, 'journal'>): ((userId: number) => Promise<SyncReport>) => {
+  const { db, fetcher, clock, logger } = deps;
+  const { classifyBatch, recordWindow } = createBatchPipeline(deps);
+
   const run = async (userId: number): Promise<SyncReport> => {
     const startedAt = clock();
     const { readCount, retained, mailbox, shouldApplyLabels, hasMore } =
@@ -292,17 +328,9 @@ const createSyncRun = ({
       : null;
     let classified = 0;
     for (const window of chunksOf(chunksOf(retained, CLASSIFY_BATCH_SIZE), CLASSIFY_CONCURRENCY)) {
-      // The batches of a window are classified at once; a failure of one of them leaves the ones before it recorded.
+      // The batches of a window are classified at once, then recorded in their order (RG-04).
       const answers = await Promise.allSettled(window.map((batch) => classifyBatch(userId, batch)));
-      for (const answer of answers) {
-        if (answer.status === 'rejected') throw answer.reason;
-        const { provider, pairs } = answer.value;
-        const recorded = await db.transaction((tx) =>
-          recordBatch(tx, { userId, pairs, provider, processedAt: clock() }),
-        );
-        if (labeler) await labelBatch(userId, labeler, recorded);
-        classified += pairs.length;
-      }
+      classified += await recordWindow(userId, answers, labeler);
     }
     // A message the AI skipped, or one the bounded pass left behind, is still unprocessed: the next pass must list
     // it again from the same date.
@@ -361,7 +389,10 @@ export const createGmailSync = (deps: GmailSyncDeps): GmailSync => {
         try {
           await synchronise(userId, 'schedule');
         } catch (error) {
-          logger.warn('scheduled gmail synchronisation failed', { userId, error });
+          // A pass already running is the lock doing its work (EF-GML-18), not a failure of the scheduled run.
+          if (error instanceof SyncAlreadyRunningError) {
+            logger.info('scheduled gmail synchronisation skipped, one is already running', { userId });
+          } else logger.warn('scheduled gmail synchronisation failed', { userId, error });
         }
       }
     },

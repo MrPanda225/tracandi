@@ -1,6 +1,6 @@
 import type { z } from 'zod';
 import { LlmUnavailableError } from '../lib/errors.js';
-import { isTransientFailure } from '../lib/httpStatus.js';
+import { isTransientFailure, propertyOf, statusOfError } from '../lib/httpStatus.js';
 import type { Logger } from '../lib/logger.js';
 import { type Sleep, wait } from '../lib/rateLimiter.js';
 import type { LlmCompletion, LlmOutcome, LlmProvider, LlmTaskName, ProviderName } from './types.js';
@@ -156,9 +156,25 @@ const attempt = async <T>(
   }
 };
 
+const TOO_MANY_REQUESTS = 429;
+
 /** ENF-FIA-10: the provider refused for a reason that passes on its own, so the same call may work in a moment. */
 const isWorthAnotherTry = (refusal: Refusal): boolean =>
   'error' in refusal && isTransientFailure(refusal.error);
+
+/**
+ * RG-13: the provider refused because its own budget is spent for the moment (tokens or requests per minute). The
+ * next provider of the route has its own budget, so it takes the task straight away instead of waiting.
+ */
+const isSaturated = (refusal: Refusal): boolean =>
+  'error' in refusal && statusOfError(refusal.error) === TOO_MANY_REQUESTS;
+
+/** The delay the provider asked for, when it gave one (ENF-FIA-10). */
+const askedDelayOf = (refusal: Refusal): number | null => {
+  if (!('error' in refusal)) return null;
+  const asked = propertyOf(refusal.error, 'retryAfterMs');
+  return typeof asked === 'number' && asked >= 0 ? asked : null;
+};
 
 /** What one provider run needs: the journal of the calls, the logs of the refusals and the time budget. */
 interface ProviderRunnerDeps {
@@ -204,15 +220,24 @@ const createProviderRunner = ({ journal, logger, timeoutMs, sleep }: ProviderRun
     return result;
   };
 
-  return async <T>(
-    provider: LlmProvider,
-    task: LlmTaskName,
-    input: RunTaskInput<T>,
-  ): Promise<Attempt<T>> => {
+  return async <T>({
+    provider,
+    task,
+    input,
+    hasFallback,
+  }: {
+    provider: LlmProvider;
+    task: LlmTaskName;
+    input: RunTaskInput<T>;
+    /** Another provider of the route can take over, so a saturated one is not waited for (RG-13). */
+    hasFallback: boolean;
+  }): Promise<Attempt<T>> => {
     let last = await tryOnce(provider, task, input);
-    for (const delayMs of RETRY_BACKOFF_MS) {
+    for (const backoffMs of RETRY_BACKOFF_MS) {
       if (last.outcome === 'success' || !isWorthAnotherTry(last.refusal)) return last;
-      await sleep(delayMs);
+      // A saturated provider is left to the next one of the route rather than waited for (RG-13).
+      if (isSaturated(last.refusal) && hasFallback) return last;
+      await sleep(askedDelayOf(last.refusal) ?? backoffMs);
       last = await tryOnce(provider, task, input);
     }
     return last;
@@ -238,10 +263,16 @@ export const createLlmRouter = ({
 
   return {
     async runTask(task, input) {
-      for (const name of TASK_ROUTES[task]) {
+      const route = TASK_ROUTES[task].filter((name) => providers[name] !== undefined);
+      for (const [index, name] of route.entries()) {
         const provider = providers[name];
         if (!provider) continue;
-        const result = await runProvider(provider, task, input);
+        const result = await runProvider({
+          provider,
+          task,
+          input,
+          hasFallback: index < route.length - 1,
+        });
         if (result.outcome === 'success') return { data: result.data, provider: name };
       }
       throw new LlmUnavailableError();
