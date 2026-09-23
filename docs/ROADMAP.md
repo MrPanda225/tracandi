@@ -156,10 +156,19 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
 
 ## Lot 4 — Veille des offres
 
-- [ ] **T-401 Client HTTP de collecte** — robots.txt (cache par origine), 3 s par hôte, agent identifiant,
+- [x] **T-401 Client HTTP de collecte** — robots.txt (cache par origine), 3 s par hôte, agent identifiant,
   délai 15 s, limite 3 Mo, https uniquement.
   *Exigences* : ENF-COL-01 à 04.
   *Fini quand* : tests avec serveur HTTP local simulé.
+  *Livré* : `scraper/http.ts` — `createPoliteFetch({ contact })` : https seul, robots.txt lu une fois par origine
+  (indisponible = refus complet, RFC 9309), un limiteur par hôte (`lib/rateLimiter.ts` réutilisé), agent
+  `TracandiBot/1.0 (+contact)`, `AbortSignal.timeout(15 s)` et lecture du corps interrompue au-delà de 3 Mo.
+  Dépendance `robots-parser` installée (`npm run audit` : aucune vulnérabilité haute ou critique).
+  *Écart assumé* : le « serveur HTTP local simulé » est remplacé par un `fetch` injecté, comme partout ailleurs dans
+  le projet — `testing.md` interdit le réseau dans un test unitaire, et un serveur local serait en http, refusé par
+  le client. Les 17 tests couvrent chaque exigence, y compris l'annulation du flux au-delà de 3 Mo.
+  *Reste à faire* : l'adresse de contact (ENF-COL-03) est un paramètre du client ; elle sera lue dans la
+  configuration quand T-404 exécutera réellement la veille.
 - [ ] **T-402 Adaptateurs ATS** — Greenhouse, Lever, SmartRecruiters, Recruitee, Workday ; registre d'adaptateurs.
   *Exigences* : EF-VEI-08, ENF-MAI-03.
   *Fini quand* : un test par adaptateur sur réponse enregistrée dans `tests/fixtures/ats/`.
