@@ -25,8 +25,15 @@ export const SOURCE_ADAPTERS: readonly SourceAdapter[] = [
 
 const BY_ID = new Map<SiteAdapterId, SourceAdapter>(SOURCE_ADAPTERS.map((adapter) => [adapter.id, adapter]));
 
-/** The adapter of a source type; every value of the enumeration has one. */
-export const adapterFor = (id: SiteAdapterId): SourceAdapter | undefined => BY_ID.get(id);
+/**
+ * The adapter of a source type. Every value of the enumeration has one, so a caller never has to handle an
+ * absence; a value added to the enumeration without its adapter fails here rather than silently skipping a source.
+ */
+export const adapterFor = (id: SiteAdapterId): SourceAdapter => {
+  const adapter = BY_ID.get(id);
+  if (!adapter) throw new Error(`no adapter answers for source type ${id}`);
+  return adapter;
+};
 
 export * from './types.js';
 export { contractTypeOf, htmlToText } from './description.js';

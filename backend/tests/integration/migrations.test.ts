@@ -100,6 +100,11 @@ describe('migrations', () => {
         'GET /profile',
         'PUT /profile',
         'DELETE /gmail/connection',
+        'GET /sites',
+        'POST /sites',
+        'PATCH /sites/{id}',
+        'DELETE /sites/{id}',
+        'POST /sites/run',
       ].sort(),
     );
   });
