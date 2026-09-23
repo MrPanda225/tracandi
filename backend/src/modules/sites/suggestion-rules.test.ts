@@ -43,6 +43,15 @@ describe('isCompanyDomain — RG-19', () => {
     expect(isCompanyDomain('greenhouse.io', PLATFORMS)).toBe(false);
     expect(isCompanyDomain('hire.lever.co', PLATFORMS)).toBe(false);
   });
+
+  it.each([
+    ['mail.flatchr.io', 'un outil de recrutement sans adaptateur'],
+    ['ateme.teamtailor-mail.com', 'le relais de messagerie d’un outil'],
+    ['daunat.werecruit.io', 'un outil de recrutement'],
+    ['free-work.com', 'un job board : ses offres ne sont celles de personne en particulier'],
+  ])('[RG-19] drops « %s », which is %s', (domain) => {
+    expect(isCompanyDomain(domain, PLATFORMS)).toBe(false);
+  });
 });
 
 describe('chooseCompanyDomain — RG-19', () => {

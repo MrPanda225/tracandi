@@ -273,6 +273,11 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
   geste (EF-VEI-26). Les ajouts se font l'un après l'autre et **celles que l'API refuse sont nommées avec leur
   raison** : un lot n'échoue jamais en bloc. RG-19 tient toujours — rien n'est ajouté sans un geste du candidat,
   qu'il porte sur une proposition ou sur toutes.
+  *Correctif du 23/09/2026 (journaux réels)* : plusieurs entreprises étaient proposées avec le domaine de
+  l'**outil de leur recruteur** — `mail.flatchr.io`, `ateme.teamtailor-mail.com`, `daunat.werecruit.io` — ou
+  d'un **job board** (`free-work.com`), dont les offres ne sont celles de personne en particulier. RG-19 écarte
+  désormais ces domaines. `scraper/failures.ts` traduit par ailleurs les échecs réseau : « fetch failed »
+  devient « ce domaine n'existe pas », « le certificat du site a expiré »… (EF-VEI-11).
   *Reste à faire* : deviner le slug exact d'un job board demanderait de sonder l'ATS ; l'identifiant proposé est
   le nom normalisé de l'entreprise, que le candidat corrige au besoin. Une source ajoutée en lot peut donc
   échouer à sa première consultation, ce que l'écran annonce sous le bouton.
