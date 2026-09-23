@@ -28,6 +28,9 @@ import { createOAuthStateStore } from './modules/emails/oauthState.js';
 import { createGmailModules } from './modules/emails/routes.js';
 import { createGmailSync } from './modules/emails/sync.js';
 import { createSettingsModule } from './modules/settings/routes.js';
+import { createSitesModule } from './modules/sites/routes.js';
+import { createWatchService } from './modules/sites/service.js';
+import { createPoliteFetch } from './scraper/http.js';
 import { createStatsModule } from './modules/stats/routes.js';
 import { createStatsService } from './modules/stats/service.js';
 
@@ -123,6 +126,7 @@ const app = createApp({
     createJobsModule(jobQueue),
     createProfileModule(createProfileService({ db: database.db, clock: systemClock })),
     createSettingsModule(describeAssignments(config.llm)),
+    createSitesModule(watchService),
   ],
 });
 
@@ -132,7 +136,11 @@ const server = app.listen(config.port, config.host, () => {
 
 // EF-GML-03: every connected mailbox, on the configured schedule and time zone.
 const scheduler = startScheduler({
-  jobs: [{ name: 'gmail_sync', cron: config.scheduler.gmailCron, run: () => gmailSync.synchroniseEveryMailbox() }],
+  jobs: [
+    { name: 'gmail_sync', cron: config.scheduler.gmailCron, run: () => gmailSync.synchroniseEveryMailbox() },
+    // EF-VEI-06: every active source of every candidate, at 7, 13 and 19 o'clock Paris time.
+    { name: 'scraper', cron: config.scheduler.watchCron, run: () => watchService.checkEverySource() },
+  ],
   timezone: config.scheduler.timezone,
   logger,
 });

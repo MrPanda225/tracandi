@@ -156,19 +156,80 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
 
 ## Lot 4 — Veille des offres
 
-- [ ] **T-401 Client HTTP de collecte** — robots.txt (cache par origine), 3 s par hôte, agent identifiant,
+- [x] **T-401 Client HTTP de collecte** — robots.txt (cache par origine), 3 s par hôte, agent identifiant,
   délai 15 s, limite 3 Mo, https uniquement.
   *Exigences* : ENF-COL-01 à 04.
   *Fini quand* : tests avec serveur HTTP local simulé.
-- [ ] **T-402 Adaptateurs ATS** — Greenhouse, Lever, SmartRecruiters, Recruitee, Workday ; registre d'adaptateurs.
-  *Exigences* : EF-VEI-08, ENF-MAI-03.
+  *Livré* : `scraper/http.ts` — `createPoliteFetch({ contact })` : https seul, robots.txt lu une fois par origine
+  (indisponible = refus complet, RFC 9309), un limiteur par hôte (`lib/rateLimiter.ts` réutilisé), agent
+  `TracandiBot/1.0 (+contact)`, `AbortSignal.timeout(15 s)` et lecture du corps interrompue au-delà de 3 Mo.
+  Dépendance `robots-parser` installée (`npm run audit` : aucune vulnérabilité haute ou critique).
+  *Écart assumé* : le « serveur HTTP local simulé » est remplacé par un `fetch` injecté, comme partout ailleurs dans
+  le projet — `testing.md` interdit le réseau dans un test unitaire, et un serveur local serait en http, refusé par
+  le client. Les 17 tests couvrent chaque exigence, y compris l'annulation du flux au-delà de 3 Mo.
+  *Reste à faire* : l'adresse de contact (ENF-COL-03) est un paramètre du client ; elle sera lue dans la
+  configuration quand T-404 exécutera réellement la veille.
+- [x] **T-402 Adaptateurs ATS** — Greenhouse, Lever, SmartRecruiters, Recruitee, Workday ; registre d'adaptateurs.
+  *Exigences* : EF-VEI-08, EF-VEI-02 (RG-08), EF-VEI-22, ENF-MAI-03, ENF-FIA-02.
   *Fini quand* : un test par adaptateur sur réponse enregistrée dans `tests/fixtures/ats/`.
-- [ ] **T-403 Adaptateur générique** — HTML → texte + liens, extraction IA, filtrage des URL hors domaine.
-  *Exigences* : EF-VEI-08.
+  *Livré* : `scraper/adapters/` — `types.ts` (contrat `SourceAdapter`, `NormalizedOffer` borné aux colonnes de
+  `job_offers`, `SourceFetchError` dont le message est en français car il est montré au candidat, EF-VEI-11),
+  `description.ts` (HTML → texte sans dépendance nouvelle, correspondance des libellés de contrat français et
+  anglais), un fichier par source, `index.ts` pour le registre. Chaque source est jointe **par sa seule API
+  publique de job board**, sans clé : Greenhouse, Lever et Recruitee rendent tout en une requête ;
+  SmartRecruiters et Workday sont paginés et bornés à 5 pages.
+  *Choix assumés* : SmartRecruiters et Workday ne publient pas le texte de l'offre dans leur liste — le lire
+  coûterait une requête par offre, soit 3 s chacune (ENF-COL-02) ; la description reste nulle et sera lue par
+  T-404 pour les seules offres nouvelles. `postedOn` de Workday (« Posted 5 Days Ago ») n'est pas une date : elle
+  n'est pas devinée. « Full-time » et « Part-time » ne valent pas CDI (EF-VEI-22). `scraper/http.ts` gagne une
+  option `{ method, json }` : la liste d'un site Workday n'existe qu'en POST, et passe par le même client poli.
+  *Écart assumé* : les fixtures de `tests/fixtures/ats/` reproduisent le format documenté de chaque API avec des
+  entreprises fictives ; aucune réponse réelle n'a été appelée (testing.md interdit le réseau en test).
+  *Reste à faire* : le type `generic` (page carrières lue par IA) arrive avec T-403 ; `adapterFor('generic')`
+  renvoie `undefined` en attendant, pour qu'une source de ce type signale son absence d'adaptateur.
+- [x] **T-403 Adaptateur générique** — HTML → texte + liens, extraction IA, filtrage des URL hors domaine.
+  *Exigences* : EF-VEI-08, EF-VEI-02 (RG-08), EF-VEI-09, ENF-SEC-06, ENF-COU-01, ENF-FIA-02.
   *Fini quand* : test où l'IA simulée renvoie une URL externe, qui est écartée.
-- [ ] **T-404 Exécution et notation** — gestion des sources (API), dédoublonnage, pré-filtre RG-10, notation RG-09 par lots.
-  *Exigences* : EF-VEI-01 à 07, 09 à 14, 21, ENF-FIA-02.
+  *Livré* : `scraper/page.ts` — `readPage(html, url)` (cheerio) rend le texte lisible et les liens résolus en
+  adresses absolues, bornés à 12 000 caractères et 120 liens (ENF-COU-01) ; scripts et styles retirés avant toute
+  lecture, mobilier du site retiré du texte mais **ses liens conservés**, certains sites y listant leurs offres.
+  `llm/prompts/extractOffers.ts` (balises `<page_text>` et `<page_links>`, ENF-SEC-06),
+  `modules/offers/extraction.ts` (`ExtractedOffersSchema`, bornes explicites), `scraper/adapters/generic.ts`.
+  La tâche `extract_offers` existait déjà dans `TASK_ROUTES` (RG-13) : aucun changement de routage.
+  *Garde-fou* : **c'est le code, jamais le modèle, qui décide où le candidat est envoyé.** Une adresse proposée
+  n'est retenue que si elle figure parmi les liens réellement présents sur la page **et** reste sur le site de la
+  source (même hôte, ou sous-domaine de l'un ou de l'autre). Sinon l'offre est conservée mais pointe sur la page
+  carrières. Comparer les noms d'hôte entiers évite d'avoir besoin d'une liste de suffixes publics, qui serait
+  fausse pour `exemple.co.uk`.
+  *Choix assumés* : une page carrières ne date presque jamais ses offres et « publiée récemment » n'est pas une
+  date — `postedAt` reste nul. L'identifiant d'une offre sans lien est un condensé de l'adresse de la page et de
+  son intitulé, stable d'un passage à l'autre (EF-VEI-09). `AdapterDeps` gagne un `runTask` **facultatif** :
+  seule la page générique lit par un modèle, et un adaptateur qui en a besoin sans en disposer le dit (EF-IA-04).
+  Dépendance `cheerio` installée (pré-approuvée pour T-403 ; `npm run audit` : rien de haut ni de critique).
+- [x] **T-404 Exécution et notation** — gestion des sources (API), dédoublonnage, pré-filtre RG-10, notation RG-09 par lots.
+  *Exigences* : EF-VEI-01 à 07, 09 à 14, 21, ENF-FIA-02, ENF-PERF-04, ENF-COL-03.
   *Fini quand* : une source en échec n'empêche pas les autres (test).
+  *Livré* : `modules/sites/` — `schemas.ts` (l'identifiant est lu par la règle RG-08 **du type choisi**),
+  `repository.ts`, `pass.ts` (une passe : lecture, dédoublonnage, notation, enregistrement) et `service.ts`
+  (catalogue des sources + orchestration). Routes `GET/POST /api/sites`, `PATCH/DELETE /api/sites/{id}` et
+  `POST /api/sites/run`. `modules/offers/scoring.ts` porte RG-09 et RG-10, `llm/prompts/scoreOffers.ts` le prompt
+  de la tâche `score_offers` (déjà routée par RG-13). Planification EF-VEI-06 : `CRON_SCRAPER`, 7 h, 13 h et 19 h
+  heure de Paris, journalisée dans `job_runs` (`scraper`) comme la synchronisation Gmail.
+  *Économie d'appels IA* : RG-10 écarte sans aucun appel une offre ne portant aucun mot-clé d'une cible — elle
+  reçoit le score 5 et la raison qui le dit (EF-VEI-14) ; le reste part par lots de 15 (ENF-COU-01). Une seconde
+  passe sur un board inchangé ne coûte **aucun** appel, les offres connues étant écartées avant la notation.
+  *Correctif de performance* : le comptage des offres d'une source passait par une jointure et un `group by`, que
+  le planificateur servait en lisant tout `job_offers` ; il est devenu une sous-requête corrélée servie par
+  `uq_job_offers_source_item`. Vérifié par `tests/integration/sites-query-plans.test.ts` sur le jeu de charge
+  (ENF-PERF-04).
+  *Choix assumés* : les sources sont lues l'une après l'autre — le collecteur espace déjà ses appels (ENF-COL-02)
+  et une page carrières coûte un appel IA ; ce qui compte est qu'un échec reste sur sa source (ENF-FIA-02).
+  `SCRAPER_CONTACT_EMAIL` vide fait **refuser** la consultation avec un message clair plutôt que de collecter
+  anonymement (ENF-COL-03) ; le reste de l'application n'en est pas affecté. Une passe demandée sans profil de
+  référence répond 409 : les cibles sont ce contre quoi un score se mesure.
+  *Reste à faire* : la description d'une offre nouvelle chez SmartRecruiters et Workday n'est toujours pas lue
+  (une requête par offre, 3 s chacune) — la notation s'y appuie sur l'intitulé, le lieu et le contrat ; à traiter
+  avec T-406, qui affichera le détail d'une offre. Le récapitulatif e-mail (EF-VEI-15) est T-405.
 - [ ] **T-405 Récapitulatif e-mail** — envoi via Gmail des offres de score ≥ S.
   *Exigences* : EF-VEI-15.
 - [ ] **T-406 Écrans Sites et Offres** — ajout/suspension/retrait, liste triée, filtre score, garder/écarter,
@@ -253,7 +314,9 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
   Premiers correctifs livrés hors tâche (cache de session 60 s, délai de connexion 8 s, 503 explicite ;
   classement de 3 lots en parallèle ; écrans lourds chargés à la demande ; modèle saturé passé au suivant sans
   attente et délai `Retry-After` respecté) ; la mesure ENF-PERF-01 à 03 et le choix
-  d'hébergement restent à traiter ici.* — script de génération de données, mesures ENF-PERF-01 à 03.
+  d'hébergement restent à traiter ici. Correctif du 23/09/2026 : une base injoignable était encore renvoyée en 500
+  quand `pg` la signalait par un libellé plutôt que par un code (« Connection terminated unexpectedly ») ; le
+  pool ferme désormais ses connexions inactives avant l'hôte (60 s) et garde la liaison en vie.* — script de génération de données, mesures ENF-PERF-01 à 03.
 - [ ] **T-704 Revue de sécurité finale** — checklist du skill `security`, `npm audit`, revue des journaux,
   exposition réseau, localisation des données, démarrage `docker compose up` après `scripts/setup.sh`.
   *Exigences* : ENF-SEC-01, ENF-SEC-10, ENF-RGP-03, ENF-POR-01.

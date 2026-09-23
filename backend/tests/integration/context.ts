@@ -27,6 +27,9 @@ import { createGmailSync, type GmailSync } from '../../src/modules/emails/sync.j
 import { createSettingsModule } from '../../src/modules/settings/routes.js';
 import { createStatsModule } from '../../src/modules/stats/routes.js';
 import { createStatsService } from '../../src/modules/stats/service.js';
+import { createSitesModule } from '../../src/modules/sites/routes.js';
+import { createWatchService, type WatchService } from '../../src/modules/sites/service.js';
+import type { AdapterDeps } from '../../src/scraper/adapters/types.js';
 import { testDatabaseUrl } from './test-database.js';
 
 export const FRONTEND_ORIGIN = 'http://127.0.0.1:5173';
@@ -87,11 +90,17 @@ const unreachableAi: Partial<Record<ProviderName, LlmProvider>> = {
   },
 };
 
+/** Career sites that must never be reached: tests reading one pass their own collector. */
+const unreachableCollector: AdapterDeps['fetch'] = () =>
+  Promise.reject(new Error('No career site must be reached in this test'));
+
 /** Doubles of the external services; every one is unreachable unless a test gives its own. */
 export interface ExternalServices {
   google?: GoogleOAuth;
   openMailbox?: OpenMailbox;
   aiProviders?: Partial<Record<ProviderName, LlmProvider>>;
+  /** The responsible collector of the watch (T-401), simulated: no request ever leaves a test. */
+  collect?: AdapterDeps['fetch'];
 }
 
 /** Real application on the local test database, with an injectable clock and fake external services. */
@@ -101,6 +110,7 @@ export const createTestContext = (
     google = unreachableGoogle,
     openMailbox = unreachableMailbox,
     aiProviders = unreachableAi,
+    collect = unreachableCollector,
   }: ExternalServices = {},
 ): TestContext => {
   const clock = createTestClock(new Date('2026-09-22T08:00:00.000Z'));
@@ -120,12 +130,22 @@ export const createTestContext = (
     clock: clock.now,
     logger,
   });
+  const llmRouter = createLlmRouter({ providers: aiProviders, journal: createLlmJournal(database.db), logger });
   const sync = createGmailSync({
     db: database.db,
     fetcher: createMessageFetcher({ db: database.db, openMailbox, encryptionKey, clock: clock.now }),
     router: createLlmRouter({ providers: aiProviders, journal: createLlmJournal(database.db), logger }),
     queue,
     clock: clock.now,
+    logger,
+  });
+  const watch = createWatchService({
+    db: database.db,
+    clock: clock.now,
+    profiles: createProfileService({ db: database.db, clock: clock.now }),
+    router: llmRouter,
+    journal: createJobJournal({ db: database.db, clock: clock.now }),
+    collect,
     logger,
   });
   const app = createApp({
@@ -140,6 +160,7 @@ export const createTestContext = (
       createJobsModule(queue),
       createProfileModule(createProfileService({ db: database.db, clock: clock.now })),
       createSettingsModule(describeAssignments(aiProviders)),
+      createSitesModule(watch),
     ],
   });
   return { app, database, clock, encryptionKey, gmailSync: sync, queue };

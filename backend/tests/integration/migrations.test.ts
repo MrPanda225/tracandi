@@ -102,6 +102,11 @@ describe('migrations', () => {
         'GET /jobs/{id}',
         'GET /jobs/stream',
         'DELETE /gmail/connection',
+        'GET /sites',
+        'POST /sites',
+        'PATCH /sites/{id}',
+        'DELETE /sites/{id}',
+        'POST /sites/run',
       ].sort(),
     );
   });

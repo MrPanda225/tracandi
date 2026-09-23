@@ -8,6 +8,8 @@ const DEFAULT_HOST = '127.0.0.1';
 // EF-GML-03: every 30 minutes, Paris time (EF-VEI-06).
 const DEFAULT_TIMEZONE = 'Europe/Paris';
 const DEFAULT_GMAIL_CRON = '*/30 * * * *';
+// EF-VEI-06: the watch reads its sources at 7, 13 and 19 o'clock, Paris time.
+const DEFAULT_WATCH_CRON = '0 7,13,19 * * *';
 const DEFAULT_PORT = 4000;
 const MAX_PORT = 65_535;
 
@@ -74,6 +76,19 @@ const EnvSchema = z.object({
   // EF-GML-03: time zone of the cron expressions (IANA name) and schedule of the Gmail synchronisation.
   SCHEDULER_TIMEZONE: z.string().refine(isTimeZone, 'must be an IANA time zone').default(DEFAULT_TIMEZONE),
   CRON_GMAIL: z.string().refine(isCronExpression, 'must be a cron expression').default(DEFAULT_GMAIL_CRON),
+  // EF-VEI-06
+  CRON_SCRAPER: z.string().refine(isCronExpression, 'must be a cron expression').default(DEFAULT_WATCH_CRON),
+  /*
+   * ENF-COL-03: address a watched site can write to, carried by every collection request. Left empty, the watch
+   * refuses to read a site rather than reading it anonymously; the rest of the application is unaffected.
+   */
+  SCRAPER_CONTACT_EMAIL: z
+    .string()
+    .trim()
+    .email()
+    .or(z.literal(''))
+    .default('')
+    .transform((value) => value || null),
 });
 
 type Env = z.infer<typeof EnvSchema>;
@@ -120,12 +135,21 @@ export interface Config {
   gmail: GmailConfig;
   /** EF-GML-03 */
   scheduler: SchedulerConfig;
+  scraper: ScraperConfig;
 }
 
 /** Time zone of the cron expressions and schedule of each job. */
 export interface SchedulerConfig {
   timezone: string;
   gmailCron: string;
+  /** EF-VEI-06 */
+  watchCron: string;
+}
+
+/** ENF-COL-03: how the collector identifies itself to the sites it reads. */
+export interface ScraperConfig {
+  /** Address a site owner can write to; null leaves the watch unable to read anything. */
+  contact: string | null;
 }
 
 /** OAuth client of the Gmail connection and key of the tokens at rest. */
@@ -191,6 +215,11 @@ export const loadConfig = (env: Record<string, string | undefined>): Config => {
       redirectUri: result.data.GOOGLE_REDIRECT_URI,
       tokenEncryptionKey: result.data.TOKEN_ENCRYPTION_KEY,
     },
-    scheduler: { timezone: result.data.SCHEDULER_TIMEZONE, gmailCron: result.data.CRON_GMAIL },
+    scheduler: {
+      timezone: result.data.SCHEDULER_TIMEZONE,
+      gmailCron: result.data.CRON_GMAIL,
+      watchCron: result.data.CRON_SCRAPER,
+    },
+    scraper: { contact: result.data.SCRAPER_CONTACT_EMAIL },
   };
 };
