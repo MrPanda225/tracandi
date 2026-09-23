@@ -1,6 +1,7 @@
 import { useEffect, useId, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
+import { GmailExpiryBanner } from './GmailExpiryBanner';
 import { NAV_ITEMS } from './navigation';
 import './AppShell.css';
 
@@ -82,6 +83,7 @@ export function AppShell() {
       </aside>
 
       <main id={MAIN_ID} className="shell__main" tabIndex={-1}>
+        <GmailExpiryBanner />
         <Outlet />
       </main>
     </div>

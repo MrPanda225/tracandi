@@ -21,7 +21,8 @@ Toute nouvelle demande passe par `/project:change-request` avant le code.
 - **Base** : PostgreSQL hébergé par **Neon** (région UE, TLS). Schéma dans `backend/src/db/schema.ts`, migrations générées
   par `drizzle-kit` dans `backend/drizzle/`. Tests d'intégration sur un PostgreSQL **local** (Docker), jamais sur Neon.
   *Transition* : `scripts/db/` est encore en version MySQL jusqu'à T-701.
-- **IA** : Claude (`@anthropic-ai/sdk`) et Gemini (`@google/genai`) derrière un routeur avec bascule.
+- **IA** : Groq (trois emplacements de modèles gratuits, via `fetch` sur l'API compatible OpenAI), Claude
+  (`@anthropic-ai/sdk`) et Gemini (`@google/genai`) derrière un routeur avec bascule (RG-13).
 - **Intégrations** : Gmail API (`googleapis`), API publiques des ATS.
 
 ## Commandes
@@ -83,9 +84,9 @@ Skills de référence : `.claude/skills/` (`clean-code`, `security`, `requiremen
 |---|---|
 | T-002 | `drizzle-orm`, `pg` ; dev : `drizzle-kit`, `@types/pg` (installés) |
 | T-005 | `@asteasolutions/zod-to-openapi`, `swagger-ui-express` ; dev : `@types/swagger-ui-express` (installés) |
-| T-201 | `@anthropic-ai/sdk`, `@google/genai` |
-| T-301 | `googleapis` |
-| T-305 | `node-cron` |
+| T-201 | `@anthropic-ai/sdk`, `@google/genai` (installés) |
+| T-301 | `googleapis` (installé) |
+| T-305 | `node-cron` (installé) |
 | T-401 | `robots-parser` |
 | T-403 | `cheerio` |
 | T-502 | `docx` |

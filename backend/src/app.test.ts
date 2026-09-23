@@ -2,7 +2,7 @@ import { Router } from 'express';
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { createApp } from './app.js';
-import { HttpError } from './lib/errors.js';
+import { HttpError, LlmUnavailableError } from './lib/errors.js';
 import { createLogger } from './lib/logger.js';
 
 const FRONTEND_ORIGIN = 'http://127.0.0.1:5173';
@@ -30,6 +30,9 @@ const buildTestRouter = (): Router => {
   });
   router.get('/teapot', () => {
     throw new HttpError(409, 'Cette source est déjà surveillée');
+  });
+  router.get('/ai-down', () => {
+    throw new LlmUnavailableError();
   });
   router.post('/echo', (req, res) => {
     res.status(200).json({ received: req.body as unknown });
@@ -227,6 +230,17 @@ describe('central error handler', () => {
 
     expect(response.status).toBe(409);
     expect(response.body).toEqual({ error: 'Cette source est déjà surveillée' });
+  });
+
+  it('[EF-IA-04] answers 502 with an explicit message when no AI provider could do the task', async () => {
+    const { app } = buildApp();
+
+    const response = await request(app).get('/api/ai-down');
+
+    expect(response.status).toBe(502);
+    expect(response.body).toEqual({
+      error: 'Aucun service d’IA n’a pu traiter la demande. Réessayez dans quelques minutes.',
+    });
   });
 
   it('[ENF-SEC-04] answers an unknown API route with a JSON 404 once authenticated', async () => {

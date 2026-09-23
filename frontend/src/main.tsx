@@ -1,6 +1,7 @@
-// Self-hosted fonts: no request to a third-party font service. `full` keeps the SOFT, WONK and opsz axes.
-import '@fontsource-variable/fraunces/full.css';
-import '@fontsource-variable/fraunces/full-italic.css';
+// Self-hosted fonts: no request to a third-party font service. Only the weight axis is loaded here (36 kB instead
+// of 121 kB for the latin subset); the login page adds the SOFT and WONK axes it alone uses (ENF-PERF-01).
+import '@fontsource-variable/fraunces/wght.css';
+import '@fontsource-variable/fraunces/wght-italic.css';
 import '@fontsource-variable/manrope';
 import './styles/global.css';
 import { StrictMode } from 'react';

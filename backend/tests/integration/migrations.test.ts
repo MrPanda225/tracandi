@@ -90,6 +90,13 @@ describe('migrations', () => {
         'GET /applications/{id}/emails',
         'PATCH /emails/{id}',
         'GET /stats/dashboard',
+        'GET /gmail/authorization-url',
+        'GET /gmail/callback',
+        'GET /gmail/status',
+        'PATCH /gmail/settings',
+        'POST /gmail/sync',
+        'GET /settings/ai',
+        'DELETE /gmail/connection',
       ].sort(),
     );
   });

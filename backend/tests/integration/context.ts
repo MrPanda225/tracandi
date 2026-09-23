@@ -1,13 +1,27 @@
+import { randomBytes } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import type { Express } from 'express';
 import request from 'supertest';
 import { createApp } from '../../src/app.js';
 import { connectDatabase, type DatabaseHandle } from '../../src/db/client.js';
+import { createJobJournal } from '../../src/jobs/journal.js';
 import { createLogger } from '../../src/lib/logger.js';
+import { describeAssignments } from '../../src/llm/assignments.js';
+import { createLlmJournal } from '../../src/llm/repository.js';
+import { createLlmRouter } from '../../src/llm/router.js';
+import type { LlmProvider, ProviderName } from '../../src/llm/types.js';
 import { createApplicationsModule } from '../../src/modules/applications/routes.js';
 import { createApplicationsService } from '../../src/modules/applications/service.js';
 import { createAuthModules } from '../../src/modules/auth/routes.js';
 import { createAuthService } from '../../src/modules/auth/service.js';
+import { createGmailConnectionService } from '../../src/modules/emails/connection.js';
+import { createMessageFetcher } from '../../src/modules/emails/fetcher.js';
+import type { GoogleOAuth } from '../../src/modules/emails/googleOAuth.js';
+import type { OpenMailbox } from '../../src/modules/emails/mailbox.js';
+import { createOAuthStateStore } from '../../src/modules/emails/oauthState.js';
+import { createGmailModules } from '../../src/modules/emails/routes.js';
+import { createGmailSync, type GmailSync } from '../../src/modules/emails/sync.js';
+import { createSettingsModule } from '../../src/modules/settings/routes.js';
 import { createStatsModule } from '../../src/modules/stats/routes.js';
 import { createStatsService } from '../../src/modules/stats/service.js';
 import { testDatabaseUrl } from './test-database.js';
@@ -40,16 +54,73 @@ export interface TestContext {
   app: Express;
   database: DatabaseHandle;
   clock: TestClock;
+  /** Key of the Gmail tokens at rest in this context (ENF-SEC-02). */
+  encryptionKey: Buffer;
+  /** The Gmail synchronisation behind the routes, for the scheduled runs (EF-GML-03). */
+  gmailSync: GmailSync;
 }
 
-/** Real application on the local test database, with an injectable clock. */
-export const createTestContext = (database: DatabaseHandle): TestContext => {
+/** Google that must never be reached: tests needing Google pass their own fake. */
+const unreachableGoogle: GoogleOAuth = {
+  authorizationUrl: (state) => `https://accounts.google.com/o/oauth2/v2/auth?state=${state}`,
+  exchangeCode: () => Promise.reject(new Error('Google must not be called in this test')),
+  revoke: () => Promise.reject(new Error('Google must not be called in this test')),
+};
+
+/** Gmail that must never be reached: tests reading a mailbox pass their own fake. */
+const unreachableMailbox: OpenMailbox = () => {
+  const refuse = () => Promise.reject(new Error('Gmail must not be called in this test'));
+  return { listMessageIds: refuse, getMessage: refuse, listLabels: refuse, createLabel: refuse, modifyThread: refuse };
+};
+
+/** AI that must never be reached: tests needing a classification pass their own scripted provider. */
+const unreachableAi: Partial<Record<ProviderName, LlmProvider>> = {
+  gemini: {
+    name: 'gemini',
+    model: 'unreachable',
+    complete: () => Promise.reject(new Error('No AI provider must be called in this test')),
+  },
+};
+
+/** Doubles of the external services; every one is unreachable unless a test gives its own. */
+export interface ExternalServices {
+  google?: GoogleOAuth;
+  openMailbox?: OpenMailbox;
+  aiProviders?: Partial<Record<ProviderName, LlmProvider>>;
+}
+
+/** Real application on the local test database, with an injectable clock and fake external services. */
+export const createTestContext = (
+  database: DatabaseHandle,
+  {
+    google = unreachableGoogle,
+    openMailbox = unreachableMailbox,
+    aiProviders = unreachableAi,
+  }: ExternalServices = {},
+): TestContext => {
   const clock = createTestClock(new Date('2026-09-22T08:00:00.000Z'));
   const logger = createLogger({ write: () => undefined });
+  const encryptionKey = randomBytes(32);
   const authService = createAuthService({
     db: database.db,
     clock: clock.now,
     passwordParams: TEST_PASSWORD_PARAMS,
+  });
+  const gmailService = createGmailConnectionService({
+    db: database.db,
+    google,
+    states: createOAuthStateStore({ clock: clock.now }),
+    encryptionKey,
+    clock: clock.now,
+    logger,
+  });
+  const sync = createGmailSync({
+    db: database.db,
+    fetcher: createMessageFetcher({ db: database.db, openMailbox, encryptionKey, clock: clock.now }),
+    router: createLlmRouter({ providers: aiProviders, journal: createLlmJournal(database.db), logger }),
+    journal: createJobJournal({ db: database.db, clock: clock.now }),
+    clock: clock.now,
+    logger,
   });
   const app = createApp({
     config: { frontendOrigin: FRONTEND_ORIGIN },
@@ -59,9 +130,11 @@ export const createTestContext = (database: DatabaseHandle): TestContext => {
       ...createAuthModules({ service: authService, isCookieSecure: true }),
       createApplicationsModule(createApplicationsService({ db: database.db, clock: clock.now })),
       createStatsModule(createStatsService({ db: database.db, clock: clock.now })),
+      ...createGmailModules({ service: gmailService, sync, frontendOrigin: FRONTEND_ORIGIN }),
+      createSettingsModule(describeAssignments(aiProviders)),
     ],
   });
-  return { app, database, clock };
+  return { app, database, clock, encryptionKey, gmailSync: sync };
 };
 
 export const openTestDatabase = (): DatabaseHandle =>

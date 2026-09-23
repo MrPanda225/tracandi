@@ -2,7 +2,24 @@ import { describe, expect, it } from 'vitest';
 import { ConfigError, loadConfig } from './env.js';
 
 const NEON_URL = 'postgresql://app:pw@ep-x-pooler.eu-central-1.aws.neon.tech/tracandi?sslmode=verify-full';
-const VALID_ENV = { FRONTEND_ORIGIN: 'http://127.0.0.1:5173', DATABASE_URL_APP: NEON_URL };
+// Fictitious keys: the configuration never checks them against a provider.
+const ANTHROPIC = { ANTHROPIC_API_KEY: 'sk-ant-test-key', ANTHROPIC_MODEL: 'claude-sonnet-5' };
+const GEMINI = { GEMINI_API_KEY: 'gemini-test-key', GEMINI_MODEL: 'gemini-2.5-flash' };
+const ENCRYPTION_KEY_HEX = '0123456789abcdef'.repeat(4);
+const GOOGLE = {
+  GOOGLE_CLIENT_ID: 'test-client.apps.googleusercontent.com',
+  GOOGLE_CLIENT_SECRET: 'google-test-secret',
+  GOOGLE_REDIRECT_URI: 'http://localhost:4000/api/gmail/callback',
+  TOKEN_ENCRYPTION_KEY: ENCRYPTION_KEY_HEX,
+};
+const GROQ = {
+  GROQ_API_KEY: 'gsk-test-key',
+  GROQ_MODEL_1: 'openai/gpt-oss-120b',
+  GROQ_MODEL_2: 'qwen/qwen3.8-27b',
+  GROQ_MODEL_3: 'openai/gpt-oss-20b',
+};
+const BASE_ENV = { FRONTEND_ORIGIN: 'http://127.0.0.1:5173', DATABASE_URL_APP: NEON_URL, ...GOOGLE };
+const VALID_ENV = { ...BASE_ENV, ...ANTHROPIC, ...GEMINI };
 
 describe('loadConfig', () => {
   it('[ENF-SEC-03] reads the configuration from the environment and applies defaults', () => {
@@ -14,7 +31,103 @@ describe('loadConfig', () => {
       frontendOrigin: 'http://127.0.0.1:5173',
       databaseUrl: NEON_URL,
       isCookieSecure: true,
+      llm: {
+        claude: { apiKey: 'sk-ant-test-key', model: 'claude-sonnet-5' },
+        gemini: { apiKey: 'gemini-test-key', model: 'gemini-2.5-flash' },
+      },
+      gmail: {
+        clientId: 'test-client.apps.googleusercontent.com',
+        clientSecret: 'google-test-secret',
+        redirectUri: 'http://localhost:4000/api/gmail/callback',
+        tokenEncryptionKey: Buffer.from(ENCRYPTION_KEY_HEX, 'hex'),
+      },
+      scheduler: { timezone: 'Europe/Paris', gmailCron: '*/30 * * * *' },
     });
+  });
+
+  it('[EF-GML-03] reads the time zone and the cron expression of the Gmail synchronisation', () => {
+    const config = loadConfig({ ...VALID_ENV, SCHEDULER_TIMEZONE: 'America/Montreal', CRON_GMAIL: '*/15 8-20 * * *' });
+
+    expect(config.scheduler).toEqual({ timezone: 'America/Montreal', gmailCron: '*/15 8-20 * * *' });
+  });
+
+  it.each([
+    ['SCHEDULER_TIMEZONE', { ...VALID_ENV, SCHEDULER_TIMEZONE: 'Europe/Atlantis' }],
+    ['CRON_GMAIL', { ...VALID_ENV, CRON_GMAIL: 'every 30 minutes' }],
+    ['CRON_GMAIL', { ...VALID_ENV, CRON_GMAIL: '*/30 * * *' }],
+  ])('[EF-GML-03] refuses to start with an invalid %s', (variable, env) => {
+    expect(() => loadConfig(env)).toThrow(new RegExp(variable));
+  });
+
+  it.each([
+    ['GOOGLE_CLIENT_ID', { ...VALID_ENV, GOOGLE_CLIENT_ID: '' }],
+    ['GOOGLE_CLIENT_SECRET', { ...VALID_ENV, GOOGLE_CLIENT_SECRET: undefined }],
+    ['GOOGLE_REDIRECT_URI', { ...VALID_ENV, GOOGLE_REDIRECT_URI: 'not a url' }],
+    ['TOKEN_ENCRYPTION_KEY', { ...VALID_ENV, TOKEN_ENCRYPTION_KEY: '' }],
+    ['TOKEN_ENCRYPTION_KEY', { ...VALID_ENV, TOKEN_ENCRYPTION_KEY: 'ab'.repeat(31) }],
+  ])('[EF-GML-01] [ENF-SEC-02] refuses to start without a valid %s', (variable, env) => {
+    expect(() => loadConfig(env)).toThrow(ConfigError);
+    expect(() => loadConfig(env)).toThrow(variable);
+  });
+
+  it('[ENF-SEC-08] never echoes the Google secret nor the encryption key in the error message', () => {
+    const env = { ...VALID_ENV, GOOGLE_REDIRECT_URI: '', TOKEN_ENCRYPTION_KEY: 'secret-looking-key-value' };
+
+    expect(() => loadConfig(env)).not.toThrow(/google-test-secret|secret-looking-key-value/);
+  });
+
+  it('[EF-IA-05] starts with the Gemini key alone', () => {
+    const config = loadConfig({ ...BASE_ENV, ...GEMINI });
+
+    expect(config.llm).toEqual({ gemini: { apiKey: 'gemini-test-key', model: 'gemini-2.5-flash' } });
+  });
+
+  it('[EF-IA-05] starts with the Anthropic key alone, an empty Gemini key counting as absent', () => {
+    const config = loadConfig({ ...VALID_ENV, GEMINI_API_KEY: '' });
+
+    expect(config.llm).toEqual({ claude: { apiKey: 'sk-ant-test-key', model: 'claude-sonnet-5' } });
+  });
+
+  it('[RG-13] [EF-IA-05] starts with the Groq key alone, one route entry per configured model', () => {
+    const config = loadConfig({ ...BASE_ENV, ...GROQ });
+
+    expect(config.llm).toEqual({
+      groq_1: { apiKey: 'gsk-test-key', model: 'openai/gpt-oss-120b' },
+      groq_2: { apiKey: 'gsk-test-key', model: 'qwen/qwen3.8-27b' },
+      groq_3: { apiKey: 'gsk-test-key', model: 'openai/gpt-oss-20b' },
+    });
+  });
+
+  it('[EF-IA-05] leaves out a Groq slot that is not configured', () => {
+    const config = loadConfig({ ...BASE_ENV, ...GROQ, GROQ_MODEL_2: '' });
+
+    expect(Object.keys(config.llm)).toEqual(['groq_1', 'groq_3']);
+  });
+
+  it('[EF-IA-05] refuses a Groq key without a single model', () => {
+    const env = { ...BASE_ENV, GROQ_API_KEY: 'gsk-test-key' };
+
+    expect(() => loadConfig(env)).toThrow('GROQ_MODEL_1, GROQ_MODEL_2 or GROQ_MODEL_3');
+  });
+
+  it('[EF-IA-05] refuses to start without any AI key', () => {
+    const env = BASE_ENV;
+
+    expect(() => loadConfig(env)).toThrow(ConfigError);
+    expect(() => loadConfig(env)).toThrow('ANTHROPIC_API_KEY, GEMINI_API_KEY or GROQ_API_KEY');
+  });
+
+  it.each([
+    ['ANTHROPIC_MODEL', { ...VALID_ENV, ANTHROPIC_MODEL: '' }],
+    ['GEMINI_MODEL', { ...VALID_ENV, GEMINI_MODEL: undefined }],
+  ])('[EF-IA-05] requires %s when its key is set (models are never hard-coded)', (variable, env) => {
+    expect(() => loadConfig(env)).toThrow(variable);
+  });
+
+  it('[ENF-SEC-08] never echoes an AI key in the error message', () => {
+    const env = { ...VALID_ENV, ANTHROPIC_MODEL: '', ANTHROPIC_API_KEY: 'sk-ant-secret-value' };
+
+    expect(() => loadConfig(env)).not.toThrow(/sk-ant-secret-value/);
   });
 
   it('[ENF-SEC-03] parses explicit host and port', () => {
@@ -41,7 +154,11 @@ describe('loadConfig', () => {
   it('[ENF-SEC-08] never echoes the rejected value in the error message', () => {
     const secretLookingValue = 'postgresql://u:s3cret@h/d';
 
-    const env = { ...VALID_ENV, FRONTEND_ORIGIN: secretLookingValue, DATABASE_URL_APP: 'postgresql://u:s3cret@neon.tech/d' };
+    const env = {
+      ...VALID_ENV,
+      FRONTEND_ORIGIN: secretLookingValue,
+      DATABASE_URL_APP: 'postgresql://u:s3cret@neon.tech/d',
+    };
 
     expect(() => loadConfig(env)).toThrow(ConfigError);
     expect(() => loadConfig(env)).not.toThrow(/s3cret/);

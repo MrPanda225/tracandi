@@ -70,34 +70,89 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
 
 ## Lot 2 — Orchestration IA
 
-- [ ] **T-201 Fournisseurs et routeur** — interface `LlmProvider`, adaptateurs Claude et Gemini, table de routage
+- [x] **T-201 Fournisseurs et routeur** — interface `LlmProvider`, adaptateurs Claude et Gemini, table de routage
   (RG-13), délai 60 s, validation zod, bascule, journal `llm_calls`, erreur 502 finale.
   *Exigences* : EF-IA-01 à 06, ENF-MAI-04.
   *Fini quand* : tests avec fournisseurs simulés pour chaque cas de bascule ; aucun appel réseau réel en test.
-- [ ] **T-202 Prompts** — module `prompts/` : un fichier par tâche, contenu externe délimité et déclaré non fiable.
+  *Correctif du 22/09/2026* : raison du fournisseur écarté journalisée (erreur, délai, champs refusés par le schéma,
+  sans le prompt ni la réponse) ; un fournisseur momentanément surchargé est redemandé 3 fois (2 s puis 5 s) avant la
+  bascule (ENF-FIA-10, cahier v1.6).
+  *Évolution du 22/09/2026 (cahier v1.7 puis v1.8, BES-20)* : adaptateur unique pour les API compatibles OpenAI
+  (`llm/providers/openaiCompatible.ts`, par `fetch`, sans dépendance nouvelle) et trois **emplacements** Groq
+  (`groq_1/2/3`, modèles configurés) en tête de RG-13, Gemini puis Claude en secours ; migrations 0005 à 0007
+  (énumérations `llm_provider` et `classifier`). Les emplacements ne nomment pas de famille de modèle : le catalogue
+  gratuit de Groq change (ni Llama 3.3 70B ni Kimi K2 sur le compte du candidat le 23/09/2026).
+
+- [x] **T-202 Prompts** — module `prompts/` : un fichier par tâche, contenu externe délimité et déclaré non fiable.
   *Exigences* : ENF-SEC-06.
   *Fini quand* : test vérifiant que chaque prompt encadre le contenu externe par des balises.
+  *Livré* : `frameUntrusted`, `truncate`, `UNTRUSTED_CONTENT_NOTICE` et le prompt `classify_emails` (avec son schéma
+  `modules/emails/classification.ts`, utilisé par T-303). Les prompts des autres tâches arrivent avec leur tâche
+  (T-403, T-404, T-504, T-505), sur le même modèle et avec le même test (procédure `add-llm-task`).
 
 ## Lot 3 — Synchronisation Gmail
 
-- [ ] **T-301 Connexion OAuth** — URL d'autorisation avec `state`, callback, chiffrement AES-256-GCM du jeton,
+- [x] **T-301 Connexion OAuth** — URL d'autorisation avec `state`, callback, chiffrement AES-256-GCM du jeton,
   révocation, statut.
   *Exigences* : EF-GML-01, 02, EF-CFG-01, ENF-SEC-02, ENF-SEC-07, ENF-SEC-14.
   *Fini quand* : tests du chiffrement (aller-retour, altération détectée) et du `state` (absent, faux, expiré).
-- [ ] **T-302 Récupération incrémentale** — liste des messages depuis la dernière synchro, exclusion des connus,
+  *Livré* : routes `/api/gmail/*` et écran Réglages (connexion, statut, déconnexion confirmée). Le callback est public :
+  le cookie de session `SameSite=Strict` n'accompagne pas la redirection de Google, l'utilisateur est retrouvé par le `state`.
+- [x] **T-302 Récupération incrémentale** — liste des messages depuis la dernière synchro, exclusion des connus,
   extraction métadonnées + extrait 300 car., pré-filtre RG-10.
   *Exigences* : EF-GML-04 à 07, ENF-RGP-01, ENF-FIA-03.
   *Fini quand* : tests sur client Gmail simulé avec fixtures (dont un message bancaire écarté).
-- [ ] **T-303 Classement et rattachement** — tâche IA de classement par lots de 10, rattachement RG-03,
+  *Livré* : `modules/emails/fetcher.ts` (messages lus depuis une heure avant la dernière synchronisation, ou N jours),
+  `mailbox.ts` (format `metadata` uniquement), `prefilter.ts` (listes initiales Q-09 : mots-clés donnés à la première
+  synchronisation, plateformes connues enregistrées dans `platforms`). Les messages retenus ne sont marqués traités
+  qu'après leur classement : la route `POST /api/gmail/sync`, ses compteurs et la date de dernière synchronisation
+  arrivent donc avec T-303.
+  *Correctif du 22/09/2026* : quota Gmail (`lib/rateLimiter.ts`, `modules/emails/quota.ts`) — appels espacés à
+  200 unités/seconde (limite Google : 250), réessais avec attente exponentielle sur 429, 403 de quota et 5xx,
+  passe bornée à 400 messages lus (`MAX_MESSAGES_PER_PASS`) avec reprise au passage suivant ; refus persistant
+  renvoyé en 503 explicite au lieu d'une erreur interne.
+- [x] **T-303 Classement et rattachement** — tâche IA de classement par lots de 10, rattachement RG-03,
   statuts RG-04, persistance des messages.
-  *Exigences* : EF-GML-08 à 12, EF-GML-19, EF-CAN-11.
+  *Exigences* : EF-GML-08 à 12, EF-GML-19, EF-CAN-11 ; fin d'EF-GML-04 et 06, ENF-FIA-03 (route de synchronisation).
   *Fini quand* : scénario McDonald's (envoi → accusé → entretien) et fixture APEC/LHH passent.
-- [ ] **T-304 Libellés Gmail** — gestionnaire de libellés (cache, création à la demande), RG-05, alertes, mode lecture seule.
+  *Livré* : `modules/emails/sync.ts` (lots de 10 par le routeur, un lot = une transaction, date de dernière
+  synchronisation avancée seulement quand tout est classé), `attachIncomingMessage` (service candidatures),
+  `POST /api/gmail/sync` et bouton « Synchroniser maintenant » dans Réglages. Une synchronisation à la fois par
+  utilisateur (verrou en mémoire, repris par T-305).
+- [x] **T-304 Libellés Gmail** — gestionnaire de libellés (cache, création à la demande), RG-05, alertes, mode lecture seule.
   *Exigences* : EF-GML-13 à 17.
   *Fini quand* : appels `threads.modify` vérifiés pour chaque statut.
-- [ ] **T-305 Planification et suivi** — scheduler (fuseau `SCHEDULER_TIMEZONE`), verrou anti-concurrence, journal `job_runs`, écran Réglages.
+  *Livré* : `modules/emails/labels.ts` (cache `gmail_labels`, création à la demande avec le parent), libellés posés
+  après chaque lot enregistré sur tous les fils des candidatures touchées ; un refus de Gmail n'annule pas la
+  synchronisation. Lecture seule : `PATCH /api/gmail/settings` et case à cocher dans Réglages.
+  *Correctifs du 23/09/2026 (journaux de production)* : un type de contrat hors glossaire (« stage ») faisait rejeter
+  tout un lot de 10 classements par le schéma ; il est désormais ramené au glossaire ou à « non précisé ». Un libellé
+  Gmail déjà présent sous une autre casse, ou créé entre la lecture et l'écriture, faisait échouer l'étiquetage
+  (409 « Label name exists or conflicts ») ; la création est devenue idempotente.
+  *Correctif du 23/09/2026 (cahier v1.9, BES-21)* : RG-17 — un refus ouvert par une formule d'accusé de réception
+  était classé « accusé de réception » par l'IA (l'extrait de 300 caractères commence par la politesse). Contrôle
+  déterministe `modules/emails/cues.ts` appliqué après l'IA, et consigne renforcée dans le prompt.
+  *Extension du 23/09/2026 (cahier v1.10, BES-22)* : listes d'expressions données par le Business Owner, complétées
+  en français et en anglais ; les accusés de réception ont leur propre liste ; « suite favorable » ne vaut refus que
+  sous une négation proche. Un changement de statut
+  manuel n'est reporté dans Gmail qu'au prochain message de la candidature.
+- [x] **T-305 Planification et suivi** — scheduler (fuseau `SCHEDULER_TIMEZONE`), verrou anti-concurrence, journal `job_runs`, écran Réglages.
   *Exigences* : EF-GML-03, EF-GML-18, ENF-FIA-01, EF-CFG-01, 02.
   *Fini quand* : test d'une exception dans la tâche sans arrêt du scheduler.
+  *Livré* : `jobs/scheduler.ts` (node-cron, `CRON_GMAIL` dans `SCHEDULER_TIMEZONE`, sans chevauchement),
+  `jobs/journal.ts` (`job_runs` + compteurs, manuel et planifié), verrou par utilisateur (exécution `skipped`),
+  Q-11 (migration 0003 `authorization_expired_at`, bandeau « Reconnecter Gmail »), carte « Fournisseurs d'IA »
+  (`GET /api/settings/ai`). La liste des mots-clés RG-10 n'est pas encore modifiable dans Réglages (Q-09) : aucune
+  tâche ne la prévoit.
+
+- [x] **T-306 Période de synchronisation réglable et quotas Gmail** — `PATCH /api/gmail/settings` accepte `lookbackDays`
+  (1 à 365), `GET /api/gmail/status` l'expose, sélecteur « Période à synchroniser » dans Réglages ; migration 0004
+  (défaut 30 jours, contrainte 1–365, reprise des boîtes restées à 120) ; gouverneur de quota Gmail
+  (`lib/rateLimiter.ts`, `modules/emails/quota.ts`) : 50 unités/seconde, attente partagée par la boîte sur un refus,
+  réessais 4/8/16/32 s, passe bornée à 200 messages, passage interrompu conservant les messages déjà lus.
+  *Exigences* : EF-CFG-04, EF-GML-05 (v1.5), ENF-FIA-09 (demande du Business Owner du 22/09/2026, cahier v1.5).
+  *Fini quand* : tests d'intégration (période par défaut 30 jours, réglage enregistré et refusé hors bornes, passe
+  partielle sur refus de quota) et tests Testing Library (sélecteur, refus de l'API) ; `npm run check` vert.
 
 ## Lot 4 — Veille des offres
 
@@ -154,7 +209,12 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
   *Fini quand* : une sauvegarde puis une restauration de contrôle réussissent ; durée de restauration mesurée.
 - [ ] **T-702 Purge RGPD** — commande `npm run data:purge` avec confirmation.
   *Exigences* : ENF-RGP-02.
-- [ ] **T-703 Jeu de charge et performance** — script de génération de données, mesures ENF-PERF-01 à 03.
+- [ ] **T-703 Jeu de charge et performance** — *ouvert le 23/09/2026 par les journaux de production : chaque requête
+  payait deux allers-retours vers Neon (session puis données), et une base injoignable répondait 500 après 15 s.
+  Premiers correctifs livrés hors tâche (cache de session 60 s, délai de connexion 8 s, 503 explicite ;
+  classement de 3 lots en parallèle ; écrans lourds chargés à la demande ; modèle saturé passé au suivant sans
+  attente et délai `Retry-After` respecté) ; la mesure ENF-PERF-01 à 03 et le choix
+  d'hébergement restent à traiter ici.* — script de génération de données, mesures ENF-PERF-01 à 03.
 - [ ] **T-704 Revue de sécurité finale** — checklist du skill `security`, `npm audit`, revue des journaux,
   exposition réseau, localisation des données, démarrage `docker compose up` après `scripts/setup.sh`.
   *Exigences* : ENF-SEC-01, ENF-SEC-10, ENF-RGP-03, ENF-POR-01.

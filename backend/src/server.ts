@@ -1,13 +1,30 @@
 import { createApp } from './app.js';
 import { type Config, loadConfig } from './config/env.js';
 import { connectDatabase } from './db/client.js';
+import { createJobJournal } from './jobs/journal.js';
+import { startScheduler } from './jobs/scheduler.js';
 import { systemClock } from './lib/clock.js';
 import { createLogger } from './lib/logger.js';
+import { describeAssignments } from './llm/assignments.js';
+import { connectClaude } from './llm/providers/claude.js';
+import { connectGemini } from './llm/providers/gemini.js';
+import { createOpenAiCompatibleProvider, GROQ_BASE_URL } from './llm/providers/openaiCompatible.js';
+import type { ProviderName } from './llm/types.js';
+import { createLlmJournal } from './llm/repository.js';
+import { createLlmRouter } from './llm/router.js';
 import { createApplicationsModule } from './modules/applications/routes.js';
 import { createApplicationsService } from './modules/applications/service.js';
 import { OWASP_SCRYPT_PARAMS } from './modules/auth/password.js';
 import { createAuthModules } from './modules/auth/routes.js';
 import { createAuthService } from './modules/auth/service.js';
+import { createGmailConnectionService } from './modules/emails/connection.js';
+import { createMessageFetcher } from './modules/emails/fetcher.js';
+import { connectGoogleOAuth } from './modules/emails/googleOAuth.js';
+import { connectGmailMailbox } from './modules/emails/mailbox.js';
+import { createOAuthStateStore } from './modules/emails/oauthState.js';
+import { createGmailModules } from './modules/emails/routes.js';
+import { createGmailSync } from './modules/emails/sync.js';
+import { createSettingsModule } from './modules/settings/routes.js';
 import { createStatsModule } from './modules/stats/routes.js';
 import { createStatsService } from './modules/stats/service.js';
 
@@ -33,6 +50,59 @@ const authService = createAuthService({
   passwordParams: OWASP_SCRYPT_PARAMS,
 });
 
+const gmailService = createGmailConnectionService({
+  db: database.db,
+  google: connectGoogleOAuth(config.gmail),
+  states: createOAuthStateStore({ clock: systemClock }),
+  encryptionKey: config.gmail.tokenEncryptionKey,
+  clock: systemClock,
+  logger,
+});
+
+// EF-IA-05: only the providers whose key is configured.
+// EF-IA-05: only the providers whose key and model are configured; each Groq model is a route entry of RG-13.
+const configuredProviders = Object.fromEntries(
+  Object.entries(config.llm).flatMap(([name, provider]) => {
+    if (name === 'claude') return [[name, connectClaude(provider)]];
+    if (name === 'gemini') return [[name, connectGemini(provider)]];
+    return [
+      [
+        name,
+        createOpenAiCompatibleProvider({
+          name: name as ProviderName,
+          model: provider.model,
+          baseUrl: GROQ_BASE_URL,
+          apiKey: provider.apiKey,
+        }),
+      ],
+    ];
+  }),
+);
+
+const llmRouter = createLlmRouter({
+  providers: configuredProviders,
+  journal: createLlmJournal(database.db),
+  logger,
+});
+
+const gmailSync = createGmailSync({
+  db: database.db,
+  fetcher: createMessageFetcher({
+    db: database.db,
+    openMailbox: connectGmailMailbox(config.gmail, {
+      // ENF-FIA-03: a quota refusal or a Gmail outage is attempted again; the journal keeps why the pass was slow.
+      onRetry: ({ attempt, delayMs, error }) =>
+        logger.warn('gmail call attempted again', { attempt, delayMs, error }),
+    }),
+    encryptionKey: config.gmail.tokenEncryptionKey,
+    clock: systemClock,
+  }),
+  router: llmRouter,
+  journal: createJobJournal({ db: database.db, clock: systemClock }),
+  clock: systemClock,
+  logger,
+});
+
 const app = createApp({
   config,
   logger,
@@ -41,6 +111,8 @@ const app = createApp({
     ...createAuthModules({ service: authService, isCookieSecure: config.isCookieSecure }),
     createApplicationsModule(createApplicationsService({ db: database.db, clock: systemClock })),
     createStatsModule(createStatsService({ db: database.db, clock: systemClock })),
+    ...createGmailModules({ service: gmailService, sync: gmailSync, frontendOrigin: config.frontendOrigin }),
+    createSettingsModule(describeAssignments(config.llm)),
   ],
 });
 
@@ -48,8 +120,16 @@ const server = app.listen(config.port, config.host, () => {
   logger.info('api listening', { host: config.host, port: config.port, docs: '/api/docs' });
 });
 
+// EF-GML-03: every connected mailbox, on the configured schedule and time zone.
+const scheduler = startScheduler({
+  jobs: [{ name: 'gmail_sync', cron: config.scheduler.gmailCron, run: () => gmailSync.synchroniseEveryMailbox() }],
+  timezone: config.scheduler.timezone,
+  logger,
+});
+
 const shutdown = (signal: NodeJS.Signals): void => {
   logger.info('shutting down', { signal });
+  void scheduler.stop();
   server.close(() => {
     database.close().then(
       () => process.exit(),

@@ -41,3 +41,14 @@ export class ValidationError extends HttpError {
     super(400, 'Données invalides', details);
   }
 }
+
+/**
+ * No AI provider could perform a task: every provider of its route failed, timed out or answered outside the
+ * schema (502, EF-IA-04). The message tells the user to retry later; the reasons are in `llm_calls`.
+ * @req EF-IA-04
+ */
+export class LlmUnavailableError extends HttpError {
+  constructor() {
+    super(502, 'Aucun service d’IA n’a pu traiter la demande. Réessayez dans quelques minutes.');
+  }
+}

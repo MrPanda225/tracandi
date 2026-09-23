@@ -148,6 +148,46 @@ export const upsertCompany = async (
   return row.id;
 };
 
+/**
+ * Applications of one company, with what RG-03 needs to choose among them (served by `ix_applications_company_activity`).
+ * @req RG-03
+ */
+export const listCompanyApplications = async (
+  db: Executor,
+  companyId: number,
+): Promise<{ id: number; jobTitleKey: string; lastActivityAt: Date }[]> =>
+  db
+    .select({
+      id: applications.id,
+      jobTitleKey: applications.jobTitleKey,
+      lastActivityAt: applications.lastActivityAt,
+    })
+    .from(applications)
+    .where(eq(applications.companyId, companyId));
+
+/**
+ * Every Gmail thread attached to these applications of the user, with the company and status of its application.
+ * @req EF-GML-13, EF-GML-14, EF-AUT-06
+ */
+export const listApplicationThreads = async (
+  db: Executor,
+  userId: number,
+  applicationIds: readonly number[],
+): Promise<{ applicationId: number; companyName: string; status: ApplicationStatus; gmailThreadId: string }[]> =>
+  applicationIds.length === 0
+    ? []
+    : db
+        .selectDistinct({
+          applicationId: applications.id,
+          companyName: companies.name,
+          status: applications.status,
+          gmailThreadId: emails.gmailThreadId,
+        })
+        .from(applications)
+        .innerJoin(companies, eq(companies.id, applications.companyId))
+        .innerJoin(emails, eq(emails.applicationId, applications.id))
+        .where(and(ownedBy(userId), inArray(applications.id, [...applicationIds])));
+
 /** Inserts an application and returns its id. @throws unique violation on (company, job title key). */
 export const insertApplication = async (
   db: Executor,

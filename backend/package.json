@@ -23,12 +23,16 @@
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.127.0",
     "@asteasolutions/zod-to-openapi": "^7.3.4",
+    "@google/genai": "^2.24.0",
     "cors": "^2.8.5",
     "drizzle-orm": "^0.45.3",
     "express": "^4.21.2",
     "express-rate-limit": "^7.5.0",
+    "googleapis": "^181.0.0",
     "helmet": "^8.0.0",
+    "node-cron": "^4.6.0",
     "pg": "^8.23.0",
     "swagger-ui-express": "^5.0.1",
     "zod": "^3.24.1"

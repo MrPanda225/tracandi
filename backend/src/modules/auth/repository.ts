@@ -56,17 +56,23 @@ export const insertSession = async (
   await db.insert(sessions).values(session);
 };
 
-/** Returns the owner of a session that is not expired at `now`, or null (EF-AUT-07). */
-export const findActiveSessionUserId = async (
+/** An open session: its owner and the instant it expires (EF-AUT-07). */
+export interface ActiveSession {
+  userId: number;
+  expiresAt: Date;
+}
+
+/** Returns the owner and the expiry of a session that is not expired at `now`, or null (EF-AUT-07). */
+export const findActiveSession = async (
   db: Database,
   tokenHash: Buffer,
   now: Date,
-): Promise<number | null> => {
+): Promise<ActiveSession | null> => {
   const [session] = await db
-    .select({ userId: sessions.userId })
+    .select({ userId: sessions.userId, expiresAt: sessions.expiresAt })
     .from(sessions)
     .where(and(eq(sessions.tokenHash, tokenHash), gt(sessions.expiresAt, now)));
-  return session?.userId ?? null;
+  return session ?? null;
 };
 
 /** Deletes a session; no effect when it does not exist (EF-AUT-04). */

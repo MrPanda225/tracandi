@@ -46,7 +46,8 @@ backend/src/
     offers/                  offres, notation, récapitulatif
     cv/                      profil, rendu docx, pdf, adaptation, motivation
     stats/                   indicateurs du tableau de bord
-  jobs/scheduler.ts
+    settings/                réglages en lecture (fournisseurs d'IA, EF-CFG-02)
+  jobs/                      scheduler.ts (node-cron), journal.ts (job_runs)
   app.ts                     assemblage Express (testable sans écouter de port)
   server.ts                  démarrage + scheduler
 backend/tests/

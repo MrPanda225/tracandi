@@ -1,0 +1,196 @@
+import { describe, expect, it } from 'vitest';
+import type { ClassifiedMessage } from './classification.js';
+import { applyCategoryCues, hasAcknowledgementCue, hasRejectionCue } from './cues.js';
+
+const classified = (category: ClassifiedMessage['category']): ClassifiedMessage => ({
+  ref: 1,
+  category,
+  employer: 'Maison Lumen',
+  platform: null,
+  jobTitle: 'UX designer',
+  contractType: null,
+});
+
+const message = (subject: string, snippet: string, direction: 'inbound' | 'outbound' = 'inbound') => ({
+  direction,
+  subject,
+  snippet,
+});
+
+describe('hasRejectionCue', () => {
+  it.each([
+    ['pas retenue', 'Votre candidature n’a pas retenue notre attention pour ce poste.'],
+    ['pas été retenue', 'Votre candidature n’a pas été retenue pour ce poste.'],
+    ['ne correspond malheureusement pas', 'Votre profil ne correspond malheureusement pas à nos attentes.'],
+    ['au regret', 'Nous sommes au regret de vous informer que nous poursuivons avec un autre profil.'],
+    ['suite favorable niée', 'Nous ne pouvons donner une suite favorable à votre candidature.'],
+    [
+      'nous ne pouvons y donner',
+      'Votre dossier a retenu notre attention mais nous ne pouvons y donner suite.',
+    ],
+    ['ne donnons pas suite', 'Après étude, nous ne donnons pas suite.'],
+    ['autre candidat', 'Nous avons retenu un autre candidat dont le profil était plus proche du poste.'],
+    ['poste pourvu', 'Le poste a été pourvu entre-temps, merci de votre intérêt.'],
+    ['processus arrêté', 'Nous avons décidé de ne pas poursuivre le processus de recrutement avec vous.'],
+    ['anglais — regret', 'We regret to inform you that you have not been selected for this role.'],
+    ['anglais — moving forward', 'We will not be moving forward with your application at this time.'],
+    ['anglais — unsuccessful', 'Your application was unsuccessful on this occasion.'],
+    ['anglais — another candidate', 'We have decided to proceed with another candidate.'],
+    ['anglais — filled', 'The position has been filled, thank you for your interest.'],
+  ])('[RG-17] recognises a refusal by its wording (%s)', (_case, snippet) => {
+    expect(hasRejectionCue({ subject: null, snippet })).toBe(true);
+  });
+
+  it.each([
+    ['accusé de réception', 'Nous avons bien reçu votre candidature et revenons vers vous sous 15 jours.'],
+    ['candidature retenue', 'Bonne nouvelle : votre candidature a été retenue pour la suite du processus.'],
+    [
+      'suite favorable donnée',
+      'Nous donnons une suite favorable à votre candidature et souhaitons vous voir.',
+    ],
+    [
+      'invitation',
+      'Nous souhaitons vous rencontrer : quelles sont vos disponibilités la semaine prochaine ?',
+    ],
+    ['alerte emploi', 'Cinq nouvelles offres correspondent à votre recherche de data analyst à Lyon.'],
+    ['anglais — positif', 'We are moving forward with your application and would like to meet you.'],
+  ])('[RG-17] leaves a message without any refusal wording alone (%s)', (_case, snippet) => {
+    expect(hasRejectionCue({ subject: null, snippet })).toBe(false);
+  });
+
+  it('[RG-17] reads the subject as well as the excerpt', () => {
+    expect(hasRejectionCue({ subject: 'Votre candidature non retenue', snippet: 'Bonjour Alex,' })).toBe(
+      true,
+    );
+  });
+
+  it('[RG-17] ignores case, accents and punctuation', () => {
+    expect(hasRejectionCue({ subject: null, snippet: 'NOUS NE DONNONS PAS SUITE.' })).toBe(true);
+    expect(hasRejectionCue({ subject: null, snippet: 'n’a pas ete retenue' })).toBe(true);
+  });
+});
+
+describe('hasAcknowledgementCue', () => {
+  it.each([
+    ['bien reçu votre candidature', 'Nous avons bien reçu votre candidature au poste de data analyst.'],
+    ['accusé de réception', 'Accusé de réception de votre candidature — référence 4821.'],
+    ['candidature a bien été', 'Votre candidature a bien été enregistrée par notre service recrutement.'],
+    ['candidature prise en compte', 'Votre candidature est prise en compte, nous l’étudions avec attention.'],
+    ['merci pour votre candidature', 'Merci pour votre candidature, nous reviendrons vers vous rapidement.'],
+    ['anglais — received', 'We have received your application and will review it shortly.'],
+    ['anglais — thank you', 'Thank you for applying to the data analyst position.'],
+  ])('[RG-17] recognises an acknowledgement by its wording (%s)', (_case, snippet) => {
+    expect(hasAcknowledgementCue({ subject: null, snippet })).toBe(true);
+  });
+
+  it('[RG-17] leaves a message without any acknowledgement wording alone', () => {
+    expect(
+      hasAcknowledgementCue({ subject: 'Entretien', snippet: 'Seriez-vous disponible mardi à 14 h ?' }),
+    ).toBe(false);
+  });
+});
+
+describe('applyCategoryCues — refusals', () => {
+  it('[RG-17] files a polite refusal opened by an acknowledgement as a refusal', () => {
+    const polite = message(
+      'Votre candidature chez Maison Lumen',
+      'Nous avons bien reçu votre candidature au poste d’UX designer. Toutefois, nous ne donnons pas suite.',
+    );
+
+    expect(applyCategoryCues(polite, classified('acknowledged')).category).toBe('rejected');
+  });
+
+  it('[RG-17] never replaces a job offer the AI recognised', () => {
+    const offer = message(
+      'Proposition d’embauche',
+      'Nous avons le plaisir de vous proposer le poste ; nous ne donnons pas suite aux autres candidatures.',
+    );
+
+    expect(applyCategoryCues(offer, classified('offer')).category).toBe('offer');
+  });
+
+  it('[RG-17] never corrects a message the candidate sent', () => {
+    const sent = message(
+      'Relance de ma candidature',
+      'Vous m’avez indiqué ne pas donner suite ; je vous propose ma candidature pour un autre poste.',
+      'outbound',
+    );
+
+    expect(applyCategoryCues(sent, classified('sent_application')).category).toBe('sent_application');
+  });
+
+  it('[RG-17] corrects a refusal the AI took for an interview or for an off-topic message', () => {
+    const refusal = message(
+      'Suite à votre entretien',
+      'Votre candidature n’a pas été retenue à l’issue de nos échanges.',
+    );
+
+    expect(applyCategoryCues(refusal, classified('interview')).category).toBe('rejected');
+    expect(applyCategoryCues(refusal, classified('off_topic')).category).toBe('rejected');
+  });
+
+  it('[RG-17] never turns a job alert into a refusal, whatever an offer of the letter says', () => {
+    const alert = message(
+      'Les offres d’emploi de la semaine',
+      'Data analyst à Lyon ; le poste de chargé de projet a été pourvu, cinq autres offres vous attendent.',
+    );
+
+    expect(applyCategoryCues(alert, classified('job_alert')).category).toBe('job_alert');
+  });
+
+  it('[RG-17] keeps every other field of the classification', () => {
+    const refusal = message('Votre candidature', 'Nous ne donnons pas suite.');
+
+    expect(applyCategoryCues(refusal, classified('acknowledged'))).toEqual({
+      ...classified('acknowledged'),
+      category: 'rejected',
+    });
+  });
+});
+
+describe('applyCategoryCues — acknowledgements', () => {
+  it('[RG-17] files an acknowledgement the AI took for an off-topic message', () => {
+    const acknowledgement = message(
+      'Accusé de réception de votre candidature',
+      'Votre candidature a bien été enregistrée ; nous revenons vers vous sous 15 jours.',
+    );
+
+    expect(applyCategoryCues(acknowledgement, classified('off_topic')).category).toBe('acknowledged');
+  });
+
+  it('[RG-17] files an acknowledgement the AI took for a job alert', () => {
+    const acknowledgement = message(
+      'Votre candidature chez Atelier Nova',
+      'Nous avons bien reçu votre candidature au poste de data analyst en alternance.',
+    );
+
+    expect(applyCategoryCues(acknowledgement, classified('job_alert')).category).toBe('acknowledged');
+  });
+
+  it('[RG-17] never downgrades an interview nor an offer to an acknowledgement', () => {
+    const invitation = message(
+      'Entretien — Atelier Nova',
+      'Nous avons bien reçu votre candidature et souhaitons vous rencontrer mardi à 14 h.',
+    );
+
+    expect(applyCategoryCues(invitation, classified('interview')).category).toBe('interview');
+    expect(applyCategoryCues(invitation, classified('offer')).category).toBe('offer');
+  });
+
+  it('[RG-17] leaves an acknowledgement the AI already recognised alone', () => {
+    const acknowledgement = message('Bien reçu', 'Nous avons bien reçu votre candidature.');
+
+    expect(applyCategoryCues(acknowledgement, classified('acknowledged'))).toEqual(
+      classified('acknowledged'),
+    );
+  });
+
+  it('[RG-17] a refusal opened by an acknowledgement stays a refusal', () => {
+    const refusal = message(
+      'Votre candidature',
+      'Nous accusons réception de votre candidature. Elle n’a pas été retenue.',
+    );
+
+    expect(applyCategoryCues(refusal, classified('off_topic')).category).toBe('rejected');
+  });
+});

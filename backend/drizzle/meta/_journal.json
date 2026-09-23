@@ -22,6 +22,41 @@
       "when": 1790073322693,
       "tag": "0002_add_offer_description",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1790084551162,
+      "tag": "0003_add_gmail_authorization_expired",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790110762202,
+      "tag": "0004_lookback_days_default",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790114192846,
+      "tag": "0005_groq_providers",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790114262938,
+      "tag": "0006_groq_classifiers",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1790142893121,
+      "tag": "0007_groq_slots",
+      "breakpoints": true
     }
   ]
 }

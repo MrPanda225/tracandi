@@ -1,8 +1,9 @@
-import type { applicationStatus, emailCategory } from '../../db/schema.js';
+import type { applicationStatus, contractType, emailCategory } from '../../db/schema.js';
 import { normalizeKey } from '../../lib/text.js';
 
 export type ApplicationStatus = (typeof applicationStatus.enumValues)[number];
 export type EmailCategory = (typeof emailCategory.enumValues)[number];
+export type ContractType = (typeof contractType.enumValues)[number];
 
 // RG-04: rank of each status.
 const STATUS_RANK: Record<ApplicationStatus, number> = {

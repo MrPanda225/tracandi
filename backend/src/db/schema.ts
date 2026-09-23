@@ -63,7 +63,8 @@ export const emailCategory = pgEnum('email_category', [
   'rejected',
   'job_alert',
 ]);
-export const classifier = pgEnum('classifier', ['claude', 'gemini', 'manual']);
+// Who classified a message: one of the AI route entries of RG-13, or the candidate (EF-CAN-10).
+export const classifier = pgEnum('classifier', ['claude', 'gemini', 'groq_1', 'groq_2', 'groq_3', 'manual']);
 export const messageOutcome = pgEnum('message_outcome', ['retained', 'prefiltered', 'off_topic']);
 export const siteAdapter = pgEnum('site_adapter', [
   'greenhouse',
@@ -74,7 +75,9 @@ export const siteAdapter = pgEnum('site_adapter', [
   'generic',
 ]);
 export const offerStatus = pgEnum('offer_status', ['new', 'saved', 'dismissed', 'applied']);
-export const llmProvider = pgEnum('llm_provider', ['claude', 'gemini']);
+// RG-13 (v1.8): one value per route entry. The three Groq entries are numbered slots, not model families: the
+// catalogue of a free account changes, the model of each slot is configured (rules/llm.md) and journaled beside it.
+export const llmProvider = pgEnum('llm_provider', ['claude', 'gemini', 'groq_1', 'groq_2', 'groq_3']);
 export const llmTask = pgEnum('llm_task', [
   'classify_emails',
   'score_offers',
@@ -127,14 +130,14 @@ export const appSettings = pgTable(
     followUpDays: smallint().notNull().default(10),
     offerAlertThreshold: smallint().notNull().default(60),
     coverageThreshold: smallint().notNull().default(60),
-    gmailLookbackDays: smallint().notNull().default(120),
+    gmailLookbackDays: smallint().notNull().default(30),
     gmailApplyLabels: boolean().notNull().default(true),
   },
   (t) => [
     check('ck_app_settings_follow_up_days', sql`${t.followUpDays} between 1 and 365`),
     check('ck_app_settings_offer_alert_threshold', sql`${t.offerAlertThreshold} between 0 and 100`),
     check('ck_app_settings_coverage_threshold', sql`${t.coverageThreshold} between 0 and 100`),
-    check('ck_app_settings_gmail_lookback_days', sql`${t.gmailLookbackDays} between 1 and 3650`),
+    check('ck_app_settings_gmail_lookback_days', sql`${t.gmailLookbackDays} between 1 and 365`),
   ],
 );
 
@@ -388,6 +391,9 @@ export const gmailAccounts = pgTable('gmail_accounts', {
   historyId: varchar({ length: 32 }),
   connectedAt: createdAt(),
   lastSyncAt: instant(),
+  // Q-11: set when Google refuses the refresh token (invalid_grant); cleared by a new connection. Never filtered on
+  // its own (read with the account row): no index.
+  authorizationExpiredAt: instant(),
 });
 
 export const gmailLabels = pgTable(
