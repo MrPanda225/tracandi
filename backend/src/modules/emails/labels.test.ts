@@ -69,6 +69,48 @@ describe('createThreadLabeler — applications', () => {
     ]);
   });
 
+  it('[EF-GML-13] reuses a label the candidate already holds, whatever its case', async () => {
+    const { gmail, labeler } = setUp({ existingLabels: ['candidatures', 'candidatures/atelier nova'] });
+
+    await labeler.labelApplication({
+      threadIds: [SENT_THREAD],
+      companyName: 'Atelier Nova',
+      status: 'sent',
+    });
+
+    // Gmail holds one label per name whatever its case: creating it again would be refused.
+    expect(gmail.createdLabels).toEqual(['Statut', 'Statut/En attente']);
+    expect(gmail.labelsOfThread(SENT_THREAD)).toContain('candidatures/atelier nova');
+  });
+
+  it('[EF-GML-13] uses the label Gmail already holds when it refuses to create it', async () => {
+    const gmail = createFakeGmail([SENT_APPLICATION, LONG_NEWSLETTER], {
+      existingLabels: ['Candidatures', 'Candidatures/Atelier Nova'],
+    });
+    // The label was created after this pass listed the labels: Gmail answers 409 to the creation.
+    let listings = 0;
+    const staleFirstListing = {
+      ...gmail.client,
+      listLabels: (params: Parameters<typeof gmail.client.listLabels>[0]) => {
+        listings += 1;
+        return listings === 1 ? Promise.resolve({ data: { labels: [] } }) : gmail.client.listLabels(params);
+      },
+    };
+    const labeler = createThreadLabeler({
+      mailbox: createGmailMailbox(staleFirstListing),
+      cache: memoryCache(),
+    });
+
+    await labeler.labelApplication({
+      threadIds: [SENT_THREAD],
+      companyName: 'Atelier Nova',
+      status: 'sent',
+    });
+
+    expect(gmail.createdLabels).toEqual(['Statut', 'Statut/En attente']);
+    expect(gmail.labelsOfThread(SENT_THREAD)).toContain('Candidatures/Atelier Nova');
+  });
+
   it('[EF-GML-14] keeps a single status label: « En attente » goes when the thread reaches « Entretien »', async () => {
     const { gmail, labeler } = setUp();
     await labeler.labelApplication({

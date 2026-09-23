@@ -53,8 +53,11 @@ export interface RunTaskInput<T> {
   userId: number;
   system: string;
   prompt: string;
-  /** EF-IA-03: the only barrier against an aberrant answer; nothing outside it is ever returned. */
-  schema: z.ZodType<T>;
+  /**
+   * EF-IA-03: the only barrier against an aberrant answer; nothing outside it is ever returned. Its input is the
+   * parsed JSON of the provider, hence `unknown`: a schema may map a wording before checking it (EF-GML-19).
+   */
+  schema: z.ZodType<T, z.ZodTypeDef, unknown>;
   maxOutputTokens?: number;
 }
 

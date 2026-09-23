@@ -125,6 +125,10 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
   *Livré* : `modules/emails/labels.ts` (cache `gmail_labels`, création à la demande avec le parent), libellés posés
   après chaque lot enregistré sur tous les fils des candidatures touchées ; un refus de Gmail n'annule pas la
   synchronisation. Lecture seule : `PATCH /api/gmail/settings` et case à cocher dans Réglages.
+  *Correctifs du 23/09/2026 (journaux de production)* : un type de contrat hors glossaire (« stage ») faisait rejeter
+  tout un lot de 10 classements par le schéma ; il est désormais ramené au glossaire ou à « non précisé ». Un libellé
+  Gmail déjà présent sous une autre casse, ou créé entre la lecture et l'écriture, faisait échouer l'étiquetage
+  (409 « Label name exists or conflicts ») ; la création est devenue idempotente.
   *Correctif du 23/09/2026 (cahier v1.9, BES-21)* : RG-17 — un refus ouvert par une formule d'accusé de réception
   était classé « accusé de réception » par l'IA (l'extrait de 300 caractères commence par la politesse). Contrôle
   déterministe `modules/emails/cues.ts` appliqué après l'IA, et consigne renforcée dans le prompt. Un changement de statut

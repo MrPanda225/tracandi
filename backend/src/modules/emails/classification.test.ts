@@ -21,10 +21,29 @@ describe('ClassificationSchema', () => {
     );
   });
 
-  it('[EF-GML-19] [EF-IA-03] refuses a contract type outside the glossary', () => {
-    expect(ClassificationSchema.safeParse({ messages: [{ ...valid, contractType: 'stage' }] }).success).toBe(
-      false,
-    );
+  it.each([
+    ['stage', 'autre'],
+    ['Stage conventionné', 'autre'],
+    ['freelance', 'autre'],
+    ['apprentissage', 'alternance'],
+    ['Contrat de professionnalisation', 'alternance'],
+    ['CDI', 'cdi'],
+    ['job étudiant', 'job_etudiant'],
+  ])('[EF-GML-19] reads « %s » as the contract type %s of the glossary', (answered, expected) => {
+    const parsed = ClassificationSchema.parse({ messages: [{ ...valid, contractType: answered }] });
+
+    expect(parsed.messages[0]?.contractType).toBe(expected);
+  });
+
+  it.each([
+    ['a wording outside the glossary', 'contrat de mission lunaire'],
+    ['« non précisé »', 'non_precise'],
+    ['a number', 12],
+    ['no answer at all', undefined],
+  ])('[EF-GML-19] [EF-IA-03] reads %s as « non précisé », without losing the message', (_case, answered) => {
+    const parsed = ClassificationSchema.parse({ messages: [{ ...valid, contractType: answered }] });
+
+    expect(parsed.messages[0]).toMatchObject({ category: 'acknowledged', contractType: null });
   });
 
   it('[EF-IA-03] reads an empty or blank name as absent', () => {

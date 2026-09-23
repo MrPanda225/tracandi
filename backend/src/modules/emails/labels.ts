@@ -22,6 +22,10 @@ const COMPANY_LABEL_PARENT = 'Candidatures';
 // Gmail's id of the inbox, the same in every mailbox.
 const INBOX_LABEL_ID = 'INBOX';
 const HTTP_BAD_REQUEST = 400;
+const HTTP_CONFLICT = 409;
+
+/** Gmail holds one label per name whatever its case: two labels differing only by case cannot both exist. */
+const labelKey = (name: string): string => name.toLowerCase();
 
 /**
  * EF-GML-13: label of a company's threads, « Candidatures/‹Entreprise› ». Gmail nests labels on « / »: a slash in the
@@ -76,16 +80,35 @@ const createLabelIds = (mailbox: GmailMailbox, cache: LabelCache): LabelIds => {
   let listed: Map<string, string> | undefined;
 
   const cachedLabels = async () => (cached ??= await cache.load());
-  const listedLabels = async () =>
-    (listed ??= new Map((await mailbox.listLabels()).map((label) => [label.name, label.id])));
+  const listedLabels = async (refresh = false): Promise<Map<string, string>> => {
+    if (refresh || !listed) {
+      listed = new Map((await mailbox.listLabels()).map((label) => [labelKey(label.name), label.id]));
+    }
+    return listed;
+  };
 
-  const createWithParents = async (name: string, labels: Map<string, string>): Promise<string> => {
-    const existing = labels.get(name);
+  /**
+   * EF-GML-13: Gmail refuses a name it already holds (409). The label was created outside this pass — by the
+   * candidate, or as the parent of a sub-label — so the listing is read again and its id is used.
+   */
+  const create = async (name: string): Promise<string> => {
+    try {
+      return await mailbox.createLabel(name);
+    } catch (error) {
+      if (!hasHttpStatus(error, HTTP_CONFLICT)) throw error;
+      const existing = (await listedLabels(true)).get(labelKey(name));
+      if (!existing) throw error;
+      return existing;
+    }
+  };
+
+  const createWithParents = async (name: string): Promise<string> => {
+    const existing = (await listedLabels()).get(labelKey(name));
     if (existing) return existing;
     const parentEnd = name.lastIndexOf('/');
-    if (parentEnd > 0) await createWithParents(name.slice(0, parentEnd), labels);
-    const id = await mailbox.createLabel(name);
-    labels.set(name, id);
+    if (parentEnd > 0) await createWithParents(name.slice(0, parentEnd));
+    const id = await create(name);
+    (await listedLabels()).set(labelKey(name), id);
     return id;
   };
 
@@ -94,12 +117,12 @@ const createLabelIds = (mailbox: GmailMailbox, cache: LabelCache): LabelIds => {
       const labels = await cachedLabels();
       const known = labels.get(name);
       if (known) return known;
-      const id = await createWithParents(name, await listedLabels());
+      const id = await createWithParents(name);
       labels.set(name, id);
       await cache.save(name, id);
       return id;
     },
-    knownIdOf: async (name) => (await cachedLabels()).get(name) ?? listed?.get(name) ?? null,
+    knownIdOf: async (name) => (await cachedLabels()).get(name) ?? listed?.get(labelKey(name)) ?? null,
     async forget() {
       cached = new Map();
       await cache.clear();
