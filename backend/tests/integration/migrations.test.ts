@@ -103,6 +103,7 @@ describe('migrations', () => {
         'GET /jobs/stream',
         'DELETE /gmail/connection',
         'GET /sites',
+        'GET /sites/types',
         'POST /sites',
         'PATCH /sites/{id}',
         'DELETE /sites/{id}',

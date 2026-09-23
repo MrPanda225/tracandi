@@ -53,6 +53,23 @@ export const SourceViewSchema = z
 
 export const SourceListSchema = z.object({ items: z.array(SourceViewSchema) }).openapi('SourceList');
 
+/**
+ * EF-VEI-01 : un type de source proposé au candidat. L'écran lit cette liste au lieu de la tenir lui-même, pour
+ * qu'ajouter un type reste un fichier et une entrée de registre (ENF-MAI-03).
+ */
+export const SourceTypeSchema = z
+  .object({
+    id: z.enum(SOURCE_ADAPTER_IDS),
+    label: z.string(),
+    /** Ce que le candidat doit saisir, en français (RG-08). */
+    identifierHint: z.string(),
+  })
+  .openapi('SourceType');
+
+export const SourceTypeListSchema = z
+  .object({ items: z.array(SourceTypeSchema) })
+  .openapi('SourceTypeList');
+
 /** EF-VEI-07: what one pass of the watch produced, for the candidate who asked for it. */
 export const WatchReportSchema = z
   .object({
@@ -69,4 +86,5 @@ export const WatchReportSchema = z
 export type CreateSourceBody = z.infer<typeof CreateSourceSchema>;
 export type UpdateSourceBody = z.infer<typeof UpdateSourceSchema>;
 export type SourceView = z.infer<typeof SourceViewSchema>;
+export type SourceType = z.infer<typeof SourceTypeSchema>;
 export type WatchReport = z.infer<typeof WatchReportSchema>;

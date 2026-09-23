@@ -9,10 +9,12 @@ import {
   type OpenAPIRegistry,
   SESSION_SECURITY,
 } from '../../lib/openapi.js';
+import { SOURCE_ADAPTERS } from '../../scraper/adapters/index.js';
 import {
   CreateSourceSchema,
   SourceIdSchema,
   SourceListSchema,
+  SourceTypeListSchema,
   SourceViewSchema,
   UpdateSourceSchema,
 } from './schemas.js';
@@ -34,6 +36,18 @@ const registerSitesDocs = (registry: OpenAPIRegistry): void => {
       'EF-VEI-01. Sources du candidat, par entreprise, avec la date de leur dernière consultation (EF-VEI-10) ' +
       'et l’erreur de la dernière consultation échouée (EF-VEI-11).',
     responses: { 200: jsonResponse('Sources surveillées', SourceListSchema), ...errorResponses(401) },
+  });
+
+  registry.registerPath({
+    tags: ['Veille'],
+    security: SESSION_SECURITY,
+    method: 'get',
+    path: '/sites/types',
+    summary: 'Types de source pris en charge',
+    description:
+      'EF-VEI-01, EF-VEI-08. Les six types de source, avec leur nom et ce que le candidat doit saisir comme ' +
+      'identifiant (RG-08). L’écran lit cette liste plutôt que de la tenir lui-même (ENF-MAI-03).',
+    responses: { 200: jsonResponse('Types de source', SourceTypeListSchema), ...errorResponses(401) },
   });
 
   registry.registerPath({
@@ -103,6 +117,16 @@ export const createSitesModule = (service: WatchService): ApiModule => {
       res.status(200).json({ items: await service.list(currentUserId(res)) });
     }),
   );
+
+  router.get('/sites/types', (_req, res) => {
+    res.status(200).json({
+      items: SOURCE_ADAPTERS.map((adapter) => ({
+        id: adapter.id,
+        label: adapter.label,
+        identifierHint: adapter.identifierHint,
+      })),
+    });
+  });
 
   router.post(
     '/sites',

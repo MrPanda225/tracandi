@@ -239,9 +239,17 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
   avec T-406, qui affichera le détail d'une offre. Le récapitulatif e-mail (EF-VEI-15) est T-405.
 - [ ] **T-405 Récapitulatif e-mail** — envoi via Gmail des offres de score ≥ S.
   *Exigences* : EF-VEI-15.
-- [ ] **T-406 Écrans Sites et Offres** — ajout/suspension/retrait, liste triée, filtre score, garder/écarter,
+- [~] **T-406 Écrans Sites et Offres** — ajout/suspension/retrait, liste triée, filtre score, garder/écarter,
   « J'ai postulé ».
-  *Exigences* : EF-VEI-16 à 20, 22.
+  *Exigences* : EF-VEI-01 à 05, 07, 10, 11 (écran Sites) ; EF-VEI-16 à 20, 22 (écran Offres).
+  *Livré (étape 1, écran Sites)* : `pages/sites/SitesPage.tsx` et `NewSourceForm.tsx` — liste des sources avec
+  leur type, leur identifiant, la date de leur dernière consultation et l'erreur de la dernière consultation
+  échouée ; ajout, suspension, réactivation, retrait confirmé qui annonce les offres supprimées avec la source.
+  `GET /api/sites/types` (nouveau) décrit les six types : l'écran ne tient pas la liste lui-même, donc ajouter un
+  type reste un fichier et une entrée de registre (ENF-MAI-03). Le bouton « Consulter maintenant » met la passe en
+  file et suit son avancement par le flux (EF-EXE-01, EF-EXE-04) ; une passe lancée par le planificateur s'y
+  affiche aussi. Un refus de l'API s'affiche sous le champ qu'il nomme (ENF-SEC-04).
+  *Reste à faire* : l'écran Offres (EF-VEI-16 à 20, 22), qui demande d'abord une API des offres.
 
 ## Lot 5 — CV et réponses
 
