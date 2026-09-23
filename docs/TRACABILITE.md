@@ -19,6 +19,10 @@ Commande de contrôle : `/project:check-req EF-CAN-07`.
 | ENF-SEC-17 | T-002 | — une seule URL (rôle propriétaire) en phase de développement | à faire |
 | RG-03 | T-101 | `src/modules/applications/rules.test.ts` (b, c, d, entreprise inconnue) ; `applications.test.ts` (unicité) | couverte |
 | RG-04 | T-101 | `rules.test.ts` (shouldReplaceStatus) ; `applications.test.ts` (accusé tardif) | couverte |
+| ENF-COL-01 | T-401 | `backend/src/scraper/http.test.ts` (chemin interdit refusé sans être demandé ; chemin autorisé lu ; robots.txt lu une fois par origine ; absence de robots.txt = site ouvert ; robots.txt indisponible (5xx) = refus complet, RFC 9309 ; règle visant `TracandiBot` prioritaire sur la règle générale ; adresses http, ftp, file et adresse invalide refusées) | couverte |
+| ENF-COL-02 | T-401 | `http.test.ts` (≥ 3 s entre deux requêtes d'un même hôte ; chaque hôte a son propre rythme, sans cumuler l'attente d'un autre) | couverte |
+| ENF-COL-03 | T-401 | `http.test.ts` (agent utilisateur `TracandiBot/1.0 (+contact)` sur chaque requête, robots.txt compris ; construction refusée sans adresse de contact) | couverte |
+| ENF-COL-04 | T-401 | `http.test.ts` (réponse > 3 Mo abandonnée sans être lue en entier — flux annulé après le seuil ; réponse à la limite acceptée ; chaque requête porte un signal d'abandon de 15 s) | couverte |
 | RG-17 (v1.10) | T-303 | `src/modules/emails/cues.test.ts` (15 formulations de refus et 7 d'accusé de réception reconnues, français et anglais ; « suite favorable » sans négation laissée intacte ; objet lu comme l'extrait ; casse et accents ignorés ; proposition d'embauche, entretien, alerte emploi et message envoyé jamais corrigés) ; `tests/integration/gmail-sync.test.ts` (refus poli classé « accusé de réception » par l'IA → e-mail et candidature en « refusée ») ; `src/llm/prompts/classifyEmails.test.ts` (consigne sur l'ouverture polie) | couverte |
 | RG-14 | T-101 | `rules.test.ts` (normalizeKey) ; `applications.test.ts` (dédoublonnage entreprise) | couverte |
 | EF-CAN-13 | T-102 | `tests/integration/applications.test.ts` | couverte |
