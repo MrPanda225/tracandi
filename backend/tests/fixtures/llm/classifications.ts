@@ -51,6 +51,13 @@ export const CLASSIFICATION_BY_SUBJECT: Readonly<Record<string, Classification>>
     jobTitle: 'Data Analyst',
     contractType: 'alternance',
   }),
+  // RG-17: the AI reads the polite opening and answers « acknowledged »; the wording says otherwise.
+  'Votre candidature chez Atelier Nova': answer({
+    category: 'acknowledged',
+    employer: 'Atelier Nova',
+    jobTitle: 'Data Analyst',
+    contractType: 'alternance',
+  }),
   'Candidature spontanée': answer({ category: 'sent_application' }),
   'Les offres d’emploi de la semaine': answer({ category: 'job_alert' }),
   'Candidat au marathon : votre dossard': answer({ category: 'off_topic' }),

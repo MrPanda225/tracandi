@@ -32,6 +32,7 @@ import {
   MCDONALDS_INTERVIEW,
   OLD_SPONTANEOUS_APPLICATION,
   otherMessages,
+  POLITE_REJECTION,
   SENT_APPLICATION,
 } from '../fixtures/emails/messages.js';
 import { createScriptedClassifier, type ScriptedClassifier } from '../fixtures/llm/classifications.js';
@@ -366,6 +367,18 @@ describe('classification and attachment', () => {
 
     expect(await applicationsOf()).toEqual([
       expect.objectContaining({ company: 'Entreprise inconnue', jobTitle: 'Candidature', status: 'sent' }),
+    ]);
+  });
+
+  it('[RG-17] files a refusal opened by an acknowledgement as a refusal, not as an acknowledgement', async () => {
+    await setUp([POLITE_REJECTION]);
+
+    await synchronise().expect(200);
+
+    // The recorded AI answer for this message is « acknowledged »: the wording of the message decides.
+    expect((await emailsOf()).map((email) => email.category)).toEqual(['rejected']);
+    expect(await applicationsOf()).toEqual([
+      expect.objectContaining({ company: 'Atelier Nova', jobTitle: 'Data Analyst', status: 'rejected' }),
     ]);
   });
 

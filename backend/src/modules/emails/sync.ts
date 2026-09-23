@@ -10,6 +10,7 @@ import type { LlmRouter } from '../../llm/router.js';
 import type { ProviderName } from '../../llm/types.js';
 import { attachIncomingMessage, findApplicationThreads } from '../applications/service.js';
 import { type ClassifiedMessage, ClassificationSchema } from './classification.js';
+import { applyRejectionCue } from './cues.js';
 import type { MessageFetcher, RetainedMessage } from './fetcher.js';
 import { createThreadLabeler, databaseLabelCache, type ThreadLabeler } from './labels.js';
 import { isInvalidGrant } from './mailbox.js';
@@ -127,6 +128,23 @@ const pairAnswers = (
   });
 };
 
+/**
+ * RG-17: a refusal the AI read as something else — a polite refusal opens with an acknowledgement — is filed as a
+ * refusal. The correction is logged: only the identifier of the message, never its content (ENF-SEC-08).
+ */
+const correctRefusals =
+  (logger: Logger) =>
+  (pair: ClassifiedPair): ClassifiedPair => {
+    const classification = applyRejectionCue(pair.message, pair.classification);
+    if (classification.category === pair.classification.category) return pair;
+    logger.info('classification corrected by a refusal wording', {
+      gmailMessageId: pair.message.gmailMessageId,
+      from: pair.classification.category,
+      to: classification.category,
+    });
+    return { ...pair, classification };
+  };
+
 /** EF-GML-10: the known platform of the sender, else the platform named by the AI, recorded on first sight. */
 const platformOf = async (
   tx: Executor,
@@ -219,7 +237,7 @@ const recordBatch = async (
 /**
  * One synchronisation of a user: incremental fetch (T-302), classification by the AI router (RG-13: Gemini then
  * Claude), storage and attachment, then Gmail labels unless the user turned them off.
- * @req EF-GML-04, EF-GML-06, EF-GML-08 to EF-GML-17, EF-GML-19, EF-CAN-11, EF-CFG-01, ENF-FIA-03
+ * @req EF-GML-04, EF-GML-06, EF-GML-08 to EF-GML-17, EF-GML-19, EF-CAN-11, EF-CFG-01, ENF-FIA-03, RG-17
  */
 const createSyncRun = ({
   db,
@@ -236,7 +254,7 @@ const createSyncRun = ({
       prompt,
       schema: ClassificationSchema,
     });
-    return { provider, pairs: pairAnswers(batch, data.messages) };
+    return { provider, pairs: pairAnswers(batch, data.messages).map(correctRefusals(logger)) };
   };
 
   /** EF-GML-13 to 16: labels of what the batch changed, every thread of a touched application relabelled. */

@@ -124,7 +124,10 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
   *Fini quand* : appels `threads.modify` vérifiés pour chaque statut.
   *Livré* : `modules/emails/labels.ts` (cache `gmail_labels`, création à la demande avec le parent), libellés posés
   après chaque lot enregistré sur tous les fils des candidatures touchées ; un refus de Gmail n'annule pas la
-  synchronisation. Lecture seule : `PATCH /api/gmail/settings` et case à cocher dans Réglages. Un changement de statut
+  synchronisation. Lecture seule : `PATCH /api/gmail/settings` et case à cocher dans Réglages.
+  *Correctif du 23/09/2026 (cahier v1.9, BES-21)* : RG-17 — un refus ouvert par une formule d'accusé de réception
+  était classé « accusé de réception » par l'IA (l'extrait de 300 caractères commence par la politesse). Contrôle
+  déterministe `modules/emails/cues.ts` appliqué après l'IA, et consigne renforcée dans le prompt. Un changement de statut
   manuel n'est reporté dans Gmail qu'au prochain message de la candidature.
 - [x] **T-305 Planification et suivi** — scheduler (fuseau `SCHEDULER_TIMEZONE`), verrou anti-concurrence, journal `job_runs`, écran Réglages.
   *Exigences* : EF-GML-03, EF-GML-18, ENF-FIA-01, EF-CFG-01, 02.

@@ -23,6 +23,11 @@ const SYSTEM = [
     'candidature), interview (invitation ou organisation d’un entretien, d’un test ou d’un échange avec un recruteur), ' +
     'offer (proposition d’embauche), rejected (refus de la candidature), job_alert (alerte ou suggestion d’offres ' +
     'envoyée par un site d’emploi), off_topic (sans rapport avec une candidature) ;',
+  'Un refus commence souvent par une formule d’accusé de réception (« nous avons bien reçu votre candidature ») : ' +
+    'c’est la suite du message qui décide. Candidature non retenue, sans suite, poste pourvu, processus arrêté → ' +
+    '"rejected".',
+  'Une invitation à un entretien annonce un rendez-vous, un créneau ou demande des disponibilités ; une phrase ' +
+    'conditionnelle (« si votre profil correspond, nous reviendrons vers vous ») reste "acknowledged".',
   '- "employer" : l’employeur réel visé, tel qu’il est écrit dans le message, même quand le message vient d’une ' +
     'plateforme ou d’un cabinet (APEC, LHH, Indeed…) ; null s’il n’apparaît pas ;',
   '- "platform" : la plateforme ou le cabinet qui a envoyé ou relayé le message ; null pour un échange direct avec ' +
@@ -46,7 +51,7 @@ const describeMessage = (message: MessageToClassify): string =>
 /**
  * Prompt of the `classify_emails` task for one batch of messages, referenced 1, 2… in their order. Every message is
  * framed and declared untrusted (ENF-SEC-06). Expected answer: `ClassificationSchema` (modules/emails).
- * @req EF-GML-08, EF-GML-09, EF-GML-10, EF-GML-19, ENF-SEC-06
+ * @req EF-GML-08, EF-GML-09, EF-GML-10, EF-GML-19, ENF-SEC-06, RG-17
  */
 export const buildClassifyEmailsPrompt = (
   messages: readonly MessageToClassify[],

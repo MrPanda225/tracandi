@@ -91,3 +91,13 @@ describe('buildClassifyEmailsPrompt', () => {
     expect(prompt).toContain('Extrait : (vide)');
   });
 });
+
+describe('buildClassifyEmailsPrompt — telling a refusal from an acknowledgement', () => {
+  it('[RG-17] warns that a refusal often opens with an acknowledgement', () => {
+    const { system } = buildClassifyEmailsPrompt([]);
+
+    expect(system).toContain('nous avons bien reçu votre candidature');
+    expect(system).toContain('"rejected"');
+    expect(system).toContain('reste "acknowledged"');
+  });
+});

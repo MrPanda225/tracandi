@@ -19,6 +19,7 @@ Commande de contrôle : `/project:check-req EF-CAN-07`.
 | ENF-SEC-17 | T-002 | — une seule URL (rôle propriétaire) en phase de développement | à faire |
 | RG-03 | T-101 | `src/modules/applications/rules.test.ts` (b, c, d, entreprise inconnue) ; `applications.test.ts` (unicité) | couverte |
 | RG-04 | T-101 | `rules.test.ts` (shouldReplaceStatus) ; `applications.test.ts` (accusé tardif) | couverte |
+| RG-17 | T-303 | `src/modules/emails/cues.test.ts` (8 formulations de refus reconnues, 4 messages voisins laissés intacts — accusé de réception, candidature retenue, invitation, alerte ; objet lu comme l'extrait ; casse et accents ignorés ; proposition d'embauche et message envoyé jamais corrigés) ; `tests/integration/gmail-sync.test.ts` (refus poli classé « accusé de réception » par l'IA → e-mail et candidature en « refusée ») ; `src/llm/prompts/classifyEmails.test.ts` (consigne sur l'ouverture polie) | couverte |
 | RG-14 | T-101 | `rules.test.ts` (normalizeKey) ; `applications.test.ts` (dédoublonnage entreprise) | couverte |
 | EF-CAN-13 | T-102 | `tests/integration/applications.test.ts` | couverte |
 | EF-CAN-14 | T-102 | `tests/integration/applications.test.ts` | couverte |

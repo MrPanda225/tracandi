@@ -150,6 +150,21 @@ export const MARATHON_REGISTRATION = metadata({
   snippet: 'Votre dossard numéro 4812 est prêt. Retrait au village du marathon samedi.',
 });
 
+/**
+ * RG-17: a refusal that opens with an acknowledgement. Read from its first words alone, it passes for an
+ * acknowledgement — which is what the recorded AI answer says (tests/fixtures/llm/classifications.ts).
+ */
+export const POLITE_REJECTION = metadata({
+  id: '18f0a1b2c3d4e50c',
+  threadId: '18f0a1b2c3d4e50c',
+  receivedAt: '2026-09-18T09:30:00.000Z',
+  from: '"Atelier Nova" <recrutement@atelier-nova.example>',
+  subject: 'Votre candidature chez Atelier Nova',
+  snippet:
+    'Bonjour Alex, nous avons bien re&#231;u votre candidature au poste de Data Analyst en alternance. ' +
+    'Apr&#232;s &#233;tude de votre dossier, nous ne donnons pas suite.',
+});
+
 /** `count` job alerts from the same site, one a day from 2026-09-01, to fill several classification batches. */
 export const jobAlerts = (count: number): gmail_v1.Schema$Message[] =>
   Array.from({ length: count }, (_, index) =>
