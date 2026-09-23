@@ -6,12 +6,12 @@ import {
   type OpenAPIRegistry,
   SESSION_SECURITY,
 } from '../../lib/openapi.js';
+import { AcceptedRunSchema } from '../jobs/schemas.js';
 import {
   AuthorizationAnswerQuerySchema,
   AuthorizationUrlSchema,
   GmailSettingsBodySchema,
   GmailStatusSchema,
-  SyncReportSchema,
 } from './schemas.js';
 
 const TAG = ['Gmail'];
@@ -82,18 +82,16 @@ const ROUTES: RouteConfig[] = [
     security: SESSION_SECURITY,
     method: 'post',
     path: '/gmail/sync',
-    summary: 'Synchroniser Gmail maintenant',
+    summary: 'Mettre une synchronisation Gmail en file',
     description:
-      'EF-GML-04. `pending` signale qu’il reste des messages à traiter (passe bornée à 200 lectures). ' +
-      'Lit les nouveaux messages reçus et envoyés, écarte sans IA ceux sans indicateur d’emploi (RG-10), ' +
-      'classe les autres par lots de 10, met à jour les candidatures (RG-03, RG-04) puis les libellés Gmail des fils ' +
-      '(RG-05, sauf lecture seule). 409 sans boîte connectée ou ' +
-      'pendant une synchronisation ; 502 si aucun fournisseur d’IA ne répond (les lots déjà classés sont conservés) ; ' +
-      '503 si Gmail limite les requêtes malgré les réessais (les messages déjà lus sont conservés). ' +
-      'Une passe lit au plus 400 nouveaux messages : la première synchronisation en demande plusieurs.',
+      'EF-GML-04, EF-EXE-01. Met une passe en file et répond aussitôt son identifiant d’exécution : ' +
+      'l’avancement se suit par `GET /jobs/{id}` et `GET /jobs/stream` (EF-EXE-03, EF-EXE-04). ' +
+      'Une passe lit au plus 200 nouveaux messages : la première synchronisation en demande plusieurs. ' +
+      'Les échecs — boîte non connectée, autorisation expirée, quota Gmail, aucun fournisseur d’IA — ferment ' +
+      'l’exécution en échec avec leur message, jamais la requête.',
     responses: {
-      200: jsonResponse('Compteurs de la synchronisation', SyncReportSchema),
-      ...errorResponses(401, 409, 415, 502, 503),
+      202: jsonResponse('Exécution mise en file', AcceptedRunSchema),
+      ...errorResponses(401, 415),
     },
   },
 ];

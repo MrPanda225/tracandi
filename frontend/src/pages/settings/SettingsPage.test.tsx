@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { leaveFor } from '../../lib/browser';
+import { openStreams } from '../../test/setup';
 import { ROUTER_FUTURE } from '../../lib/router';
 import { SettingsPage } from './SettingsPage';
 
@@ -176,31 +177,41 @@ describe('SettingsPage — Gmail', () => {
     expect(calls).toContain('DELETE /gmail/connection');
   });
 
-  it('[EF-GML-04] synchronises on demand and tells what was read, retained and classified', async () => {
+  it('[EF-GML-04] [EF-EXE-01] queues the pass, then tells what it read, retained and classified', async () => {
     let status: object = CONNECTED;
-    let answer: (response: Response) => void = () => undefined;
     const calls = mockApi({
       'GET /gmail/status': () => json(200, status),
-      'POST /gmail/sync': () =>
-        new Promise<Response>((resolve) => {
-          answer = resolve;
-        }),
+      'POST /gmail/sync': () => json(202, { runId: 7 }),
     });
     renderPage();
     const user = userEvent.setup();
 
     await user.click(await screen.findByRole('button', { name: 'Synchroniser maintenant' }));
 
+    // EF-EXE-04: what happens next arrives through the stream, not through the answer of the button.
+    const stream = openStreams.find((open) => open.url.endsWith('/jobs/stream'));
+    stream?.emit('run', {
+      id: 7,
+      job: 'gmail_sync',
+      trigger: 'manual',
+      outcome: 'running',
+      counters: { messages_read: 120, messages_retained: 8, messages_classified: 0 },
+      error: null,
+    });
+    expect(await screen.findByText(/Synchronisation en cours : 120 messages lus/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Synchronisation…' })).toBeDisabled();
-    status = {
-      ...CONNECTED,
-      lastRunAt: '2026-09-22T08:30:00.000Z',
-      lastSyncAt: '2026-09-22T08:30:00.000Z',
-    };
-    answer(json(200, { read: 12, retained: 3, classified: 1, pending: false }));
-    expect(await screen.findByRole('status')).toHaveTextContent(
-      'Synchronisation terminée : 12 messages lus, 3 retenus, 1 classé.',
-    );
+
+    status = { ...CONNECTED, lastRunAt: '2026-09-22T08:30:00.000Z', lastSyncAt: '2026-09-22T08:30:00.000Z' };
+    stream?.emit('run', {
+      id: 7,
+      job: 'gmail_sync',
+      trigger: 'manual',
+      outcome: 'success',
+      counters: { messages_read: 12, messages_retained: 3, messages_classified: 1, messages_pending: 0 },
+      error: null,
+    });
+
+    expect(await screen.findByText(/Synchronisation terminée : 12 messages lus, 3 retenus, 1 classé\./)).toBeInTheDocument();
     expect(await screen.findByText(/Dernière synchronisation : 22 sept\. 2026/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Synchroniser maintenant' })).toBeEnabled();
     expect(calls.filter((call) => call === 'POST /gmail/sync')).toHaveLength(1);
@@ -209,30 +220,51 @@ describe('SettingsPage — Gmail', () => {
   it('[EF-GML-04] tells that messages are still waiting after a bounded pass', async () => {
     mockApi({
       'GET /gmail/status': () => json(200, { ...CONNECTED, lastRunAt: '2026-09-23T08:30:00.000Z' }),
-      'POST /gmail/sync': () => json(200, { read: 200, retained: 23, classified: 23, pending: true }),
+      'POST /gmail/sync': () => json(202, { runId: 9 }),
     });
     renderPage();
     const user = userEvent.setup();
 
     await user.click(await screen.findByRole('button', { name: 'Synchroniser maintenant' }));
+    openStreams
+      .find((open) => open.url.endsWith('/jobs/stream'))
+      ?.emit('run', {
+        id: 9,
+        job: 'gmail_sync',
+        trigger: 'manual',
+        outcome: 'success',
+        counters: { messages_read: 200, messages_retained: 23, messages_classified: 23, messages_pending: 1 },
+        error: null,
+      });
 
-    expect(await screen.findByRole('status')).toHaveTextContent(
-      'Il reste des messages à traiter : relancez pour continuer.',
-    );
+    expect(
+      await screen.findByText(/Il reste des messages à traiter : relancez pour continuer\./),
+    ).toBeInTheDocument();
   });
 
-  it('[EF-GML-04] [EF-IA-04] shows why a synchronisation failed', async () => {
+  it('[EF-GML-04] [EF-IA-04] [EF-EXE-03] shows why a synchronisation failed', async () => {
     mockApi({
       'GET /gmail/status': () => json(200, CONNECTED),
-      'POST /gmail/sync': () =>
-        json(502, { error: 'Aucun service d’IA n’a pu traiter la demande. Réessayez dans quelques minutes.' }),
+      'POST /gmail/sync': () => json(202, { runId: 11 }),
     });
     renderPage();
     const user = userEvent.setup();
 
     await user.click(await screen.findByRole('button', { name: 'Synchroniser maintenant' }));
+    openStreams
+      .find((open) => open.url.endsWith('/jobs/stream'))
+      ?.emit('run', {
+        id: 11,
+        job: 'gmail_sync',
+        trigger: 'manual',
+        outcome: 'failure',
+        counters: {},
+        error: 'Aucun service d’IA n’a pu traiter la demande. Réessayez dans quelques minutes.',
+      });
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Aucun service d’IA n’a pu traiter la demande.');
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Aucun service d’IA n’a pu traiter la demande.',
+    );
     expect(screen.getByRole('button', { name: 'Synchroniser maintenant' })).toBeEnabled();
   });
 

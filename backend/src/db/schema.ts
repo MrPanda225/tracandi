@@ -88,11 +88,20 @@ export const llmTask = pgEnum('llm_task', [
 export const llmOutcome = pgEnum('llm_outcome', ['success', 'error', 'timeout', 'invalid_output']);
 export const jobName = pgEnum('job_name', ['gmail_sync', 'scraper', 'backup']);
 export const triggerType = pgEnum('trigger_type', ['schedule', 'manual']);
-export const runOutcome = pgEnum('run_outcome', ['running', 'success', 'failure', 'skipped']);
+// EF-EXE-01 à 03 : une exécution attend son tour (`queued`) avant de tourner, de réussir, d'échouer ou d'être
+// écartée parce qu'une autre du même travail était déjà en file.
+export const runOutcome = pgEnum('run_outcome', [
+  'queued',
+  'running',
+  'success',
+  'failure',
+  'skipped',
+]);
 export const runCounter = pgEnum('run_counter', [
   'messages_read',
   'messages_retained',
   'messages_classified',
+  'messages_pending',
   'sources_checked',
   'offers_new',
   'offers_relevant',

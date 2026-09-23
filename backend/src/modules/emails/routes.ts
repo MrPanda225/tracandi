@@ -77,7 +77,8 @@ export const createGmailModules = ({ service, sync, frontendOrigin }: GmailModul
   protectedRouter.post(
     '/gmail/sync',
     asyncHandler(async (_req, res) => {
-      res.status(200).json(await sync.synchronise(currentUserId(res), 'manual'));
+      // EF-EXE-01: the pass is queued, the answer does not wait for it (ENF-PERF-06).
+      res.status(202).json({ runId: await sync.synchronise(currentUserId(res), 'manual') });
     }),
   );
 

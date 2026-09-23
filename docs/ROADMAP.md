@@ -235,4 +235,18 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
 - [ ] **T-704 Revue de sécurité finale** — checklist du skill `security`, `npm audit`, revue des journaux,
   exposition réseau, localisation des données, démarrage `docker compose up` après `scripts/setup.sh`.
   *Exigences* : ENF-SEC-01, ENF-SEC-10, ENF-RGP-03, ENF-POR-01.
+- [x] **T-706 File d'exécution et suivi en direct** — *hors ordre, à la demande du Business Owner (23/09/2026).*
+  File d'attente des traitements longs, API qui rend la main aussitôt, suivi poussé vers l'interface.
+  *Exigences* : EF-EXE-01 à 05, ENF-PERF-06 (cahier v1.11, BES-23).
+  *Fini quand* : demandes enchaînées exécutées dans l'ordre sans perte, état et compteurs consultables, flux qui
+  émet à chaque changement, exécution restée en cours à l'arrêt close en échec.
+  *Livré* : `jobs/queue.ts` (une chaîne par candidat, journal `job_runs` étendu de l'état `queued`, compteurs
+  publiés en cours de route), `GET /api/jobs/{id}` et `GET /api/jobs/stream`, `POST /api/gmail/sync` qui répond
+  **202** avec l'identifiant d'exécution, écran Réglages qui suit l'avancement et survit à un rechargement.
+  Migrations 0009 (état `queued`) et 0010 (compteur `messages_pending`).
+  *Choix technique signalé* : **événements envoyés par le serveur** (SSE) plutôt que WebSocket — l'interface ne fait
+  qu'écouter, le flux passe par le même proxy, se reconnecte seul et n'ajoute aucune dépendance. Une bascule vers
+  `ws` reste possible si un besoin bidirectionnel apparaît.
+  *Reste à faire* : la veille (T-404) et la génération de CV (T-504) se brancheront sur la même file.
+
 - [ ] **T-705 Coûts IA** — agrégat mensuel `llm_calls`, affichage EF-CFG-03, contrôle ENF-COU-01.

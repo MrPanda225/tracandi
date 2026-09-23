@@ -105,7 +105,8 @@ describe('journal of the synchronisations (EF-GML-18)', () => {
       .post('/api/gmail/sync')
       .set('Cookie', alice.cookie)
       .set('Content-Type', 'application/json')
-      .expect(200);
+      .expect(202);
+    await context.queue.drain();
 
     const [run, ...others] = await runsOf(alice.userId);
     expect(others).toEqual([]);
@@ -121,6 +122,8 @@ describe('journal of the synchronisations (EF-GML-18)', () => {
       messages_read: 2,
       messages_retained: 1,
       messages_classified: 1,
+      // EF-GML-04: rien ne reste à traiter après cette passe.
+      messages_pending: 0,
     });
   });
 
@@ -128,11 +131,13 @@ describe('journal of the synchronisations (EF-GML-18)', () => {
     const alice = await userWithMailbox('alice@example.com', createFakeGmail([SENT_APPLICATION]));
     ai.setFailure(new Error('503 Service Unavailable'));
 
+    // EF-EXE-01: la route accepte ; c'est l'exécution qui porte l'échec.
     await request(context.app)
       .post('/api/gmail/sync')
       .set('Cookie', alice.cookie)
       .set('Content-Type', 'application/json')
-      .expect(502);
+      .expect(202);
+    await context.queue.drain();
 
     const [run] = await runsOf(alice.userId);
     expect(run).toMatchObject({
@@ -143,7 +148,7 @@ describe('journal of the synchronisations (EF-GML-18)', () => {
     expect(await countersOf(run?.id ?? 0)).toEqual({});
   });
 
-  it('[EF-GML-18] journals as skipped a synchronisation asked while another one runs', async () => {
+  it('[EF-GML-18] writes off a scheduled synchronisation when one is already queued', async () => {
     const gmail = createFakeGmail([SENT_APPLICATION]);
     const alice = await userWithMailbox('alice@example.com', gmail);
     let release: () => void = () => undefined;
@@ -156,15 +161,15 @@ describe('journal of the synchronisations (EF-GML-18)', () => {
       return list(params);
     };
 
-    const first = context.gmailSync.synchronise(alice.userId, 'schedule');
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    await expect(context.gmailSync.synchronise(alice.userId, 'manual')).rejects.toThrow('déjà en cours');
+    await context.gmailSync.synchronise(alice.userId, 'manual');
+    // EF-GML-18: the scheduled round finds a pass already waiting and writes its own off.
+    await context.gmailSync.synchroniseEveryMailbox();
     release();
-    await first;
+    await context.queue.drain();
 
     expect((await runsOf(alice.userId)).map((run) => [run.triggerType, run.outcome])).toEqual([
-      ['schedule', 'success'],
-      ['manual', 'skipped'],
+      ['manual', 'success'],
+      ['schedule', 'skipped'],
     ]);
   });
 });
@@ -176,6 +181,7 @@ describe('scheduled synchronisation (EF-GML-03)', () => {
     const carol = await userWithMailbox('carol@example.com', null);
 
     await context.gmailSync.synchroniseEveryMailbox();
+    await context.queue.drain();
 
     for (const userId of [alice.userId, bob.userId]) {
       expect((await runsOf(userId)).map((run) => [run.triggerType, run.outcome])).toEqual([
@@ -193,6 +199,7 @@ describe('scheduled synchronisation (EF-GML-03)', () => {
     const bob = await userWithMailbox('bob@example.com', createFakeGmail([MAISON_LUMEN_REJECTION]));
 
     await expect(context.gmailSync.synchroniseEveryMailbox()).resolves.toBeUndefined();
+    await context.queue.drain();
 
     expect((await runsOf(alice.userId)).map((run) => run.outcome)).toEqual(['failure']);
     expect((await runsOf(bob.userId)).map((run) => run.outcome)).toEqual(['success']);
@@ -205,16 +212,19 @@ describe('expired authorisation (Q-11)', () => {
     gmail.client.list = invalidGrant;
     const alice = await userWithMailbox('alice@example.com', gmail);
 
-    const response = await request(context.app)
+    const accepted = await request(context.app)
       .post('/api/gmail/sync')
       .set('Cookie', alice.cookie)
       .set('Content-Type', 'application/json');
+    await context.queue.drain();
     const status = await request(context.app).get('/api/gmail/status').set('Cookie', alice.cookie);
 
-    expect(response.status).toBe(409);
-    expect((response.body as { error: string }).error).toBe(
-      'L’autorisation Gmail a expiré : reconnectez Gmail depuis les Réglages.',
-    );
+    expect(accepted.status).toBe(202);
+    const run = await context.queue.stateOf(alice.userId, (accepted.body as { runId: number }).runId);
+    expect(run).toMatchObject({
+      outcome: 'failure',
+      error: 'L’autorisation Gmail a expiré : reconnectez Gmail depuis les Réglages.',
+    });
     expect(status.body).toMatchObject({ connected: true, authorizationExpired: true });
   });
 
@@ -223,8 +233,10 @@ describe('expired authorisation (Q-11)', () => {
     gmail.client.list = invalidGrant;
     const alice = await userWithMailbox('alice@example.com', gmail);
     await context.gmailSync.synchroniseEveryMailbox();
+    await context.queue.drain();
 
     await context.gmailSync.synchroniseEveryMailbox();
+    await context.queue.drain();
     expect(await runsOf(alice.userId)).toHaveLength(1);
 
     await saveGmailAccount(database.db, {
@@ -241,6 +253,7 @@ describe('expired authorisation (Q-11)', () => {
     expect(account?.expiredAt).toBeNull();
     gmail.client.list = createFakeGmail([SENT_APPLICATION]).client.list;
     await context.gmailSync.synchroniseEveryMailbox();
+    await context.queue.drain();
     expect((await runsOf(alice.userId)).map((run) => run.outcome)).toEqual(['failure', 'success']);
   });
 });

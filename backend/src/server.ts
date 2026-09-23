@@ -1,7 +1,7 @@
 import { createApp } from './app.js';
 import { type Config, loadConfig } from './config/env.js';
 import { connectDatabase } from './db/client.js';
-import { createJobJournal } from './jobs/journal.js';
+import { createJobQueue } from './jobs/queue.js';
 import { startScheduler } from './jobs/scheduler.js';
 import { systemClock } from './lib/clock.js';
 import { createLogger } from './lib/logger.js';
@@ -13,6 +13,7 @@ import type { ProviderName } from './llm/types.js';
 import { createLlmJournal } from './llm/repository.js';
 import { createLlmRouter } from './llm/router.js';
 import { createApplicationsModule } from './modules/applications/routes.js';
+import { createJobsModule } from './modules/jobs/routes.js';
 import { createProfileModule } from './modules/cv/routes.js';
 import { createProfileService } from './modules/cv/service.js';
 import { createApplicationsService } from './modules/applications/service.js';
@@ -87,6 +88,8 @@ const llmRouter = createLlmRouter({
   logger,
 });
 
+const jobQueue = createJobQueue({ db: database.db, clock: systemClock, logger });
+
 const gmailSync = createGmailSync({
   db: database.db,
   fetcher: createMessageFetcher({
@@ -100,10 +103,13 @@ const gmailSync = createGmailSync({
     clock: systemClock,
   }),
   router: llmRouter,
-  journal: createJobJournal({ db: database.db, clock: systemClock }),
+  queue: jobQueue,
   clock: systemClock,
   logger,
 });
+
+// EF-EXE-05: an execution the previous run left waiting or running is closed before anything else starts.
+await jobQueue.closeInterrupted();
 
 const app = createApp({
   config,
@@ -114,6 +120,7 @@ const app = createApp({
     createApplicationsModule(createApplicationsService({ db: database.db, clock: systemClock })),
     createStatsModule(createStatsService({ db: database.db, clock: systemClock })),
     ...createGmailModules({ service: gmailService, sync: gmailSync, frontendOrigin: config.frontendOrigin }),
+    createJobsModule(jobQueue),
     createProfileModule(createProfileService({ db: database.db, clock: systemClock })),
     createSettingsModule(describeAssignments(config.llm)),
   ],

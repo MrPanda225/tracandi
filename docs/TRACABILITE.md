@@ -123,6 +123,12 @@ Commande de contrôle : `/project:check-req EF-CAN-07`.
 | EF-CVX-14 | T-502 | `render.test.ts` (aucun `w:tbl`, aucun `w:txbxContent`, aucune colonne de section, aucun texte en en-tête ni pied de page ; sections nommées et ordonnées ; chaque expérience et chaque puce présentes dans l'ordre ; coordonnées dans le corps ; dates « MM/AAAA ») | couverte |
 | RG-15 | T-502 | `render.test.ts` (titres de sections usuels, coordonnées dans le corps, intitulé visé en titre) ; `formatDates` (mois français → MM/AAAA, année seule ou libellé inconnu laissés tels quels, RG-12) | couverte |
 | Q-01 | T-502 | `render.test.ts` (aucun `w:drawing`, aucun fichier dans `word/media/` : l'emplacement de la photo reste à remplir à la main) | couverte |
+| EF-EXE-01 | T-706 | `backend/tests/integration/jobs.test.ts` (identifiant rendu sans attendre la fin) ; `gmail-sync.test.ts` (`POST /api/gmail/sync` → 202 avec `runId`) ; `SettingsPage.test.tsx` (le bouton rend la main) | couverte |
+| EF-EXE-02 | T-706 | `jobs.test.ts` (trois demandes exécutées dans l'ordre, trois lignes `job_runs`, aucune perdue) ; `gmail-sync.test.ts` (deuxième demande mise en file au lieu d'être refusée) | couverte |
+| EF-EXE-03 | T-706 | `jobs.test.ts` (compteurs publiés en cours de route puis à la fin ; `GET /api/jobs/{id}` ; 404 pour l'exécution d'un autre compte ; 400 sur identifiant invalide ; 401 sans session) ; `SettingsPage.test.tsx` (avancement affiché) | couverte |
+| EF-EXE-04 | T-706 | `jobs.test.ts` (`follow` reçoit chaque changement : queued, running, running, success) ; `SettingsPage.test.tsx` (flux `EventSource` doublé : avancement, fin et échec affichés sans nouvelle requête) | couverte |
+| EF-EXE-05 | T-706 | `jobs.test.ts` (exécution laissée en cours par un serveur arrêté, close en échec au démarrage suivant) | couverte |
+| ENF-PERF-06 | T-706 | `gmail-sync.test.ts`, `gmail-schedule.test.ts` (la route accepte en 202, l'échec ferme l'exécution et non la requête) — mesure sur le jeu de charge en T-703 | partielle |
 | EF-DOC-01 | T-005 | `src/app.test.ts`, `migrations.test.ts` (chaque route documentée) | couverte |
 | EF-DOC-02 | T-005 | `src/app.test.ts` (page Swagger) + démonstration `/api/docs` | couverte |
 | EF-AUT-01 (interface) | T-006 | `frontend/src/pages/auth/AuthPage.test.tsx` (inscription, adresse déjà utilisée) | couverte |

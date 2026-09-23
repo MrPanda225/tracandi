@@ -8,8 +8,8 @@ import {
   setGmailApplyLabels,
   setGmailLookbackDays,
   synchroniseGmail,
-  type SyncReport,
 } from '../../api/gmail';
+import { followRuns, isRunning, type RunState } from '../../api/jobs';
 import { Flash } from '../../components/Flash';
 import { Skeleton } from '../../components/Skeleton';
 import { leaveFor } from '../../lib/browser';
@@ -25,29 +25,43 @@ type LoadState = { status: 'loading' } | { status: 'error'; message: string } | 
 const countOf = (count: number, singular: string, plural: string) => `${count} ${count > 1 ? plural : singular}`;
 
 /** EF-GML-04: what a synchronisation did, in words, and whether messages are still waiting. */
-const describeReport = ({ read, retained, classified, pending }: SyncReport) =>
-  `Synchronisation terminée : ${countOf(read, 'message lu', 'messages lus')}, ${countOf(retained, 'retenu', 'retenus')}, ` +
-  `${countOf(classified, 'classé', 'classés')}.` +
-  (pending ? ' Il reste des messages à traiter : relancez pour continuer.' : '');
+const describeCounters = ({ counters }: RunState) =>
+  `${countOf(counters['messages_read'] ?? 0, 'message lu', 'messages lus')}, ` +
+  `${countOf(counters['messages_retained'] ?? 0, 'retenu', 'retenus')}, ` +
+  `${countOf(counters['messages_classified'] ?? 0, 'classé', 'classés')}`;
 
-/** EF-GML-04: manual synchronisation; the button waits until the API answers (ENF-UTI-03). */
+/** EF-GML-04, EF-EXE-03 : ce qu'une synchronisation terminée a fait, et ce qu'il reste éventuellement à traiter. */
+const describeReport = (run: RunState) =>
+  `Synchronisation terminée : ${describeCounters(run)}.` +
+  ((run.counters['messages_pending'] ?? 0) > 0
+    ? ' Il reste des messages à traiter : relancez pour continuer.'
+    : '');
+
+/**
+ * EF-GML-04, EF-EXE-01 : la passe est mise en file et le bouton rend la main aussitôt ; l'avancement arrive par le
+ * flux des exécutions (EF-EXE-04), donc un rechargement ne le perd pas.
+ */
 function SynchroniseButton({
-  onSynchronised,
+  run,
+  onQueued,
   onFailure,
 }: {
-  onSynchronised: (report: SyncReport) => void;
+  run: RunState | null;
+  onQueued: () => void;
   onFailure: (message: string) => void;
 }) {
-  const [isRunning, setIsRunning] = useState(false);
+  const [isAsking, setIsAsking] = useState(false);
+  const busy = isAsking || isRunning(run);
 
   const handleSynchronise = async () => {
-    setIsRunning(true);
+    setIsAsking(true);
     try {
-      onSynchronised(await synchroniseGmail());
+      await synchroniseGmail();
+      onQueued();
     } catch (failure) {
       onFailure(messageOf(failure));
     } finally {
-      setIsRunning(false);
+      setIsAsking(false);
     }
   };
 
@@ -55,11 +69,11 @@ function SynchroniseButton({
     <button
       type="button"
       className="btn"
-      disabled={isRunning}
-      aria-busy={isRunning}
+      disabled={busy}
+      aria-busy={busy}
       onClick={() => void handleSynchronise()}
     >
-      {isRunning ? 'Synchronisation…' : 'Synchroniser maintenant'}
+      {busy ? 'Synchronisation…' : 'Synchroniser maintenant'}
     </button>
   );
 }
@@ -189,12 +203,14 @@ function LookbackOption({
 
 function ConnectedMailbox({
   gmail,
-  onSynchronised,
+  run,
+  onQueued,
   onDisconnected,
   onFailure,
 }: {
   gmail: Extract<GmailStatus, { connected: true }>;
-  onSynchronised: (report: SyncReport) => void;
+  run: RunState | null;
+  onQueued: () => void;
   onDisconnected: () => void;
   onFailure: (message: string) => void;
 }) {
@@ -223,6 +239,14 @@ function ConnectedMailbox({
             ? `Dernière synchronisation : ${formatDateTime(gmail.lastRunAt)}`
             : 'Dernière synchronisation : pas encore'}
         </p>
+        {isRunning(run) && (
+          // EF-EXE-03 : ce que la passe en cours a déjà fait, rafraîchi par le flux.
+          <p className="gmail-settings__meta" role="status" aria-live="polite">
+            {run?.outcome === 'queued'
+              ? 'Synchronisation en attente de son tour…'
+              : `Synchronisation en cours : ${describeCounters(run as RunState)}…`}
+          </p>
+        )}
         {gmail.lastRunAt && !gmail.lastSyncAt && (
           // EF-GML-06: passes are bounded, so a first synchronisation over a long period takes several of them.
           <p className="gmail-settings__meta">
@@ -259,7 +283,7 @@ function ConnectedMailbox({
         ) : (
           <>
             {!gmail.authorizationExpired && (
-              <SynchroniseButton onSynchronised={onSynchronised} onFailure={onFailure} />
+              <SynchroniseButton run={run} onQueued={onQueued} onFailure={onFailure} />
             )}
             <button type="button" className="btn btn--quiet" onClick={() => setIsConfirming(true)}>
               Déconnecter Gmail
@@ -282,6 +306,7 @@ export function GmailSettings({ initialNotice }: { initialNotice: Notice | null 
   const [state, setState] = useState<LoadState>({ status: 'loading' });
   const [notice, setNotice] = useState<Notice | null>(initialNotice);
   const [isLeaving, setIsLeaving] = useState(false);
+  const [run, setRun] = useState<RunState | null>(null);
 
   const loadStatus = (signal?: AbortSignal) =>
     fetchGmailStatus(signal)
@@ -294,6 +319,22 @@ export function GmailSettings({ initialNotice }: { initialNotice: Notice | null 
     const controller = new AbortController();
     void loadStatus(controller.signal);
     return () => controller.abort();
+  }, []);
+
+  // EF-EXE-04 : l'avancement arrive tout seul, y compris pour une passe lancée par le planificateur.
+  useEffect(() => {
+    const stop = followRuns((received) => {
+      if (received.job !== 'gmail_sync') return;
+      setRun(received);
+      if (received.outcome === 'success') {
+        setNotice({ tone: 'success', text: describeReport(received) });
+        void loadStatus();
+      }
+      if (received.outcome === 'failure') {
+        setNotice({ tone: 'error', text: received.error ?? 'La synchronisation a échoué.' });
+      }
+    });
+    return stop;
   }, []);
 
   const handleConnect = async () => {
@@ -338,11 +379,8 @@ export function GmailSettings({ initialNotice }: { initialNotice: Notice | null 
       {state.status === 'ready' && state.gmail.connected && (
         <ConnectedMailbox
           gmail={state.gmail}
-          onSynchronised={(report) => {
-            setNotice({ tone: 'success', text: describeReport(report) });
-            // The date of the last synchronisation is the API's.
-            void loadStatus();
-          }}
+          run={run}
+          onQueued={() => setNotice(null)}
           onDisconnected={() => {
             setState({ status: 'ready', gmail: { connected: false } });
             setNotice({ tone: 'success', text: 'Gmail est déconnecté : plus aucun accès à votre boîte n’est conservé.' });
