@@ -81,6 +81,16 @@ describe('AppShell', () => {
     expect(screen.getByRole('link', { name: /Tableau de bord/ })).not.toHaveAttribute('aria-current');
   });
 
+  it('[ENF-UTI-02] keeps the full name of a screen while the bottom bar of a phone shows a short one', async () => {
+    renderSignedIn('/');
+    await screen.findByRole('heading', { name: 'Tableau de bord' });
+
+    // The bar of a phone has room for « Suivi » only; what a screen reader announces stays the whole name.
+    const link = screen.getByRole('link', { name: 'Candidatures' });
+    expect(link).toHaveAccessibleName('Candidatures');
+    expect(within(link).getByText('Suivi')).toBeInTheDocument();
+  });
+
   it('[EF-AUT-04] signs out from the shell and returns to the login page', async () => {
     renderSignedIn('/');
     const user = userEvent.setup();
@@ -179,6 +189,7 @@ describe('AppShell', () => {
           connectedAt: '2026-09-15T09:00:00.000Z',
           lastSyncAt: '2026-09-21T09:00:00.000Z',
           applyLabels: true,
+          lookbackDays: 30,
           authorizationExpired: true,
         }),
     });

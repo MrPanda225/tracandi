@@ -73,6 +73,7 @@ a {
 /* ENF-UTI-03: waiting state of a screen fetched on demand (ScreenLoading). */
 .screen-loading {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.75rem;
   max-width: 40rem;
 }

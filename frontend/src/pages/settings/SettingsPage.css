@@ -1,12 +1,14 @@
 /* One column of cards, as wide as the Gmail card. */
 .settings-page {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: clamp(1rem, 0.8rem + 0.8vw, 1.5rem);
   max-width: 44rem;
 }
 
 .settings-card {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.9rem;
   max-width: 44rem;
   padding: clamp(1.1rem, 0.9rem + 0.8vw, 1.5rem);
@@ -31,6 +33,7 @@
 
 .gmail-settings__mailbox {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.2rem;
   padding: 0.85rem 1rem;
   border-radius: var(--radius-sm);
@@ -64,11 +67,13 @@
 
 .gmail-settings__loading {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.5rem;
 }
 
 .gmail-settings__option {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.2rem;
 }
 
@@ -128,8 +133,11 @@
   overflow-wrap: anywhere;
 }
 
+/* `fixed`: the columns share the width on offer and their text wraps, instead of the table settling on the
+   width its longest model name asks for and pushing the card past the screen of a phone (ENF-UTI-02). */
 .ai-settings__tasks {
   width: 100%;
+  table-layout: fixed;
   border-collapse: collapse;
   font-size: 0.9375rem;
 }
@@ -137,6 +145,7 @@
 .ai-settings__tasks th,
 .ai-settings__tasks td {
   padding: 0.55rem 0.5rem 0.55rem 0;
+  overflow-wrap: anywhere;
   border-bottom: 1px solid var(--color-canvas);
   text-align: left;
   vertical-align: baseline;

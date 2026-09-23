@@ -10,7 +10,9 @@
   margin-bottom: clamp(1rem, 0.6rem + 1.5vw, 1.5rem);
 }
 
-@container shell-main (min-width: 30rem) {
+/* 20rem: two cards side by side from a 360 px phone on, so the four figures are read at a glance instead of
+   costing four screens of scrolling (ENF-UTI-02). */
+@container shell-main (min-width: 20rem) {
   .kpi-cards {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -26,7 +28,8 @@
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  min-height: 9.75rem;
+  /* Two per row on a phone: a card no taller than it needs, so the four figures fit on the first screen. */
+  min-height: 8rem;
   padding: clamp(1.1rem, 0.9rem + 0.6vw, 1.5rem) clamp(1.2rem, 1rem + 0.6vw, 1.6rem);
   border-radius: var(--radius-md);
   background: var(--color-canvas-raised);
@@ -64,4 +67,12 @@
 
 .kpi-card--hero {
   border: 1px solid var(--color-accent-soft);
+}
+
+/* Four short cards side by side need their height back to keep the row balanced; declared after the base rule,
+   which a container query of the same specificity would otherwise lose to. */
+@container shell-main (min-width: 54rem) {
+  .kpi-card {
+    min-height: 9.75rem;
+  }
 }
