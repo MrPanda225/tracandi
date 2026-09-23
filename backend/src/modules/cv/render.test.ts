@@ -23,7 +23,12 @@ const CONTENT: CvContent = {
   profile: PROFILE.cvSource.profile,
   experiences: PROFILE.cvSource.experiences,
   education: PROFILE.cvSource.education,
+  studyLevel: { level: 'bac_5', isInProgress: true },
   skills: PROFILE.cvSource.skills,
+  certifications: [
+    { name: 'Tableau Desktop Specialist', issuer: 'Tableau', year: 2025 },
+    { name: 'TOEIC', issuer: null, year: null },
+  ],
   interests: PROFILE.cvSource.interests,
 };
 
@@ -141,6 +146,37 @@ describe('renderCvDocx — the charter (EF-CVX-08, RG-11)', () => {
 
   it('[RG-11] aligns the content of the dated lines on the tab of the charter', () => {
     expect(xml).toContain('w:pos="2150"');
+  });
+});
+
+describe('renderCvDocx — level of study and certifications (EF-CVX-20, RG-18)', () => {
+  it('[EF-CVX-20] [RG-18] writes the level of study under the degrees, and says when it is under way', () => {
+    const line = paragraphs.find((paragraph) => paragraph.startsWith('Niveau d’études'));
+
+    expect(line).toBe('Niveau d’études : Bac+5 (master, diplôme d’ingénieur) (en cours)');
+    // Under FORMATION, which it sums up, and before COMPÉTENCES.
+    expect(paragraphs.indexOf(line ?? '')).toBeGreaterThan(paragraphs.indexOf(SECTION_TITLES.education));
+    expect(paragraphs.indexOf(line ?? '')).toBeLessThan(paragraphs.indexOf(SECTION_TITLES.skills));
+  });
+
+  it('[EF-CVX-20] writes nothing about the level when the profile states none', async () => {
+    const rendered = await renderCvDocx({ ...CONTENT, studyLevel: { level: null, isInProgress: false } });
+
+    expect(readDocumentXml(rendered)).not.toContain('Niveau d’études');
+  });
+
+  it('[EF-CVX-20] gives the certifications a section, with their issuer and their year', async () => {
+    expect(paragraphs).toContain(SECTION_TITLES.certifications);
+    expect(paragraphs).toContain('2025\tTableau Desktop Specialist — Tableau');
+    // A certification stated by its name alone carries neither a year nor a dash.
+    expect(paragraphs).toContain('\tTOEIC');
+  });
+
+  it('[EF-CVX-20] [RG-12] opens no section when the candidate holds no certification', async () => {
+    const rendered = await renderCvDocx({ ...CONTENT, certifications: [] });
+
+    expect(readParagraphs(rendered)).not.toContain(SECTION_TITLES.certifications);
+    expect(readDocumentXml(rendered)).not.toContain('TOEIC');
   });
 });
 

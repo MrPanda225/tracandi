@@ -47,11 +47,38 @@ export interface Skill {
   value: string;
 }
 
+/** RG-18 : niveaux d'études, du plus bas au plus élevé. */
+export const STUDY_LEVELS = ['bac', 'bac_2', 'bac_3', 'bac_5', 'doctorat', 'autre'] as const;
+export type StudyLevelName = (typeof STUDY_LEVELS)[number];
+
+export const STUDY_LEVEL_LABELS: Readonly<Record<StudyLevelName, string>> = {
+  bac: 'Bac',
+  bac_2: 'Bac+2 (BTS, DUT, BUT 2)',
+  bac_3: 'Bac+3 (licence, bachelor, BUT 3)',
+  bac_5: 'Bac+5 (master, diplôme d’ingénieur)',
+  doctorat: 'Doctorat',
+  autre: 'Autre',
+};
+
+/** EF-CVX-18 : le niveau le plus élevé atteint, obtenu ou en cours ; `null` tant qu'il n'est pas renseigné. */
+export interface StudyLevel {
+  level: StudyLevelName | null;
+  isInProgress: boolean;
+}
+
+/** EF-CVX-19 : une certification obtenue. L'organisme et l'année sont facultatifs, l'intitulé non. */
+export interface Certification {
+  name: string;
+  issuer: string | null;
+  year: number | null;
+}
+
 /** Profil de référence du candidat (schéma `CandidateProfile` dans /api/docs, EF-CVX-01). */
 export interface CandidateProfile {
   identity: Identity;
   location: { searchArea: string };
   availability: string;
+  studyLevel: StudyLevel;
   targets: Target[];
   cvSource: {
     defaultTitle: string;
@@ -60,6 +87,7 @@ export interface CandidateProfile {
     experiences: Experience[];
     education: Degree[];
     skills: Skill[];
+    certifications: Certification[];
     interests: string[];
   };
 }
@@ -76,6 +104,7 @@ export const emptyProfile = (): CandidateProfile => ({
   identity: { name: '', city: '', phone: '', email: '', extra: null },
   location: { searchArea: '' },
   availability: '',
+  studyLevel: { level: null, isInProgress: false },
   targets: [{ label: '', contractTypes: ['cdi'], keywords: [] }],
   cvSource: {
     defaultTitle: '',
@@ -84,6 +113,7 @@ export const emptyProfile = (): CandidateProfile => ({
     experiences: [{ dates: '', company: '', place: null, role: '', duration: null, bullets: [] }],
     education: [{ dates: '', school: '', place: null, degree: null, detail: null }],
     skills: [{ label: '', value: '' }],
+    certifications: [],
     interests: [],
   },
 });

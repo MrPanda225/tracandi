@@ -2,6 +2,9 @@ import { useId, useState } from 'react';
 import {
   type CandidateProfile,
   CONTRACT_LABELS,
+  STUDY_LEVEL_LABELS,
+  STUDY_LEVELS,
+  type StudyLevelName,
   type TargetContractType,
   TARGET_CONTRACT_TYPES,
 } from '../../api/profile';
@@ -16,6 +19,12 @@ const valuesOf = (lines: string): string[] =>
 
 /** Un champ facultatif du profil : vide à l'écran, absent dans le document. */
 const orNull = (value: string): string | null => (value.trim() === '' ? null : value);
+
+/** EF-CVX-19 : une année saisie ; tout ce qui n'est pas un nombre entier reste absent plutôt que faux. */
+const yearOf = (value: string): number | null => {
+  const typed = Number.parseInt(value.trim(), 10);
+  return value.trim() === '' || Number.isNaN(typed) ? null : typed;
+};
 
 function Field({
   label,
@@ -94,6 +103,7 @@ function Repeatable<T>({
   blank,
   render,
   addLabel,
+  canBeEmpty = false,
 }: {
   legend: string;
   entries: T[];
@@ -101,6 +111,8 @@ function Repeatable<T>({
   blank: () => T;
   render: (entry: T, update: (entry: T) => void) => React.ReactNode;
   addLabel: string;
+  /** EF-CVX-19 : un groupe que le candidat peut vider entièrement, parce que le profil l'accepte vide. */
+  canBeEmpty?: boolean;
 }) {
   return (
     <fieldset className="profile-form__group">
@@ -111,7 +123,7 @@ function Repeatable<T>({
           <button
             type="button"
             className="btn btn--quiet"
-            disabled={entries.length === 1}
+            disabled={!canBeEmpty && entries.length === 1}
             onClick={() => onChange(entries.filter((_, at) => at !== index))}
           >
             Retirer
@@ -122,6 +134,53 @@ function Repeatable<T>({
         {addLabel}
       </button>
     </fieldset>
+  );
+}
+
+/**
+ * EF-CVX-18, RG-18 : le niveau le plus élevé atteint, et s'il est obtenu ou en cours. « Non précisé » est un
+ * choix à part entière : le CV n'affiche alors aucun niveau.
+ */
+function StudyLevelField({
+  value,
+  onChange,
+}: {
+  value: CandidateProfile['studyLevel'];
+  onChange: (value: CandidateProfile['studyLevel']) => void;
+}) {
+  const id = useId();
+  return (
+    <>
+      <div className="form-field">
+        <label className="form-field__label" htmlFor={id}>
+          Niveau le plus élevé
+        </label>
+        <select
+          id={id}
+          className="control"
+          value={value.level ?? ''}
+          onChange={(event) =>
+            onChange({ ...value, level: (event.target.value || null) as StudyLevelName | null })
+          }
+        >
+          <option value="">Non précisé</option>
+          {STUDY_LEVELS.map((level) => (
+            <option key={level} value={level}>
+              {STUDY_LEVEL_LABELS[level]}
+            </option>
+          ))}
+        </select>
+      </div>
+      <label>
+        <input
+          type="checkbox"
+          checked={value.isInProgress}
+          disabled={value.level === null}
+          onChange={(event) => onChange({ ...value, isInProgress: event.target.checked })}
+        />{' '}
+        Ce diplôme est en cours
+      </label>
+    </>
   );
 }
 
@@ -197,6 +256,14 @@ export function ProfileForm({
           hint="Affichées à droite de l’en-tête du CV."
           value={draft.availability}
           onChange={(availability) => setDraft({ ...draft, availability })}
+        />
+      </fieldset>
+
+      <fieldset className="profile-form__group">
+        <legend>Niveau d’études</legend>
+        <StudyLevelField
+          value={draft.studyLevel}
+          onChange={(studyLevel) => setDraft({ ...draft, studyLevel })}
         />
       </fieldset>
 
@@ -343,6 +410,35 @@ export function ProfileForm({
               rows={2}
               value={skill.value}
               onChange={(value) => update({ ...skill, value })}
+            />
+          </>
+        )}
+      />
+
+      <Repeatable
+        legend="Certifications"
+        addLabel="Ajouter une certification"
+        canBeEmpty
+        entries={cvSource.certifications}
+        onChange={(certifications) => setCv({ certifications })}
+        blank={() => ({ name: '', issuer: null, year: null })}
+        render={(certification, update) => (
+          <>
+            <Field
+              label="Intitulé"
+              value={certification.name}
+              onChange={(name) => update({ ...certification, name })}
+            />
+            <Field
+              label="Organisme"
+              value={certification.issuer ?? ''}
+              onChange={(issuer) => update({ ...certification, issuer: orNull(issuer) })}
+            />
+            <Field
+              label="Année"
+              hint="Laissez vide si vous préférez ne pas la faire figurer."
+              value={certification.year === null ? '' : String(certification.year)}
+              onChange={(year) => update({ ...certification, year: yearOf(year) })}
             />
           </>
         )}

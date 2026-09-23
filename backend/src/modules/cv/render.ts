@@ -10,7 +10,7 @@ import {
   TabStopType,
   TextRun,
 } from 'docx';
-import type { CvContent } from './schemas.js';
+import { STUDY_LEVEL_LABELS, type CvContent } from './schemas.js';
 
 /** RG-11: Calibri 10 pt everywhere; docx counts sizes in half-points. */
 const FONT = 'Calibri';
@@ -40,6 +40,7 @@ export const SECTION_TITLES = {
   experiences: 'EXPÉRIENCES PROFESSIONNELLES',
   education: 'FORMATION',
   skills: 'COMPÉTENCES',
+  certifications: 'CERTIFICATIONS',
   interests: "CENTRES D'INTÉRÊT",
 } as const;
 
@@ -160,6 +161,31 @@ const educationOf = (degree: CvContent['education'][number]): Paragraph =>
   ]);
 
 /**
+ * RG-18: the level of study, written under the degrees it sums up. A profile that states none says nothing here
+ * rather than « non précisé », which would waste a line of the single page (RG-11).
+ * @req EF-CVX-20
+ */
+const studyLevelLine = (studyLevel: CvContent['studyLevel']): Paragraph[] => {
+  if (studyLevel.level === null) return [];
+  const suffix = studyLevel.isInProgress ? ' (en cours)' : '';
+  return [
+    new Paragraph({
+      children: [
+        bodyRun('Niveau d’études : ', { bold: true }),
+        bodyRun(`${STUDY_LEVEL_LABELS[studyLevel.level]}${suffix}`),
+      ],
+    }),
+  ];
+};
+
+/** EF-CVX-20: one line per certification, « intitulé — organisme » dated by its year when there is one. */
+const certificationOf = (certification: CvContent['certifications'][number]): Paragraph =>
+  datedLine(certification.year === null ? '' : String(certification.year), [
+    bodyRun(certification.name, { bold: true }),
+    bodyRun(certification.issuer === null ? '' : ` — ${certification.issuer}`),
+  ]);
+
+/**
  * Renders one CV as a Word document following the charter RG-11 and readable by a recruiting software (RG-15):
  * real text only, no table, no text box, nothing in a Word header or footer, sections named as recruiters expect.
  * @returns the bytes of the .docx, ready to be written or downloaded.
@@ -206,8 +232,12 @@ export const renderCvDocx = async (content: CvContent): Promise<Buffer> => {
           ...content.experiences.flatMap(experienceOf),
           section(SECTION_TITLES.education),
           ...content.education.map(educationOf),
+          ...studyLevelLine(content.studyLevel),
           section(SECTION_TITLES.skills),
           ...content.skills.map((skill) => datedLine(skill.label, [bodyRun(skill.value)])),
+          ...(content.certifications.length > 0
+            ? [section(SECTION_TITLES.certifications), ...content.certifications.map(certificationOf)]
+            : []),
           ...(content.interests.length > 0
             ? [section(SECTION_TITLES.interests), ...content.interests.map(bullet)]
             : []),
