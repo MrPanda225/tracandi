@@ -12,6 +12,7 @@ const CONNECTED = {
   connected: true,
   emailAddress: 'alex.martin@example.com',
   connectedAt: '2026-09-20T09:00:00.000Z',
+  lastRunAt: null,
   lastSyncAt: null,
   applyLabels: true,
   lookbackDays: 30,
@@ -99,11 +100,30 @@ describe('SettingsPage — Gmail', () => {
   });
 
   it('[EF-CFG-01] dates the last synchronisation when there was one', async () => {
-    mockApi({ 'GET /gmail/status': () => json(200, { ...CONNECTED, lastSyncAt: '2026-09-22T08:30:00.000Z' }) });
+    mockApi({
+      'GET /gmail/status': () =>
+        json(200, {
+          ...CONNECTED,
+          lastRunAt: '2026-09-22T08:30:00.000Z',
+          lastSyncAt: '2026-09-22T08:30:00.000Z',
+        }),
+    });
 
     renderPage();
 
     expect(await screen.findByText(/Dernière synchronisation : 22 sept\. 2026/)).toBeInTheDocument();
+    expect(screen.queryByText(/Rattrapage en cours/)).not.toBeInTheDocument();
+  });
+
+  it('[EF-GML-06] says a backlog is being caught up when a pass ran without reaching the end', async () => {
+    mockApi({
+      'GET /gmail/status': () => json(200, { ...CONNECTED, lastRunAt: '2026-09-23T08:30:00.000Z' }),
+    });
+
+    renderPage();
+
+    expect(await screen.findByText(/Dernière synchronisation : 23 sept\. 2026/)).toBeInTheDocument();
+    expect(screen.getByText(/Rattrapage en cours/)).toBeInTheDocument();
   });
 
   it('[EF-GML-01] sends the user to Google’s consent page to connect a mailbox', async () => {
@@ -172,14 +192,33 @@ describe('SettingsPage — Gmail', () => {
     await user.click(await screen.findByRole('button', { name: 'Synchroniser maintenant' }));
 
     expect(screen.getByRole('button', { name: 'Synchronisation…' })).toBeDisabled();
-    status = { ...CONNECTED, lastSyncAt: '2026-09-22T08:30:00.000Z' };
-    answer(json(200, { read: 12, retained: 3, classified: 1 }));
+    status = {
+      ...CONNECTED,
+      lastRunAt: '2026-09-22T08:30:00.000Z',
+      lastSyncAt: '2026-09-22T08:30:00.000Z',
+    };
+    answer(json(200, { read: 12, retained: 3, classified: 1, pending: false }));
     expect(await screen.findByRole('status')).toHaveTextContent(
       'Synchronisation terminée : 12 messages lus, 3 retenus, 1 classé.',
     );
     expect(await screen.findByText(/Dernière synchronisation : 22 sept\. 2026/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Synchroniser maintenant' })).toBeEnabled();
     expect(calls.filter((call) => call === 'POST /gmail/sync')).toHaveLength(1);
+  });
+
+  it('[EF-GML-04] tells that messages are still waiting after a bounded pass', async () => {
+    mockApi({
+      'GET /gmail/status': () => json(200, { ...CONNECTED, lastRunAt: '2026-09-23T08:30:00.000Z' }),
+      'POST /gmail/sync': () => json(200, { read: 200, retained: 23, classified: 23, pending: true }),
+    });
+    renderPage();
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: 'Synchroniser maintenant' }));
+
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      'Il reste des messages à traiter : relancez pour continuer.',
+    );
   });
 
   it('[EF-GML-04] [EF-IA-04] shows why a synchronisation failed', async () => {

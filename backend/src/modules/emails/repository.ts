@@ -1,10 +1,11 @@
-import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import type { Database } from '../../db/client.js';
 import {
   appSettings,
   emails,
   gmailAccounts,
   gmailLabels,
+  jobRuns,
   type messageOutcome,
   platformDomains,
   platforms,
@@ -312,6 +313,21 @@ export const saveGmailLabel = async (
 /** Forgets every label id of the user (one was refused by Gmail). @req EF-GML-13 */
 export const deleteGmailLabels = async (db: Executor, userId: number): Promise<void> => {
   await db.delete(gmailLabels).where(eq(gmailLabels.userId, userId));
+};
+
+/**
+ * EF-CFG-01: instant the last Gmail pass of this user ended well, whatever it processed — what the settings screen
+ * calls the last synchronisation. `gmail_accounts.last_sync_at` is another thing: the date up to which every message
+ * is processed, which only moves once a pass leaves nothing behind (EF-GML-06).
+ */
+export const findLastGmailRunAt = async (db: Executor, userId: number): Promise<Date | null> => {
+  const [row] = await db
+    .select({ finishedAt: jobRuns.finishedAt })
+    .from(jobRuns)
+    .where(and(eq(jobRuns.userId, userId), eq(jobRuns.job, 'gmail_sync'), eq(jobRuns.outcome, 'success')))
+    .orderBy(desc(jobRuns.finishedAt))
+    .limit(1);
+  return row?.finishedAt ?? null;
 };
 
 /** Whether the user lets Tracandi write labels in Gmail (EF-GML-17); null when the settings row is missing. */

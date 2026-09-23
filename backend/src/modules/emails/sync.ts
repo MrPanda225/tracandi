@@ -36,6 +36,8 @@ export interface SyncReport {
   retained: number;
   /** Retained messages classified by the AI and recorded. */
   classified: number;
+  /** EF-GML-04: messages are still waiting — the pass was bounded, or the AI left some behind (ENF-FIA-03). */
+  pending: boolean;
 }
 
 /** A synchronisation of this user is already running: a second one would read the same messages. */
@@ -341,7 +343,7 @@ const createSyncRun = (deps: Omit<GmailSyncDeps, 'journal'>): ((userId: number) 
         unclassified: retained.length - classified,
         hasMore,
       });
-    return { read: readCount, retained: retained.length, classified };
+    return { read: readCount, retained: retained.length, classified, pending: !isComplete };
   };
 
   return run;

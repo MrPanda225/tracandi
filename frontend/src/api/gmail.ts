@@ -7,6 +7,9 @@ export type GmailStatus =
       connected: true;
       emailAddress: string;
       connectedAt: string;
+      /** EF-CFG-01: fin de la dernière synchronisation réussie ; null si aucune. */
+      lastRunAt: string | null;
+      /** EF-GML-06 : date jusqu'à laquelle tout est traité ; null avec `lastRunAt` = rattrapage en cours. */
       lastSyncAt: string | null;
       /** EF-GML-17: false in read-only mode. */
       applyLabels: boolean;
@@ -29,6 +32,8 @@ export interface SyncReport {
   read: number;
   retained: number;
   classified: number;
+  /** EF-GML-04 : des messages restent à traiter, une passe est bornée. */
+  pending: boolean;
 }
 
 /** EF-GML-04: reads and classifies the new messages now. */

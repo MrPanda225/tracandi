@@ -31,7 +31,13 @@ export const GmailStatusSchema = z
       connected: z.literal(true),
       emailAddress: z.string().email(),
       connectedAt: DateTimeSchema,
-      lastSyncAt: DateTimeSchema.nullable(),
+      lastRunAt: DateTimeSchema.nullable().openapi({
+        description: 'Fin de la dernière synchronisation réussie (EF-CFG-01) ; null si aucune',
+      }),
+      lastSyncAt: DateTimeSchema.nullable().openapi({
+        description:
+          'Date jusqu’à laquelle tout est traité (EF-GML-06) ; null avec `lastRunAt` renseigné = rattrapage en cours',
+      }),
       applyLabels: z.boolean().openapi({ description: 'Écriture des libellés dans Gmail (EF-GML-17)' }),
       lookbackDays: z
         .number()
@@ -75,5 +81,8 @@ export const SyncReportSchema = z
     read: z.number().int().nonnegative().openapi({ description: 'Nouveaux messages lus dans la boîte' }),
     retained: z.number().int().nonnegative().openapi({ description: 'Messages retenus par le pré-filtre (RG-10)' }),
     classified: z.number().int().nonnegative().openapi({ description: 'Messages classés par l’IA et enregistrés' }),
+    pending: z
+      .boolean()
+      .openapi({ description: 'Des messages restent à traiter : relancer la synchronisation (EF-GML-04)' }),
   })
   .openapi('GmailSyncReport');

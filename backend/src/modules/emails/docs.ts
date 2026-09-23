@@ -49,7 +49,8 @@ const ROUTES: RouteConfig[] = [
     path: '/gmail/status',
     summary: 'État de la connexion Gmail',
     description:
-      'EF-CFG-01, EF-CFG-04, EF-GML-17. Adresse connectée, date de connexion et de dernière synchronisation, ' +
+      'EF-CFG-01, EF-CFG-04, EF-GML-17. Adresse connectée, date de connexion, fin de la dernière synchronisation ' +
+      'réussie (`lastRunAt`), date jusqu’à laquelle tout est traité (`lastSyncAt`, null pendant un rattrapage), ' +
       'écriture des libellés, période de la première synchronisation.',
     responses: { 200: jsonResponse('Connexion Gmail', GmailStatusSchema), ...errorResponses(401) },
   },
@@ -83,7 +84,8 @@ const ROUTES: RouteConfig[] = [
     path: '/gmail/sync',
     summary: 'Synchroniser Gmail maintenant',
     description:
-      'EF-GML-04. Lit les nouveaux messages reçus et envoyés, écarte sans IA ceux sans indicateur d’emploi (RG-10), ' +
+      'EF-GML-04. `pending` signale qu’il reste des messages à traiter (passe bornée à 200 lectures). ' +
+      'Lit les nouveaux messages reçus et envoyés, écarte sans IA ceux sans indicateur d’emploi (RG-10), ' +
       'classe les autres par lots de 10, met à jour les candidatures (RG-03, RG-04) puis les libellés Gmail des fils ' +
       '(RG-05, sauf lecture seule). 409 sans boîte connectée ou ' +
       'pendant une synchronisation ; 502 si aucun fournisseur d’IA ne répond (les lots déjà classés sont conservés) ; ' +

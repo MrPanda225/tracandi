@@ -24,10 +24,11 @@ type LoadState = { status: 'loading' } | { status: 'error'; message: string } | 
 
 const countOf = (count: number, singular: string, plural: string) => `${count} ${count > 1 ? plural : singular}`;
 
-/** EF-GML-04: what a synchronisation did, in words. */
-const describeReport = ({ read, retained, classified }: SyncReport) =>
+/** EF-GML-04: what a synchronisation did, in words, and whether messages are still waiting. */
+const describeReport = ({ read, retained, classified, pending }: SyncReport) =>
   `Synchronisation terminée : ${countOf(read, 'message lu', 'messages lus')}, ${countOf(retained, 'retenu', 'retenus')}, ` +
-  `${countOf(classified, 'classé', 'classés')}.`;
+  `${countOf(classified, 'classé', 'classés')}.` +
+  (pending ? ' Il reste des messages à traiter : relancez pour continuer.' : '');
 
 /** EF-GML-04: manual synchronisation; the button waits until the API answers (ENF-UTI-03). */
 function SynchroniseButton({
@@ -218,10 +219,17 @@ function ConnectedMailbox({
         <p className="gmail-settings__address">{gmail.emailAddress}</p>
         <p className="gmail-settings__meta">Connectée depuis le {formatDate(gmail.connectedAt)}</p>
         <p className="gmail-settings__meta">
-          {gmail.lastSyncAt
-            ? `Dernière synchronisation : ${formatDateTime(gmail.lastSyncAt)}`
+          {gmail.lastRunAt
+            ? `Dernière synchronisation : ${formatDateTime(gmail.lastRunAt)}`
             : 'Dernière synchronisation : pas encore'}
         </p>
+        {gmail.lastRunAt && !gmail.lastSyncAt && (
+          // EF-GML-06: passes are bounded, so a first synchronisation over a long period takes several of them.
+          <p className="gmail-settings__meta">
+            Rattrapage en cours : les messages les plus récents sont traités d’abord. Relancez jusqu’à ce que le
+            compte de messages lus tombe à zéro.
+          </p>
+        )}
       </div>
       <LookbackOption
         days={gmail.lookbackDays}

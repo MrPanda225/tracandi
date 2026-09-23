@@ -145,7 +145,7 @@ describe('Gmail labels written by the synchronisation', () => {
     const response = await synchronise();
 
     expect(response.status).toBe(200);
-    expect(response.body).toEqual({ read: 1, retained: 1, classified: 1 });
+    expect(response.body).toMatchObject({ read: 1, retained: 1, classified: 1 });
     expect(await database.db.select({ id: emails.id }).from(emails)).toHaveLength(1);
   });
 });

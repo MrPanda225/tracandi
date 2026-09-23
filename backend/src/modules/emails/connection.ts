@@ -19,6 +19,12 @@ export type GmailStatus =
       connected: true;
       emailAddress: string;
       connectedAt: Date;
+      /** EF-CFG-01: when the last pass ended well; null while none ever did. */
+      lastRunAt: Date | null;
+      /**
+       * EF-GML-06: date up to which every message is processed. Null with a `lastRunAt` set means a backlog is
+       * still being caught up, pass after pass.
+       */
       lastSyncAt: Date | null;
       applyLabels: boolean;
       /** EF-CFG-04: period of the first synchronisation, in days (N of EF-GML-05). */
@@ -66,15 +72,17 @@ interface GmailConnectionDeps {
 
 /** EF-CFG-01, EF-CFG-04, EF-GML-17: what the settings screen shows of the connection of the user. */
 const statusOf = async (db: Database, userId: number): Promise<GmailStatus> => {
-  const [account, preferences] = await Promise.all([
+  const [account, preferences, lastRunAt] = await Promise.all([
     repository.findGmailAccount(db, userId),
     repository.findSyncPreferences(db, userId),
+    repository.findLastGmailRunAt(db, userId),
   ]);
   if (!account) return { connected: false };
   return {
     connected: true,
     emailAddress: account.emailAddress,
     connectedAt: account.connectedAt,
+    lastRunAt,
     lastSyncAt: account.lastSyncAt,
     // The settings row exists from the registration; these are the defaults of app_settings.
     applyLabels: preferences?.applyLabels ?? true,

@@ -109,6 +109,7 @@ describe('Gmail connection', () => {
       connected: true,
       emailAddress: 'alice.candidate@example.com',
       connectedAt: '2026-09-22T08:00:00.000Z',
+      lastRunAt: null,
       lastSyncAt: null,
       applyLabels: true,
       lookbackDays: 30,
