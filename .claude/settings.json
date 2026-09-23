@@ -21,6 +21,7 @@
       "Bash(git log:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
+      "Bash(git push:*)",
       "Bash(scripts/db/backup.sh)",
       "Bash(scripts/db/restore-check.sh:*)"
     ],
@@ -39,7 +40,6 @@
       "Read(./database/conf/restore.cnf)",
       "Read(./backend/data/profile.json)",
       "Bash(cat .env:*)",
-      "Bash(git push:*)",
       "Bash(rm -rf:*)",
       "Bash(docker compose down -v:*)",
       "Bash(docker volume rm:*)",

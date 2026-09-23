@@ -207,8 +207,15 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
   *Fini quand* : test avec entreprise inventée rejetée.
 - [ ] **T-505 Réponse de motivation** — tâche IA, contrôle 80–140 mots.
   *Exigences* : EF-CVX-12.
-- [ ] **T-506 Écran Atelier CV** — génération, téléchargement, réponse de motivation modifiable.
+- [~] **T-506 Écran Atelier CV** — génération, téléchargement, réponse de motivation modifiable.
   *Exigences* : EF-CVX-13.
+  *Livré (23/09/2026, partie profil)* : écran `/atelier-cv` — consultation du profil de référence section par
+  section (EF-CVX-01) et modification complète (EF-CVX-02 : identité, recherche, cibles avec leurs types de contrat
+  et mots-clés, CV, expériences, formations, compétences, centres d'intérêt ; listes saisies une valeur par ligne,
+  entrées répétables). Les champs refusés par l'API sont nommés et le formulaire est conservé. L'écran est chargé à
+  la demande (son formulaire ne pèse pas sur le premier chargement).
+  *Reste à faire* : génération d'un CV adapté (T-504), téléchargement Word et PDF (EF-CVX-11, T-503), réponse de
+  motivation (T-505, EF-CVX-13).
 
 ## Lot 6 — Tableau de bord
 
