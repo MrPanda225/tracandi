@@ -1,0 +1,93 @@
+# Intégration continue (BES-40) : chaque PR et chaque poussée sur dev et main passent la définition de fini de
+# CLAUDE.md — types, lint, tests unitaires, tests d'intégration sur un PostgreSQL local, couverture, audit — et l'image
+# de l'API doit se construire. Le déploiement (Vercel, Northflank) suit la branche main : protéger main et dev en
+# exigeant ces vérifications fait de ce pipeline la porte du déploiement (docs/DEPLOIEMENT.md).
+name: CI
+
+on:
+  pull_request:
+    branches: [dev, main]
+  push:
+    branches: [dev, main]
+  workflow_dispatch:
+
+# Une nouvelle poussée sur la même branche annule la vérification devenue inutile.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# Moindre privilège : le pipeline lit le dépôt, rien d'autre.
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: API — types, lint, tests unitaires et d'intégration
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      # ADR-12 : même PostgreSQL que la base de test locale ; jetable, sans donnée réelle, jamais Neon.
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: tracandi_test
+          POSTGRES_USER: tracandi_test
+          POSTGRES_PASSWORD: tracandi_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U tracandi_test -d tracandi_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      TEST_DB_HOST: 127.0.0.1
+      TEST_DB_PORT: '5432'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      # --ignore-scripts : aucun script d'installation de dépendance n'est exécuté (chaîne d'approvisionnement).
+      - run: npm ci --ignore-scripts
+      - run: npm run typecheck
+      - run: npm run lint
+      # Unitaires et intégration ensemble, seuil de couverture de 80 % (ENF-MAI-01).
+      - run: npm run test:coverage
+      - name: Audit des dépendances (ENF-SEC-10)
+        run: npm run audit
+
+  frontend:
+    name: Interface — types, lint, tests, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci --ignore-scripts
+      - run: npm run check
+      - run: npm run build
+      - name: Audit des dépendances (ENF-SEC-10)
+        run: npm run audit
+
+  api-image:
+    name: Image de l'API (Northflank)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      # Construite, jamais poussée : Northflank construit la sienne depuis le même Dockerfile.
+      - name: Construire backend/Dockerfile
+        run: docker build --tag tracandi-api:ci backend
