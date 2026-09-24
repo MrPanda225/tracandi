@@ -432,6 +432,7 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | ENF-UTI-01 | L'interface doit être rédigée en français. | I |
 | ENF-UTI-02 | L'interface doit rester utilisable sur un écran de 360 px de large. | D |
 | ENF-UTI-03 | Chaque action longue (plus de 1 seconde) doit afficher un indicateur d'attente. | D |
+| ENF-UTI-04 | Les animations de la page de présentation (chargement, survol, mouvement 3D, micro-interactions) doivent s'arrêter lorsque le système de l'utilisateur demande de réduire les animations, sans rien retirer du contenu ni des accès. (v1.24, BES-36) | T |
 | ENF-POR-01 | Le système complet doit démarrer par une seule commande `docker compose up` sous Windows, macOS et Linux. | D |
 
 ### 7.6 Collecte responsable (veille)
@@ -558,8 +559,8 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | BES-11 | — (choix de solution, C-09) | ENF-SEC-05, ENF-SEC-16 |
 | BES-13 | EXM-07, EXM-12 | EF-CVX-14 à 17, RG-12, RG-15 |
 | BES-14 | EXM-13 | EF-AUT-01 à 08, ENF-SEC-18 à 20, ENF-RGP-02 |
-| EF-AUT-11 | L'utilisateur doit pouvoir supprimer son compte depuis l'application, après avoir saisi son mot de passe : son accès Gmail est révoqué chez Google, toutes ses données sont supprimées et ses sessions fermées, y compris celles ouvertes sur d'autres appareils. (v1.25, BES-38 — droit à l'effacement, RGPD art. 17) | M | EXM-13 | T | Mot de passe exact : 204, plus aucune ligne liée à l'utilisateur dans la base, session refusée ensuite ; mot de passe faux : 403, rien supprimé. |
-| EF-AUT-12 | L'utilisateur doit pouvoir télécharger en un fichier JSON toutes les données que le système détient sur lui — compte, réglages, connexion Gmail, entreprises, candidatures et leur historique, messages conservés, profil, veille, journal d'usage de l'IA — sans aucun secret (empreinte du mot de passe, jetons). (v1.25, BES-38 — droit d'accès et à la portabilité, RGPD art. 15 et 20) | M | EXM-13 | T | Fichier contenant les données de l'utilisateur et d'aucun autre ; aucune empreinte ni jeton. |
+| EF-AUT-09 | Un visiteur sans session qui ouvre l'adresse racine doit voir une page de présentation du service — suivi des candidatures depuis Gmail, classement des réponses, relances préparées, tableau de bord, données conservées — donnant accès à la connexion et à la création de compte ; avec une session, la même adresse ouvre le tableau de bord. (v1.24, BES-36) | S | EXM-13 | T | Sans session, `/` présente le service et ses deux accès ; avec session, `/` affiche le tableau de bord ; la page de présentation ne demande aucune donnée d'utilisateur à l'API. |
+| EF-AUT-10 | L'accès « Créer un compte » de la page de présentation doit ouvrir le formulaire directement sur la création de compte. (v1.24) | C | EXM-13 | T | `/connexion?mode=inscription` ouvre l'onglet « Créer un compte ». |
 | BES-15 | EXM-14 | EF-DOC-01, 02 |
 | BES-16 | EXM-01 | EF-GML-01 |
 | BES-12 | EXM-11 | EF-GML-19, EF-CAN-13, 14, EF-VEI-20 à 22, EF-TDB-09, RG-09, RG-10 |
