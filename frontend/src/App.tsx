@@ -9,6 +9,7 @@ import { DashboardCacheProvider } from './pages/dashboard/useDashboard';
 import { SettingsPage } from './pages/settings/SettingsPage';
 import { UpcomingPage } from './pages/UpcomingPage';
 import { ScreenLoading } from './components/ScreenLoading';
+import { FeaturesProvider, RequireFeature } from './features/FeaturesContext';
 
 // ENF-PERF-01: these two screens carry what weighs on the first load — the charts of the dashboard, and the fonts,
 // animations and decor of the login page. They are fetched when their route is opened, not before.
@@ -26,14 +27,15 @@ const SitesPage = lazy(async () => ({ default: (await import('./pages/sites/Site
 const UPCOMING_SCREENS = [
   {
     path: '/offres',
+    feature: 'watch',
     title: 'Offres',
     promise: 'Les offres détectées par la veille des sites carrières, triées par pertinence.',
   },
 ] as const;
 
 /**
- * Application routes: the login page is public (EF-AUT-05), the 6 screens of the shell require a session
- * and share the navigation frame (T-003).
+ * Application routes: the login page is public (EF-AUT-05), the screens of the shell require a session
+ * and share the navigation frame (T-003); those of a disabled optional feature open nothing (ENF-MAI-07).
  */
 export function App() {
   return (
@@ -52,11 +54,13 @@ export function App() {
         <Route
           element={
             <RequireAuth>
-              <DashboardCacheProvider>
-                <ApplicationsCacheProvider>
-                  <AppShell />
-                </ApplicationsCacheProvider>
-              </DashboardCacheProvider>
+              <FeaturesProvider>
+                <DashboardCacheProvider>
+                  <ApplicationsCacheProvider>
+                    <AppShell />
+                  </ApplicationsCacheProvider>
+                </DashboardCacheProvider>
+              </FeaturesProvider>
             </RequireAuth>
           }
         >
@@ -72,17 +76,21 @@ export function App() {
           <Route
             path="/atelier-cv"
             element={
-              <Suspense fallback={<ScreenLoading label="Chargement de l’Atelier CV…" />}>
-                <CvWorkshopPage />
-              </Suspense>
+              <RequireFeature feature="cv">
+                <Suspense fallback={<ScreenLoading label="Chargement de l’Atelier CV…" />}>
+                  <CvWorkshopPage />
+                </Suspense>
+              </RequireFeature>
             }
           />
           <Route
             path="/sites"
             element={
-              <Suspense fallback={<ScreenLoading label="Chargement des sites surveillés…" />}>
-                <SitesPage />
-              </Suspense>
+              <RequireFeature feature="watch">
+                <Suspense fallback={<ScreenLoading label="Chargement des sites surveillés…" />}>
+                  <SitesPage />
+                </Suspense>
+              </RequireFeature>
             }
           />
           <Route path="/reglages" element={<SettingsPage />} />
@@ -90,7 +98,11 @@ export function App() {
             <Route
               key={screen.path}
               path={screen.path}
-              element={<UpcomingPage title={screen.title} promise={screen.promise} />}
+              element={
+                <RequireFeature feature={screen.feature}>
+                  <UpcomingPage title={screen.title} promise={screen.promise} />
+                </RequireFeature>
+              }
             />
           ))}
         </Route>

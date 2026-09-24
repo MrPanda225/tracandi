@@ -41,15 +41,17 @@ scripts/db/backup.sh && scripts/db/restore-check.sh
 
 ## Méthode de travail (obligatoire)
 1. **Une tâche à la fois**, dans l'ordre de `docs/ROADMAP.md`, via `/project:next-task`, sur une **branche dédiée**
-   `<type>/T-xxx-<résumé>` créée depuis `main` à jour.
+   `<type>/T-xxx-<résumé>` créée depuis **`dev`** à jour (`main` ne reçoit que les versions, voir `docs/CONVENTIONS_GIT.md`).
 2. Lire les exigences de la tâche **avant** d'écrire du code. Ambiguïté → poser la question, ne rien inventer.
 3. **Tests d'abord**, titrés avec l'identifiant d'exigence : `it('[EF-CAN-07] ...')`.
 4. Implémenter le minimum, refactorer, respecter `.claude/rules/`.
 5. `npm run check` vert dans chaque package touché ; tests d'intégration si la base est concernée.
 6. Mettre à jour `docs/TRACABILITE.md` et cocher la tâche dans `docs/ROADMAP.md`.
 7. Commits sur la branche : `T-xxx <type>(<module>): <summary>` + exigences couvertes dans le corps. Tâche finie :
-   push de la branche et pull request vers `main` décrite avec `.github/pull_request_template.md` ; le Business Owner
-   fusionne en « Squash and merge » (un commit par tâche sur `main`). Détails : `docs/CONVENTIONS_GIT.md`.
+   push de la branche et pull request vers `dev` décrite avec `.github/pull_request_template.md` ; le Business Owner
+   fusionne en « Squash and merge » (un commit par tâche sur `dev`). Détails : `docs/CONVENTIONS_GIT.md`.
+   Périmètre de `main` (BES-29) : tableau de bord, candidatures, réglages Gmail ; veille et CV désactivés par
+   `ENABLED_FEATURES` (ENF-MAI-07), jamais retirés du code.
 8. **S'arrêter et faire un rapport.** Ne jamais enchaîner la tâche suivante sans accord.
 
 ## Définition de fini (toute tâche)
@@ -73,7 +75,7 @@ Skills de référence : `.claude/skills/` (`clean-code`, `security`, `requiremen
 - Se connecter à la base Neon (données réelles) : seul le service `migrate` et le backend le font, jamais Claude Code ni un test.
   Pour les tests, utiliser `backend/tests/fixtures/profile.example.json`.
 - Modifier une migration commitée (bloqué par hook) ; exécuter `scripts/db/restore.sh`.
-- Commit ou push direct sur `main`, `git push --force`, fusionner une pull request (réservé au Business Owner).
+- Commit ou push direct sur `main` ou `dev`, `git push --force`, fusionner une pull request (réservé au Business Owner).
 - Appeler une API réelle (Claude, Gemini, Gmail, site carrières) dans un test.
 - Ajouter une dépendance sans accord explicite ni justification (voir security.md).
 - Affaiblir un test, désactiver une règle lint/TS, ou élargir le périmètre pour « faire passer ».

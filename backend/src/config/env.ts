@@ -2,6 +2,7 @@ import { validate as isCronExpression } from 'node-cron';
 import { z } from 'zod';
 import { describeDatabaseUrlProblem } from '../db/url.js';
 import { parseEncryptionKey } from '../lib/crypto.js';
+import { type EnabledFeatures, OPTIONAL_FEATURES } from '../lib/features.js';
 import type { ProviderName } from '../llm/types.js';
 
 const DEFAULT_HOST = '127.0.0.1';
@@ -89,6 +90,18 @@ const EnvSchema = z.object({
     .or(z.literal(''))
     .default('')
     .transform((value) => value || null),
+  // ENF-MAI-07: comma-separated optional features (watch, cv); none when absent, an unknown name stops the server.
+  ENABLED_FEATURES: z
+    .string()
+    .default('')
+    .transform((value) =>
+      value
+        .split(',')
+        .map((name) => name.trim())
+        .filter(Boolean),
+    )
+    .pipe(z.array(z.enum(OPTIONAL_FEATURES)))
+    .transform((names): EnabledFeatures => new Set(names)),
 });
 
 type Env = z.infer<typeof EnvSchema>;
@@ -136,6 +149,8 @@ export interface Config {
   /** EF-GML-03 */
   scheduler: SchedulerConfig;
   scraper: ScraperConfig;
+  /** ENF-MAI-07: optional features this deployment runs. */
+  features: EnabledFeatures;
 }
 
 /** Time zone of the cron expressions and schedule of each job. */
@@ -175,7 +190,8 @@ export class ConfigError extends Error {
  * Validates the environment and returns the configuration, applying defaults (HOST 127.0.0.1, PORT 4000,
  * COOKIE_SECURE true, Paris time, Gmail every 30 minutes). Secrets are read from the environment only, never from the repository (ENF-SEC-03).
  * @throws ConfigError when a variable is missing or invalid, or when no AI key is set; the server must then stop.
- * @req ENF-SEC-03, ENF-SEC-08, ENF-SEC-11, ENF-SEC-15, EF-IA-05, EF-GML-03
+ * No optional feature is enabled unless ENABLED_FEATURES names it.
+ * @req ENF-SEC-03, ENF-SEC-08, ENF-SEC-11, ENF-SEC-15, EF-IA-05, EF-GML-03, ENF-MAI-07
  */
 export const loadConfig = (env: Record<string, string | undefined>): Config => {
   const result = EnvSchema.superRefine(requireAiProviders).safeParse(env);
@@ -221,5 +237,6 @@ export const loadConfig = (env: Record<string, string | undefined>): Config => {
       watchCron: result.data.CRON_SCRAPER,
     },
     scraper: { contact: result.data.SCRAPER_CONTACT_EMAIL },
+    features: result.data.ENABLED_FEATURES,
   };
 };

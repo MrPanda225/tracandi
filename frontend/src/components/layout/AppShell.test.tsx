@@ -26,20 +26,25 @@ const json = (status: number, body?: unknown) =>
 
 type Handler = () => Response | Promise<Response>;
 
+const ALL_FEATURES: Handler = () => json(200, { features: ['watch', 'cv'] });
+
+/** Every optional feature is enabled unless a test answers `/settings/features` itself (ENF-MAI-07). */
 const mockApi = (handlers: Record<string, Handler>) => {
+  const answers: Record<string, Handler> = { '/settings/features': ALL_FEATURES, ...handlers };
   const fetchMock = vi.fn((url: string) => {
-    const handler = handlers[url.replace(/^\/api/, '')];
+    const handler = answers[url.replace(/^\/api/, '')];
     return Promise.resolve(handler ? handler() : json(404, { error: 'Ressource introuvable' }));
   });
   vi.stubGlobal('fetch', fetchMock);
   return fetchMock;
 };
 
-const renderSignedIn = (path: string) => {
+const renderSignedIn = (path: string, features: Handler = ALL_FEATURES) => {
   mockApi({
     '/auth/me': () => json(200, ACCOUNT),
     '/stats/dashboard': () => json(200, EMPTY_DASHBOARD),
     '/auth/logout': () => new Response(null, { status: 204 }),
+    '/settings/features': features,
   });
   return render(
     <MemoryRouter initialEntries={[path]} future={ROUTER_FUTURE}>
@@ -72,6 +77,33 @@ describe('AppShell', () => {
 
     await user.click(screen.getByRole('link', { name: /Tableau de bord/ }));
     expect(await screen.findByRole('heading', { level: 1, name: 'Tableau de bord' })).toBeInTheDocument();
+  });
+
+  it('[ENF-MAI-07] offers only the dashboard, the applications and the settings when no optional feature runs', async () => {
+    renderSignedIn('/', () => json(200, { features: [] }));
+    await screen.findByRole('heading', { name: 'Tableau de bord' });
+
+    const navigation = within(screen.getByRole('navigation', { name: 'Navigation principale' }));
+    expect(navigation.getAllByRole('link').map((link) => link.getAttribute('aria-label'))).toEqual([
+      'Tableau de bord',
+      'Candidatures',
+      'Réglages',
+    ]);
+  });
+
+  it('[ENF-MAI-07] leads a disabled screen opened by its address back to the dashboard', async () => {
+    renderSignedIn('/atelier-cv', () => json(200, { features: ['watch'] }));
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Tableau de bord' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Sites surveillés' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Atelier CV' })).not.toBeInTheDocument();
+  });
+
+  it('[ENF-MAI-07] keeps to the core screens when the enabled features cannot be read', async () => {
+    renderSignedIn('/sites', () => json(500, { error: 'Erreur interne' }));
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Tableau de bord' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Sites surveillés' })).not.toBeInTheDocument();
   });
 
   it('[ENF-UTI-02] marks the current screen with aria-current', async () => {

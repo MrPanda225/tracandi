@@ -1,8 +1,8 @@
 .kpi-cards {
   display: grid;
   /*
-   * Exactly 4 cards, so the column count is 1, 2 or 4 — never 3, which would strand the 4th card alone on
-   * a mostly-empty row (Gestalt continuity). Measured against `.shell__main`'s own width (container query,
+   * 4 cards (3 without the offers watch: `--three` below), so the column count is 1, 2 or 4 — never 3, which
+   * would strand the 4th card alone on a mostly-empty row (Gestalt continuity). Measured against `.shell__main`'s own width (container query,
    * `AppShell.css`), which already accounts for the side panel — a viewport media query would not.
    */
   grid-template-columns: minmax(0, 1fr);
@@ -21,6 +21,24 @@
 @container shell-main (min-width: 54rem) {
   .kpi-cards {
     grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* Without the offers watch (ENF-MAI-07), three cards: on two columns the hero takes the whole second row rather
+   than standing alone beside an empty cell; wide enough, the three share one row. */
+@container shell-main (min-width: 20rem) {
+  .kpi-cards--three .kpi-card--hero {
+    grid-column: 1 / -1;
+  }
+}
+
+@container shell-main (min-width: 54rem) {
+  .kpi-cards--three {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .kpi-cards--three .kpi-card--hero {
+    grid-column: auto;
   }
 }
 

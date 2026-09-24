@@ -382,3 +382,23 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
   *Reste à faire* : la veille (T-404) et la génération de CV (T-504) se brancheront sur la même file.
 
 - [ ] **T-705 Coûts IA** — agrégat mensuel `llm_calls`, affichage EF-CFG-03, contrôle ENF-COU-01.
+
+---
+
+## Lot 8 — Première mise en production (BES-29, cahier v1.17)
+
+Branches (`docs/CONVENTIONS_GIT.md`) : tout développement part de `dev` et y revient ; `main` ne reçoit que des
+**versions** fusionnées depuis `dev`, déployées avec `ENABLED_FEATURES` vide : tableau de bord, candidatures et
+réglages de la synchronisation Gmail seulement. La veille et l'Atelier CV continuent sur `dev` (`ENABLED_FEATURES=watch,cv`).
+
+- [x] **T-801 Fonctionnalités activables par configuration** — *demande du Business Owner du 24/09/2026.*
+  `ENABLED_FEATURES` (`watch`, `cv`) lue et validée au démarrage ; modules d'API et tâche planifiée `scraper` montés
+  seulement si leur fonctionnalité est active ; `GET /api/settings/features` ; interface : navigation et routes
+  filtrées (`FeaturesProvider`, `RequireFeature`), carte « Offres à regarder » absente sans veille (`offers: null`).
+  Couvre ENF-MAI-07, EF-TDB-08 (précisée).
+  *Fini quand* : une configuration sans fonctionnalité facultative répond 404 sur `/api/profile` et `/api/sites`, ne
+  planifie que `gmail_sync`, et l'interface ne montre que Tableau de bord, Candidatures et Réglages.
+- [ ] **T-802 Finitions du périmètre de mise en production** — terminer T-602 (écran du tableau de bord), revue
+  complète des écrans Candidatures et Réglages (Gmail) à 1440 px et 390 px, démonstration au Business Owner.
+- [ ] **T-803 Hébergement** — après réponse à Q-18 : demande de changement, cible d'hébergement, HTTPS, CI
+  (`npm run check` et tests d'intégration sur chaque PR vers `dev` et `main`), procédure de version `dev` → `main`.
