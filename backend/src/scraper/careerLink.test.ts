@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { careerLinkOf } from './careerLink.js';
+import { careerLinkOf, isSiteRoot } from './careerLink.js';
 
 const HOME = 'https://suez.com/fr';
 
@@ -69,5 +69,23 @@ describe('careerLinkOf — EF-VEI-27', () => {
     ];
 
     expect(careerLinkOf(links, HOME)).toBeNull();
+  });
+});
+
+describe('isSiteRoot — EF-VEI-27', () => {
+  it.each(['https://suez.com', 'https://suez.com/', 'https://suez.com/fr', 'https://suez.com/fr-FR/'])(
+    '[EF-VEI-27] reads « %s » as the front door of the site',
+    (url) => {
+      expect(isSiteRoot(url)).toBe(true);
+    },
+  );
+
+  it.each([
+    'https://suez.com/fr/carrieres',
+    'https://suez.com/nous-rejoindre',
+    'https://jobs.suez.com/offres/data',
+  ])('[EF-VEI-27] reads « %s » as a page of its own, which must not be bounced from', (url) => {
+    // Rebondir depuis une page qui liste déjà les offres ferait quitter le board pour une offre isolée.
+    expect(isSiteRoot(url)).toBe(false);
   });
 });

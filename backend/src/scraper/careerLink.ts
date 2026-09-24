@@ -88,3 +88,18 @@ export const careerLinkOf = (links: readonly PageLink[], currentUrl: string): st
   }
   return null;
 };
+
+/** Un segment de langue en tête de chemin : « /fr », « /fr-FR ». */
+const LOCALE_SEGMENT = /^[a-z]{2}(-[a-z]{2})?$/i;
+
+/**
+ * EF-VEI-27 : l'adresse ne désigne que l'accueil du site — « https://exemple.fr », « https://exemple.fr/fr ».
+ *
+ * C'est le seul cas où l'on rebondit **avant** de lire la page : une source déduite ne donne que le domaine.
+ * Sur un chemin plus profond, la page est déjà censée lister les offres, et rebondir sur un de ses liens ferait
+ * quitter le board pour une offre isolée.
+ */
+export const isSiteRoot = (url: string): boolean => {
+  const segments = (URL.parse(url)?.pathname ?? '/').split('/').filter((part) => part !== '');
+  return segments.length === 0 || (segments.length === 1 && LOCALE_SEGMENT.test(segments[0] ?? ''));
+};
