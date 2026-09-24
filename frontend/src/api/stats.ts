@@ -21,7 +21,8 @@ export interface Dashboard {
   byContractType: { contractType: ContractType; count: number; responseRate: number }[];
   weekly: { weekStart: string; sent: number; interviews: number; rejected: number }[];
   followUps: { total: number; items: FollowUp[] };
-  offers: { newAboveThreshold: number; threshold: number };
+  /** EF-TDB-08; null when the offers watch is disabled (ENF-MAI-07). */
+  offers: { newAboveThreshold: number; threshold: number } | null;
   followUpDays: number;
 }
 

@@ -5,6 +5,7 @@ import request from 'supertest';
 import { createApp } from '../../src/app.js';
 import { connectDatabase, type DatabaseHandle } from '../../src/db/client.js';
 import { createJobQueue, type JobQueue } from '../../src/jobs/queue.js';
+import { type EnabledFeatures, OPTIONAL_FEATURES, onlyIf } from '../../src/lib/features.js';
 import { createLogger } from '../../src/lib/logger.js';
 import { describeAssignments } from '../../src/llm/assignments.js';
 import { createLlmJournal } from '../../src/llm/repository.js';
@@ -103,6 +104,8 @@ export interface ExternalServices {
   aiProviders?: Partial<Record<ProviderName, LlmProvider>>;
   /** The responsible collector of the watch (T-401), simulated: no request ever leaves a test. */
   collect?: AdapterDeps['fetch'];
+  /** ENF-MAI-07: the optional features of this deployment; every one by default. */
+  features?: EnabledFeatures;
 }
 
 /** Real application on the local test database, with an injectable clock and fake external services. */
@@ -113,6 +116,7 @@ export const createTestContext = (
     openMailbox = unreachableMailbox,
     aiProviders = unreachableAi,
     collect = unreachableCollector,
+    features = new Set(OPTIONAL_FEATURES),
   }: ExternalServices = {},
 ): TestContext => {
   const clock = createTestClock(new Date('2026-09-22T08:00:00.000Z'));
@@ -157,12 +161,14 @@ export const createTestContext = (
     modules: [
       ...createAuthModules({ service: authService, isCookieSecure: true }),
       createApplicationsModule(createApplicationsService({ db: database.db, clock: clock.now })),
-      createStatsModule(createStatsService({ db: database.db, clock: clock.now })),
+      createStatsModule(
+        createStatsService({ db: database.db, clock: clock.now, countsOffers: features.has('watch') }),
+      ),
       ...createGmailModules({ service: gmailService, sync, frontendOrigin: FRONTEND_ORIGIN }),
       createJobsModule(queue),
-      createProfileModule(createProfileService({ db: database.db, clock: clock.now })),
-      createSettingsModule(describeAssignments(aiProviders)),
-      createSitesModule(watch),
+      ...onlyIf(features, 'cv', createProfileModule(createProfileService({ db: database.db, clock: clock.now }))),
+      createSettingsModule({ aiAssignments: describeAssignments(aiProviders), features }),
+      ...onlyIf(features, 'watch', createSitesModule(watch)),
     ],
   });
   return { app, database, clock, encryptionKey, gmailSync: sync, queue, watch };
