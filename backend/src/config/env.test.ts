@@ -44,7 +44,21 @@ describe('loadConfig', () => {
       scheduler: { timezone: 'Europe/Paris', gmailCron: '*/30 * * * *', watchCron: '0 7,13,19 * * *' },
       // ENF-COL-03: no contact address by default, so nothing is collected until one is given.
       scraper: { contact: null },
+      // ENF-MAI-07: an optional feature is off until the configuration names it.
+      features: new Set(),
     });
+  });
+
+  it('[ENF-MAI-07] enables the optional features the configuration names, and only those', () => {
+    expect(loadConfig({ ...VALID_ENV, ENABLED_FEATURES: 'watch, cv' }).features).toEqual(
+      new Set(['watch', 'cv']),
+    );
+    expect(loadConfig({ ...VALID_ENV, ENABLED_FEATURES: 'cv' }).features).toEqual(new Set(['cv']));
+    expect(loadConfig({ ...VALID_ENV, ENABLED_FEATURES: '' }).features).toEqual(new Set());
+  });
+
+  it('[ENF-MAI-07] refuses to start with a feature it does not know, rather than ignoring a typo', () => {
+    expect(() => loadConfig({ ...VALID_ENV, ENABLED_FEATURES: 'watch,cvs' })).toThrow(/ENABLED_FEATURES/);
   });
 
   it('[EF-GML-03] reads the time zone and the cron expression of the Gmail synchronisation', () => {

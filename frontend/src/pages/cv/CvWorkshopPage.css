@@ -94,3 +94,33 @@
   flex-wrap: wrap;
   gap: 0.75rem;
 }
+
+/* Une période : les deux sélecteurs de mois côte à côte dès qu'il y a la place, l'un sous l'autre sinon. */
+.period-field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.75rem;
+}
+
+@container shell-main (min-width: 34rem) {
+  .period-field {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .period-field__current {
+    grid-column: 1 / -1;
+  }
+}
+
+.period-field__current {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+}
+
+.profile-form__legend {
+  margin: 0;
+  color: var(--color-ink-soft);
+  font-size: 0.875rem;
+}

@@ -122,6 +122,7 @@ des candidatures, la veille des offres et la production de CV adaptés.
 | BES-25 | « L'idée de cette section, c'est de récupérer depuis les offres que j'ai récupérées leur nom de site à travers les mails, et stocker dans ma BD. » (23/09/2026) |
 | BES-24 | « Ajoute une section Profil pour définir ses expériences, ce que l'on recherche aussi, et ses formations (niveau d'études master, licence, etc.) et les certificats passés et tout. » (23/09/2026) |
 | BES-22 | « Pour reconnaître les statuts des mails il faut regarder le contenu et voir la présence de ces termes. Statut/Refusée : “pas retenue”, “ne correspond malheureusement pas”, “au regret”, “suite favorable”, “nous ne pouvons y donner”. Statut/En attente : “bien reçu votre candidature”, “accusé de réception de votre candidature”, “candidature a bien été”. Fais pareil pour les termes en anglais et rajoute quelques termes qui vont dans le sens du statut. » (23/09/2026) |
+| BES-29 | « On va réarranger les branches de façon propre : une branche dev pour tous les développements, la main laisse juste trois fonctionnalités de l'app qu'on va développer à fond avant de la déployer : le tableau de bord, candidature et réglage pour la synchronisation avec le mail pour suivre ces candidatures. » (24/09/2026) |
 | BES-23 | « Applique un système de queue pour mes traitements trop longs et même des websockets, avec une architecture asynchrone. » (23/09/2026) |
 
 ### 4.2 Exigences métier (indépendantes de la solution)
@@ -280,7 +281,7 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | EF-TDB-05 | Le système doit afficher le nombre de candidatures par statut. | M | EXM-09 | T |
 | EF-TDB-06 | Le système doit afficher le nombre de candidatures par canal (direct ou plateforme). | C | EXM-09 | T |
 | EF-TDB-07 | Le système doit afficher la liste des candidatures à relancer, de la plus ancienne à la plus récente. | M | EXM-04 | T |
-| EF-TDB-08 | Le système doit afficher le nombre d'offres à l'état « nouvelle » de score supérieur ou égal à S. | S | EXM-06 | T |
+| EF-TDB-08 | Le système doit afficher le nombre d'offres à l'état « nouvelle » de score supérieur ou égal à S, lorsque la veille des offres est activée (ENF-MAI-07). | S | EXM-06 | T |
 | EF-TDB-09 | Le système doit afficher le nombre de candidatures et le taux de réponse (RG-07) par type de contrat. | S | EXM-11 | T |
 
 ### 6.6 Orchestration IA (IA)
@@ -392,6 +393,7 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | ENF-MAI-04 | L'ajout d'une tâche IA ne doit nécessiter aucune modification des fournisseurs existants. | I |
 | ENF-MAI-05 | Toute modification de structure de base doit passer par un fichier de migration versionné. | I |
 | ENF-MAI-06 | Chaque exigence de ce document doit être couverte par au moins un test ou une procédure de vérification référencée dans `docs/TRACABILITE.md`. | I |
+| ENF-MAI-07 | La veille des offres (§6.3) et la production de CV (§6.4) doivent chacune pouvoir être activées ou désactivées par la configuration du serveur, sans modification de code. Une fonctionnalité désactivée n'expose aucune route d'API ni aucun traitement planifié, et ses écrans restent dans la navigation en affichant « En préparation » sans charger leur contenu ; une fonctionnalité que la configuration ne nomme pas est désactivée ; un nom inconnu empêche le démarrage. Le tableau de bord, les candidatures, la synchronisation Gmail et les réglages sont toujours actifs. (BES-29) | T |
 
 ### 7.5 Utilisabilité et portabilité
 | ID | Exigence | Vérif. |
@@ -502,6 +504,7 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | Q-16 | Le profil de référence (CV, cibles) devient propre à chaque utilisateur : faut-il le stocker en base plutôt que dans `backend/data/profile.json` ? (bloque T-501) | Oui : en base, par utilisateur, validé par le même schéma. |
 | Q-15 | Pour l'alternance, faut-il suivre des informations propres (école, rythme, date de début) ? | Non en v1.1 : le rythme figure dans le profil (disponibilités), repris dans le CV. |
 | Q-17 | Les indicateurs EF-TDB-01, 05, 06 et 09 portent sur toutes les candidatures de l'utilisateur, donc sur toute la table `applications` (application mono-utilisateur) : le planificateur choisit le `Seq Scan`, interdit par ENF-PERF-04 ; un index couvrant ne change pas son choix. Que faire ? (bloque T-601) | Tranchée le 22/09/2026 : ENF-PERF-04 limitée aux requêtes sélectives ; indicateurs bornés à 50 ms par requête (ENF-PERF-05). |
+| Q-18 | Le déploiement visé par BES-29 contredit le §5.2 (« hébergement en ligne de l'application » hors périmètre) et C-05 (API et interface locales). Où héberger l'API et l'interface, avec quel nom de domaine, et faut-il revoir les exigences liées à l'exposition locale (ENF-SEC-01, ADR-09 : cookies, origine unique) ? (bloque la mise en production, pas le développement) | À trancher avant la mise en production, par une demande de changement dédiée : hébergeur en UE, HTTPS, `COOKIE_SECURE`, `FRONTEND_ORIGIN` public, API derrière un proxy. |
 
 ## 13. Traçabilité besoins → exigences
 

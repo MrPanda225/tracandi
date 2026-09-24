@@ -3,6 +3,7 @@ import { type Config, loadConfig } from './config/env.js';
 import { connectDatabase } from './db/client.js';
 import { createJobQueue } from './jobs/queue.js';
 import { startScheduler } from './jobs/scheduler.js';
+import { onlyIf } from './lib/features.js';
 import { systemClock } from './lib/clock.js';
 import { createLogger } from './lib/logger.js';
 import { describeAssignments } from './llm/assignments.js';
@@ -142,25 +143,41 @@ const app = createApp({
   modules: [
     ...createAuthModules({ service: authService, isCookieSecure: config.isCookieSecure }),
     createApplicationsModule(createApplicationsService({ db: database.db, clock: systemClock })),
-    createStatsModule(createStatsService({ db: database.db, clock: systemClock })),
+    createStatsModule(
+      createStatsService({ db: database.db, clock: systemClock, countsOffers: config.features.has('watch') }),
+    ),
     ...createGmailModules({ service: gmailService, sync: gmailSync, frontendOrigin: config.frontendOrigin }),
     createJobsModule(jobQueue),
-    createProfileModule(createProfileService({ db: database.db, clock: systemClock })),
-    createSettingsModule(describeAssignments(config.llm)),
-    createSitesModule(watchService),
+    // ENF-MAI-07: an optional feature that is not enabled exposes no route.
+    ...onlyIf(
+      config.features,
+      'cv',
+      createProfileModule(createProfileService({ db: database.db, clock: systemClock })),
+    ),
+    createSettingsModule({ aiAssignments: describeAssignments(config.llm), features: config.features }),
+    ...onlyIf(config.features, 'watch', createSitesModule(watchService)),
   ],
 });
 
 const server = app.listen(config.port, config.host, () => {
-  logger.info('api listening', { host: config.host, port: config.port, docs: '/api/docs' });
+  logger.info('api listening', {
+    host: config.host,
+    port: config.port,
+    docs: '/api/docs',
+    features: [...config.features],
+  });
 });
 
 // EF-GML-03: every connected mailbox, on the configured schedule and time zone.
 const scheduler = startScheduler({
   jobs: [
     { name: 'gmail_sync', cron: config.scheduler.gmailCron, run: () => gmailSync.synchroniseEveryMailbox() },
-    // EF-VEI-06: every active source of every candidate, at 7, 13 and 19 o'clock Paris time.
-    { name: 'scraper', cron: config.scheduler.watchCron, run: () => watchService.checkEverySource() },
+    // EF-VEI-06: every active source of every candidate, at 7, 13 and 19 o'clock Paris time — when the watch runs.
+    ...onlyIf(config.features, 'watch', {
+      name: 'scraper',
+      cron: config.scheduler.watchCron,
+      run: () => watchService.checkEverySource(),
+    }),
   ],
   timezone: config.scheduler.timezone,
   logger,

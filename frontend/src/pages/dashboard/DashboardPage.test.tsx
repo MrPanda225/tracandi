@@ -170,6 +170,15 @@ describe('DashboardPage', () => {
     expect(kpis.getByText('Score ≥ 60 points')).toBeInTheDocument();
   });
 
+  it('[ENF-MAI-07] [EF-TDB-08] leaves the offers card out when the watch is disabled', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json(200, { ...DASHBOARD, offers: null })));
+
+    renderPage();
+    await screen.findByText('Candidatures suivies');
+
+    expect(within(kpiGroup()).queryByText('Offres à regarder')).not.toBeInTheDocument();
+  });
+
   it('[EF-TDB-05] labels every status in French, in its own section', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json(200, DASHBOARD)));
 

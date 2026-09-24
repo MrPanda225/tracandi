@@ -336,13 +336,12 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
   et mots-clés, CV, expériences, formations, compétences, centres d'intérêt ; listes saisies une valeur par ligne,
   entrées répétables). Les champs refusés par l'API sont nommés et le formulaire est conservé. L'écran est chargé à
   la demande (son formulaire ne pèse pas sur le premier chargement).
-  *Aperçu du 23/09/2026* : la consultation n'est plus une liste de champs mais **le CV lui-même**, sur une feuille
-  A4 au ratio exact, une colonne, une page. Les proportions viennent des constantes du rendu `.docx` — largeur
-  utile 10 620 twips, tabulation à 2 150, marges 643 et 567, Calibri 10 pt, bandeaux `#D9E2F3` bordés `#AAB5CE` —
-  exprimées en pourcentage de la feuille (`cqw`), donc justes à toute taille d'écran, sans facteur d'échelle.
-  Quand le contenu dépasse la page, l'écran le dit au lieu de le laisser découvrir (RG-11). Ce que le profil porte
-  et que le CV n'affiche pas — zone de recherche et cibles, qui servent à noter les offres (RG-09) — reste visible
-  sous l'aperçu.
+  *Complément du 23/09/2026* : chaque champ obligatoire porte un astérisque et l'attribut `required` ; un refus de
+  l'API s'affiche **sous le champ qu'il nomme** (`aria-invalid`, message lié par `aria-describedby`) au lieu d'une
+  liste de chemins en haut de page ; les périodes d'expérience et de formation se choisissent dans deux sélecteurs
+  de mois (`<input type="month">`) avec une case « En cours aujourd'hui ». Le modèle de données ne change pas : la
+  période reste du texte, relu et réécrit au format « MM/AAAA – MM/AAAA » attendu par le rendu (RG-15), et une
+  valeur illisible — « Depuis le printemps » — est conservée tant qu'aucune date n'est choisie (RG-12).
   *Reste à faire* : génération d'un CV adapté (T-504), téléchargement Word et PDF (EF-CVX-11, T-503), réponse de
   motivation (T-505, EF-CVX-13).
 
@@ -403,3 +402,27 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
   *Reste à faire* : la veille (T-404) et la génération de CV (T-504) se brancheront sur la même file.
 
 - [ ] **T-705 Coûts IA** — agrégat mensuel `llm_calls`, affichage EF-CFG-03, contrôle ENF-COU-01.
+
+---
+
+## Lot 8 — Première mise en production (BES-29, cahier v1.17)
+
+Branches (`docs/CONVENTIONS_GIT.md`) : tout développement part de `dev` et y revient ; `main` ne reçoit que des
+**versions** fusionnées depuis `dev`. Sur les deux branches, `ENABLED_FEATURES` est vide : seuls le tableau de bord,
+les candidatures et les réglages de la synchronisation Gmail sont utilisables ; Offres, Sites surveillés et Atelier CV
+restent dans la navigation et affichent « En préparation ». Le code de la veille et du CV reste en place : un
+développeur l'active sur son poste (`ENABLED_FEATURES=watch,cv`) le temps d'y travailler.
+
+- [x] **T-801 Fonctionnalités activables par configuration** — *demande du Business Owner du 24/09/2026.*
+  `ENABLED_FEATURES` (`watch`, `cv`) lue et validée au démarrage ; modules d'API et tâche planifiée `scraper` montés
+  seulement si leur fonctionnalité est active ; `GET /api/settings/features` ; interface : les écrans d'une
+  fonctionnalité désactivée affichent « En préparation » (`FeaturesProvider`, `RequireFeature`), sans appel à leur API ;
+  carte « Offres à regarder » absente sans veille (`offers: null`).
+  Couvre ENF-MAI-07, EF-TDB-08 (précisée).
+  *Fini quand* : une configuration sans fonctionnalité facultative répond 404 sur `/api/profile` et `/api/sites`, ne
+  planifie que `gmail_sync`, et l'interface n'offre que Tableau de bord, Candidatures et Réglages, les autres écrans
+  affichant « En préparation ».
+- [ ] **T-802 Finitions du périmètre de mise en production** — terminer T-602 (écran du tableau de bord), revue
+  complète des écrans Candidatures et Réglages (Gmail) à 1440 px et 390 px, démonstration au Business Owner.
+- [ ] **T-803 Hébergement** — après réponse à Q-18 : demande de changement, cible d'hébergement, HTTPS, CI
+  (`npm run check` et tests d'intégration sur chaque PR vers `dev` et `main`), procédure de version `dev` → `main`.

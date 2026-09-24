@@ -9,12 +9,16 @@ interface KpiCardsProps {
 }
 
 /**
- * EF-TDB-01, 02, 03, 08: the four headline numbers. The response rate is the hero metric (Peak-End rule,
- * ux-design): it is the figure most likely to be remembered, so it gets the spotlight treatment.
+ * EF-TDB-01, 02, 03, 08: the headline numbers, the offers one only when the watch runs (ENF-MAI-07).
+ * The response rate is the hero metric (Peak-End rule, ux-design): it is the figure most likely to be remembered, so it gets the spotlight treatment.
  */
 export function KpiCards({ totals, offers }: KpiCardsProps) {
   return (
-    <div className="kpi-cards" role="group" aria-label="Indicateurs clés">
+    <div
+      className={offers ? 'kpi-cards' : 'kpi-cards kpi-cards--three'}
+      role="group"
+      aria-label="Indicateurs clés"
+    >
       <div className="kpi-card">
         <p className="kpi-card__label">Candidatures suivies</p>
         <p className="kpi-card__value">{formatInteger(totals.applications)}</p>
@@ -33,11 +37,13 @@ export function KpiCards({ totals, offers }: KpiCardsProps) {
         <p className="kpi-card__caption">Entretien, proposition ou refus</p>
       </SpotlightCard>
 
-      <div className="kpi-card">
-        <p className="kpi-card__label">Offres à regarder</p>
-        <p className="kpi-card__value">{formatInteger(offers.newAboveThreshold)}</p>
-        <p className="kpi-card__caption">Score ≥ {plural(offers.threshold, 'point')}</p>
-      </div>
+      {offers && (
+        <div className="kpi-card">
+          <p className="kpi-card__label">Offres à regarder</p>
+          <p className="kpi-card__value">{formatInteger(offers.newAboveThreshold)}</p>
+          <p className="kpi-card__caption">Score ≥ {plural(offers.threshold, 'point')}</p>
+        </div>
+      )}
     </div>
   );
 }
