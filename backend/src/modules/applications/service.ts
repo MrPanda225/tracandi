@@ -301,6 +301,23 @@ export const attachIncomingMessage = async (tx: Executor, message: IncomingMessa
 };
 
 /**
+ * EF-GML-20: RG-04 applied again to the application of a stored message whose category was just corrected — a
+ * refusal replaces an acknowledgement, the history records it at the date of the message.
+ * @returns the id of the application the message belongs to, or null when it belongs to none.
+ * @req EF-GML-20, RG-04, EF-CAN-11
+ */
+export const applyReclassifiedMessage = async (
+  tx: Executor,
+  { userId, emailId }: { userId: number; emailId: number },
+): Promise<number | null> => {
+  const email = await repository.findEmail(tx, userId, emailId);
+  if (!email?.applicationId) return null;
+  const application = await findOwned(tx, userId, email.applicationId);
+  await applyAttachedMessage(tx, application, email);
+  return application.id;
+};
+
+/**
  * The id of the user's company bearing this name, creating it when absent (RG-14 deduplication). Entry point of
  * the applications module for the other modules, which never reach its repository (clean-code.md).
  * @req RG-14, EF-VEI-01

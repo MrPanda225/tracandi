@@ -276,6 +276,41 @@ export const insertEmail = async (
   return row.id;
 };
 
+/** A stored message to read again (EF-GML-20): what RG-17 reads of it besides its body. */
+export interface StoredMessage {
+  id: number;
+  gmailMessageId: string;
+  subject: string | null;
+  snippet: string | null;
+}
+
+/**
+ * The received messages of the user stored under this category, oldest first (RG-04 order).
+ * @req EF-GML-20
+ */
+export const listReceivedEmails = async (
+  db: Executor,
+  userId: number,
+  category: (typeof emails.$inferSelect)['category'],
+): Promise<StoredMessage[]> =>
+  db
+    .select({ id: emails.id, gmailMessageId: emails.gmailMessageId, subject: emails.subject, snippet: emails.snippet })
+    .from(emails)
+    .where(and(eq(emails.userId, userId), eq(emails.category, category), eq(emails.direction, 'inbound')))
+    .orderBy(emails.receivedAt, emails.id);
+
+/**
+ * Files a stored message under another category (EF-GML-20); its application is the caller's.
+ * @req EF-GML-20
+ */
+export const setEmailCategory = async (
+  db: Executor,
+  emailId: number,
+  category: (typeof emails.$inferSelect)['category'],
+): Promise<void> => {
+  await db.update(emails).set({ category }).where(eq(emails.id, emailId));
+};
+
 /**
  * Sets the date of the last complete synchronisation, from which the next one reads (EF-CFG-01, EF-GML-06).
  * @req EF-CFG-01, EF-GML-06

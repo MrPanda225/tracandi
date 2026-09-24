@@ -46,7 +46,18 @@ export interface FetchResult {
   hasMore: boolean;
 }
 
+/** An opened mailbox and whether the user lets Tracandi write its labels (EF-GML-17). */
+export interface OpenedMailbox {
+  mailbox: GmailMailbox;
+  shouldApplyLabels: boolean;
+}
+
 export interface MessageFetcher {
+  /**
+   * Opens the mailbox of the user, to read stored messages again (EF-GML-20).
+   * @throws GmailNotConnectedError when no mailbox is connected.
+   */
+  openMailbox: (userId: number) => Promise<OpenedMailbox>;
   /**
    * Reads the messages received and sent since the last synchronisation (N days back for the first one), skips the
    * known ones, and marks the messages set aside by RG-10 as processed, without any AI call.
@@ -167,13 +178,22 @@ export const createMessageFetcher = ({
 }: MessageFetcherDeps): MessageFetcher => {
   const listsOf = createListsLoader(db);
 
+  const sourceOf = async (userId: number) => {
+    const source = await repository.findSyncSource(db, userId);
+    if (!source) throw new GmailNotConnectedError();
+    return { source, mailbox: openMailbox(decryptSecret(source.refreshToken, encryptionKey)) };
+  };
+
   return {
+    async openMailbox(userId) {
+      const { source, mailbox } = await sourceOf(userId);
+      return { mailbox, shouldApplyLabels: source.shouldApplyLabels };
+    },
+
     async fetchNewMessages(userId) {
-      const source = await repository.findSyncSource(db, userId);
-      if (!source) throw new GmailNotConnectedError();
+      const { source, mailbox } = await sourceOf(userId);
       const now = clock();
       const since = readSince(source.lastSyncAt, source.lookbackDays, now);
-      const mailbox = openMailbox(decryptSecret(source.refreshToken, encryptionKey));
 
       const [listed, lists] = await Promise.all([
         mailbox.listMessageIds(searchSince(since)),

@@ -164,6 +164,17 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
   « accusé de réception » de l'IA ; un accusé de réception annonçant un refus conditionnel le reste.
   *Hors périmètre* : les messages déjà traités ne sont pas relus (EF-GML-06) ; les corriger à la main (EF-CAN-07) ou
   demander une tâche de reclassement.
+- [x] **T-308 Relecture des accusés de réception déjà classés** — *demande du Business Owner du 24/09/2026 (cahier
+  v1.19, BES-31).* `POST /api/gmail/reclassify` met en file une exécution `gmail_reclassify` (migration 0012 :
+  valeur d'énumération, compteur `messages_corrected`, index `ix_emails_user_category`) ; chaque message reçu classé
+  « accusé de réception » est relu dans Gmail (T-307) et reclassé « refus » quand RG-17 le désigne, sa candidature
+  suivant RG-04 dans la même transaction, puis ses fils relibellés ; aucun appel à l'IA. Réglages → Gmail : bouton
+  « Relire les accusés de réception », avancement et bilan par le flux des exécutions. Jeu de charge complété des
+  10 000 messages d'ENF-PERF-01, jusque-là absents.
+  *Exigences* : EF-GML-20, RG-17, RG-04, ENF-PERF-04, EF-EXE-01, EF-EXE-03.
+  *Fini quand* : un accusé de réception enregistré dont le corps refuse devient « refus », sa candidature « Refusée »
+  et son fil « Statut/Refusée » ; un vrai accusé de réception reste inchangé ; `EXPLAIN` sans parcours complet de
+  `emails` sur le jeu de charge.
 
 ## Lot 4 — Veille des offres
 
