@@ -1,18 +1,21 @@
 import { frameUntrusted, truncate, UNTRUSTED_CONTENT_NOTICE } from './untrusted.js';
 
-/** What the classification sees of a message: metadata and the stored excerpt only (ENF-RGP-01). */
+/** What the classification sees of a message: metadata and the start of its body (BES-30). */
 export interface MessageToClassify {
   direction: 'inbound' | 'outbound';
   receivedAt: Date;
   from: string | null;
   subject: string | null;
-  /** At most 300 characters (ENF-RGP-01). */
+  /** Gmail's excerpt, at most 300 characters: what is read when the body is not. */
   snippet: string;
+  /** Start of the body as plain text, empty when unreadable; never stored (ENF-RGP-01). */
+  text: string;
 }
 
-// ENF-COU-01: bounded input per message; the excerpt is already limited to 300 characters (ENF-RGP-01).
+// ENF-COU-01: bounded input per message. 1 000 characters of the body carry a refusal written after a long
+// opening (BES-30) while a batch of 10 stays within the tokens per minute of the free Groq models.
 export const SUBJECT_MAX_LENGTH = 300;
-const SNIPPET_MAX_LENGTH = 300;
+export const TEXT_MAX_LENGTH = 1000;
 const SENDER_MAX_LENGTH = 320;
 
 const SYSTEM = [
@@ -41,11 +44,14 @@ const SYSTEM = [
   UNTRUSTED_CONTENT_NOTICE,
 ].join('\n');
 
+/** The start of the body, or Gmail's excerpt when the body could not be read. */
+const bodyOf = (message: MessageToClassify): string => message.text || message.snippet;
+
 const describeMessage = (message: MessageToClassify): string =>
   [
     `De : ${message.from ? truncate(message.from, SENDER_MAX_LENGTH) : '(inconnu)'}`,
     `Objet : ${message.subject ? truncate(message.subject, SUBJECT_MAX_LENGTH) : '(sans objet)'}`,
-    `Extrait : ${message.snippet ? truncate(message.snippet, SNIPPET_MAX_LENGTH) : '(vide)'}`,
+    `Texte : ${bodyOf(message) ? truncate(bodyOf(message), TEXT_MAX_LENGTH) : '(vide)'}`,
   ].join('\n');
 
 /**

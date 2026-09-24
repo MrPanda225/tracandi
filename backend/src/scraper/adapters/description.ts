@@ -1,4 +1,5 @@
 import { contractType } from '../../db/schema.js';
+import { decodeHtmlEntities } from '../../lib/html.js';
 import { normalizeKey } from '../../lib/text.js';
 import { clamp, DESCRIPTION_MAX_LENGTH, type OfferContractType } from './types.js';
 
@@ -105,56 +106,6 @@ export const contractTypeOf = ({ labels = [], text = null }: ContractSources): O
   return found?.[1].type ?? 'non_precise';
 };
 
-/** Named entities an ATS description carries; anything else is left as it was written. */
-const HTML_ENTITIES: Readonly<Record<string, string>> = {
-  amp: '&',
-  lt: '<',
-  gt: '>',
-  quot: '"',
-  apos: "'",
-  nbsp: ' ',
-  eacute: 'é',
-  egrave: 'è',
-  ecirc: 'ê',
-  euml: 'ë',
-  agrave: 'à',
-  acirc: 'â',
-  ccedil: 'ç',
-  ocirc: 'ô',
-  ouml: 'ö',
-  ugrave: 'ù',
-  ucirc: 'û',
-  uuml: 'ü',
-  icirc: 'î',
-  iuml: 'ï',
-  laquo: '«',
-  raquo: '»',
-  rsquo: '’',
-  lsquo: '‘',
-  ldquo: '“',
-  rdquo: '”',
-  ndash: '–',
-  mdash: '—',
-  hellip: '…',
-  middot: '·',
-  deg: '°',
-  euro: '€',
-};
-
-const NUMERIC_ENTITY = /&#(x?)([0-9a-f]+);/gi;
-const NAMED_ENTITY = /&([a-z]+);/gi;
-const HEXADECIMAL = 16;
-const DECIMAL = 10;
-
-/** The characters an entity stands for; an entity nobody knows is left as it was written. */
-const decodeEntities = (html: string): string =>
-  html
-    .replace(NUMERIC_ENTITY, (whole, hex: string, digits: string) => {
-      const code = Number.parseInt(digits, hex ? HEXADECIMAL : DECIMAL);
-      return Number.isNaN(code) ? whole : String.fromCodePoint(code);
-    })
-    .replace(NAMED_ENTITY, (whole, name: string) => HTML_ENTITIES[name.toLowerCase()] ?? whole);
-
 // A block-level tag ends a line; anything else simply disappears.
 const BLOCK_TAGS = /<\/?(?:p|div|br|li|ul|ol|h[1-6]|tr|table|section|article|header|footer)\b[^>]*>/gi;
 const ANY_TAG = /<[^>]*>/g;
@@ -174,10 +125,10 @@ const TRAILING_SPACES = /[ \t]+\n/g;
  */
 export const htmlToText = (html: string | null | undefined): string | null => {
   if (!html) return null;
-  const text = decodeEntities(html)
+  const text = decodeHtmlEntities(html)
     .replace(BLOCK_TAGS, '\n')
     .replace(ANY_TAG, '')
     .replace(TRAILING_SPACES, '\n')
     .replace(NEWLINE_RUNS, '\n');
-  return clamp(decodeEntities(text), DESCRIPTION_MAX_LENGTH);
+  return clamp(decodeHtmlEntities(text), DESCRIPTION_MAX_LENGTH);
 };

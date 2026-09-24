@@ -1,11 +1,13 @@
 // The Gmail entry point only: the whole googleapis index describes every Google API and exhausts the typed lint.
 import { auth, gmail, type gmail_v1 } from 'googleapis/build/src/apis/gmail/index.js';
 import { z } from 'zod';
+import { bodyTextOf, type MessagePart } from './bodyText.js';
 import type { GoogleOAuthConfig } from './googleOAuth.js';
 import { type GmailRetry, throttleGmailClient } from './quota.js';
 
 /** ENF-RGP-01: at most 300 characters of a message are kept, besides its metadata. */
 export const SNIPPET_MAX_LENGTH = 300;
+export { BODY_TEXT_MAX_LENGTH } from './bodyText.js';
 // Same bounds as the data model: emails.from_address 320, emails.subject 500.
 const ADDRESS_MAX_LENGTH = 320;
 const SUBJECT_MAX_LENGTH = 500;
@@ -37,7 +39,10 @@ export interface GmailLabel {
   name: string;
 }
 
-/** A message as the application knows it: metadata and an excerpt, never the body (ENF-RGP-01). */
+/**
+ * A message as the application knows it: metadata, the excerpt kept, and the start of the body, read for the
+ * classification only and never stored (ENF-RGP-01, BES-30).
+ */
 export interface MailboxMessage {
   gmailMessageId: string;
   gmailThreadId: string;
@@ -46,8 +51,10 @@ export interface MailboxMessage {
   sender: string | null;
   fromAddress: string | null;
   subject: string | null;
-  /** Gmail's excerpt, decoded, spaces collapsed, at most 300 characters. */
+  /** Gmail's excerpt, decoded, spaces collapsed, at most 300 characters: the only text stored. */
   snippet: string;
+  /** Start of the body as plain text (at most 2 000 characters), empty when unreadable. Never stored nor logged. */
+  text: string;
   receivedAt: Date;
 }
 
@@ -72,6 +79,16 @@ export interface GmailMailbox {
 export type OpenMailbox = (refreshToken: string) => GmailMailbox;
 
 // External data: Gmail's answers are parsed before use (clean-code.md).
+const MessagePartSchema: z.ZodType<MessagePart> = z.lazy(() =>
+  z.object({
+    mimeType: z.string().nullish(),
+    filename: z.string().nullish(),
+    headers: z.array(z.object({ name: z.string().nullish(), value: z.string().nullish() })).nullish(),
+    body: z.object({ data: z.string().nullish(), attachmentId: z.string().nullish() }).nullish(),
+    parts: z.array(MessagePartSchema).nullish(),
+  }),
+);
+
 const ListAnswerSchema = z.object({
   messages: z.array(z.object({ id: z.string().min(1) })).nullish(),
   nextPageToken: z.string().nullish(),
@@ -83,11 +100,7 @@ const MessageAnswerSchema = z.object({
   labelIds: z.array(z.string()).nullish(),
   snippet: z.string().nullish(),
   internalDate: z.string().regex(/^\d+$/),
-  payload: z
-    .object({
-      headers: z.array(z.object({ name: z.string().nullish(), value: z.string().nullish() })).nullish(),
-    })
-    .nullish(),
+  payload: MessagePartSchema.nullish(),
 });
 type MessageAnswer = z.infer<typeof MessageAnswerSchema>;
 
@@ -147,6 +160,7 @@ const toMailboxMessage = (message: MessageAnswer): MailboxMessage => {
     fromAddress: sender ? addressOf(sender) : null,
     subject: subject ? clip(subject, SUBJECT_MAX_LENGTH) : null,
     snippet: plainSnippet(message.snippet ?? ''),
+    text: bodyTextOf(message.payload),
     receivedAt: new Date(Number(message.internalDate)),
   };
 };
@@ -170,10 +184,11 @@ export const hasHttpStatus = (error: unknown, status: number): boolean =>
   typeof error === 'object' && error !== null && 'status' in error && error.status === status;
 
 /**
- * Gmail mailbox on Gmail's API: searches, then reads the metadata of one message (From and Subject headers,
- * excerpt, date, labels), and sets labels on threads. The body is never requested (ENF-RGP-01).
+ * Gmail mailbox on Gmail's API: searches, then reads one message (From and Subject headers, excerpt, date, labels,
+ * and the start of its body as text, for the classification only: BES-30), and sets labels on threads. Of the body,
+ * only Gmail's 300-character excerpt is ever kept (ENF-RGP-01).
  * @throws when Gmail fails or answers outside its format, except a message deleted since the listing (null).
- * @req EF-GML-03, EF-GML-05, EF-GML-13, EF-GML-14, EF-GML-15, EF-GML-16, ENF-RGP-01
+ * @req EF-GML-03, EF-GML-05, EF-GML-08, EF-GML-13, EF-GML-14, EF-GML-15, EF-GML-16, ENF-RGP-01
  */
 export const createGmailMailbox = (client: GmailClient): GmailMailbox => ({
   async listMessageIds(query) {
@@ -193,8 +208,8 @@ export const createGmailMailbox = (client: GmailClient): GmailMailbox => ({
       const { data } = await client.get({
         userId: 'me',
         id,
-        format: 'metadata',
-        metadataHeaders: ['From', 'Subject'],
+        // BES-30: `metadata` gives Gmail's excerpt alone, cut before a refusal that follows a long opening.
+        format: 'full',
       });
       return toMailboxMessage(MessageAnswerSchema.parse(data));
     } catch (error) {

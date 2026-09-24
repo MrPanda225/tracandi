@@ -117,6 +117,7 @@ const toMessageToClassify = (message: RetainedMessage): MessageToClassify => ({
   from: message.sender,
   subject: message.subject,
   snippet: message.snippet,
+  text: message.text,
 });
 
 /** The items in slices of `size`, in order; the last slice holds what is left. */

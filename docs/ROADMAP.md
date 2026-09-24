@@ -153,6 +153,17 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
   *Exigences* : EF-CFG-04, EF-GML-05 (v1.5), ENF-FIA-09 (demande du Business Owner du 22/09/2026, cahier v1.5).
   *Fini quand* : tests d'intégration (période par défaut 30 jours, réglage enregistré et refusé hors bornes, passe
   partielle sur refus de quota) et tests Testing Library (sélecteur, refus de l'API) ; `npm run check` vert.
+- [x] **T-307 Classement lu sur le corps du message** — *demande du Business Owner du 24/09/2026 (cahier v1.18,
+  BES-30) : deux refus étiquetés « Statut/En attente ».* Gmail lu au format `full` ; début du corps extrait en texte
+  (`modules/emails/bodyText.ts` : partie `text/plain`, sinon HTML sans balises ni styles ; citations et pièces
+  jointes exclues ; jeu de caractères de la partie) ; indices RG-17 sur 2 000 caractères, phrase par phrase, une
+  expression de refus sous condition ignorée ; 1 000 caractères transmis à l'IA ; seul l'extrait de 300 caractères
+  est conservé. Décodage des entités HTML mis en commun (`lib/html.ts`) avec la veille.
+  *Exigences* : EF-GML-08 (précisée), RG-17 (v1.18), ENF-RGP-01 (précisée), ENF-COU-01.
+  *Fini quand* : les deux refus du Business Owner, reproduits anonymisés, sont classés « refus » malgré une réponse
+  « accusé de réception » de l'IA ; un accusé de réception annonçant un refus conditionnel le reste.
+  *Hors périmètre* : les messages déjà traités ne sont pas relus (EF-GML-06) ; les corriger à la main (EF-CAN-07) ou
+  demander une tâche de reclassement.
 
 ## Lot 4 — Veille des offres
 
