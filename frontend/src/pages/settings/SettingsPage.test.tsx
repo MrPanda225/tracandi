@@ -28,12 +28,9 @@ const json = (status: number, body?: unknown) =>
 
 type Route = () => Response | Promise<Response>;
 
-const NO_AI = { providers: [], tasks: [] };
-
 const mockApi = (routes: Record<string, Route>) => {
   const calls: string[] = [];
-  // The AI card reads its own configuration on every render of the page.
-  const withDefaults: Record<string, Route> = { 'GET /settings/ai': () => json(200, NO_AI), ...routes };
+  const withDefaults: Record<string, Route> = routes;
   vi.stubGlobal(
     'fetch',
     vi.fn((input: string, init?: RequestInit) => {
@@ -344,7 +341,6 @@ describe('SettingsPage — Gmail', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn((input: string, init?: RequestInit) => {
-        if (input.endsWith('/settings/ai')) return Promise.resolve(json(200, NO_AI));
         if (init?.method === 'PATCH' && input.endsWith('/gmail/settings')) {
           bodies.push(JSON.parse(String(init.body)));
           return Promise.resolve(new Response(null, { status: 204 }));
@@ -354,7 +350,7 @@ describe('SettingsPage — Gmail', () => {
     );
     renderPage();
     const user = userEvent.setup();
-    const option = await screen.findByRole('checkbox', { name: /Ranger les fils avec des libellés Gmail/ });
+    const option = await screen.findByRole('switch', { name: /Ranger les fils avec des libellés Gmail/ });
 
     expect(option).toBeChecked();
     await user.click(option);
@@ -374,10 +370,10 @@ describe('SettingsPage — Gmail', () => {
     renderPage();
     const user = userEvent.setup();
 
-    await user.click(await screen.findByRole('checkbox', { name: /Ranger les fils avec des libellés Gmail/ }));
+    await user.click(await screen.findByRole('switch', { name: /Ranger les fils avec des libellés Gmail/ }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Une erreur inattendue est survenue.');
-    expect(screen.getByRole('checkbox', { name: /Ranger les fils avec des libellés Gmail/ })).toBeChecked();
+    expect(screen.getByRole('switch', { name: /Ranger les fils avec des libellés Gmail/ })).toBeChecked();
   });
 
   it('[EF-CFG-04] shows the period of the first synchronisation and records the one chosen', async () => {
@@ -385,7 +381,6 @@ describe('SettingsPage — Gmail', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn((input: string, init?: RequestInit) => {
-        if (input.endsWith('/settings/ai')) return Promise.resolve(json(200, NO_AI));
         if (init?.method === 'PATCH' && input.endsWith('/gmail/settings')) {
           bodies.push(JSON.parse(String(init.body)));
           return Promise.resolve(new Response(null, { status: 204 }));
@@ -395,13 +390,13 @@ describe('SettingsPage — Gmail', () => {
     );
     renderPage();
     const user = userEvent.setup();
-    const period = await screen.findByRole('combobox', { name: 'Période à synchroniser' });
+    const period = await screen.findByRole('radiogroup', { name: 'Période de la première synchronisation' });
 
-    expect(period).toHaveValue('30');
-    await user.selectOptions(period, '7');
+    expect(within(period).getByRole('radio', { name: '1 mois' })).toBeChecked();
+    await user.click(within(period).getByRole('radio', { name: '7 jours' }));
 
     await waitFor(() => expect(bodies).toEqual([{ lookbackDays: 7 }]));
-    expect(period).toHaveValue('7');
+    expect(within(period).getByRole('radio', { name: '7 jours' })).toBeChecked();
     expect(screen.getByText(/Une période courte évite les limites de l’API Gmail/)).toBeInTheDocument();
   });
 
@@ -412,12 +407,12 @@ describe('SettingsPage — Gmail', () => {
     });
     renderPage();
     const user = userEvent.setup();
-    const period = await screen.findByRole('combobox', { name: 'Période à synchroniser' });
+    const period = await screen.findByRole('radiogroup', { name: 'Période de la première synchronisation' });
 
-    await user.selectOptions(period, '365');
+    await user.click(within(period).getByRole('radio', { name: '1 an' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Données invalides');
-    expect(period).toHaveValue('90');
+    expect(within(period).getByRole('radio', { name: '3 mois' })).toBeChecked();
   });
 
   it('[Q-11] asks to reconnect an expired authorisation, through Google’s consent page', async () => {
@@ -448,62 +443,70 @@ describe('SettingsPage — Gmail', () => {
   });
 });
 
-describe('SettingsPage — AI providers', () => {
-  it('[EF-CFG-02] shows the configured providers and the provider of each task, with its fallback', async () => {
-    mockApi({
-      'GET /gmail/status': () => json(200, { connected: false }),
-      'GET /settings/ai': () =>
-        json(200, {
-          providers: [
-            { name: 'claude', model: 'claude-sonnet-5' },
-            { name: 'gemini', model: 'gemini-2.5-flash' },
-          ],
-          tasks: [
-            { task: 'classify_emails', providers: ['gemini', 'claude'] },
-            { task: 'tailor_cv', providers: ['claude', 'gemini'] },
-          ],
-        }),
-    });
+describe('SettingsPage — layout of the Gmail card (EF-CFG-05)', () => {
+  const SYNCED = { ...CONNECTED, lastRunAt: '2026-09-22T08:30:00.000Z', lastSyncAt: '2026-09-22T08:30:00.000Z' };
+
+  it('[EF-CFG-05] leads with the state of the mailbox, in words, and the synchronisation before the preferences', async () => {
+    mockApi({ 'GET /gmail/status': () => json(200, SYNCED) });
 
     renderPage();
+    const badge = await screen.findByText('Connectée');
+    const synchronise = screen.getByRole('button', { name: 'Synchroniser maintenant' });
+    const preferences = screen.getByRole('heading', { name: 'Préférences' });
 
-    const card = await screen.findByRole('region', { name: 'Fournisseurs d’IA' });
-    const providers = within(within(card).getByRole('list')).getAllByRole('listitem');
-    expect(providers.map((provider) => provider.textContent)).toEqual([
-      'Claude claude-sonnet-5',
-      'Gemini gemini-2.5-flash',
-    ]);
-    const classification = within(card).getByRole('row', { name: /Classement des e-mails/ });
-    expect(classification).toHaveTextContent('Gemini');
-    expect(classification).toHaveTextContent('secours : Claude');
-    expect(within(card).getByRole('row', { name: /CV adapté/ })).toHaveTextContent('Claude');
+    expect(badge).toBeInTheDocument();
+    expect(synchronise.compareDocumentPosition(preferences) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it('[EF-CFG-02] [EF-IA-05] says when a task has no fallback', async () => {
-    mockApi({
-      'GET /gmail/status': () => json(200, { connected: false }),
-      'GET /settings/ai': () =>
-        json(200, {
-          providers: [{ name: 'gemini', model: 'gemini-2.5-flash' }],
-          tasks: [{ task: 'classify_emails', providers: ['gemini'] }],
-        }),
-    });
-
+  it('[EF-CFG-05] says a synchronisation is running in the badge too', async () => {
+    mockApi({ 'GET /gmail/status': () => json(200, SYNCED), 'POST /gmail/sync': () => json(202, { runId: 5 }) });
     renderPage();
+    const user = userEvent.setup();
 
-    const row = await screen.findByRole('row', { name: /Classement des e-mails/ });
-    expect(row).toHaveTextContent('sans secours');
+    await user.click(await screen.findByRole('button', { name: 'Synchroniser maintenant' }));
+    openStreams
+      .find((open) => open.url.endsWith('/jobs/stream'))
+      ?.emit('run', { id: 5, job: 'gmail_sync', trigger: 'manual', outcome: 'running', counters: {}, error: null });
+
+    expect(await screen.findByText('Synchronisation en cours')).toBeInTheDocument();
   });
 
-  it('[ENF-UTI-03] shows why the AI configuration could not be read', async () => {
-    mockApi({
-      'GET /gmail/status': () => json(200, { connected: false }),
-      'GET /settings/ai': () => json(500, { error: 'Une erreur inattendue est survenue.' }),
-    });
+  it('[EF-CFG-05] [Q-11] names an expired authorisation in the badge', async () => {
+    mockApi({ 'GET /gmail/status': () => json(200, { ...SYNCED, authorizationExpired: true }) });
 
     renderPage();
 
-    const card = await screen.findByRole('region', { name: 'Fournisseurs d’IA' });
-    expect(await within(card).findByRole('alert')).toHaveTextContent('Une erreur inattendue est survenue.');
+    expect(await screen.findByText('Autorisation expirée')).toBeInTheDocument();
+  });
+
+  it('[EF-CFG-05] [EF-CFG-04] no longer offers the period once the first synchronisation is done', async () => {
+    mockApi({ 'GET /gmail/status': () => json(200, SYNCED) });
+
+    renderPage();
+    await screen.findByText('Connectée');
+
+    expect(screen.queryByRole('radiogroup', { name: 'Période de la première synchronisation' })).not.toBeInTheDocument();
+    expect(screen.getByText(/seuls les nouveaux messages sont lus/)).toBeInTheDocument();
+  });
+
+  it('[EF-CFG-05] keeps the disconnection apart, in its own section', async () => {
+    mockApi({ 'GET /gmail/status': () => json(200, SYNCED) });
+
+    renderPage();
+    const connection = await screen.findByRole('region', { name: 'Connexion' });
+
+    expect(within(connection).getByRole('button', { name: 'Déconnecter Gmail' })).toBeInTheDocument();
+    expect(within(connection).queryByRole('button', { name: 'Synchroniser maintenant' })).not.toBeInTheDocument();
+  });
+
+  it('[EF-CFG-02] shows no AI provider any more (v1.23)', async () => {
+    const calls = mockApi({ 'GET /gmail/status': () => json(200, SYNCED) });
+
+    renderPage();
+    await screen.findByText('Connectée');
+
+    expect(screen.queryByRole('heading', { name: /Fournisseurs/ })).not.toBeInTheDocument();
+    expect(calls).not.toContain('GET /settings/ai');
   });
 });
+

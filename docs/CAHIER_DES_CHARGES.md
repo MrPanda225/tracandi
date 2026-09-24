@@ -24,6 +24,7 @@
 | 1.20 | 24/09/2026 | Sahiré YAPI (Business Owner) | À valider — entreprise déduite du domaine de l'adresse du correspondant quand ni l'employeur ni la plateforme ne sont identifiés (BES-32, RG-03 v1.20) |
 | 1.21 | 24/09/2026 | Sahiré YAPI (Business Owner) | À valider — suivi hebdomadaire resserré sur 5 semaines, semaine en cours comparée à la précédente, tableau de bord actualisé sans rechargement à la fin d'une synchronisation (BES-33, EF-TDB-04 v1.21, EF-TDB-10, EF-TDB-11) |
 | 1.22 | 24/09/2026 | Sahiré YAPI (Business Owner) | À valider — relance limitée aux candidatures dont une adresse de contact est connue ; bouton « Relancer » préparant, rédigé par l'IA, un brouillon Gmail en réponse dans le fil, jamais envoyé par le système (BES-34, RG-06 v1.22, RG-20, EF-CAN-17, RG-13, ENF-RGP-01) |
+| 1.23 | 24/09/2026 | Sahiré YAPI (Business Owner) | À valider — écran Réglages réduit à ce qui sert au candidat : fournisseurs d'IA retirés de l'interface, carte Gmail réorganisée (état et synchronisation d'abord, préférences, entretien, déconnexion à part) (BES-35, EF-CFG-02 retirée de l'écran, EF-CFG-05) |
 
 > Document de référence pour le développement. Toute évolution de périmètre passe par une mise à jour
 > de ce fichier **avant** le code. Chaque exigence porte un identifiant stable, repris dans
@@ -136,6 +137,7 @@ des candidatures, la veille des offres et la production de CV adaptés.
 | BES-32 | « Pour les entreprises inconnues, il suffit de regarder le nom de domaine dans le mail. » (24/09/2026, capture : candidature envoyée à `christophe.deschamps@data-praxis.fr`, enregistrée « Entreprise inconnue ») |
 | BES-33 | « Travaille sur le graphique pour le suivi : regardons sur une période de 5 semaines et sois plus expressif, suis le skill bi-dashboard-design ; il doit être dynamique. » (24/09/2026, captures du graphique des 16 semaines) |
 | BES-34 | « Au niveau des relances, il faudra revoir la politique : relancer tous ceux dont on a un mail de relance, et ajouter un bouton Relance qui va rédiger le mail à envoyer ; en cliquant, ça doit lancer le mail avec l'objet et le contenu, avec le mail en attendant d'être envoyé. » (24/09/2026 ; précisé : adresse joignable, brouillon dans Gmail, rédaction par l'IA) |
+| BES-35 | « On va retaper la section Réglages en gardant que ce qui est utile à savoir pour l'utilisateur : déjà retire-moi le fournisseur d'IA, et optimise la section boîte mail en suivant les principes ux-design et ui-design. » (24/09/2026) |
 | BES-23 | « Applique un système de queue pour mes traitements trop longs et même des websockets, avec une architecture asynchrone. » (23/09/2026) |
 
 ### 4.2 Exigences métier (indépendantes de la solution)
@@ -318,7 +320,8 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | ID | Exigence | Prio | Source | Vérif. |
 |---|---|---|---|---|
 | EF-CFG-01 | Le système doit afficher l'adresse Gmail connectée et la date de dernière synchronisation. | M | EXM-01 | D |
-| EF-CFG-02 | Le système doit afficher les fournisseurs IA configurés et la tâche attribuée à chacun. | S | EXM-10 | D |
+| EF-CFG-02 | ~~Le système doit afficher les fournisseurs IA configurés et la tâche attribuée à chacun.~~ Retirée de l'écran en v1.23 (BES-35) : l'information ne sert pas au candidat ; la route `GET /api/settings/ai` reste documentée pour le diagnostic. | — | EXM-10 | — |
+| EF-CFG-05 | L'écran Réglages doit présenter d'abord l'état de la boîte Gmail (connectée, synchronisation en cours, autorisation expirée — signalé par un libellé, pas par la seule couleur) et l'action « Synchroniser maintenant », puis les préférences, puis l'entretien, et tenir la déconnexion à l'écart des autres actions. La période de la première synchronisation n'est proposée que tant que celle-ci n'a pas eu lieu. (v1.23, BES-35) | S | EXM-01 | T |
 | EF-CFG-03 | Le système doit afficher le coût IA estimé du mois en cours. | C | ENF-COU-01 | T |
 | EF-CFG-04 | Le candidat doit pouvoir régler, depuis l'écran Réglages, la période de la première synchronisation (N jours, EF-GML-05). | M | BES-19 | T |
 
@@ -563,5 +566,6 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | BES-32 | EXM-01, EXM-02 | RG-03, EF-GML-09, EF-GML-11 |
 | BES-33 | EXM-09 | EF-TDB-04, EF-TDB-10, EF-TDB-11 |
 | BES-34 | EXM-04 | RG-06, RG-20, EF-CAN-17, EF-TDB-07, RG-13 |
+| BES-35 | EXM-01 | EF-CFG-05, EF-CFG-02 (retirée de l'écran) |
 
 La traçabilité fine exigence → tâche → test est tenue à jour dans `docs/TRACABILITE.md`.
