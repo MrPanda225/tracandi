@@ -4,6 +4,7 @@ import type { Logger } from '../../lib/logger.js';
 import { buildScoreOffersPrompt, type OfferToScore } from '../../llm/prompts/scoreOffers.js';
 import type { LlmRouter } from '../../llm/router.js';
 import { adapterFor } from '../../scraper/adapters/index.js';
+import { describeCollectionFailure } from '../../scraper/failures.js';
 import type { AdapterDeps, NormalizedOffer } from '../../scraper/adapters/types.js';
 import type { CandidateProfile } from '../cv/schemas.js';
 import {
@@ -18,9 +19,6 @@ import {
 import * as repository from './repository.js';
 import type { OfferToStore, SourceRow } from './repository.js';
 import type { WatchReport } from './schemas.js';
-
-/** Same bound as `watched_sites.last_error`. */
-const ERROR_MAX_LENGTH = 500;
 
 export interface WatchPassDeps {
   db: Database;
@@ -49,10 +47,6 @@ export interface WatchPass {
    */
   run: (context: PassContext) => Promise<WatchReport>;
 }
-
-/** The message stored on a source that failed, bounded and readable; never a stack (ENF-SEC-08, EF-VEI-11). */
-const describeFailure = (error: unknown): string =>
-  (error instanceof Error ? error.message : 'Échec inconnu de la consultation').slice(0, ERROR_MAX_LENGTH);
 
 const targetsOf = (profile: CandidateProfile): ScoringTarget[] =>
   profile.targets.map((target) => ({
@@ -181,7 +175,7 @@ export const createWatchPass = ({ db, clock, router, collect, logger }: WatchPas
         } catch (error) {
           report.sourcesFailed += 1;
           logger.warn('watched source failed', { sourceId: source.id, adapter: source.adapter, error });
-          await repository.recordCheck(db, source.id, { checkedAt: clock(), error: describeFailure(error) });
+          await repository.recordCheck(db, source.id, { checkedAt: clock(), error: describeCollectionFailure(error) });
         }
       }
       return report;

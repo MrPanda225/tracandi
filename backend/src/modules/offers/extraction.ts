@@ -42,6 +42,12 @@ export const ExtractedOfferSchema = z.object({
  */
 export const ExtractedOffersSchema = z.object({
   offers: z.array(ExtractedOfferSchema).max(MAX_EXTRACTED_OFFERS),
+  /**
+   * EF-VEI-27 : l'adresse de la page qui liste les offres, quand celle qui a été lue n'en publie aucune mais y
+   * renvoie. Second recours : la détection déterministe (`scraper/careerLink.ts`) passe avant. Comme pour une
+   * offre, c'est le code qui vérifie cette adresse — présente sur la page, et sur le site de la source.
+   */
+  careerPageUrl: optionalText(URL_MAX_LENGTH),
 });
 
 export type ExtractedOffer = z.infer<typeof ExtractedOfferSchema>;

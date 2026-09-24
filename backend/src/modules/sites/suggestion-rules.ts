@@ -44,6 +44,50 @@ const ATS_SENDER_DOMAINS: Readonly<Record<string, SiteAdapterId>> = {
   'wd1.myworkdaysite.com': 'workday',
 };
 
+/**
+ * RG-19 : domaines d'outils de recrutement et de job boards qui ne figurent pas dans `platform_domains`. Une
+ * entreprise qui écrit depuis `ateme.teamtailor-mail.com` ou `mail.flatchr.io` écrit depuis **l'outil de son
+ * recruteur**, pas depuis son site ; proposer ce domaine ferait surveiller l'outil, ou pire le job board — et
+ * les offres relevées seraient celles de tout le monde.
+ *
+ * Ils sont listés ici, et non dans les types de source, parce qu'aucun adaptateur ne les prend en charge : la
+ * bonne réponse est de ne rien proposer, pas de proposer une source qui échouera.
+ */
+const RECRUITMENT_TOOLING: ReadonlySet<string> = new Set([
+  // Outils de recrutement (ATS) sans adaptateur
+  'flatchr.io',
+  'teamtailor.com',
+  'teamtailor-mail.com',
+  'werecruit.io',
+  'taleez.com',
+  'softy.pro',
+  'digitalrecruiters.com',
+  'beetween.com',
+  'jobaffinity.fr',
+  'talentsoft.com',
+  'cegid.com',
+  'icims.com',
+  'workable.com',
+  'ashbyhq.com',
+  'personio.de',
+  'personio.com',
+  'jobvite.com',
+  'successfactors.com',
+  'taleo.net',
+  'bamboohr.com',
+  // Job boards et agrégateurs : leurs offres ne sont pas celles d'une entreprise
+  'free-work.com',
+  'choosemycompany.com',
+  'glassdoor.com',
+  'glassdoor.fr',
+  'talent.com',
+  'jobijoba.com',
+  'optioncarriere.com',
+  'emploi.org',
+  'keljob.com',
+  'lesjeudis.com',
+]);
+
 // Un domaine a au moins deux étiquettes : « fr » seul ne désigne pas une entreprise.
 const MIN_DOMAIN_LABELS = 2;
 
@@ -78,11 +122,15 @@ export const adapterOfSenderDomain = (domain: string): SiteAdapterId | null => {
 
 /**
  * RG-19 : un domaine ne désigne l'entreprise que s'il n'est ni celui d'une plateforme connue, ni celui d'une
- * messagerie grand public, ni celui d'un ATS — un ATS héberge le board, il n'est pas le site de l'entreprise.
+ * messagerie grand public, ni celui d'un outil de recrutement ou d'un job board — ces derniers hébergent le
+ * board, ils ne sont pas le site de l'entreprise.
  */
 export const isCompanyDomain = (domain: string, platformDomains: ReadonlySet<string>): boolean =>
   !domainAndParents(domain).some(
-    (candidate) => platformDomains.has(candidate) || MAILBOX_PROVIDERS.has(candidate),
+    (candidate) =>
+      platformDomains.has(candidate) ||
+      MAILBOX_PROVIDERS.has(candidate) ||
+      RECRUITMENT_TOOLING.has(candidate),
   ) && adapterOfSenderDomain(domain) === null;
 
 /** Un domaine vu dans les messages d'une entreprise, et le nombre de messages qui en viennent. */
