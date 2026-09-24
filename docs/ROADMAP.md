@@ -206,6 +206,12 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
   *Exigences* : RG-06 (v1.22), RG-20, EF-CAN-17, RG-13, ENF-RGP-01, ENF-SEC-04, ENF-SEC-06.
   *Fini quand* : un brouillon est créé dans le fil, adressé au contact, signé du nom lu sur l'envoi du candidat ;
   sans contact, statut hors relance ou IA indisponible : aucun brouillon ; aucune candidature sans contact listée.
+- [x] **T-311 Réglages réduits à l'essentiel** — *demande du Business Owner du 24/09/2026 (cahier v1.23, BES-35),
+  selon `ux-design` et `ui-design`.* Carte « Fournisseurs d'IA » retirée de l'écran ; carte Gmail réorganisée :
+  état en badge (mot + point, jamais la seule couleur) et « Synchroniser maintenant » en tête, préférences (libellés en
+  interrupteur, période en puces tant que la première synchronisation n'a pas eu lieu), entretien (relecture), puis
+  connexion à l'écart (déconnexion en rouge, confirmée). *Exigences* : EF-CFG-05, EF-CFG-02 (retirée de l'écran),
+  EF-CFG-01, EF-CFG-04, EF-GML-02, EF-GML-17, EF-GML-20.
 
 ## Lot 4 — Veille des offres
 

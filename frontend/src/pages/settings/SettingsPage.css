@@ -31,146 +31,275 @@
   font-size: 0.9375rem;
 }
 
-.gmail-settings__mailbox {
+/* EF-CFG-05: title and state on one line — the state is what the eye looks for first. */
+.gmail-card__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+}
+
+.gmail-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.25rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.gmail-badge__dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.gmail-badge--ok {
+  background: var(--status-interview-soft);
+  color: var(--status-interview);
+}
+
+.gmail-badge--running {
+  background: var(--status-waiting-soft);
+  color: var(--status-waiting);
+}
+
+.gmail-badge--running .gmail-badge__dot {
+  animation: gmail-badge-pulse 1.2s ease-in-out infinite;
+}
+
+.gmail-badge--expired {
+  background: var(--status-rejected-soft);
+  color: var(--status-rejected);
+}
+
+@keyframes gmail-badge-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gmail-badge--running .gmail-badge__dot {
+    animation: none;
+  }
+}
+
+/* The mailbox and its primary action side by side; on a phone the action takes the full width (Fitts). */
+.gmail-card__status {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 0.2rem;
-  padding: 0.85rem 1rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.6rem 1rem;
+  padding: 1rem 1.1rem;
   border-radius: var(--radius-sm);
   background: var(--color-canvas);
 }
 
-.gmail-settings__address {
+.gmail-card__identity {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.gmail-card__address {
   margin: 0;
   font-weight: 700;
   overflow-wrap: anywhere;
 }
 
-.gmail-settings__meta {
+.gmail-card__progress {
+  grid-column: 1 / -1;
   margin: 0;
   color: var(--color-mauve-deep);
   font-size: 0.875rem;
 }
 
-.gmail-settings__actions {
+@container shell-main (max-width: 34rem) {
+  .gmail-card__status {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .gmail-card__primary {
+    width: 100%;
+  }
+}
+
+.gmail-card__hint {
+  margin: 0;
+  color: var(--color-mauve-deep);
+  font-size: 0.875rem;
+}
+
+/* Sections separated by a hairline and space, not by boxes (Gestalt proximity, enclosure without chrome). */
+.gmail-card__section {
+  display: grid;
+  gap: 0.75rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--color-line);
+}
+
+.gmail-card__section-title {
+  margin: 0;
+  color: var(--color-mauve-deep);
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.gmail-card__setting {
+  display: grid;
+  gap: 0.35rem;
+}
+
+/* The whole row is the target of the switch (HIG: the label is clickable), label on the left (scanning). */
+.gmail-card__setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 44px;
+  cursor: pointer;
+}
+
+.gmail-card__setting-label {
+  margin: 0;
+  font-weight: 600;
+}
+
+.gmail-card__buttons,
+.gmail-card__empty,
+.gmail-card__expired {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 0.6rem 0.9rem;
 }
 
-.gmail-settings__confirm {
-  flex-basis: 100%;
-  margin: 0;
-  font-size: 0.875rem;
-}
-
-.gmail-settings__loading {
+.gmail-card__loading {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
   gap: 0.5rem;
 }
 
-.gmail-settings__option {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 0.2rem;
+.gmail-card__expired .flash {
+  margin: 0;
 }
 
-.gmail-settings__option-label {
+/* EF-GML-17: a switch — the change applies at once (HIG, MD3). Native checkbox underneath: keyboard and state for free. */
+.switch {
+  position: relative;
+  flex: none;
+  width: 2.75rem;
+  height: 1.5rem;
+  margin: 0;
+  border-radius: 999px;
+  background: var(--color-mist-soft);
+  appearance: none;
+  cursor: pointer;
+  transition: background-color 160ms ease-out;
+}
+
+.switch::after {
+  position: absolute;
+  top: 0.1875rem;
+  left: 0.1875rem;
+  width: 1.125rem;
+  height: 1.125rem;
+  border-radius: 50%;
+  background: var(--color-canvas-raised);
+  box-shadow: 0 1px 3px rgb(62 61 71 / 0.25);
+  content: '';
+  transition: transform 160ms ease-out;
+}
+
+.switch:checked {
+  background: var(--color-accent);
+}
+
+.switch:checked::after {
+  transform: translateX(1.25rem);
+}
+
+.switch:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.switch:disabled {
+  cursor: progress;
+  opacity: 0.6;
+}
+
+/* EF-CFG-04: five choices as chips, all visible at once (MD3 choice chips). */
+.chips {
   display: flex;
-  align-items: center;
-  gap: 0.55rem;
-  font-weight: 600;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.chip {
+  position: relative;
+  display: inline-flex;
   cursor: pointer;
 }
 
-.gmail-settings__option-label input {
-  width: 1.05rem;
-  height: 1.05rem;
+.chip input {
+  position: absolute;
+  opacity: 0;
+  inset: 0;
   margin: 0;
-  accent-color: var(--color-accent);
+  cursor: pointer;
 }
 
-.gmail-settings__option .gmail-settings__meta {
-  padding-left: 1.6rem;
-}
-
-/* EF-CFG-04: the period is a select, without the checkbox indent. */
-.gmail-settings__option--period .gmail-settings__option-label,
-.gmail-settings__option--period .gmail-settings__meta {
-  padding-left: 0;
-  cursor: default;
-}
-
-.gmail-settings__select {
-  max-width: 16rem;
-}
-
-.ai-settings__providers {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem 1.25rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.ai-settings__providers li {
-  display: flex;
-  align-items: baseline;
-  gap: 0.45rem;
-}
-
-.ai-settings__provider {
-  font-weight: 700;
-}
-
-.ai-settings__model,
-.ai-settings__fallback {
-  color: var(--color-mauve-deep);
+.chip span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.25rem;
+  padding: 0 0.95rem;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  background: var(--color-canvas-raised);
   font-size: 0.875rem;
-  overflow-wrap: anywhere;
+  transition:
+    background-color 150ms ease-out,
+    border-color 150ms ease-out;
 }
 
-/* `fixed`: the columns share the width on offer and their text wraps, instead of the table settling on the
-   width its longest model name asks for and pushing the card past the screen of a phone (ENF-UTI-02). */
-.ai-settings__tasks {
-  width: 100%;
-  table-layout: fixed;
-  border-collapse: collapse;
-  font-size: 0.9375rem;
+.chip:hover span {
+  border-color: var(--color-mauve);
 }
 
-.ai-settings__tasks th,
-.ai-settings__tasks td {
-  padding: 0.55rem 0.5rem 0.55rem 0;
-  overflow-wrap: anywhere;
-  border-bottom: 1px solid var(--color-canvas);
-  text-align: left;
-  vertical-align: baseline;
-}
-
-.ai-settings__tasks thead th {
-  color: var(--color-mauve-deep);
-  font-size: 0.8125rem;
+.chip input:checked + span {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+  color: var(--color-accent-strong);
   font-weight: 600;
 }
 
-.ai-settings__tasks tbody th {
-  font-weight: 600;
+.chip input:focus-visible + span {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
 }
 
-.ai-settings__primary {
-  font-weight: 700;
+.chip input:disabled + span {
+  opacity: 0.6;
 }
 
-.gmail-settings__expired {
-  display: grid;
-  justify-items: start;
-  gap: 0.6rem;
+/* EF-GML-02: the destructive action reads as such, in words and colour, never as the primary one (HIG). */
+.btn--quiet-danger {
+  color: var(--status-rejected);
 }
 
-.gmail-settings__expired .flash {
-  margin: 0;
+.btn--danger {
+  background: var(--status-rejected);
+  color: var(--color-canvas-raised);
+}
+
+.btn--danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--status-rejected) 88%, var(--color-ink));
 }
