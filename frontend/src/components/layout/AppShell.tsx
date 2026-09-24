@@ -9,6 +9,13 @@ import './AppShell.css';
 const MAIN_ID = 'contenu';
 
 /**
+ * Accessible name of a destination: its full label, followed by the short one of a phone when that one is not already
+ * a part of it — the words on screen are then always in the name a voice command can say (WCAG 2.5.3).
+ */
+const accessibleNameOf = ({ label, shortLabel }: { label: string; shortLabel: string }): string =>
+  label.includes(shortLabel) ? label : `${label} (${shortLabel})`;
+
+/**
  * Frame of every signed-in page: ink side panel (30 %) with the navigation of the 6 screens, light canvas (60 %)
  * for the content. On a phone the frame becomes that of an application: a slim top bar for the name and the
  * account, and a fixed bottom bar holding the same six destinations, thumb-reachable (ENF-UTI-02).
@@ -41,8 +48,12 @@ export function AppShell() {
           <ul className="shell__nav">
             {NAV_ITEMS.map((item) => (
               <li key={item.path}>
-                {/* The accessible name stays the full one, whichever label the screen is wide enough to show. */}
-                <NavLink to={item.path} end={item.path === '/'} className="shell__link" aria-label={item.label}>
+                <NavLink
+                  to={item.path}
+                  end={item.path === '/'}
+                  className="shell__link"
+                  aria-label={accessibleNameOf(item)}
+                >
                   {item.icon}
                   <span className="shell__label" aria-hidden="true">
                     {item.label}
