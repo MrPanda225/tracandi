@@ -16,6 +16,7 @@
 | 1.11 | 23/09/2026 | Sahiré YAPI (Business Owner) | À valider — traitements longs exécutés en file d'attente, l'interface répondant aussitôt et suivant l'avancement en direct (BES-23, EXM-15, EF-EXE-01 à 05, ENF-PERF-06) |
 | 1.13 | 23/09/2026 | Sahiré YAPI (Business Owner) | À valider — sources à surveiller déduites des entreprises auxquelles le candidat a déjà postulé, proposées et jamais ajoutées d'office (BES-25, EF-VEI-23 à 25, RG-19) |
 | 1.14 | 23/09/2026 | Sahiré YAPI (Business Owner) | À valider — toutes les sources proposées ajoutables d'un seul geste (BES-26, EF-VEI-26) |
+| 1.15 | 24/09/2026 | Sahiré YAPI (Business Owner) | À valider — page carrières retrouvée depuis l'adresse racine d'un site (BES-27, EF-VEI-27) |
 
 > Document de référence pour le développement. Toute évolution de périmètre passe par une mise à jour
 > de ce fichier **avant** le code. Chaque exigence porte un identifiant stable, repris dans
@@ -116,6 +117,7 @@ des candidatures, la veille des offres et la production de CV adaptés.
 | BES-19 | « Pour la synchronisation on peut définir la période à vérifier qui doit être modifiable sur l'écran, mais pour éviter ces rate limits on peut passer par les mails sur la période 1 mois. » (après refus de quota de l'API Gmail, 22/09/2026) |
 | BES-20 | « J'ai l'abonnement max avec Claude et je ne veux pas payer de crédit en plus […] je veux utiliser ces trois là Llama 3.3 70B, Qwen, Kimi K2 de Groq. » (22/09/2026) |
 | BES-21 | « Il faut qu'il puisse bien labéliser les offres (quand c'est refusé ne pas confondre avec accusé de réception etc.) en vérifiant la présence de certains mots dans le mail. » (23/09/2026) |
+| BES-27 | « Comment résoudre ce problème d'adaptateur générique ? Il faudrait résoudre ça automatiquement pour mon scraping. » (24/09/2026) |
 | BES-26 | « Rajoute un bouton pour surveiller tous les sites de la proposition d'un coup. » (23/09/2026) |
 | BES-25 | « L'idée de cette section, c'est de récupérer depuis les offres que j'ai récupérées leur nom de site à travers les mails, et stocker dans ma BD. » (23/09/2026) |
 | BES-24 | « Ajoute une section Profil pour définir ses expériences, ce que l'on recherche aussi, et ses formations (niveau d'études master, licence, etc.) et les certificats passés et tout. » (23/09/2026) |
@@ -240,6 +242,7 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | EF-VEI-24 | Le système doit proposer le type de source d'une entreprise lorsque le domaine d'envoi désigne un ATS connu, et « page carrières » sinon. | S | EXM-05 | T | Message envoyé depuis `no-reply@greenhouse.io` : type Greenhouse proposé. |
 | EF-VEI-25 | Le candidat peut écarter une proposition, qui ne lui est alors plus présentée. | S | EXM-05 | T | Proposition écartée : absente de la liste au rappel suivant. |
 | EF-VEI-26 | Le candidat peut ajouter d'un seul geste toutes les sources proposées, et le système lui rend compte de celles qu'il n'a pas pu ajouter, avec la raison. | S | EXM-05 | T | Trois propositions dont une refusée : deux sources ajoutées, la refusée nommée avec sa raison. |
+| EF-VEI-27 | Le système doit retrouver la page qui liste les offres lorsque la source ne désigne que l'accueil du site, en suivant un lien de ce site, et sans jamais en suivre plus d'un. | S | EXM-05 | T | Source `https://exemple.fr/` dont l'accueil porte « Nos offres » : les offres de cette page sont relevées, sans appel d'IA sur l'accueil. Adresse hors du site : jamais suivie. |
 
 ### 6.4 Production de CV et de réponses (CVX)
 
@@ -530,5 +533,6 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | BES-23 | EXM-15 | EF-EXE-01 à 05, ENF-PERF-06 |
 | BES-25 | EXM-05 | EF-VEI-23, 24, 25, RG-19 |
 | BES-26 | EXM-05 | EF-VEI-26 |
+| BES-27 | EXM-05 | EF-VEI-27 |
 
 La traçabilité fine exigence → tâche → test est tenue à jour dans `docs/TRACABILITE.md`.

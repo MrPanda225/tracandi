@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { buildExtractOffersPrompt } from '../../llm/prompts/extractOffers.js';
 import { normalizeKey } from '../../lib/text.js';
 import { ExtractedOffersSchema, type ExtractedOffer } from '../../modules/offers/extraction.js';
+import { careerLinkOf } from '../careerLink.js';
 import { readPage, type ReadablePage } from '../page.js';
 import { contractTypeOf } from './description.js';
 import {
@@ -95,25 +96,77 @@ const toOffer = (offer: ExtractedOffer, page: ReadablePage, pageUrl: string): No
  * text and links, a model extracts what looks like an offer, and the code — not the model — decides where the
  * candidate may be sent.
  */
+/** Une page lue, avec l'adresse qu'elle porte après redirections. */
+interface ReadAddress {
+  address: string;
+  page: ReadablePage;
+}
+
+/** @throws SourceFetchError quand la page ne répond pas 200. */
+const read = async (url: string, deps: AdapterDeps): Promise<ReadAddress> => {
+  const answered = await deps.fetch(url);
+  if (answered.status !== HTTP_OK) {
+    throw new SourceFetchError(`${LABEL} : la page a répondu ${answered.status}.`);
+  }
+  const address = answered.url || url;
+  return { address, page: readPage(answered.body, address) };
+};
+
+/**
+ * EF-VEI-27, second recours : l'adresse que le modèle a repérée, retenue aux mêmes conditions qu'une offre —
+ * **présente parmi les liens de la page** et sur le site de la source. Les mots-clés ne servent pas ici : le
+ * modèle a lu la page, c'est son jugement qu'on vérifie, pas le libellé du lien.
+ */
+const proposedCareerPage = (proposed: string | null, from: ReadAddress): string | null => {
+  if (proposed === null) return null;
+  const target = URL.parse(proposed);
+  const source = URL.parse(from.address);
+  const isOnThePage = from.page.links.some((link) => link.url === proposed);
+  return target && source && isOnThePage && isSameSite(target, source) ? target.href : null;
+};
+
+/**
+ * Page carrières d'une entreprise sans job board (EF-VEI-08). Dernier recours de la veille : la page est réduite
+ * à son texte et à ses liens, un modèle en extrait ce qui ressemble à une offre, et le code — jamais le modèle —
+ * décide où le candidat peut être envoyé.
+ *
+ * EF-VEI-27 : l'adresse enregistrée est souvent la **racine du site**, qui ne publie rien. Un rebond est alors
+ * fait vers la page qui liste les offres — d'abord par le lien que le site porte lui-même, sans aucun appel
+ * d'IA, puis à défaut par l'adresse que le modèle a repérée. **Un seul rebond** : jamais de parcours de site.
+ */
 export const genericAdapter: SourceAdapter = {
   id: 'generic',
   label: 'Page carrières',
   identifierHint: 'Adresse de la page qui liste les offres, par exemple https://exemple.fr/nous-rejoindre.',
   identifierSchema: CareerPageSchema,
   async fetchOffers(identifier, deps: AdapterDeps) {
-    if (!deps.runTask) {
+    const runTask = deps.runTask;
+    if (!runTask) {
       throw new SourceFetchError('Une page carrières demande un service d’IA, qu’aucun fournisseur ne rend.');
     }
-    const answered = await deps.fetch(identifier);
-    if (answered.status !== HTTP_OK) {
-      throw new SourceFetchError(`${LABEL} : la page a répondu ${answered.status}.`);
+
+    const extract = async ({ address, page }: ReadAddress) =>
+      (
+        await runTask('extract_offers', {
+          ...buildExtractOffersPrompt({ pageUrl: address, text: page.text, links: page.links }),
+          schema: ExtractedOffersSchema,
+        })
+      ).data;
+
+    const landing = await read(identifier, deps);
+    // Le lien que le site porte lui-même : déterministe, et il épargne un appel d'IA sur une page d'accueil.
+    const known = careerLinkOf(landing.page.links, landing.address);
+    const board = known === null ? landing : await read(known, deps);
+
+    const found = await extract(board);
+    if (found.offers.length > 0 || known !== null) {
+      return found.offers.map((offer) => toOffer(offer, board.page, board.address));
     }
-    const address = answered.url || identifier;
-    const page = readPage(answered.body, address);
-    const { data } = await deps.runTask('extract_offers', {
-      ...buildExtractOffersPrompt({ pageUrl: address, text: page.text, links: page.links }),
-      schema: ExtractedOffersSchema,
-    });
-    return data.offers.map((offer) => toOffer(offer, page, address));
+
+    const proposed = proposedCareerPage(found.careerPageUrl, board);
+    if (proposed === null) return [];
+
+    const second = await read(proposed, deps);
+    return (await extract(second)).offers.map((offer) => toOffer(offer, second.page, second.address));
   },
 };

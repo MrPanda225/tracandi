@@ -237,6 +237,21 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
   *Reste à faire* : la description d'une offre nouvelle chez SmartRecruiters et Workday n'est toujours pas lue
   (une requête par offre, 3 s chacune) — la notation s'y appuie sur l'intitulé, le lieu et le contrat ; à traiter
   avec T-406, qui affichera le détail d'une offre. Le récapitulatif e-mail (EF-VEI-15) est T-405.
+- [x] **T-408 Page carrières retrouvée depuis la racine du site** — *demande du Business Owner du 24/09/2026
+  (cahier v1.15, BES-27)* : une source déduite ne donne que le domaine ; l'accueil d'un site ne publie pas
+  d'offres, et l'adaptateur générique n'y trouvait rien.
+  *Exigences* : EF-VEI-27, EF-VEI-11 (messages d'échec), ENF-SEC-06.
+  *Fini quand* : une source pointant la racine d'un site dont l'accueil renvoie aux offres les relève ; une
+  adresse hors du site n'est jamais suivie.
+  *Livré* : `scraper/careerLink.ts` — le lien vers les offres reconnu **sans appel d'IA**, par le libellé et par
+  l'adresse (« Nos offres », « Carrières », « Nous rejoindre », « Join us »…), en écartant ce qui parle d'emploi
+  sans rien lister (candidature spontanée, politique de recrutement, actualités). `ExtractedOffersSchema` gagne
+  `careerPageUrl`, second recours quand le site ne nomme aucun lien reconnaissable.
+  *Choix assumés* : **un seul rebond**, jamais de parcours de site (ENF-COL-02 : chaque saut coûte 3 s). Le lien
+  du site passe **avant** le modèle, ce qui épargne un appel d'IA sur chaque page d'accueil. L'adresse que le
+  modèle propose est retenue aux mêmes conditions qu'une offre : présente parmi les liens de la page et sur le
+  site de la source — le code, jamais le modèle, décide où le candidat est envoyé (ENF-SEC-06).
+
 - [ ] **T-405 Récapitulatif e-mail** — envoi via Gmail des offres de score ≥ S.
   *Exigences* : EF-VEI-15.
 - [~] **T-406 Écrans Sites et Offres** — ajout/suspension/retrait, liste triée, filtre score, garder/écarter,
