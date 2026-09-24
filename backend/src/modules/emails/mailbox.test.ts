@@ -88,9 +88,27 @@ describe('createGmailMailbox — reading a message', () => {
       snippet:
         "Bonjour Alex, merci pour votre candidature au poste d'équipier polyvalent chez McDonald's Lyon " +
         'Part-Dieu. Nous reviendrons vers vous "très vite" & au plus tard sous 15 jours.',
+      toAddress: null,
       text: '',
       receivedAt: new Date('2026-09-02T14:30:00.000Z'),
     });
+  });
+
+  it('[RG-03] [BES-32] reads the address of the first recipient, and none when the header is missing', async () => {
+    const withRecipients = {
+      ...SENT_APPLICATION,
+      payload: {
+        ...SENT_APPLICATION.payload,
+        headers: [
+          ...(SENT_APPLICATION.payload?.headers ?? []),
+          { name: 'To', value: '"Deschamps, Christophe" <c.deschamps@data-praxis.example>, rh@data-praxis.example' },
+        ],
+      },
+    };
+    const mailbox = createGmailMailbox(createFakeGmail([withRecipients, BANK_STATEMENT]).client);
+
+    expect((await mailbox.getMessage(SENT_APPLICATION.id ?? ''))?.toAddress).toBe('c.deschamps@data-praxis.example');
+    expect((await mailbox.getMessage(BANK_STATEMENT.id ?? ''))?.toAddress).toBeNull();
   });
 
   it('[EF-GML-03] tells a message sent by the candidate by its SENT label', async () => {

@@ -1,3 +1,4 @@
+import { domainAndParents, domainOfAddress } from './domains.js';
 import { normalizeKey } from '../../lib/text.js';
 
 /**
@@ -89,22 +90,6 @@ export interface Prefilter {
   isRetained: (message: PrefilteredFields) => boolean;
 }
 
-// A domain has at least two labels: « fr » alone never designates a platform.
-const MIN_DOMAIN_LABELS = 2;
-
-const domainOf = (address: string): string | null => {
-  const at = address.lastIndexOf('@');
-  return at < 0 ? null : address.slice(at + 1).toLowerCase();
-};
-
-/** The domain and each parent domain of it, longest first: « a.mail.apec.fr », « mail.apec.fr », « apec.fr ». */
-const domainAndParents = (domain: string): string[] => {
-  const labels = domain.split('.');
-  return labels
-    .slice(0, labels.length - MIN_DOMAIN_LABELS + 1)
-    .map((_, index) => labels.slice(index).join('.'));
-};
-
 /**
  * RG-10 pre-filter, without any AI call (EF-GML-07). Keywords and texts are compared by their RG-14 key, between
  * spaces, so that a keyword only matches whole words.
@@ -118,7 +103,7 @@ export const createPrefilter = ({ keywords, platformDomains }: PrefilterLists): 
   };
 
   const platformOf = (fromAddress: string | null): PlatformRef | null => {
-    const domain = fromAddress ? domainOf(fromAddress) : null;
+    const domain = domainOfAddress(fromAddress);
     if (!domain) return null;
     const known = domainAndParents(domain).find((candidate) => platformDomains.has(candidate));
     return known === undefined ? null : (platformDomains.get(known) ?? null);

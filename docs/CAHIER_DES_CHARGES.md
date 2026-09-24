@@ -21,6 +21,7 @@
 | 1.17 | 24/09/2026 | Sahiré YAPI (Business Owner) | À valider — première mise en production limitée au tableau de bord, aux candidatures et aux réglages de la synchronisation Gmail ; veille et Atelier CV désactivables par configuration, leurs écrans affichés « En préparation », sur `main` comme sur `dev` (BES-29, ENF-MAI-07, EF-TDB-08 précisée) ; hébergement à trancher (Q-18) |
 | 1.18 | 24/09/2026 | Sahiré YAPI (Business Owner) | À valider — le classement d'un message lit le début de son corps, en mémoire et sans le conserver : des refus dont la formule arrive après un long préambule étaient classés « accusé de réception » (BES-30, EF-GML-08 précisée, RG-17 v1.18, ENF-RGP-01 précisée) |
 | 1.19 | 24/09/2026 | Sahiré YAPI (Business Owner) | À valider — relecture, à la demande, des messages déjà classés « accusé de réception », pour corriger ceux que RG-17 désigne désormais comme des refus (BES-31, EF-GML-20) |
+| 1.20 | 24/09/2026 | Sahiré YAPI (Business Owner) | À valider — entreprise déduite du domaine de l'adresse du correspondant quand ni l'employeur ni la plateforme ne sont identifiés (BES-32, RG-03 v1.20) |
 
 > Document de référence pour le développement. Toute évolution de périmètre passe par une mise à jour
 > de ce fichier **avant** le code. Chaque exigence porte un identifiant stable, repris dans
@@ -130,6 +131,7 @@ des candidatures, la veille des offres et la production de CV adaptés.
 | BES-29 | « On va réarranger les branches de façon propre : une branche dev pour tous les développements, la main laisse juste trois fonctionnalités de l'app qu'on va développer à fond avant de la déployer : le tableau de bord, candidature et réglage pour la synchronisation avec le mail pour suivre ces candidatures. » (24/09/2026) |
 | BES-30 | « Nous allons travailler sur la classification des offres : regarde, il l'a mise en attente au lieu de la mettre refusée, pareil sur la deuxième image. » (24/09/2026 ; deux refus — « nous ne pouvons pas donner de suite favorable », « nous avons le regret […] pas retenu votre candidature » — étiquetés « Statut/En attente ») |
 | BES-31 | « Ok vas-y. » (24/09/2026, en réponse à la proposition : relire les messages déjà classés « accusé de réception » avec la lecture du corps de T-307, pour corriger les refus déjà enregistrés comme « En attente ») |
+| BES-32 | « Pour les entreprises inconnues, il suffit de regarder le nom de domaine dans le mail. » (24/09/2026, capture : candidature envoyée à `christophe.deschamps@data-praxis.fr`, enregistrée « Entreprise inconnue ») |
 | BES-23 | « Applique un système de queue pour mes traitements trop longs et même des websockets, avec une architecture asynchrone. » (23/09/2026) |
 
 ### 4.2 Exigences métier (indépendantes de la solution)
@@ -452,7 +454,7 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 |---|---|
 | RG-01 | Les statuts de candidature sont : **À postuler**, **Envoyée**, **Accusé reçu**, **Entretien**, **Proposition**, **Refusée**. |
 | RG-02 | Correspondance catégorie → statut : candidature envoyée → Envoyée ; accusé de réception → Accusé reçu ; entretien → Entretien ; proposition → Proposition ; refus → Refusée. Alerte emploi et hors sujet ne modifient aucune candidature. |
-| RG-03 | Rattachement d'un message : (a) entreprise identifiée par sa clé normalisée (RG-14) ; (b) si le message mentionne un intitulé, candidature de cette entreprise dont l'intitulé normalisé est identique ; (c) si le message ne mentionne aucun intitulé, candidature de l'entreprise dont la dernière activité est la plus récente ; (d) sinon, création d'une candidature avec l'intitulé mentionné ou, à défaut, « Candidature ». Si l'employeur n'est pas identifiable, l'entreprise retenue est la plateforme ; si aucune plateforme n'est identifiable, l'entreprise retenue est « Entreprise inconnue ». |
+| RG-03 | Rattachement d'un message : (a) entreprise identifiée par sa clé normalisée (RG-14) ; (b) si le message mentionne un intitulé, candidature de cette entreprise dont l'intitulé normalisé est identique ; (c) si le message ne mentionne aucun intitulé, candidature de l'entreprise dont la dernière activité est la plus récente ; (d) sinon, création d'une candidature avec l'intitulé mentionné ou, à défaut, « Candidature ». Si l'employeur n'est pas identifiable, l'entreprise retenue est la plateforme ; si aucune plateforme n'est identifiable, l'entreprise est déduite du domaine de l'adresse du correspondant — le destinataire d'un message envoyé, l'expéditeur d'un message reçu — lorsque ce domaine la désigne selon RG-19 (ni messagerie grand public, ni plateforme, ni outil de recrutement, ni job board) : « data-praxis.fr » donne « Data Praxis » (v1.20, BES-32) ; à défaut, l'entreprise retenue est « Entreprise inconnue ». |
 | RG-04 | Évolution du statut : rang À postuler 0, Envoyée 1, Accusé reçu 2, Entretien 3, Proposition 4, Refusée 5. Un nouveau statut remplace le statut courant si et seulement si il vaut Proposition ou Refusée, ou si son rang est supérieur. Les messages sont traités par date croissante. La date de dernière activité prend la plus grande des deux dates. |
 | RG-05 | Libellés Gmail de statut : Refusée → « Statut/Refusée » ; Entretien et Proposition → « Statut/Entretien » ; Envoyée et Accusé reçu → « Statut/En attente ». À postuler → aucun libellé. |
 | RG-06 | Une candidature est « à relancer » lorsque son statut est Envoyée ou Accusé reçu et que sa dernière activité date de plus de D jours, D paramétrable avec 10 par défaut. |
@@ -550,5 +552,6 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | BES-29 | — (organisation de la mise en production) | ENF-MAI-07, EF-TDB-08 |
 | BES-30 | EXM-01 | EF-GML-08, RG-17, ENF-RGP-01 |
 | BES-31 | EXM-01 | EF-GML-20, RG-17, RG-04 |
+| BES-32 | EXM-01, EXM-02 | RG-03, EF-GML-09, EF-GML-11 |
 
 La traçabilité fine exigence → tâche → test est tenue à jour dans `docs/TRACABILITE.md`.

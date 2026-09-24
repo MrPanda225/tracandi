@@ -5,6 +5,7 @@ import { decryptSecret } from '../../lib/crypto.js';
 import { HttpError } from '../../lib/errors.js';
 import { normalizeKey } from '../../lib/text.js';
 import type { GmailMailbox, MailboxMessage, OpenMailbox } from './mailbox.js';
+import { companyOfCorrespondent } from './domains.js';
 import { isRateLimited } from './quota.js';
 import {
   createPrefilter,
@@ -22,9 +23,13 @@ export class GmailNotConnectedError extends HttpError {
   }
 }
 
-/** A new message kept by the pre-filter, with the known platform of its sender (EF-GML-10). */
+/**
+ * A new message kept by the pre-filter, with the known platform of its sender (EF-GML-10) and the company the domain
+ * of its correspondent names (RG-03 v1.20), for when the AI finds neither employer nor platform.
+ */
 export interface RetainedMessage extends MailboxMessage {
   platform: PlatformRef | null;
+  correspondentCompany: string | null;
 }
 
 export interface FetchResult {
@@ -166,6 +171,28 @@ const readMessages = async (
 };
 
 /**
+ * RG-10 split of the messages read: the ones kept for the classification, oldest first (RG-04 order), with their
+ * platform (EF-GML-10) and the company their correspondent's domain names (RG-03 v1.20); the others set aside.
+ * @req RG-10, RG-03, EF-GML-07, EF-GML-10
+ */
+const prefilterMessages = (
+  messages: readonly MailboxMessage[],
+  lists: PrefilterLists,
+): { retained: RetainedMessage[]; setAside: MailboxMessage[] } => {
+  const prefilter = createPrefilter(lists);
+  const platformDomainNames = new Set(lists.platformDomains.keys());
+  const kept = messages.filter((message) => prefilter.isRetained(message));
+  return {
+    retained: [...kept].sort(byReceptionDate).map((message) => ({
+      ...message,
+      platform: prefilter.platformOf(message.fromAddress),
+      correspondentCompany: companyOfCorrespondent(message, platformDomainNames),
+    })),
+    setAside: messages.filter((message) => !kept.includes(message)),
+  };
+};
+
+/**
  * Creates the fetcher of new Gmail messages: incremental listing, exclusion of the processed ones, metadata and
  * excerpt only, RG-10 pre-filter.
  * @req EF-GML-05, EF-GML-06, EF-GML-07, ENF-RGP-01, ENF-FIA-03, ENF-FIA-09, RG-10
@@ -210,20 +237,13 @@ export const createMessageFetcher = ({
         (message): message is MailboxMessage => message !== null && message.receivedAt >= since,
       );
 
-      const prefilter = createPrefilter(lists);
-      const isKept = new Map(messages.map((message) => [message, prefilter.isRetained(message)]));
+      const { retained, setAside } = prefilterMessages(messages, lists);
       await repository.insertProcessedMessages(db, {
         userId,
-        gmailMessageIds: messages
-          .filter((message) => !isKept.get(message))
-          .map((message) => message.gmailMessageId),
+        gmailMessageIds: setAside.map((message) => message.gmailMessageId),
         outcome: 'prefiltered',
         processedAt: now,
       });
-      const retained = messages
-        .filter((message) => isKept.get(message))
-        .sort(byReceptionDate)
-        .map((message) => ({ ...message, platform: prefilter.platformOf(message.fromAddress) }));
       return {
         readCount: messages.length,
         retained,

@@ -71,6 +71,8 @@ export const CLASSIFICATION_BY_SUBJECT: Readonly<Record<string, Classification>>
     jobTitle: 'Chef de projet électricité',
   }),
   'Candidature spontanée': answer({ category: 'sent_application' }),
+  // BES-32: the AI finds the title, not the employer, which only the domain of the recipient tells.
+  'Candidature – Data Analyst Poste de Travail': answer({ category: 'sent_application', jobTitle: 'Data Analyst' }),
   'Les offres d’emploi de la semaine': answer({ category: 'job_alert' }),
   'Candidat au marathon : votre dossard': answer({ category: 'off_topic' }),
 };

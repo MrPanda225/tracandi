@@ -175,6 +175,16 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
   *Fini quand* : un accusé de réception enregistré dont le corps refuse devient « refus », sa candidature « Refusée »
   et son fil « Statut/Refusée » ; un vrai accusé de réception reste inchangé ; `EXPLAIN` sans parcours complet de
   `emails` sur le jeu de charge.
+- [x] **T-309 Entreprise déduite du domaine du correspondant** — *demande du Business Owner du 24/09/2026 (cahier
+  v1.20, BES-32) : candidature envoyée à une adresse `@data-praxis.fr` enregistrée « Entreprise inconnue ».* L'en-tête
+  `To` est lu (premier destinataire, jamais conservé) ; sans employeur ni plateforme, l'entreprise est nommée d'après
+  le domaine du destinataire d'un message envoyé ou de l'expéditeur d'un message reçu, les domaines de RG-19 exclus.
+  Listes de domaines (messageries, outils de recrutement, ATS) déplacées de la veille vers `modules/emails/domains.ts`,
+  module toujours actif, et partagées avec le pré-filtre.
+  *Exigences* : RG-03 (v1.20), RG-19, EF-GML-09, EF-GML-11.
+  *Fini quand* : la candidature envoyée à `…@data-praxis.example` est rattachée à « Data Praxis » ; une adresse
+  Gmail, une plateforme, un outil de recrutement ou un ATS ne nomment aucune entreprise.
+  *Hors périmètre* : les candidatures déjà enregistrées « Entreprise inconnue » ne sont pas renommées.
 
 ## Lot 4 — Veille des offres
 
