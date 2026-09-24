@@ -55,6 +55,9 @@ const dateFormat = new Intl.DateTimeFormat(LOCALE, { day: 'numeric', month: 'sho
 const dateTimeFormat = new Intl.DateTimeFormat(LOCALE, { dateStyle: 'medium', timeStyle: 'short' });
 const dayMonthFormat = new Intl.DateTimeFormat(LOCALE, { day: 'numeric', month: 'long', timeZone: 'UTC' });
 const shortMonthFormat = new Intl.DateTimeFormat(LOCALE, { month: 'short', timeZone: 'UTC' });
+const dayFormat = new Intl.DateTimeFormat(LOCALE, { day: 'numeric', timeZone: 'UTC' });
+const dayShortMonthFormat = new Intl.DateTimeFormat(LOCALE, { day: 'numeric', month: 'short', timeZone: 'UTC' });
+const WEEK_LAST_DAY_MS = 6 * 24 * 60 * 60 * 1000;
 const fullDateFormat = new Intl.DateTimeFormat(LOCALE, { weekday: 'long', day: 'numeric', month: 'long' });
 
 /** Integer with French digit grouping (« 1 234 »). */
@@ -78,3 +81,17 @@ export const formatToday = (now: Date): string => fullDateFormat.format(now);
 /** « 1 candidature », « 3 candidatures » — French plural (0 and 1 are singular). */
 export const plural = (count: number, singular: string, pluralForm = `${singular}s`): string =>
   `${formatInteger(count)} ${count > 1 ? pluralForm : singular}`;
+
+/** Day and short month of a UTC date (« 7 sept. »), for the axis of a weekly chart. */
+export const formatDayShortMonth = (iso: string): string => dayShortMonthFormat.format(new Date(iso));
+
+/**
+ * The days a week starting on this UTC Monday covers, month written once when both ends share it:
+ * « 7 – 13 sept. », « 31 août – 6 sept. » (EF-TDB-04).
+ */
+export const formatWeekRange = (weekStartIso: string): string => {
+  const start = new Date(weekStartIso);
+  const end = new Date(start.getTime() + WEEK_LAST_DAY_MS);
+  const isSameMonth = start.getUTCMonth() === end.getUTCMonth();
+  return `${(isSameMonth ? dayFormat : dayShortMonthFormat).format(start)} – ${dayShortMonthFormat.format(end)}`;
+};

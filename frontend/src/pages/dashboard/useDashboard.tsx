@@ -1,5 +1,6 @@
 import { createContext, type ReactNode, useContext, useEffect, useState } from 'react';
 import { ApiError } from '../../api/client';
+import { followRuns, type RunState } from '../../api/jobs';
 import { type Dashboard, fetchDashboard } from '../../api/stats';
 
 const UNEXPECTED_MESSAGE = 'Une erreur inattendue est survenue.';
@@ -24,17 +25,36 @@ export interface DashboardLoad {
   /** Readable French message of the last failed request; null when it succeeded or is still running. */
   error: string | null;
   isRefreshing: boolean;
+  /** EF-TDB-11: true once the figures were refreshed on their own, after a synchronisation ended. */
+  isUpdatedLive: boolean;
 }
 
+// EF-TDB-11: the executions that change the figures; the watch does not touch the applications.
+const REFRESHING_JOBS: ReadonlySet<RunState['job']> = new Set(['gmail_sync', 'gmail_reclassify']);
+
 /**
- * Dashboard figures, requested again on every visit: the previous ones stay on screen meanwhile
- * (stale-while-revalidate). Must be used under DashboardCacheProvider.
+ * Dashboard figures, requested again on every visit and after every synchronisation or reading again that ends
+ * well while the dashboard is open (EF-TDB-11): the previous ones stay on screen meanwhile (stale-while-revalidate).
+ * Must be used under DashboardCacheProvider.
  */
 export function useDashboard(): DashboardLoad {
   const cache = useContext(DashboardCacheContext);
   if (!cache) throw new Error('useDashboard must be used within DashboardCacheProvider');
   const [dashboard, setDashboard] = cache;
-  const [request, setRequest] = useState<Omit<DashboardLoad, 'dashboard'>>({ error: null, isRefreshing: true });
+  const [request, setRequest] = useState<Omit<DashboardLoad, 'dashboard' | 'isUpdatedLive'>>({
+    error: null,
+    isRefreshing: true,
+  });
+  // Each ended synchronisation asks the figures again.
+  const [liveUpdates, setLiveUpdates] = useState(0);
+
+  useEffect(
+    () =>
+      followRuns((run) => {
+        if (run.outcome === 'success' && REFRESHING_JOBS.has(run.job)) setLiveUpdates((count) => count + 1);
+      }),
+    [],
+  );
 
   useEffect(() => {
     const controller = new AbortController();
@@ -49,7 +69,7 @@ export function useDashboard(): DashboardLoad {
         setRequest({ error: message, isRefreshing: false });
       });
     return () => controller.abort();
-  }, [setDashboard]);
+  }, [setDashboard, liveUpdates]);
 
-  return { dashboard, ...request };
+  return { dashboard, ...request, isUpdatedLive: liveUpdates > 0 && !request.isRefreshing && !request.error };
 }

@@ -34,7 +34,7 @@ export const DashboardSchema = z
       )
       .openapi({
         description:
-          'EF-TDB-04 : les 16 dernières semaines, semaine en cours comprise, la plus ancienne en premier',
+          'EF-TDB-04 : les 5 dernières semaines, semaine en cours comprise, la plus ancienne en premier',
       }),
     followUps: z
       .object({

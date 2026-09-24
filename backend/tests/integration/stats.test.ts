@@ -123,7 +123,7 @@ describe('GET /api/stats/dashboard', () => {
 
     expect(dashboard.totals).toEqual({ applications: 0, reachedInterview: 0, responseRate: 0 });
     expect(dashboard.byStatus.every((entry) => entry.count === 0)).toBe(true);
-    expect(dashboard.weekly).toHaveLength(16);
+    expect(dashboard.weekly).toHaveLength(5);
     expect(dashboard.followUps).toEqual({ total: 0, items: [] });
     expect(dashboard.offers).toEqual({ newAboveThreshold: 0, threshold: 60 });
     expect(dashboard.followUpDays).toBe(10);
@@ -174,13 +174,13 @@ describe('GET /api/stats/dashboard', () => {
     ]);
   });
 
-  it('[EF-TDB-04] counts sent, interviews and refusals for each of the last 16 weeks (UTC, Monday first)', async () => {
+  it('[EF-TDB-04] counts sent, interviews and refusals for each of the last 5 weeks (UTC, Monday first)', async () => {
     await seedAliceHistory();
 
     const { weekly } = await dashboardOf(alice);
 
-    expect(weekly).toHaveLength(16);
-    expect(weekly[0]?.weekStart).toBe('2026-06-08T00:00:00.000Z');
+    expect(weekly).toHaveLength(5);
+    expect(weekly[0]?.weekStart).toBe('2026-08-24T00:00:00.000Z');
     expect(weekly.find((week) => week.weekStart === '2026-08-31T00:00:00.000Z')).toEqual({
       weekStart: '2026-08-31T00:00:00.000Z',
       sent: 3,

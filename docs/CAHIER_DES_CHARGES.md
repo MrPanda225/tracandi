@@ -22,6 +22,7 @@
 | 1.18 | 24/09/2026 | Sahiré YAPI (Business Owner) | À valider — le classement d'un message lit le début de son corps, en mémoire et sans le conserver : des refus dont la formule arrive après un long préambule étaient classés « accusé de réception » (BES-30, EF-GML-08 précisée, RG-17 v1.18, ENF-RGP-01 précisée) |
 | 1.19 | 24/09/2026 | Sahiré YAPI (Business Owner) | À valider — relecture, à la demande, des messages déjà classés « accusé de réception », pour corriger ceux que RG-17 désigne désormais comme des refus (BES-31, EF-GML-20) |
 | 1.20 | 24/09/2026 | Sahiré YAPI (Business Owner) | À valider — entreprise déduite du domaine de l'adresse du correspondant quand ni l'employeur ni la plateforme ne sont identifiés (BES-32, RG-03 v1.20) |
+| 1.21 | 24/09/2026 | Sahiré YAPI (Business Owner) | À valider — suivi hebdomadaire resserré sur 5 semaines, semaine en cours comparée à la précédente, tableau de bord actualisé sans rechargement à la fin d'une synchronisation (BES-33, EF-TDB-04 v1.21, EF-TDB-10, EF-TDB-11) |
 
 > Document de référence pour le développement. Toute évolution de périmètre passe par une mise à jour
 > de ce fichier **avant** le code. Chaque exigence porte un identifiant stable, repris dans
@@ -132,6 +133,7 @@ des candidatures, la veille des offres et la production de CV adaptés.
 | BES-30 | « Nous allons travailler sur la classification des offres : regarde, il l'a mise en attente au lieu de la mettre refusée, pareil sur la deuxième image. » (24/09/2026 ; deux refus — « nous ne pouvons pas donner de suite favorable », « nous avons le regret […] pas retenu votre candidature » — étiquetés « Statut/En attente ») |
 | BES-31 | « Ok vas-y. » (24/09/2026, en réponse à la proposition : relire les messages déjà classés « accusé de réception » avec la lecture du corps de T-307, pour corriger les refus déjà enregistrés comme « En attente ») |
 | BES-32 | « Pour les entreprises inconnues, il suffit de regarder le nom de domaine dans le mail. » (24/09/2026, capture : candidature envoyée à `christophe.deschamps@data-praxis.fr`, enregistrée « Entreprise inconnue ») |
+| BES-33 | « Travaille sur le graphique pour le suivi : regardons sur une période de 5 semaines et sois plus expressif, suis le skill bi-dashboard-design ; il doit être dynamique. » (24/09/2026, captures du graphique des 16 semaines) |
 | BES-23 | « Applique un système de queue pour mes traitements trop longs et même des websockets, avec une architecture asynchrone. » (23/09/2026) |
 
 ### 4.2 Exigences métier (indépendantes de la solution)
@@ -288,7 +290,9 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | EF-TDB-01 | Le système doit afficher le nombre total de candidatures suivies. | M | EXM-09 | T |
 | EF-TDB-02 | Le système doit afficher le nombre de candidatures ayant atteint le statut Entretien ou Proposition. | M | EXM-09 | T |
 | EF-TDB-03 | Le système doit afficher le taux de réponse calculé selon RG-07. | M | EXM-09 | T |
-| EF-TDB-04 | Le système doit afficher, pour chacune des 16 dernières semaines, le nombre de candidatures envoyées, ayant obtenu un entretien et refusées. | S | EXM-09 | T |
+| EF-TDB-04 | Le système doit afficher, pour chacune des 5 dernières semaines (la semaine en cours comprise et signalée comme telle), le nombre de candidatures envoyées, ayant obtenu un entretien et refusées. (v1.21, BES-33 ; 16 semaines jusqu'en v1.20) | S | EXM-09 | T |
+| EF-TDB-10 | Le système doit afficher, pour la semaine en cours, les candidatures envoyées, les entretiens et les refus, chacun avec son écart à la semaine précédente. (v1.21, BES-33) | S | EXM-09 | T |
+| EF-TDB-11 | Le tableau de bord ouvert doit se mettre à jour, sans action du candidat, à la fin de chaque synchronisation Gmail ou relecture des messages réussie. (v1.21, BES-33) | S | EXM-09 | T |
 | EF-TDB-05 | Le système doit afficher le nombre de candidatures par statut. | M | EXM-09 | T |
 | EF-TDB-06 | Le système doit afficher le nombre de candidatures par canal (direct ou plateforme). | C | EXM-09 | T |
 | EF-TDB-07 | Le système doit afficher la liste des candidatures à relancer, de la plus ancienne à la plus récente. | M | EXM-04 | T |
@@ -553,5 +557,6 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | BES-30 | EXM-01 | EF-GML-08, RG-17, ENF-RGP-01 |
 | BES-31 | EXM-01 | EF-GML-20, RG-17, RG-04 |
 | BES-32 | EXM-01, EXM-02 | RG-03, EF-GML-09, EF-GML-11 |
+| BES-33 | EXM-09 | EF-TDB-04, EF-TDB-10, EF-TDB-11 |
 
 La traçabilité fine exigence → tâche → test est tenue à jour dans `docs/TRACABILITE.md`.

@@ -30,11 +30,12 @@ describe('weekStartOf', () => {
 });
 
 describe('lastWeekStarts', () => {
-  it('[EF-TDB-04] lists the 16 weeks ending with the current one, oldest first', () => {
+  it('[EF-TDB-04] lists the 5 weeks ending with the current one, oldest first', () => {
     const weeks = lastWeekStarts(new Date('2026-09-22T08:00:00.000Z'));
 
+    expect(WEEKS_SHOWN).toBe(5);
     expect(weeks).toHaveLength(WEEKS_SHOWN);
-    expect(weeks[0]?.toISOString()).toBe('2026-06-08T00:00:00.000Z');
+    expect(weeks[0]?.toISOString()).toBe('2026-08-24T00:00:00.000Z');
     expect(weeks.at(-1)?.toISOString()).toBe('2026-09-21T00:00:00.000Z');
   });
 });

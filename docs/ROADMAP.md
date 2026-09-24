@@ -423,6 +423,10 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
   *Fini quand* : chaque requête du tableau de bord s'exécute en moins de 50 ms sur le jeu de charge (`EXPLAIN ANALYZE`,
   test d'intégration) — ENF-PERF-05 ; ENF-PERF-04 ne vise plus ces agrégats (Q-17, cahier des charges v1.3).
 - [~] **T-602 Écran tableau de bord**.
+  *24/09/2026 (cahier v1.21, BES-33)* : suivi hebdomadaire refait selon `bi-dashboard-design` — 5 semaines en
+  barres groupées valeurs inscrites, semaine en cours plus claire et marquée « en cours », les trois chiffres de la
+  semaine comparés à la précédente (EF-TDB-10) servant aussi de légende et de bascule d'affichage, tableau pour
+  lecteur d'écran, actualisation d'elle-même à la fin d'une synchronisation ou d'une relecture (EF-TDB-11).
 
 ## Lot 7 — Exploitation
 
