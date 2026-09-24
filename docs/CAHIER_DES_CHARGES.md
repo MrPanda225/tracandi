@@ -366,7 +366,7 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 
 | ID | Exigence | Prio | Source | Vérif. |
 |---|---|---|---|---|
-| EF-LEG-01 | Le système doit publier, sans session, les mentions légales, la politique de confidentialité et la page des cookies, liées depuis la page de présentation, la page de connexion et l'application. L'éditeur, son contact et l'hébergeur viennent de la configuration ; une information manquante s'affiche comme « à compléter ». (v1.25, BES-38) | M | EXM-13 | T |
+| EF-LEG-01 | Le système doit publier, sans session, les mentions légales, la politique de confidentialité et la page des cookies, liées depuis la page de présentation, la page de connexion et l'application. L'éditeur (par défaut Sahiré YAPI), son adresse de contact (par défaut celle du Business Owner, accord du 24/09/2026) et l'hébergeur (par défaut Vercel et Northflank) peuvent être remplacés par la configuration. (v1.25, BES-38) | M | EXM-13 | T |
 | EF-LEG-02 | À la première visite, le système doit informer, sans bloquer la page ni demander de consentement, qu'il ne dépose qu'un cookie strictement nécessaire à la session ; l'information ne réapparaît pas une fois lue sur le même navigateur. (v1.25, BES-38 — lignes directrices de la CNIL) | S | EXM-13 | T |
 
 ## 7. Exigences non fonctionnelles

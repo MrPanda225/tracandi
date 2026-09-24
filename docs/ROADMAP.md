@@ -491,8 +491,8 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
   *Reste à faire* : la veille (T-404) et la génération de CV (T-504) se brancheront sur la même file.
 
 - [x] **T-708 Conformité RGPD** — *demande du Business Owner du 24/09/2026 (cahier v1.25, BES-38).* Pages publiques
-  mentions légales, politique de confidentialité et cookies (éditeur, contact et hébergeur par `VITE_LEGAL_*`,
-  « à compléter » à défaut), liées depuis la connexion, l'application et les Réglages ; mention d'information sur
+  mentions légales, politique de confidentialité et cookies (éditeur, contact et hébergeur par défaut,
+  remplaçables par `VITE_LEGAL_*`), liées depuis la connexion, l'application et les Réglages ; mention d'information sur
   l'unique cookie (session), sans consentement à demander, retenue dans le navigateur ; « Mes données » dans les
   Réglages : `GET /api/account/export` (fichier JSON de toutes les données, sans secret) et `DELETE /api/auth/account`
   (mot de passe, révocation Gmail, suppression en cascade, sessions fermées). *Exigences* : EF-AUT-11, EF-AUT-12,
