@@ -21,6 +21,8 @@ const DashboardPage = lazy(async () => ({
 const CvWorkshopPage = lazy(async () => ({
   default: (await import('./pages/cv/CvWorkshopPage')).CvWorkshopPage,
 }));
+// EF-AUT-09: the presentation page is for visitors only; its motion and decor never weigh on the application.
+const LandingPage = lazy(async () => ({ default: (await import('./pages/landing/LandingPage')).LandingPage }));
 const SitesPage = lazy(async () => ({ default: (await import('./pages/sites/SitesPage')).SitesPage }));
 
 /** The screens not built yet (T-003 shell), each stating what it will offer instead of an empty page. */
@@ -52,7 +54,13 @@ export function App() {
         />
         <Route
           element={
-            <RequireAuth>
+            <RequireAuth
+              anonymousHome={
+                <Suspense fallback={<ScreenLoading label="Chargement de la page d’accueil…" />}>
+                  <LandingPage />
+                </Suspense>
+              }
+            >
               <FeaturesProvider>
                 <DashboardCacheProvider>
                   <ApplicationsCacheProvider>

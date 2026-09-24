@@ -1,0 +1,8 @@
+.tilted-card {
+  perspective: 900px;
+}
+
+.tilted-card__inner {
+  transform-style: preserve-3d;
+  will-change: transform;
+}

@@ -134,14 +134,16 @@ describe('AppShell', () => {
     expect(within(link).getByText('Suivi')).toBeInTheDocument();
   });
 
-  it('[EF-AUT-04] signs out from the shell and returns to the login page', async () => {
+  it('[EF-AUT-04] [EF-AUT-09] signs out from the shell and returns to the presentation of the service', async () => {
     renderSignedIn('/');
     const user = userEvent.setup();
     await screen.findByRole('heading', { name: 'Tableau de bord' });
 
     await user.click(screen.getByRole('button', { name: 'Se déconnecter' }));
 
-    expect(await screen.findByRole('heading', { name: 'Bon retour.' })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Vos candidatures, suivies toutes seules.' }),
+    ).toBeInTheDocument();
   });
 
   it("[EF-AUT-06] never shows the previous session's applications to the next account", async () => {
@@ -211,6 +213,9 @@ describe('AppShell', () => {
     expect(await kpis.findByText('12')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Se déconnecter' }));
+    await user.click(
+      within(await screen.findByRole('banner')).getByRole('link', { name: 'Se connecter' }),
+    );
     await screen.findByRole('heading', { name: 'Bon retour.' });
     answerDashboard = () => new Promise<Response>(() => undefined);
     await user.type(screen.getByLabelText('Adresse e-mail'), OTHER_ACCOUNT.email);

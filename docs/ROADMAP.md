@@ -49,6 +49,15 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
 
 ## Lot 1 — Suivi manuel des candidatures
 
+- [x] **T-007 Page de présentation** — *demande du Business Owner du 24/09/2026 (cahier v1.24, BES-36, BES-37).*
+  À l'adresse racine pour un visiteur sans session (`RequireAuth` › `anonymousHome`) ; accès « Se connecter » et
+  « Créer un compte » (`/connexion?mode=inscription`, EF-AUT-10). Sections : présentation avec aperçu du tableau de
+  bord en 3D (données d'exemple), fonctionnement en trois étapes, fonctionnalités en grille, chiffres du produit,
+  confidentialité, appel final. Composants React Bits adaptés (TiltedCard, BlurText, CountUp avec `motion` accordé ;
+  GlareHover, StarBorder, ShinyText sans dépendance ; SpotlightCard, Magnet, ClickSpark existants) ; chargement
+  d'ouverture ; tout mouvement coupé sous `prefers-reduced-motion` (ENF-UTI-04). Bklit écarté : bibliothèque de
+  graphiques exigeant Tailwind, shadcn et React 19. Page chargée à part (49 kB gzip), le reste de l'application
+  inchangé. *Exigences* : EF-AUT-09, EF-AUT-10, ENF-UTI-04, ENF-PERF-01.
 - [x] **T-101 Domaine candidatures** — `normalizeKey` (RG-14), `shouldReplaceStatus` (RG-04), repository
   entreprises/candidatures, service de rattachement (RG-03).
   *Exigences* : EF-CAN-11, RG-03, RG-04, RG-14.

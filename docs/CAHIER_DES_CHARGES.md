@@ -24,6 +24,7 @@
 | 1.20 | 24/09/2026 | Sahiré YAPI (Business Owner) | À valider — entreprise déduite du domaine de l'adresse du correspondant quand ni l'employeur ni la plateforme ne sont identifiés (BES-32, RG-03 v1.20) |
 | 1.21 | 24/09/2026 | Sahiré YAPI (Business Owner) | À valider — suivi hebdomadaire resserré sur 5 semaines, semaine en cours comparée à la précédente, tableau de bord actualisé sans rechargement à la fin d'une synchronisation (BES-33, EF-TDB-04 v1.21, EF-TDB-10, EF-TDB-11) |
 | 1.22 | 24/09/2026 | Sahiré YAPI (Business Owner) | À valider — relance limitée aux candidatures dont une adresse de contact est connue ; bouton « Relancer » préparant, rédigé par l'IA, un brouillon Gmail en réponse dans le fil, jamais envoyé par le système (BES-34, RG-06 v1.22, RG-20, EF-CAN-17, RG-13, ENF-RGP-01) |
+| 1.24 | 24/09/2026 | Sahiré YAPI (Business Owner) | À valider — page de présentation à l'adresse racine pour un visiteur non connecté, animée (chargement, survol, mouvement 3D, micro-interactions) et sobre quand le système demande moins d'animations ; dépendance `motion` accordée (BES-36, BES-37, EF-AUT-09, EF-AUT-10, ENF-UTI-04). Numéro 1.24 : la version 1.23 est en cours d'intégration (T-311). |
 
 > Document de référence pour le développement. Toute évolution de périmètre passe par une mise à jour
 > de ce fichier **avant** le code. Chaque exigence porte un identifiant stable, repris dans
@@ -136,6 +137,8 @@ des candidatures, la veille des offres et la production de CV adaptés.
 | BES-32 | « Pour les entreprises inconnues, il suffit de regarder le nom de domaine dans le mail. » (24/09/2026, capture : candidature envoyée à `christophe.deschamps@data-praxis.fr`, enregistrée « Entreprise inconnue ») |
 | BES-33 | « Travaille sur le graphique pour le suivi : regardons sur une période de 5 semaines et sois plus expressif, suis le skill bi-dashboard-design ; il doit être dynamique. » (24/09/2026, captures du graphique des 16 semaines) |
 | BES-34 | « Au niveau des relances, il faudra revoir la politique : relancer tous ceux dont on a un mail de relance, et ajouter un bouton Relance qui va rédiger le mail à envoyer ; en cliquant, ça doit lancer le mail avec l'objet et le contenu, avec le mail en attendant d'être envoyé. » (24/09/2026 ; précisé : adresse joignable, brouillon dans Gmail, rédaction par l'IA) |
+| BES-36 | « On va ajouter une landing page pour permettre d'expliquer le projet, qui soit dynamique et pro (hover effects, smooth loader, un peu de 3D motion et micro-interactions), qui sera la page de garde de l'app. » (24/09/2026) |
+| BES-37 | « Utilise les composants aussi de bklit.com et reactbits.dev. » (24/09/2026 ; précisé : dépendances accordées — aucune, puis `motion` ; Bklit écarté, bibliothèque de graphiques exigeant Tailwind, shadcn et React 19 ; page à l'adresse racine pour les visiteurs) |
 | BES-23 | « Applique un système de queue pour mes traitements trop longs et même des websockets, avec une architecture asynchrone. » (23/09/2026) |
 
 ### 4.2 Exigences métier (indépendantes de la solution)
@@ -419,6 +422,7 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | ENF-UTI-01 | L'interface doit être rédigée en français. | I |
 | ENF-UTI-02 | L'interface doit rester utilisable sur un écran de 360 px de large. | D |
 | ENF-UTI-03 | Chaque action longue (plus de 1 seconde) doit afficher un indicateur d'attente. | D |
+| ENF-UTI-04 | Les animations de la page de présentation (chargement, survol, mouvement 3D, micro-interactions) doivent s'arrêter lorsque le système de l'utilisateur demande de réduire les animations, sans rien retirer du contenu ni des accès. (v1.24, BES-36) | T |
 | ENF-POR-01 | Le système complet doit démarrer par une seule commande `docker compose up` sous Windows, macOS et Linux. | D |
 
 ### 7.6 Collecte responsable (veille)
@@ -543,6 +547,8 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | BES-11 | — (choix de solution, C-09) | ENF-SEC-05, ENF-SEC-16 |
 | BES-13 | EXM-07, EXM-12 | EF-CVX-14 à 17, RG-12, RG-15 |
 | BES-14 | EXM-13 | EF-AUT-01 à 08, ENF-SEC-18 à 20, ENF-RGP-02 |
+| EF-AUT-09 | Un visiteur sans session qui ouvre l'adresse racine doit voir une page de présentation du service — suivi des candidatures depuis Gmail, classement des réponses, relances préparées, tableau de bord, données conservées — donnant accès à la connexion et à la création de compte ; avec une session, la même adresse ouvre le tableau de bord. (v1.24, BES-36) | S | EXM-13 | T | Sans session, `/` présente le service et ses deux accès ; avec session, `/` affiche le tableau de bord ; la page de présentation ne demande aucune donnée d'utilisateur à l'API. |
+| EF-AUT-10 | L'accès « Créer un compte » de la page de présentation doit ouvrir le formulaire directement sur la création de compte. (v1.24) | C | EXM-13 | T | `/connexion?mode=inscription` ouvre l'onglet « Créer un compte ». |
 | BES-15 | EXM-14 | EF-DOC-01, 02 |
 | BES-16 | EXM-01 | EF-GML-01 |
 | BES-12 | EXM-11 | EF-GML-19, EF-CAN-13, 14, EF-VEI-20 à 22, EF-TDB-09, RG-09, RG-10 |
@@ -563,5 +569,7 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | BES-32 | EXM-01, EXM-02 | RG-03, EF-GML-09, EF-GML-11 |
 | BES-33 | EXM-09 | EF-TDB-04, EF-TDB-10, EF-TDB-11 |
 | BES-34 | EXM-04 | RG-06, RG-20, EF-CAN-17, EF-TDB-07, RG-13 |
+| BES-36 | EXM-13 | EF-AUT-09, EF-AUT-10, ENF-UTI-04, ENF-PERF-01 |
+| BES-37 | — (choix de réalisation) | ENF-UTI-04 |
 
 La traçabilité fine exigence → tâche → test est tenue à jour dans `docs/TRACABILITE.md`.

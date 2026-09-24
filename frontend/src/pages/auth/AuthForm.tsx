@@ -1,10 +1,14 @@
 import { animate, stagger } from 'animejs';
 import { type FormEvent, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { ApiError } from '../../api/client';
 import { type AuthMode, useAuth } from '../../auth/AuthContext';
 import { ClickSpark } from '../../components/reactbits/ClickSpark';
 import { Magnet } from '../../components/reactbits/Magnet';
 import { prefersReducedMotion } from '../../lib/motion';
+
+// EF-AUT-10: « Créer un compte » of the presentation page opens the form on that tab.
+const REGISTER_MODE_PARAM = 'inscription';
 
 // EF-AUT-02: same bounds as the API.
 export const PASSWORD_MIN_LENGTH = 12;
@@ -47,7 +51,10 @@ const messageOf = (error: unknown): string =>
  */
 export function AuthForm() {
   const { authenticate } = useAuth();
-  const [mode, setMode] = useState<AuthMode>('login');
+  const [searchParams] = useSearchParams();
+  const [mode, setMode] = useState<AuthMode>(() =>
+    searchParams.get('mode') === REGISTER_MODE_PARAM ? 'register' : 'login',
+  );
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);

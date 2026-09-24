@@ -76,10 +76,16 @@ describe('AuthPage', () => {
     );
   });
 
-  it('[EF-AUT-05] redirects a signed-out user from the home page to the login page', async () => {
-    renderAt('/');
+  it('[EF-AUT-05] redirects a signed-out user from a screen of the application to the login page', async () => {
+    renderAt('/candidatures');
 
     expect(await screen.findByRole('heading', { name: 'Bon retour.' })).toBeInTheDocument();
+  });
+
+  it('[EF-AUT-10] opens on account creation when asked by the address', async () => {
+    renderAt('/connexion?mode=inscription');
+
+    expect(await screen.findByRole('tab', { name: 'Créer un compte' })).toHaveAttribute('aria-selected', 'true');
   });
 
   it('[EF-AUT-03] logs in and lands on the dashboard', async () => {
