@@ -542,3 +542,8 @@ développeur l'active sur son poste (`ENABLED_FEATURES=watch,cv`) le temps d'y t
   *Fini quand* : Lighthouse mobile sur la version construite donne, pour `/` et `/connexion`, performance ≥ 90,
   SEO 100, bonnes pratiques 100 et plus grand élément affiché en moins de 3 s. Mesuré le 25/09/2026 : `/` 95 / 100 /
   100, 2,8 s ; `/connexion` 96 / 100 / 100, 2,7 s (avant : 96 et 90 en performance, SEO 82, bonnes pratiques 96).
+  Écrans de l'application (demande du 25/09/2026, mesurés avec une API simulée) : les fonctionnalités facultatives ne
+  bloquent plus que leurs propres écrans ; titre d'onglet par écran ; nom accessible des liens de navigation
+  contenant le libellé court du téléphone (WCAG 2.5.3) ; gris du panneau éclairci (`--color-mist-on-ink`, 5,1:1) ;
+  squelette de la carte Gmail à la forme d'une boîte connectée. `/candidatures` et `/reglages` : performance 95,
+  accessibilité 97/96 → 100, CLS de Réglages 0,02 ; SEO 63 voulu (seul `is-crawlable` échoue : `robots.txt`).
