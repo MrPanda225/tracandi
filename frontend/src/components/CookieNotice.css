@@ -1,0 +1,44 @@
+/* Bottom corner, over nothing important, never a wall (EF-LEG-02). */
+.cookie-notice {
+  position: fixed;
+  z-index: 40;
+  right: 1rem;
+  bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  max-width: 30rem;
+  padding: 0.9rem 1rem;
+  border-radius: var(--radius-md);
+  background: var(--color-ink-deep);
+  box-shadow: var(--shadow-lift);
+  color: var(--color-canvas);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.cookie-notice p {
+  margin: 0;
+}
+
+.cookie-notice a {
+  color: #e7a58d;
+}
+
+.cookie-notice .btn {
+  flex: none;
+}
+
+/* On a phone: the whole width, and above the bottom navigation when the application shows one (ENF-UTI-02). */
+@media (max-width: 40rem) {
+  .cookie-notice {
+    right: 0.75rem;
+    bottom: calc(0.75rem + env(safe-area-inset-bottom));
+    left: 0.75rem;
+    max-width: none;
+  }
+
+  body:has(.shell) .cookie-notice {
+    bottom: calc(4.75rem + env(safe-area-inset-bottom));
+  }
+}

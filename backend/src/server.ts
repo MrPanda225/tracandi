@@ -20,6 +20,8 @@ import { createProfileService } from './modules/cv/service.js';
 import { createApplicationsService } from './modules/applications/service.js';
 import { OWASP_SCRYPT_PARAMS } from './modules/auth/password.js';
 import { createAuthModules } from './modules/auth/routes.js';
+import { createAccountModule } from './modules/account/routes.js';
+import { createAccountService } from './modules/account/service.js';
 import { createAuthService } from './modules/auth/service.js';
 import { createGmailConnectionService } from './modules/emails/connection.js';
 import { createMessageFetcher } from './modules/emails/fetcher.js';
@@ -56,6 +58,8 @@ const authService = createAuthService({
   db: database.db,
   clock: systemClock,
   passwordParams: OWASP_SCRYPT_PARAMS,
+  // EF-AUT-11: a deleted account leaves no Gmail access behind (revocation at Google, best effort).
+  revokeExternalAccess: (userId) => gmailService.disconnect(userId),
 });
 
 const gmailService = createGmailConnectionService({
@@ -145,6 +149,8 @@ const app = createApp({
   modules: [
     ...createAuthModules({ service: authService, isCookieSecure: config.isCookieSecure }),
     createApplicationsModule(createApplicationsService({ db: database.db, clock: systemClock })),
+    // EF-AUT-12
+    createAccountModule(createAccountService({ db: database.db, clock: systemClock })),
     createStatsModule(
       createStatsService({ db: database.db, clock: systemClock, countsOffers: config.features.has('watch') }),
     ),

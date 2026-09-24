@@ -43,3 +43,10 @@ export const AccountSchema = z
 
 export type Credentials = z.infer<typeof LoginBodySchema>;
 export type Account = z.infer<typeof AccountSchema>;
+
+/** EF-AUT-11: the password again, to delete the account. */
+export const DeleteAccountBodySchema = z
+  .object({ password: z.string().min(1).max(PASSWORD_MAX_LENGTH) })
+  .strict()
+  .openapi('DeleteAccountBody');
+

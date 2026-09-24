@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { leaveFor } from '../../lib/browser';
 import { openStreams } from '../../test/setup';
 import { ROUTER_FUTURE } from '../../lib/router';
+import { AuthProvider } from '../../auth/AuthContext';
 import { SettingsPage } from './SettingsPage';
 
 vi.mock('../../lib/browser', () => ({ leaveFor: vi.fn() }));
@@ -50,6 +51,7 @@ function CurrentSearch() {
 const renderPage = (path = '/reglages') =>
   render(
     <MemoryRouter initialEntries={[path]} future={ROUTER_FUTURE}>
+      <AuthProvider>
       <Routes>
         <Route
           path="/reglages"
@@ -61,6 +63,7 @@ const renderPage = (path = '/reglages') =>
           }
         />
       </Routes>
+      </AuthProvider>
     </MemoryRouter>,
   );
 
@@ -507,6 +510,67 @@ describe('SettingsPage — layout of the Gmail card (EF-CFG-05)', () => {
 
     expect(screen.queryByRole('heading', { name: /Fournisseurs/ })).not.toBeInTheDocument();
     expect(calls).not.toContain('GET /settings/ai');
+  });
+});
+
+describe('SettingsPage — my data (EF-AUT-11, EF-AUT-12)', () => {
+  it('[EF-AUT-12] downloads every datum held on the user as a file', async () => {
+    const calls = mockApi({
+      'GET /gmail/status': () => json(200, CONNECTED),
+      'GET /account/export': () => json(200, { account: { email: 'alex.martin@example.com' } }),
+    });
+    const createObjectURL = vi.fn(() => 'blob:export');
+    vi.stubGlobal('URL', Object.assign(URL, { createObjectURL, revokeObjectURL: vi.fn() }));
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+    renderPage();
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: 'Télécharger mes données' }));
+
+    await waitFor(() => expect(click).toHaveBeenCalledTimes(1));
+    expect(calls).toContain('GET /account/export');
+    expect(createObjectURL).toHaveBeenCalled();
+    click.mockRestore();
+  });
+
+  it('[EF-AUT-11] deletes the account only after the password, then leaves the application', async () => {
+    const bodies: unknown[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: string, init?: RequestInit) => {
+        if (init?.method === 'DELETE' && input.endsWith('/auth/account')) {
+          bodies.push(JSON.parse(String(init.body)));
+          return Promise.resolve(new Response(null, { status: 204 }));
+        }
+        return Promise.resolve(json(200, input.endsWith('/auth/me') ? { id: 1, email: 'alex.martin@example.com' } : CONNECTED));
+      }),
+    );
+    renderPage();
+    const user = userEvent.setup();
+    const data = await screen.findByRole('region', { name: 'Mes données' });
+
+    await user.click(within(data).getByRole('button', { name: 'Supprimer mon compte' }));
+    expect(within(data).getByRole('button', { name: 'Supprimer définitivement' })).toBeDisabled();
+    await user.type(within(data).getByLabelText('Mot de passe'), 'une phrase de passe longue');
+    await user.click(within(data).getByRole('button', { name: 'Supprimer définitivement' }));
+
+    await waitFor(() => expect(bodies).toEqual([{ password: 'une phrase de passe longue' }]));
+  });
+
+  it('[EF-AUT-11] says why the account was not deleted, and keeps it', async () => {
+    mockApi({
+      'GET /gmail/status': () => json(200, CONNECTED),
+      'DELETE /auth/account': () => json(403, { error: 'Mot de passe incorrect : le compte n’a pas été supprimé.' }),
+    });
+    renderPage();
+    const user = userEvent.setup();
+    const data = await screen.findByRole('region', { name: 'Mes données' });
+
+    await user.click(within(data).getByRole('button', { name: 'Supprimer mon compte' }));
+    await user.type(within(data).getByLabelText('Mot de passe'), 'mauvais');
+    await user.click(within(data).getByRole('button', { name: 'Supprimer définitivement' }));
+
+    expect(await within(data).findByRole('alert')).toHaveTextContent('Mot de passe incorrect');
   });
 });
 

@@ -1,4 +1,4 @@
-import { type CookieOptions, type Response, Router } from 'express';
+import { type CookieOptions, type RequestHandler, type Response, Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { readCookie } from '../../lib/cookies.js';
 import { asyncHandler, validate } from '../../lib/http.js';
@@ -13,7 +13,7 @@ import {
   SESSION_SECURITY,
   z,
 } from '../../lib/openapi.js';
-import { AccountSchema, LoginBodySchema, RegisterBodySchema } from './schemas.js';
+import { AccountSchema, DeleteAccountBodySchema, LoginBodySchema, RegisterBodySchema } from './schemas.js';
 import type { AuthService, OpenedSession } from './service.js';
 
 // ENF-SEC-19: at most 10 attempts per 15 minutes and per IP address.
@@ -70,12 +70,48 @@ const registerDocs = (registry: OpenAPIRegistry): void => {
     security: SESSION_SECURITY,
     responses: { 200: jsonResponse('Compte de la session', AccountSchema), ...errorResponses(401) },
   });
+  registry.registerPath({
+    method: 'delete',
+    path: '/auth/account',
+    tags: ['Comptes'],
+    summary: 'Supprimer son compte et toutes ses données',
+    description:
+      'EF-AUT-11 (droit à l’effacement). Demande le mot de passe ; révoque l’accès Gmail chez Google, supprime ' +
+      'toutes les données de l’utilisateur, ferme toutes ses sessions et efface le cookie. Limité comme la connexion.',
+    security: SESSION_SECURITY,
+    request: { body: jsonBody(DeleteAccountBodySchema) },
+    responses: { 204: { description: 'Compte supprimé' }, ...errorResponses(400, 401, 403, 415, 429) },
+  });
+};
+
+/**
+ * EF-AUT-11: deletion of the account. The password is checked again, so guessing it here is limited like a login
+ * (ENF-SEC-19); the cookie goes with the account.
+ */
+const mountAccountDeletion = (
+  router: Router,
+  {
+    service,
+    cookieOptions,
+    limitAttempts,
+  }: { service: AuthService; cookieOptions: CookieOptions; limitAttempts: RequestHandler },
+): void => {
+  router.delete(
+    '/auth/account',
+    limitAttempts,
+    asyncHandler(async (req, res) => {
+      const { body } = validate(req, { body: DeleteAccountBodySchema });
+      await service.deleteAccount(currentUserId(res), body.password);
+      res.clearCookie(SESSION_COOKIE_NAME, cookieOptions);
+      res.status(204).end();
+    }),
+  );
 };
 
 /**
  * Account routes: public module (register, login, logout) and protected module (`me`).
  * The session cookie is `HttpOnly`, `SameSite=Strict`, limited to `/api` and expires with the session (EF-AUT-03).
- * @req EF-AUT-01, EF-AUT-02, EF-AUT-03, EF-AUT-04, EF-AUT-08, ENF-SEC-19
+ * @req EF-AUT-01, EF-AUT-02, EF-AUT-03, EF-AUT-04, EF-AUT-08, EF-AUT-11, ENF-SEC-19
  */
 export const createAuthModules = ({ service, isCookieSecure }: AuthModuleDeps): ApiModule[] => {
   const cookieOptions: CookieOptions = {
@@ -133,6 +169,7 @@ export const createAuthModules = ({ service, isCookieSecure }: AuthModuleDeps): 
       res.status(200).json(await service.getAccount(currentUserId(res)));
     }),
   );
+  mountAccountDeletion(protectedRouter, { service, cookieOptions, limitAttempts });
 
   return [
     { router: publicRouter, isPublic: true, registerDocs },

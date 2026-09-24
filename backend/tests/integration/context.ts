@@ -18,6 +18,8 @@ import { createProfileModule } from '../../src/modules/cv/routes.js';
 import { createProfileService } from '../../src/modules/cv/service.js';
 import { createApplicationsService } from '../../src/modules/applications/service.js';
 import { createAuthModules } from '../../src/modules/auth/routes.js';
+import { createAccountModule } from '../../src/modules/account/routes.js';
+import { createAccountService } from '../../src/modules/account/service.js';
 import { createAuthService } from '../../src/modules/auth/service.js';
 import { createGmailConnectionService } from '../../src/modules/emails/connection.js';
 import { createMessageFetcher } from '../../src/modules/emails/fetcher.js';
@@ -136,6 +138,7 @@ export const createTestContext = (
     db: database.db,
     clock: clock.now,
     passwordParams: TEST_PASSWORD_PARAMS,
+    revokeExternalAccess: (userId) => gmailService.disconnect(userId),
   });
   const queue = createJobQueue({ db: database.db, clock: clock.now, logger });
   const gmailService = createGmailConnectionService({
@@ -172,6 +175,7 @@ export const createTestContext = (
     modules: [
       ...createAuthModules({ service: authService, isCookieSecure: true }),
       createApplicationsModule(createApplicationsService({ db: database.db, clock: clock.now })),
+      createAccountModule(createAccountService({ db: database.db, clock: clock.now })),
       createStatsModule(
         createStatsService({ db: database.db, clock: clock.now, countsOffers: features.has('watch') }),
       ),

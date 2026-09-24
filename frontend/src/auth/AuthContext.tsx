@@ -12,6 +12,8 @@ interface AuthContextValue {
   /** Logs in or creates the account, then loads it. Rejects with an ApiError carrying a French message. */
   authenticate: (mode: AuthMode, credentials: Credentials) => Promise<void>;
   signOut: () => Promise<void>;
+  /** EF-AUT-11: the account was deleted by the API — its session with it: the interface forgets it too. */
+  forgetAccount: () => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -47,7 +49,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setState({ status: 'anonymous' });
   }, []);
 
-  const value = useMemo(() => ({ state, authenticate, signOut }), [state, authenticate, signOut]);
+  const forgetAccount = useCallback(() => setState({ status: 'anonymous' }), []);
+
+  const value = useMemo(
+    () => ({ state, authenticate, signOut, forgetAccount }),
+    [state, authenticate, signOut, forgetAccount],
+  );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

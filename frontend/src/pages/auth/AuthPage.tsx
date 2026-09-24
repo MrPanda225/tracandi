@@ -4,6 +4,7 @@ import '@fontsource-variable/fraunces/full-italic.css';
 import { createScope, createTimeline, type Scope, stagger } from 'animejs';
 import { Fragment, useLayoutEffect, useRef } from 'react';
 import { Noise } from '../../components/reactbits/Noise';
+import { LegalLinks } from '../../components/LegalLinks';
 import { SpotlightCard } from '../../components/reactbits/SpotlightCard';
 import { REDUCED_MOTION_QUERY } from '../../lib/motion';
 import { ApplicationsScene } from './ApplicationsScene';
@@ -70,6 +71,7 @@ export function AuthPage() {
         <SpotlightCard className="auth-card">
           <AuthForm />
         </SpotlightCard>
+        <LegalLinks className="legal-links auth-main__legal" />
       </main>
     </div>
   );

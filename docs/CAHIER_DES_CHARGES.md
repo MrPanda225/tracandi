@@ -25,6 +25,7 @@
 | 1.21 | 24/09/2026 | Sahiré YAPI (Business Owner) | À valider — suivi hebdomadaire resserré sur 5 semaines, semaine en cours comparée à la précédente, tableau de bord actualisé sans rechargement à la fin d'une synchronisation (BES-33, EF-TDB-04 v1.21, EF-TDB-10, EF-TDB-11) |
 | 1.22 | 24/09/2026 | Sahiré YAPI (Business Owner) | À valider — relance limitée aux candidatures dont une adresse de contact est connue ; bouton « Relancer » préparant, rédigé par l'IA, un brouillon Gmail en réponse dans le fil, jamais envoyé par le système (BES-34, RG-06 v1.22, RG-20, EF-CAN-17, RG-13, ENF-RGP-01) |
 | 1.23 | 24/09/2026 | Sahiré YAPI (Business Owner) | À valider — écran Réglages réduit à ce qui sert au candidat : fournisseurs d'IA retirés de l'interface, carte Gmail réorganisée (état et synchronisation d'abord, préférences, entretien, déconnexion à part) (BES-35, EF-CFG-02 retirée de l'écran, EF-CFG-05) |
+| 1.25 | 24/09/2026 | Sahiré YAPI (Business Owner) | À valider — conformité RGPD : pages publiques (mentions légales, confidentialité, cookies), mention d'information sur l'unique cookie, suppression du compte et export des données depuis l'application (BES-38, EF-AUT-11, EF-AUT-12, EF-LEG-01, EF-LEG-02, ENF-RGP-04, ENF-RGP-05) |
 
 > Document de référence pour le développement. Toute évolution de périmètre passe par une mise à jour
 > de ce fichier **avant** le code. Chaque exigence porte un identifiant stable, repris dans
@@ -137,6 +138,7 @@ des candidatures, la veille des offres et la production de CV adaptés.
 | BES-32 | « Pour les entreprises inconnues, il suffit de regarder le nom de domaine dans le mail. » (24/09/2026, capture : candidature envoyée à `christophe.deschamps@data-praxis.fr`, enregistrée « Entreprise inconnue ») |
 | BES-33 | « Travaille sur le graphique pour le suivi : regardons sur une période de 5 semaines et sois plus expressif, suis le skill bi-dashboard-design ; il doit être dynamique. » (24/09/2026, captures du graphique des 16 semaines) |
 | BES-34 | « Au niveau des relances, il faudra revoir la politique : relancer tous ceux dont on a un mail de relance, et ajouter un bouton Relance qui va rédiger le mail à envoyer ; en cliquant, ça doit lancer le mail avec l'objet et le contenu, avec le mail en attendant d'être envoyé. » (24/09/2026 ; précisé : adresse joignable, brouillon dans Gmail, rédaction par l'IA) |
+| BES-38 | « Rajoute les cookies, les règles de RGPD, etc., et tout. » (24/09/2026 ; précisé : page cookies et mention d'information discrète — un seul cookie, strictement nécessaire, donc pas de consentement à demander ; suppression du compte et export des données dans l'application ; éditeur et hébergeur fournis par la configuration) |
 | BES-35 | « On va retaper la section Réglages en gardant que ce qui est utile à savoir pour l'utilisateur : déjà retire-moi le fournisseur d'IA, et optimise la section boîte mail en suivant les principes ux-design et ui-design. » (24/09/2026) |
 | BES-23 | « Applique un système de queue pour mes traitements trop longs et même des websockets, avec une architecture asynchrone. » (23/09/2026) |
 
@@ -355,6 +357,14 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | EF-EXE-04 | Le système doit pousser l'avancement vers l'interface sans que celle-ci ait à redemander, et la reprise du flux après coupure ne doit rien perdre. | S | EXM-15 | T | Le flux émet un événement à chaque changement d'état ; une reconnexion retrouve l'état courant. |
 | EF-EXE-05 | Le système doit reprendre ou marquer en échec toute exécution restée « en cours » après un arrêt du serveur. | S | ENF-FIA-01 | T | Une exécution « en cours » au démarrage est close en échec, jamais laissée telle quelle. |
 
+
+### 6.11 Informations légales (LEG)
+
+| ID | Exigence | Prio | Source | Vérif. |
+|---|---|---|---|---|
+| EF-LEG-01 | Le système doit publier, sans session, les mentions légales, la politique de confidentialité et la page des cookies, liées depuis la page de présentation, la page de connexion et l'application. L'éditeur, son contact et l'hébergeur viennent de la configuration ; une information manquante s'affiche comme « à compléter ». (v1.25, BES-38) | M | EXM-13 | T |
+| EF-LEG-02 | À la première visite, le système doit informer, sans bloquer la page ni demander de consentement, qu'il ne dépose qu'un cookie strictement nécessaire à la session ; l'information ne réapparaît pas une fois lue sur le même navigateur. (v1.25, BES-38 — lignes directrices de la CNIL) | S | EXM-13 | T |
+
 ## 7. Exigences non fonctionnelles
 
 ### 7.1 Performance
@@ -438,6 +448,8 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | ENF-RGP-01 | Le système ne doit conserver d'un message que ses métadonnées (expéditeur, objet, date, adresse de contact selon RG-20 depuis v1.22) et un extrait de 300 caractères maximum. Le début du corps (2 000 caractères de texte au plus) peut être lu en mémoire pour le classer (EF-GML-08, RG-17), sans être ni conservé ni journalisé ; seuls 1 000 de ces caractères sont transmis à l'IA. (précisée v1.18, BES-30) | T |
 | ENF-RGP-02 | L'utilisateur peut supprimer son compte et l'intégralité de ses données par une action unique. | T |
 | ENF-RGP-03 | Les données doivent être stockées exclusivement sur le poste du candidat et dans la base hébergée, située dans l'Union européenne, à l'exception des contenus transmis aux fournisseurs IA pour traitement. | I |
+| ENF-RGP-04 | Le système ne doit déposer aucun cookie ni traceur autre que le cookie de session (aucune mesure d'audience, aucune publicité, aucun service tiers dans le navigateur). (v1.25) | I |
+| ENF-RGP-05 | La politique de confidentialité doit indiquer le responsable du traitement et son contact, les données traitées, les finalités et leurs bases légales, les durées de conservation (sauvegardes comprises), les destinataires (Neon, Google, Groq, Gemini, Anthropic), les transferts hors de l'Union européenne, les droits et leur exercice, le recours auprès de la CNIL, et le respect de la politique d'utilisation limitée des données des API Google. (v1.25) | I |
 
 ### 7.8 Coûts
 | ID | Exigence | Vérif. |
@@ -546,6 +558,8 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | BES-11 | — (choix de solution, C-09) | ENF-SEC-05, ENF-SEC-16 |
 | BES-13 | EXM-07, EXM-12 | EF-CVX-14 à 17, RG-12, RG-15 |
 | BES-14 | EXM-13 | EF-AUT-01 à 08, ENF-SEC-18 à 20, ENF-RGP-02 |
+| EF-AUT-11 | L'utilisateur doit pouvoir supprimer son compte depuis l'application, après avoir saisi son mot de passe : son accès Gmail est révoqué chez Google, toutes ses données sont supprimées et ses sessions fermées, y compris celles ouvertes sur d'autres appareils. (v1.25, BES-38 — droit à l'effacement, RGPD art. 17) | M | EXM-13 | T | Mot de passe exact : 204, plus aucune ligne liée à l'utilisateur dans la base, session refusée ensuite ; mot de passe faux : 403, rien supprimé. |
+| EF-AUT-12 | L'utilisateur doit pouvoir télécharger en un fichier JSON toutes les données que le système détient sur lui — compte, réglages, connexion Gmail, entreprises, candidatures et leur historique, messages conservés, profil, veille, journal d'usage de l'IA — sans aucun secret (empreinte du mot de passe, jetons). (v1.25, BES-38 — droit d'accès et à la portabilité, RGPD art. 15 et 20) | M | EXM-13 | T | Fichier contenant les données de l'utilisateur et d'aucun autre ; aucune empreinte ni jeton. |
 | BES-15 | EXM-14 | EF-DOC-01, 02 |
 | BES-16 | EXM-01 | EF-GML-01 |
 | BES-12 | EXM-11 | EF-GML-19, EF-CAN-13, 14, EF-VEI-20 à 22, EF-TDB-09, RG-09, RG-10 |
@@ -566,6 +580,7 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | BES-32 | EXM-01, EXM-02 | RG-03, EF-GML-09, EF-GML-11 |
 | BES-33 | EXM-09 | EF-TDB-04, EF-TDB-10, EF-TDB-11 |
 | BES-34 | EXM-04 | RG-06, RG-20, EF-CAN-17, EF-TDB-07, RG-13 |
+| BES-38 | EXM-13 | EF-AUT-11, EF-AUT-12, EF-LEG-01, EF-LEG-02, ENF-RGP-04, ENF-RGP-05 |
 | BES-35 | EXM-01 | EF-CFG-05, EF-CFG-02 (retirée de l'écran) |
 
 La traçabilité fine exigence → tâche → test est tenue à jour dans `docs/TRACABILITE.md`.

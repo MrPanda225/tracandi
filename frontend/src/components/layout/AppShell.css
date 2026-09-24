@@ -253,7 +253,8 @@
   }
 
   /* No room for the address beside the name of the application; it stays readable on a wider screen. */
-  .shell__email {
+  .shell__email,
+  .shell__legal {
     display: none;
   }
 
@@ -326,3 +327,19 @@
     padding-bottom: calc(5rem + env(safe-area-inset-bottom));
   }
 }
+
+/* EF-LEG-01: the legal pages under the account, in the ink of the panel. */
+.shell__legal {
+  gap: 0 0.9rem;
+  font-size: 0.75rem;
+}
+
+.shell__legal a {
+  min-height: 32px;
+  color: rgb(250 248 250 / 0.6);
+}
+
+.shell__legal a:hover {
+  color: var(--color-canvas);
+}
+

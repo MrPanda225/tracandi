@@ -84,6 +84,8 @@ describe('migrations', () => {
         'POST /auth/login',
         'POST /auth/logout',
         'GET /auth/me',
+        'DELETE /auth/account',
+        'GET /account/export',
         'GET /applications',
         'POST /applications',
         'GET /applications/{id}',

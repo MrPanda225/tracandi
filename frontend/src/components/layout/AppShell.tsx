@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
+import { LegalLinks } from '../LegalLinks';
 import { GmailExpiryBanner } from './GmailExpiryBanner';
 import { NAV_ITEMS } from './navigation';
 import './AppShell.css';
@@ -68,6 +69,7 @@ export function AppShell() {
           >
             {isSigningOut ? 'Déconnexion…' : 'Se déconnecter'}
           </button>
+          <LegalLinks className="legal-links shell__legal" />
         </div>
       </aside>
 
