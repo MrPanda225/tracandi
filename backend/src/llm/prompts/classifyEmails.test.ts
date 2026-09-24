@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { buildClassifyEmailsPrompt, type MessageToClassify, SUBJECT_MAX_LENGTH } from './classifyEmails.js';
+import {
+  buildClassifyEmailsPrompt,
+  type MessageToClassify,
+  SUBJECT_MAX_LENGTH,
+  TEXT_MAX_LENGTH,
+} from './classifyEmails.js';
 import { UNTRUSTED_CONTENT_NOTICE } from './untrusted.js';
 
 const SENT: MessageToClassify = {
@@ -8,6 +13,7 @@ const SENT: MessageToClassify = {
   from: 'alex.martin@example.com',
   subject: 'Candidature — Équipier polyvalent',
   snippet: 'Bonjour, je vous adresse ma candidature pour le poste d’équipier polyvalent.',
+  text: 'Bonjour, je vous adresse ma candidature pour le poste d’équipier polyvalent. Cordialement, Alex',
 };
 const ACKNOWLEDGED: MessageToClassify = {
   direction: 'inbound',
@@ -15,6 +21,7 @@ const ACKNOWLEDGED: MessageToClassify = {
   from: 'offres@apec.example.fr',
   subject: 'Votre candidature chez Innova Solutions',
   snippet: 'Innova Solutions a bien reçu votre candidature au poste de Data analyst en alternance.',
+  text: 'Innova Solutions a bien reçu votre candidature au poste de Data analyst en alternance. Bonne journée.',
 };
 const MESSAGES = [SENT, ACKNOWLEDGED];
 
@@ -62,14 +69,28 @@ describe('buildClassifyEmailsPrompt', () => {
     }
   });
 
-  it('[EF-GML-08] gives the direction and the day of each message, sender, subject and excerpt', () => {
+  it('[EF-GML-08] gives the direction and the day of each message, sender, subject and start of the body', () => {
     const { prompt } = buildClassifyEmailsPrompt(MESSAGES);
 
     expect(prompt).toContain('<email ref="1" sens="envoyé" date="2026-09-01">');
     expect(prompt).toContain('<email ref="2" sens="reçu" date="2026-09-03">');
     expect(prompt).toContain('De : offres@apec.example.fr');
     expect(prompt).toContain('Objet : Votre candidature chez Innova Solutions');
-    expect(prompt).toContain('Extrait : Innova Solutions a bien reçu');
+    expect(prompt).toContain('Texte : Innova Solutions a bien reçu');
+    expect(prompt).toContain('en alternance. Bonne journée.');
+  });
+
+  it('[BES-30] [ENF-COU-01] gives at most 1 000 characters of the body, to bound the cost of a batch', () => {
+    const { prompt } = buildClassifyEmailsPrompt([{ ...SENT, text: `${'a'.repeat(TEXT_MAX_LENGTH)}FIN` }]);
+
+    expect(TEXT_MAX_LENGTH).toBe(1000);
+    expect(prompt).not.toContain('FIN');
+  });
+
+  it('[EF-GML-08] falls back on Gmail’s excerpt when the body could not be read', () => {
+    const { prompt } = buildClassifyEmailsPrompt([{ ...SENT, text: '' }]);
+
+    expect(prompt).toContain('Texte : Bonjour, je vous adresse ma candidature');
   });
 
   it('[ENF-COU-01] cuts an overlong subject to bound the cost of a batch', () => {
@@ -83,12 +104,12 @@ describe('buildClassifyEmailsPrompt', () => {
 
   it('[EF-GML-08] says so when a message has no sender, subject or excerpt', () => {
     const { prompt } = buildClassifyEmailsPrompt([
-      { ...SENT, from: null, subject: null, snippet: '' },
+      { ...SENT, from: null, subject: null, snippet: '', text: '' },
     ]);
 
     expect(prompt).toContain('De : (inconnu)');
     expect(prompt).toContain('Objet : (sans objet)');
-    expect(prompt).toContain('Extrait : (vide)');
+    expect(prompt).toContain('Texte : (vide)');
   });
 });
 

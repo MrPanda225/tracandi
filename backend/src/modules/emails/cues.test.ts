@@ -64,6 +64,45 @@ describe('hasRejectionCue', () => {
     );
   });
 
+  it('[RG-17] [BES-30] reads the start of the body, where a refusal follows a long opening', () => {
+    const opening = 'Nous vous remercions pour votre candidature au poste : Alternance Data analytics et IA H/F';
+    expect(hasRejectionCue({ subject: null, snippet: opening })).toBe(false);
+    expect(
+      hasRejectionCue({
+        subject: null,
+        snippet: opening,
+        text: `${opening}. Après étude, nous ne pouvons pas donner de suite favorable.`,
+      }),
+    ).toBe(true);
+  });
+
+  it.each([
+    [
+      'sans réponse sous 4 semaines',
+      'Nous avons bien reçu votre candidature. Sans réponse de notre part sous 4 semaines, considérez que votre ' +
+        'candidature n’a pas été retenue.',
+    ],
+    [
+      'si le profil ne correspond pas',
+      'Merci pour votre candidature. Si votre profil ne correspond pas à nos besoins, nous ne donnerons pas suite.',
+    ],
+    ['au cas où', 'Candidature bien reçue. Au cas où elle ne serait pas retenue, nous conserverons votre CV.'],
+    [
+      'anglais — conditionnel',
+      'Thank you for applying. If you do not hear from us within 3 weeks, your application was unsuccessful.',
+    ],
+  ])('[RG-17] [BES-30] ignores a refusal announced only as a condition in an acknowledgement (%s)', (_case, text) => {
+    expect(hasRejectionCue({ subject: null, snippet: '', text })).toBe(false);
+    expect(hasAcknowledgementCue({ subject: null, snippet: '', text })).toBe(true);
+  });
+
+  it('[RG-17] [BES-30] still reads a refusal written after a conditional sentence', () => {
+    const text =
+      'Si vous avez des questions, écrivez-nous. Après étude, nous ne pouvons pas donner de suite favorable.';
+
+    expect(hasRejectionCue({ subject: null, snippet: '', text })).toBe(true);
+  });
+
   it('[RG-17] ignores case, accents and punctuation', () => {
     expect(hasRejectionCue({ subject: null, snippet: 'NOUS NE DONNONS PAS SUITE.' })).toBe(true);
     expect(hasRejectionCue({ subject: null, snippet: 'n’a pas ete retenue' })).toBe(true);
@@ -145,6 +184,19 @@ describe('applyCategoryCues — refusals', () => {
       ...classified('acknowledged'),
       category: 'rejected',
     });
+  });
+
+  it('[RG-17] [BES-30] corrects the acknowledgement the AI read in the opening of a refusal', () => {
+    const lateRefusal = {
+      direction: 'inbound' as const,
+      subject: 'Votre candidature',
+      snippet: 'Bonjour Alex, nous vous remercions sincèrement pour l’intérêt que vous avez manifesté',
+      text:
+        'Bonjour Alex, nous vous remercions sincèrement pour l’intérêt que vous avez manifesté pour le poste. ' +
+        'Nous avons le regret de vous annoncer que nous n’avons pas retenu votre candidature.',
+    };
+
+    expect(applyCategoryCues(lateRefusal, classified('acknowledged')).category).toBe('rejected');
   });
 });
 

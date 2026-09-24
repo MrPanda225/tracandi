@@ -24,6 +24,7 @@ import {
   ALTERNANCE_ACKNOWLEDGEMENT,
   APEC_INNOVA,
   BANK_STATEMENT,
+  HTML_LATE_REJECTION,
   jobAlerts,
   LHH_STUDIO_ARDENT,
   LONG_NEWSLETTER,
@@ -35,6 +36,7 @@ import {
   otherMessages,
   POLITE_REJECTION,
   SENT_APPLICATION,
+  WORKDAY_LATE_REJECTION,
 } from '../fixtures/emails/messages.js';
 import { createScriptedClassifier, type ScriptedClassifier } from '../fixtures/llm/classifications.js';
 import {
@@ -397,6 +399,31 @@ describe('classification and attachment', () => {
     expect(await applicationsOf()).toEqual([
       expect.objectContaining({ company: 'Atelier Nova', jobTitle: 'Data Analyst', status: 'rejected' }),
     ]);
+  });
+
+  it('[BES-30] [RG-17] files as refusals the refusals written after Gmail’s excerpt, plain or HTML', async () => {
+    await setUp([WORKDAY_LATE_REJECTION, HTML_LATE_REJECTION]);
+
+    await synchronise();
+
+    // The recorded AI answers are « acknowledged »: the start of the body, read in memory, decides.
+    expect((await emailsOf()).map((email) => email.category)).toEqual(['rejected', 'rejected']);
+    expect(await applicationsOf()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ company: 'Maison Lumen', status: 'rejected' }),
+      ]) as unknown,
+    );
+  });
+
+  it('[ENF-RGP-01] [BES-30] gives the AI the start of the body, and keeps only the 300 characters of the excerpt', async () => {
+    await setUp([WORKDAY_LATE_REJECTION]);
+
+    await synchronise();
+
+    expect(ai.requests[0]?.prompt).toContain('nous ne pouvons pas donner de suite favorable');
+    const [email] = await emailsOf();
+    expect(email?.snippet?.length).toBeLessThanOrEqual(300);
+    expect(email?.snippet).not.toContain('suite favorable');
   });
 
   it('[EF-CAN-11] [RG-04] never downgrades an interview when a late acknowledgement arrives', async () => {

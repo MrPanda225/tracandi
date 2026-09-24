@@ -1,9 +1,18 @@
 import type { gmail_v1 } from 'googleapis/build/src/apis/gmail/index.js';
 
+/** A body part as Gmail gives it in format `full`: its type and its content in base64url (RFC 4648 §5). */
+export const bodyPart = (mimeType: string, content: string | Buffer, charset = 'UTF-8'): gmail_v1.Schema$MessagePart => ({
+  mimeType,
+  filename: '',
+  headers: [{ name: 'Content-Type', value: `${mimeType}; charset="${charset}"` }],
+  body: { data: Buffer.from(content).toString('base64url') },
+});
+
 /**
- * Recorded answers of Gmail `users.messages.get` (format `metadata`), anonymised: fictitious people, `.example`
+ * Recorded answers of Gmail `users.messages.get` (format `full`), anonymised: fictitious people, `.example`
  * domains for employers; platform domains are the public ones, matched by RG-10.
- * Gmail escapes the excerpt (`snippet`) as HTML: the entities below are the ones Gmail really sends.
+ * Gmail escapes the excerpt (`snippet`) as HTML: the entities below are the ones Gmail really sends. A message
+ * without `parts` has no readable body: its excerpt stands for it.
  */
 const metadata = (fields: {
   id: string;
@@ -13,6 +22,7 @@ const metadata = (fields: {
   subject: string;
   snippet: string;
   labelIds?: string[];
+  parts?: gmail_v1.Schema$MessagePart[];
 }): gmail_v1.Schema$Message => ({
   id: fields.id,
   threadId: fields.threadId,
@@ -25,6 +35,7 @@ const metadata = (fields: {
       { name: 'From', value: fields.from },
       { name: 'Subject', value: fields.subject },
     ],
+    parts: fields.parts ?? [],
   },
 });
 
@@ -163,6 +174,59 @@ export const POLITE_REJECTION = metadata({
   snippet:
     'Bonjour Alex, nous avons bien re&#231;u votre candidature au poste de Data Analyst en alternance. ' +
     'Apr&#232;s &#233;tude de votre dossier, nous ne donnons pas suite.',
+});
+
+/**
+ * BES-30: a refusal sent through Workday. The job title and the reference fill the opening, so Gmail's excerpt
+ * stops before the refusal: only the body tells it apart from an acknowledgement.
+ */
+export const WORKDAY_LATE_REJECTION = metadata({
+  id: '18f0a1b2c3d4e50d',
+  threadId: '18f0a1b2c3d4e50d',
+  receivedAt: '2026-09-23T14:52:00.000Z',
+  from: 'Talents Maison Lumen <maisonlumen@myworkday.com>',
+  subject: 'Maison Lumen - Votre candidature au poste de Alternance Data analytics et IA H/F',
+  snippet:
+    'Bonjour Alex Martin , Nous vous remercions pour votre candidature au poste : Alternance Data analytics et IA ' +
+    'H/F , portant la référence JOBREQ_00000042 Alternance Data analytics et IA H/F Après avoir étudié votre',
+  parts: [
+    bodyPart(
+      'text/plain',
+      'Bonjour Alex Martin ,\n\nNous vous remercions pour votre candidature au poste : Alternance Data analytics ' +
+        'et IA H/F , portant la référence JOBREQ_00000042 Alternance Data analytics et IA H/F\nAprès avoir étudié ' +
+        'votre candidature avec soin et malgré vos qualités, nous ne pouvons pas donner de suite favorable. En effet, ' +
+        'd’autres profils sont plus en adéquation avec nos besoins.\n\nL’équipe de recrutement',
+    ),
+  ],
+});
+
+/**
+ * BES-30: a refusal relayed by a recruitment firm, in HTML only: a banner, the reference and the town come first,
+ * and the refusal after Gmail's excerpt.
+ */
+export const HTML_LATE_REJECTION = metadata({
+  id: '18f0a1b2c3d4e50e',
+  threadId: '18f0a1b2c3d4e50e',
+  receivedAt: '2026-09-24T09:01:00.000Z',
+  from: 'LHH <candidats@actu.lhh-recruitmentsolutions.example>',
+  subject: 'Alex, votre candidature au poste de chef de projet électricité',
+  snippet:
+    'Voir dans le navigateur LHH Votre candidature Référence : 2065000000 Ville : Rungis Bonjour Alex, Nous vous ' +
+    'remercions sincèrement pour l&#39;intérêt que vous avez manifesté pour le poste de chef de projet',
+  parts: [
+    bodyPart(
+      'text/html',
+      '<html><head><style>.titre { color: #4b1f5f; }</style></head><body>' +
+        '<p><a href="https://lhh.example/voir">Voir dans le navigateur</a></p>' +
+        '<table><tr><td><h1>LHH</h1><h2>Votre candidature</h2>' +
+        '<p><i>Référence : <a href="https://lhh.example/offre">2065000000</a></i><br>Ville : <b>Rungis</b></p>' +
+        '</td></tr></table>' +
+        '<p>Bonjour Alex,<br>Nous vous remercions sincèrement pour l&#39;intérêt que vous avez manifesté pour le ' +
+        'poste de chef de projet électricité que nous proposons. Nous avons examiné attentivement votre dossier et ' +
+        'nous avons le regret de vous annoncer que nous n&rsquo;avons pas retenu votre candidature pour ce poste.</p>' +
+        '</body></html>',
+    ),
+  ],
 });
 
 /** `count` job alerts from the same site, one a day from 2026-09-01, to fill several classification batches. */

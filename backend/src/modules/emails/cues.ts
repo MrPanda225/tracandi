@@ -127,51 +127,82 @@ const ACKNOWLEDGEMENT_CUES: readonly string[] = [
   'we will be in touch',
 ];
 
-/** What a category can be read from: the subject and the excerpt kept of a message (ENF-RGP-01). */
+/**
+ * What a category can be read from: the subject, the excerpt kept, and the start of the body when the message was
+ * just read from Gmail (in memory only, ENF-RGP-01, BES-30).
+ */
 export interface MessageWording {
   subject: string | null;
   snippet: string;
+  text?: string;
 }
 
-const wordingOf = ({ subject, snippet }: MessageWording): string =>
-  normalizeKey(`${subject ?? ''} ${snippet}`);
+/**
+ * RG-17 (v1.18): words that make what follows them a mere condition. An acknowledgement often warns « sans réponse
+ * sous 4 semaines, considérez que votre candidature n'a pas été retenue »: that sentence refuses nothing.
+ */
+const CONDITIONS = [
+  'si',
+  's il',
+  'sans reponse',
+  'sans retour',
+  'au cas ou',
+  'dans le cas ou',
+  'a defaut',
+  'if',
+  'unless',
+];
+
+// Sentences are cut before normalizing, which drops the punctuation that ends them.
+const SENTENCE_END = /[.!?;\n]+/;
+
+/** The subject, the excerpt and the start of the body, one normalized sentence per entry. */
+const sentencesOf = ({ subject, snippet, text = '' }: MessageWording): string[] =>
+  [subject ?? '', snippet, text]
+    .flatMap((part) => part.split(SENTENCE_END))
+    .map((sentence) => normalizeKey(sentence))
+    .filter(Boolean);
+
+/** True when one of `words` stands in the sentence before `at` (whole words only). */
+const isPrecededBy = (sentence: string, at: number, words: readonly string[]): boolean => {
+  const before = ` ${sentence.slice(0, at)} `;
+  return words.some((word) => before.includes(` ${word} `));
+};
 
 /** True when one of the words that deny a phrase stands within the window before it. */
-const isDenied = (wording: string, at: number): boolean => {
-  const before = ` ${wording.slice(Math.max(0, at - NEGATION_WINDOW), at)} `;
-  return NEGATIONS.some((word) => before.includes(` ${word} `));
+const isDenied = (sentence: string, at: number): boolean =>
+  isPrecededBy(sentence.slice(Math.max(0, at - NEGATION_WINDOW)), Math.min(at, NEGATION_WINDOW), NEGATIONS);
+
+/** The positions of `cue` in the sentence that assert it: none follows a condition (RG-17 v1.18). */
+const assertedAt = (sentence: string, cue: string): number[] => {
+  const positions: number[] = [];
+  for (let at = sentence.indexOf(cue); at !== -1; at = sentence.indexOf(cue, at + 1)) {
+    if (!isPrecededBy(sentence, at, CONDITIONS)) positions.push(at);
+  }
+  return positions;
 };
 
-const holdsDeniedCue = (wording: string, cue: string): boolean => {
-  for (let at = wording.indexOf(cue); at !== -1; at = wording.indexOf(cue, at + 1)) {
-    if (isDenied(wording, at)) return true;
-  }
-  return false;
-};
+const holdsRejection = (sentence: string): boolean =>
+  REJECTION_CUES.some((cue) => assertedAt(sentence, cue).length > 0) ||
+  NEGATED_REJECTION_CUES.some((cue) => assertedAt(sentence, cue).some((at) => isDenied(sentence, at)));
 
 /**
- * RG-17: true when the subject or the excerpt carries a wording that only a refusal uses, or a wording that refuses
- * once denied. Accents, case and punctuation are ignored; nothing beyond the 300 characters kept of the message is
- * read (ENF-RGP-01).
+ * RG-17: true when the subject, the excerpt or the start of the body carries a wording that only a refusal uses, or
+ * a wording that refuses once denied — unless a condition opens its sentence (« si », « sans réponse », « if »…).
+ * Accents, case and punctuation are ignored; nothing beyond the 2 000 characters of the body read is ever seen
+ * (ENF-RGP-01).
  * @req RG-17
  */
-export const hasRejectionCue = (message: MessageWording): boolean => {
-  const wording = wordingOf(message);
-  return (
-    REJECTION_CUES.some((cue) => wording.includes(cue)) ||
-    NEGATED_REJECTION_CUES.some((cue) => holdsDeniedCue(wording, cue))
-  );
-};
+export const hasRejectionCue = (message: MessageWording): boolean =>
+  sentencesOf(message).some(holdsRejection);
 
 /**
- * RG-17: true when the subject or the excerpt carries a wording of an acknowledgement. A refusal carries one too,
+ * RG-17: true when the subject, the excerpt or the start of the body carries a wording of an acknowledgement. A refusal carries one too,
  * so `hasRejectionCue` decides first.
  * @req RG-17
  */
-export const hasAcknowledgementCue = (message: MessageWording): boolean => {
-  const wording = wordingOf(message);
-  return ACKNOWLEDGEMENT_CUES.some((cue) => wording.includes(cue));
-};
+export const hasAcknowledgementCue = (message: MessageWording): boolean =>
+  sentencesOf(message).some((sentence) => ACKNOWLEDGEMENT_CUES.some((cue) => sentence.includes(cue)));
 
 /**
  * Categories a refusal wording may correct. A job alert is left out: such a letter lists positions, and one of them
