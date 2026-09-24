@@ -19,6 +19,7 @@ const TASK_LABELS: Readonly<Record<AiTask, string>> = {
   extract_offers: 'Lecture des pages carrières',
   tailor_cv: 'CV adapté',
   write_motivation: 'Réponse de motivation',
+  write_follow_up: 'Relance',
 };
 
 type LoadState = { status: 'loading' } | { status: 'error'; message: string } | { status: 'ready'; ai: AiAssignments };

@@ -89,9 +89,29 @@ describe('createGmailMailbox — reading a message', () => {
         "Bonjour Alex, merci pour votre candidature au poste d'équipier polyvalent chez McDonald's Lyon " +
         'Part-Dieu. Nous reviendrons vers vous "très vite" & au plus tard sous 15 jours.',
       toAddress: null,
+      replyToAddress: null,
       text: '',
       receivedAt: new Date('2026-09-02T14:30:00.000Z'),
     });
+  });
+
+  it('[RG-20] reads the reply address of a message, and none when the header is missing', async () => {
+    const withReplyTo = {
+      ...BANK_STATEMENT,
+      payload: {
+        ...BANK_STATEMENT.payload,
+        headers: [
+          ...(BANK_STATEMENT.payload?.headers ?? []),
+          { name: 'Reply-To', value: 'Camille Durand <Camille.Durand@atelier-nova.example>' },
+        ],
+      },
+    };
+    const mailbox = createGmailMailbox(createFakeGmail([withReplyTo, SENT_APPLICATION]).client);
+
+    expect((await mailbox.getMessage(BANK_STATEMENT.id ?? ''))?.replyToAddress).toBe(
+      'camille.durand@atelier-nova.example',
+    );
+    expect((await mailbox.getMessage(SENT_APPLICATION.id ?? ''))?.replyToAddress).toBeNull();
   });
 
   it('[RG-03] [BES-32] reads the address of the first recipient, and none when the header is missing', async () => {

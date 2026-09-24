@@ -5,7 +5,9 @@ import { currentUserId } from '../../lib/middleware.js';
 import type { ApiModule } from '../../lib/module.js';
 import type { GmailConnectionService } from './connection.js';
 import { registerGmailDocs } from './docs.js';
+import { IdParamsSchema } from '../applications/schemas.js';
 import { AuthorizationAnswerQuerySchema, GmailSettingsBodySchema } from './schemas.js';
+import type { FollowUpDrafts } from './followUp.js';
 import type { GmailSync } from './sync.js';
 
 // Stricter limit on the OAuth routes (rules/security.md): no guessing of a state in bursts (ENF-SEC-14).
@@ -15,6 +17,8 @@ export const OAUTH_MAX_REQUESTS = 20;
 interface GmailModulesDeps {
   service: GmailConnectionService;
   sync: GmailSync;
+  /** EF-CAN-17 */
+  followUps: FollowUpDrafts;
   /** The settings screen of this origin receives the outcome of the connection. */
   frontendOrigin: string;
 }
@@ -38,13 +42,24 @@ const mountQueuedRuns = (router: Router, sync: GmailSync): void => {
   );
 };
 
+/** EF-CAN-17: one AI call and two Gmail calls, a few seconds; the draft is saved in Gmail, never sent. */
+const mountFollowUps = (router: Router, followUps: FollowUpDrafts): void => {
+  router.post(
+    '/applications/:id/follow-up-draft',
+    asyncHandler(async (req, res) => {
+      const { params } = validate(req, { params: IdParamsSchema });
+      res.status(201).json(await followUps.draft(currentUserId(res), params.id));
+    }),
+  );
+};
+
 /**
  * Gmail routes: Google's redirection is public (it arrives without the session cookie, the state identifies the
  * user); the consent address, the status, the disconnection, the manual synchronisation and the reading again of
- * the acknowledgements need a session.
- * @req EF-GML-01, EF-GML-02, EF-GML-04, EF-GML-17, EF-GML-20, EF-CFG-01, ENF-SEC-14
+ * the acknowledgements, and the follow-up drafts need a session.
+ * @req EF-GML-01, EF-GML-02, EF-GML-04, EF-GML-17, EF-GML-20, EF-CAN-17, EF-CFG-01, ENF-SEC-14
  */
-export const createGmailModules = ({ service, sync, frontendOrigin }: GmailModulesDeps): ApiModule[] => {
+export const createGmailModules = ({ service, sync, followUps, frontendOrigin }: GmailModulesDeps): ApiModule[] => {
   const limitOAuth = rateLimit({
     windowMs: OAUTH_WINDOW_MS,
     limit: OAUTH_MAX_REQUESTS,
@@ -95,6 +110,7 @@ export const createGmailModules = ({ service, sync, frontendOrigin }: GmailModul
     }),
   );
   mountQueuedRuns(protectedRouter, sync);
+  mountFollowUps(protectedRouter, followUps);
 
   return [
     { router: publicRouter, isPublic: true, registerDocs: registerGmailDocs },

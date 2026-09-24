@@ -76,3 +76,13 @@ export const GmailSettingsBodySchema = z
   .openapi('GmailSettingsBody');
 
 /** EF-GML-04 : compteurs d'une passe, publiés comme compteurs d'exécution (`messages_read`…). */
+
+/** EF-CAN-17 : brouillon de relance enregistré dans Gmail, jamais envoyé. */
+export const FollowUpDraftViewSchema = z
+  .object({
+    draftUrl: z.string().url().openapi({ description: 'Adresse qui ouvre le brouillon dans Gmail' }),
+    to: z.string().openapi({ description: 'Adresse de contact à qui la relance est écrite (RG-20)' }),
+    subject: z.string().openapi({ description: 'Objet : celui du fil, précédé de « Re: »' }),
+  })
+  .openapi('FollowUpDraft');
+

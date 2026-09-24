@@ -84,6 +84,8 @@ export const llmTask = pgEnum('llm_task', [
   'extract_offers',
   'tailor_cv',
   'write_motivation',
+  // EF-CAN-17
+  'write_follow_up',
 ]);
 export const llmOutcome = pgEnum('llm_outcome', ['success', 'error', 'timeout', 'invalid_output']);
 export const jobName = pgEnum('job_name', ['gmail_sync', 'gmail_reclassify', 'scraper', 'backup']);
@@ -385,6 +387,8 @@ export const emails = pgTable(
     subject: varchar({ length: 500 }),
     // ENF-RGP-01: never the full body.
     snippet: varchar({ length: 300 }),
+    // RG-20: the address a follow-up can be written to; null when the message carries none (no-reply).
+    contactAddress: varchar({ length: 320 }),
     category: emailCategory().notNull(),
     platformId: integer().references(() => platforms.id, { onDelete: 'set null' }),
     receivedAt: instant().notNull(),
@@ -403,6 +407,8 @@ export const emails = pgTable(
     index('ix_emails_user_thread').on(t.userId, t.gmailThreadId),
     // EF-GML-20: the received messages of one category, to read them again
     index('ix_emails_user_category').on(t.userId, t.category),
+    // RG-20: the messages still without a contact address, read again to find one (EF-GML-20)
+    index('ix_emails_user_without_contact').on(t.userId).where(sql`${t.contactAddress} is null`),
   ],
 );
 

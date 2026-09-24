@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, ilike, inArray, or, type SQL, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, exists, ilike, inArray, isNotNull, or, type SQL, sql } from 'drizzle-orm';
 import type { Database } from '../../db/client.js';
 import {
   applicationStatusHistory,
@@ -29,9 +29,23 @@ export interface ApplicationRow {
   notes: string | null;
   appliedAt: Date;
   lastActivityAt: Date;
+  /** RG-06 (v1.22): at least one of its messages carries a contact address (RG-20). */
+  hasContact: boolean;
 }
 
-const applicationColumns = {
+/**
+ * RG-06 (v1.22), RG-20: a message of the application carries an address a follow-up can be written to. Shared by
+ * the flag of the list (EF-CAN-12) and the follow-up draft (EF-CAN-17).
+ */
+export const hasContactOf = (db: Executor) =>
+  exists(
+    db
+      .select({ id: emails.id })
+      .from(emails)
+      .where(and(eq(emails.applicationId, applications.id), isNotNull(emails.contactAddress))),
+  );
+
+const applicationColumnsOf = (db: Executor) => ({
   id: applications.id,
   companyId: companies.id,
   companyName: companies.name,
@@ -44,7 +58,8 @@ const applicationColumns = {
   notes: applications.notes,
   appliedAt: applications.appliedAt,
   lastActivityAt: applications.lastActivityAt,
-};
+  hasContact: hasContactOf(db).mapWith(Boolean),
+});
 
 // EF-AUT-06: an application belongs to the user owning its company.
 const ownedBy = (userId: number) => eq(companies.userId, userId);
@@ -76,7 +91,7 @@ export const listApplications = async (
   const where = listConditions(userId, query, query.searchKey);
   const [rows, totals] = await Promise.all([
     db
-      .select(applicationColumns)
+      .select(applicationColumnsOf(db))
       .from(applications)
       .innerJoin(companies, eq(applications.companyId, companies.id))
       .leftJoin(platforms, eq(applications.platformId, platforms.id))
@@ -100,7 +115,7 @@ export const findApplication = async (
   id: number,
 ): Promise<ApplicationRow | null> => {
   const [row] = await db
-    .select(applicationColumns)
+    .select(applicationColumnsOf(db))
     .from(applications)
     .innerJoin(companies, eq(applications.companyId, companies.id))
     .leftJoin(platforms, eq(applications.platformId, platforms.id))
@@ -119,7 +134,7 @@ export const findApplicationDetail = async (
   id: number,
 ): Promise<(ApplicationRow & { offerDescription: string | null }) | null> => {
   const [row] = await db
-    .select({ ...applicationColumns, offerDescription: applications.offerDescription })
+    .select({ ...applicationColumnsOf(db), offerDescription: applications.offerDescription })
     .from(applications)
     .innerJoin(companies, eq(applications.companyId, companies.id))
     .leftJoin(platforms, eq(applications.platformId, platforms.id))

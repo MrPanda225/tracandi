@@ -182,3 +182,31 @@ export const companyOfCorrespondent = (
   const domain = domainOfAddress(message.direction === 'outbound' ? message.toAddress : message.fromAddress);
   return domain && isCompanyDomain(domain, platformDomains) ? companyNameOfDomain(domain) : null;
 };
+
+/**
+ * RG-20 : la partie locale d'une adresse qui n'accepte pas de réponse. Séparateurs et casse ignorés :
+ * « No-Reply », « noreply », « do_not_reply », « ne.pas.repondre ».
+ */
+const NO_REPLY_LOCAL_PART = /^(?:no-?reply|ne-?pas-?repondre|do-?not-?reply|notifications?|mailer-?daemon|bounces?)(?:[-.+]|$)/;
+
+const isNoReplyAddress = (address: string): boolean => {
+  const local = address.slice(0, address.lastIndexOf('@')).toLowerCase().replace(/[_.]/g, '-');
+  return NO_REPLY_LOCAL_PART.test(local);
+};
+
+/**
+ * RG-20 : l'adresse à laquelle une relance peut être écrite — pour un message reçu, son adresse de réponse sinon son
+ * expéditeur, pour un message envoyé, son premier destinataire ; null quand elle n'accepte pas de réponse ou manque.
+ * @req RG-20, EF-CAN-17
+ */
+export const contactAddressOf = (message: {
+  direction: 'inbound' | 'outbound';
+  fromAddress: string | null;
+  replyToAddress: string | null;
+  toAddress: string | null;
+}): string | null => {
+  const address =
+    message.direction === 'outbound' ? message.toAddress : (message.replyToAddress ?? message.fromAddress);
+  return address && !isNoReplyAddress(address) ? address : null;
+};
+

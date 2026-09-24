@@ -29,4 +29,11 @@ describe('reading the acknowledgements again on the load of ENF-PERF-01', () => 
     expect(queries.length).toBeGreaterThan(0);
     expect(await largeTablesScanned(pool, queries)).toEqual([]);
   });
+
+  it('[ENF-PERF-04] [RG-20] lists the messages still without a contact address without reading every message', async () => {
+    const queries = await capture(pool, (db) => repository.listEmailsWithoutContact(db, userId));
+
+    expect(queries.length).toBeGreaterThan(0);
+    expect(await largeTablesScanned(pool, queries)).toEqual([]);
+  });
 });

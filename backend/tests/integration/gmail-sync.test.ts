@@ -427,6 +427,23 @@ describe('classification and attachment', () => {
     expect(email?.snippet).not.toContain('suite favorable');
   });
 
+  it('[RG-20] [ENF-RGP-01] keeps with each message the address a follow-up can be written to, never a no-reply', async () => {
+    await setUp([MCDONALDS_ACKNOWLEDGEMENT, APEC_INNOVA, DATA_PRAXIS_APPLICATION]);
+    await readBack(120);
+
+    await synchronise();
+
+    const contacts = await database.db
+      .select({ gmailMessageId: emails.gmailMessageId, contactAddress: emails.contactAddress })
+      .from(emails)
+      .where(eq(emails.userId, aliceId));
+    expect(Object.fromEntries(contacts.map((row) => [row.gmailMessageId, row.contactAddress]))).toEqual({
+      [MCDONALDS_ACKNOWLEDGEMENT.id ?? '']: 'recrutement@mcdonalds.example',
+      [APEC_INNOVA.id ?? '']: null,
+      [DATA_PRAXIS_APPLICATION.id ?? '']: 'christophe.deschamps@data-praxis.example',
+    });
+  });
+
   it('[RG-03] [BES-32] names the company after the domain of the recipient when the AI finds no employer', async () => {
     await setUp([DATA_PRAXIS_APPLICATION]);
 
@@ -693,6 +710,26 @@ describe('reading the acknowledgements again (EF-GML-20)', () => {
 
     expect(state?.counters).toEqual({ messages_read: 1, messages_corrected: 0 });
     expect((await emailsOf()).map((email) => email.category)).toEqual(['acknowledged']);
+  });
+
+  it('[RG-20] [EF-GML-20] finds the contact address of the messages stored before it was kept', async () => {
+    await setUp([MCDONALDS_ACKNOWLEDGEMENT, MAISON_LUMEN_REJECTION]);
+    await synchronise();
+    // As stored before T-310: no contact address on any message.
+    await database.db.update(emails).set({ contactAddress: null }).where(eq(emails.userId, aliceId));
+
+    const { state } = await reclassify();
+
+    expect(state?.counters).toEqual({ messages_read: 2, messages_corrected: 0 });
+    const contacts = await database.db
+      .select({ contactAddress: emails.contactAddress })
+      .from(emails)
+      .where(eq(emails.userId, aliceId))
+      .orderBy(emails.receivedAt);
+    expect(contacts.map((row) => row.contactAddress)).toEqual([
+      'recrutement@mcdonalds.example',
+      'rh@maison-lumen.example',
+    ]);
   });
 
   it('[EF-GML-20] reads nothing when no acknowledgement is stored', async () => {
