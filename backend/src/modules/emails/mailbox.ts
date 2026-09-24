@@ -50,6 +50,8 @@ export interface MailboxMessage {
   /** The From header as written (name and address), for the classification only: never stored. */
   sender: string | null;
   fromAddress: string | null;
+  /** RG-03 (v1.20): address of the first recipient, whose domain may name the company. Never stored. */
+  toAddress: string | null;
   subject: string | null;
   /** Gmail's excerpt, decoded, spaces collapsed, at most 300 characters: the only text stored. */
   snippet: string;
@@ -149,6 +151,16 @@ const addressOf = (from: string): string | null => {
   return address ? clip(address, ADDRESS_MAX_LENGTH) : null;
 };
 
+// The first address of a list, bracketed or bare, in the order written: a display name may hold a comma.
+const FIRST_ADDRESS = /<([^<>\s]+@[^<>\s]+)>|([^\s<>",;]+@[^\s<>",;]+)/;
+
+/** The first address of a To header, or null when it holds none. */
+const firstAddressOf = (recipients: string | null): string | null => {
+  const match = recipients ? FIRST_ADDRESS.exec(recipients) : null;
+  const address = match?.[1] ?? match?.[2];
+  return address ? clip(address.toLowerCase(), ADDRESS_MAX_LENGTH) : null;
+};
+
 const toMailboxMessage = (message: MessageAnswer): MailboxMessage => {
   const sender = headerOf(message, 'From');
   const subject = headerOf(message, 'Subject');
@@ -158,6 +170,7 @@ const toMailboxMessage = (message: MessageAnswer): MailboxMessage => {
     direction: message.labelIds?.includes(SENT_LABEL) ? 'outbound' : 'inbound',
     sender: sender ? clip(sender, ADDRESS_MAX_LENGTH) : null,
     fromAddress: sender ? addressOf(sender) : null,
+    toAddress: firstAddressOf(headerOf(message, 'To')),
     subject: subject ? clip(subject, SUBJECT_MAX_LENGTH) : null,
     snippet: plainSnippet(message.snippet ?? ''),
     text: bodyTextOf(message.payload),

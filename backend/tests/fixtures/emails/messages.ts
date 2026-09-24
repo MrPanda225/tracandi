@@ -23,6 +23,7 @@ const metadata = (fields: {
   snippet: string;
   labelIds?: string[];
   parts?: gmail_v1.Schema$MessagePart[];
+  to?: string;
 }): gmail_v1.Schema$Message => ({
   id: fields.id,
   threadId: fields.threadId,
@@ -34,6 +35,7 @@ const metadata = (fields: {
     headers: [
       { name: 'From', value: fields.from },
       { name: 'Subject', value: fields.subject },
+      ...(fields.to ? [{ name: 'To', value: fields.to }] : []),
     ],
     parts: fields.parts ?? [],
   },
@@ -227,6 +229,21 @@ export const HTML_LATE_REJECTION = metadata({
         '</body></html>',
     ),
   ],
+});
+
+/**
+ * BES-32: an application the candidate sent to a recruiter, the employer written nowhere but in the domain of the
+ * recipient.
+ */
+export const DATA_PRAXIS_APPLICATION = metadata({
+  id: '18f0a1b2c3d4e50f',
+  threadId: '18f0a1b2c3d4e50f',
+  receivedAt: '2026-09-21T08:48:00.000Z',
+  labelIds: ['SENT'],
+  from: 'Alex Martin <alex.martin@example.com>',
+  to: 'Christophe Deschamps <christophe.deschamps@data-praxis.example>',
+  subject: 'Candidature – Data Analyst Poste de Travail',
+  snippet: 'Bonjour, Je vous adresse ma candidature pour le poste de Data Analyst.',
 });
 
 /** `count` job alerts from the same site, one a day from 2026-09-01, to fill several classification batches. */

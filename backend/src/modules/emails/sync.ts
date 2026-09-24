@@ -204,7 +204,8 @@ const recordMessage = async (
     emailId,
     category: classification.category,
     receivedAt: message.receivedAt,
-    employer: classification.employer,
+    // RG-03 (v1.20): without employer nor platform, the domain of the correspondent names the company.
+    employer: classification.employer ?? (platform ? null : message.correspondentCompany),
     platform,
     jobTitle: classification.jobTitle,
     contractType: classification.contractType,

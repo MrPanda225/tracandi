@@ -24,6 +24,7 @@ import {
   ALTERNANCE_ACKNOWLEDGEMENT,
   APEC_INNOVA,
   BANK_STATEMENT,
+  DATA_PRAXIS_APPLICATION,
   HTML_LATE_REJECTION,
   jobAlerts,
   LHH_STUDIO_ARDENT,
@@ -424,6 +425,16 @@ describe('classification and attachment', () => {
     const [email] = await emailsOf();
     expect(email?.snippet?.length).toBeLessThanOrEqual(300);
     expect(email?.snippet).not.toContain('suite favorable');
+  });
+
+  it('[RG-03] [BES-32] names the company after the domain of the recipient when the AI finds no employer', async () => {
+    await setUp([DATA_PRAXIS_APPLICATION]);
+
+    await synchronise();
+
+    expect(await applicationsOf()).toEqual([
+      expect.objectContaining({ company: 'Data Praxis', jobTitle: 'Data Analyst', status: 'sent' }),
+    ]);
   });
 
   it('[EF-CAN-11] [RG-04] never downgrades an interview when a late acknowledgement arrives', async () => {
