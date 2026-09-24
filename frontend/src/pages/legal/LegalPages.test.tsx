@@ -25,11 +25,18 @@ afterEach(() => {
 });
 
 describe('legal pages (EF-LEG-01)', () => {
-  it('[EF-LEG-01] publishes the legal notice without a session, the publisher « à compléter » until configured', async () => {
+  it('[EF-LEG-01] publishes the legal notice without a session: publisher, contact and hosts', async () => {
     renderAt('/mentions-legales');
 
-    expect(await screen.findByRole('heading', { level: 1, name: 'Mentions légales' })).toBeInTheDocument();
-    expect(screen.getAllByText(/à compléter/).length).toBeGreaterThan(0);
+    const main = await screen.findByRole('main');
+    expect(within(main).getByRole('heading', { level: 1, name: 'Mentions légales' })).toBeInTheDocument();
+    expect(within(main).getAllByText(/Sahiré YAPI/).length).toBeGreaterThan(0);
+    expect(within(main).getByRole('link', { name: 'sahireyapi33@gmail.com' })).toHaveAttribute(
+      'href',
+      'mailto:sahireyapi33@gmail.com',
+    );
+    expect(within(main).getByText(/Vercel Inc\..*Northflank Ltd/)).toBeInTheDocument();
+    expect(within(main).queryByText(/à compléter|\[/)).not.toBeInTheDocument();
   });
 
   it('[EF-LEG-01] [ENF-RGP-05] names in the privacy policy every recipient, the rights and the CNIL', async () => {
@@ -37,12 +44,13 @@ describe('legal pages (EF-LEG-01)', () => {
 
     const main = await screen.findByRole('main');
     expect(within(main).getByRole('heading', { level: 1, name: 'Politique de confidentialité' })).toBeInTheDocument();
-    for (const recipient of ['Neon', 'Google', 'Groq', 'Gemini', 'Anthropic']) {
+    for (const recipient of ['Vercel', 'Northflank', 'Neon', 'Google', 'Groq', 'Gemini', 'Anthropic']) {
       expect(within(main).getAllByText(new RegExp(recipient)).length).toBeGreaterThan(0);
     }
     expect(within(main).getAllByText(/CNIL/).length).toBeGreaterThan(0);
     expect(within(main).getByText(/utilisation limitée/)).toBeInTheDocument();
     expect(within(main).getByRole('heading', { name: 'Vos droits' })).toBeInTheDocument();
+    expect(within(main).queryByText(/à compléter|\[/)).not.toBeInTheDocument();
   });
 
   it('[EF-LEG-01] [ENF-RGP-04] describes the only cookie on the cookies page', async () => {

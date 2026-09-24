@@ -3,7 +3,7 @@
 interface ImportMetaEnv {
   /** Absolute API URL (Docker image); defaults to the `/api` development proxy. */
   readonly VITE_API_URL?: string;
-  /** EF-LEG-01: publisher of the site (natural person or company) shown in the legal pages. */
+  /** EF-LEG-01: publisher of the site shown in the legal pages; a default applies when absent (lib/legal.ts). */
   readonly VITE_LEGAL_PUBLISHER?: string;
   /** EF-LEG-01: address to write to about the site and personal data. */
   readonly VITE_LEGAL_CONTACT?: string;

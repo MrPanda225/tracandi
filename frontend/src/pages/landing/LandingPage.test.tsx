@@ -52,6 +52,15 @@ describe('LandingPage', () => {
     }
   });
 
+  it('[EF-LEG-01] links the three legal pages from its footer', async () => {
+    renderAt('/');
+
+    const footer = await screen.findByRole('contentinfo');
+    expect(within(footer).getByRole('link', { name: 'Mentions légales' })).toHaveAttribute('href', '/mentions-legales');
+    expect(within(footer).getByRole('link', { name: 'Confidentialité' })).toHaveAttribute('href', '/confidentialite');
+    expect(within(footer).getByRole('link', { name: 'Cookies' })).toHaveAttribute('href', '/cookies');
+  });
+
   it('[EF-AUT-09] asks the API nothing but whether a session exists', async () => {
     renderAt('/');
     await screen.findByRole('heading', { level: 1 });

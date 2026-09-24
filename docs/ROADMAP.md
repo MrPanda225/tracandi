@@ -491,8 +491,8 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
   *Reste à faire* : la veille (T-404) et la génération de CV (T-504) se brancheront sur la même file.
 
 - [x] **T-708 Conformité RGPD** — *demande du Business Owner du 24/09/2026 (cahier v1.25, BES-38).* Pages publiques
-  mentions légales, politique de confidentialité et cookies (éditeur, contact et hébergeur par `VITE_LEGAL_*`,
-  « à compléter » à défaut), liées depuis la connexion, l'application et les Réglages ; mention d'information sur
+  mentions légales, politique de confidentialité et cookies (éditeur, contact et hébergeur par défaut,
+  remplaçables par `VITE_LEGAL_*`), liées depuis la connexion, l'application et les Réglages ; mention d'information sur
   l'unique cookie (session), sans consentement à demander, retenue dans le navigateur ; « Mes données » dans les
   Réglages : `GET /api/account/export` (fichier JSON de toutes les données, sans secret) et `DELETE /api/auth/account`
   (mot de passe, révocation Gmail, suppression en cascade, sessions fermées). *Exigences* : EF-AUT-11, EF-AUT-12,
@@ -523,5 +523,12 @@ développeur l'active sur son poste (`ENABLED_FEATURES=watch,cv`) le temps d'y t
   affichant « En préparation ».
 - [ ] **T-802 Finitions du périmètre de mise en production** — terminer T-602 (écran du tableau de bord), revue
   complète des écrans Candidatures et Réglages (Gmail) à 1440 px et 390 px, démonstration au Business Owner.
-- [ ] **T-803 Hébergement** — après réponse à Q-18 : demande de changement, cible d'hébergement, HTTPS, CI
-  (`npm run check` et tests d'intégration sur chaque PR vers `dev` et `main`), procédure de version `dev` → `main`.
+- [~] **T-803 Hébergement** — Q-18 tranchée le 24/09/2026 (BES-39, cahier v1.26) : Vercel pour l'interface, Northflank
+  pour l'API, Neon pour la base. *Préparé* : `frontend/vercel.json` (relais `/api`, retour à l'application, en-têtes de
+  sécurité et CSP, cache des ressources, garde de build contre l'adresse d'API non renseignée) ; image de l'API prête
+  pour Northflank (écoute `0.0.0.0`, contrôle de santé) ; `TRUST_PROXY` (ENF-SEC-21) ; flux d'exécutions non tamponné
+  par les relais ; pages légales nommant Vercel et Northflank ; guide `docs/DEPLOIEMENT.md`.
+  Intégration continue (BES-40, ENF-MAI-08) : `.github/workflows/ci.yml` — API (types, lint, tests unitaires et
+  d'intégration sur PostgreSQL 18, couverture, audit), interface (vérifications, build, audit), image de l'API.
+  *Reste* : créer les services, renseigner les variables, protéger `main` et `dev` par la CI, premier déploiement,
+  vérification Google OAuth en production.
