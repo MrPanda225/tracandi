@@ -418,6 +418,29 @@ function ConnectedMailbox(props: ConnectedMailboxProps) {
   );
 }
 
+/** Height of the sections of a connected mailbox: preferences, maintenance, connection. */
+const SKELETON_SECTIONS = ['7.5rem', '5.75rem', '4.5rem'];
+
+/**
+ * Waiting state shaped like a connected mailbox, the usual case: the block of the address, then its three sections.
+ * The cards below already stand where they will stay, instead of being pushed down when the status arrives
+ * (ENF-PERF-07, layout shift).
+ */
+function GmailCardSkeleton() {
+  return (
+    <div className="gmail-card__loading" role="status" aria-live="polite">
+      <span className="visually-hidden">Chargement de la connexion Gmail…</span>
+      <Skeleton width="100%" height="6.5rem" />
+      {SKELETON_SECTIONS.map((height) => (
+        <div key={height} className="gmail-card__section">
+          <Skeleton width="25%" height="0.8rem" />
+          <Skeleton width="100%" height={height} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /**
  * Gmail card of the settings (EF-CFG-05): state of the mailbox and manual synchronisation (EF-CFG-01, EF-GML-04),
  * labels (EF-GML-17), period of the first synchronisation while it has not happened (EF-CFG-04), reading again the
@@ -498,13 +521,7 @@ export function GmailSettings({ initialNotice }: { initialNotice: Notice | null 
       </p>
       {notice && <Flash tone={notice.tone}>{notice.text}</Flash>}
 
-      {state.status === 'loading' && (
-        <div className="gmail-card__loading" role="status" aria-live="polite">
-          <span className="visually-hidden">Chargement de la connexion Gmail…</span>
-          <Skeleton width="45%" height="1rem" />
-          <Skeleton width="30%" height="0.8rem" />
-        </div>
-      )}
+      {state.status === 'loading' && <GmailCardSkeleton />}
       {state.status === 'error' && <Flash>{state.message}</Flash>}
       {gmail?.connected && gmail.authorizationExpired && (
         <div className="gmail-card__expired">

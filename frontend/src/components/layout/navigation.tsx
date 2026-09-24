@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 export interface NavItem {
   path: string;
   label: string;
-  /** ENF-UTI-02: what the bottom bar of a phone shows under the icon; the full label stays the accessible name. */
+  /** ENF-UTI-02: what the bottom bar of a phone shows under the icon; also part of the accessible name. */
   shortLabel: string;
   icon: ReactNode;
 }

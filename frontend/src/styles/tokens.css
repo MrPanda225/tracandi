@@ -16,6 +16,8 @@
   --color-accent-strong: #83412b;
   --color-accent-soft: rgb(155 78 53 / 0.12);
   --color-mist-soft: rgb(175 162 164 / 0.35);
+  /* Mist for text on the ink panel: 5.1:1 on ink (AA), where the palette mist gives 4.3:1. */
+  --color-mist-on-ink: #bbb0b2;
   --color-line: rgb(62 61 71 / 0.12);
   --color-danger: #9b2f35;
 
