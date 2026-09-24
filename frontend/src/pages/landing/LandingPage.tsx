@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
+import { LegalLinks } from '../../components/LegalLinks';
 import { BlurText } from '../../components/reactbits/BlurText';
 import { ClickSpark } from '../../components/reactbits/ClickSpark';
 import { CountUp } from '../../components/reactbits/CountUp';
@@ -202,7 +203,8 @@ export function LandingPage() {
 
       <footer className="landing__footer">
         <p>Tracandi — carnet de candidatures.</p>
-        <Link to={LOGIN}>Se connecter</Link>
+        {/* EF-LEG-01 */}
+        <LegalLinks />
       </footer>
     </div>
   );
