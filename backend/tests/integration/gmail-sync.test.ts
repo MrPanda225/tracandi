@@ -18,7 +18,7 @@ import { encryptSecret } from '../../src/lib/crypto.js';
 import { MAX_MESSAGES_PER_PASS } from '../../src/modules/emails/fetcher.js';
 import { CLASSIFY_CONCURRENCY } from '../../src/modules/emails/sync.js';
 import { createGmailMailbox } from '../../src/modules/emails/mailbox.js';
-import { saveGmailAccount } from '../../src/modules/emails/repository.js';
+import { deleteGmailAccount, saveGmailAccount } from '../../src/modules/emails/repository.js';
 import { createFakeGmail, type FakeGmail } from '../fixtures/emails/fakeGmail.js';
 import {
   ALTERNANCE_ACKNOWLEDGEMENT,
@@ -628,5 +628,92 @@ describe('incremental and interrupted synchronisations', () => {
 
     expect(response.counters).toMatchObject({ messages_read: 23, messages_retained: 23, messages_classified: 23 });
     expect(ai.requests.map((call) => (call.prompt.match(/<email ref=/g) ?? []).length)).toEqual([10, 10, 3]);
+  });
+});
+
+describe('reading the acknowledgements again (EF-GML-20)', () => {
+  /** The message as Tracandi read it before T-307: Gmail's excerpt alone, the body never asked for. */
+  const withoutBody = (message: gmail_v1.Schema$Message): gmail_v1.Schema$Message => ({
+    ...message,
+    payload: { ...message.payload, parts: [] },
+  });
+
+  const reclassify = async (cookie = alice) => {
+    const accepted = await request(context.app)
+      .post('/api/gmail/reclassify')
+      .set('Cookie', cookie)
+      .set('Content-Type', 'application/json');
+    await context.queue.drain();
+    const runId = (accepted.body as { runId?: number }).runId;
+    const state = runId === undefined ? null : await context.queue.stateOf(aliceId, runId);
+    return { accepted, state };
+  };
+
+  it('[EF-GML-20] [RG-04] refiles as a refusal an acknowledgement whose body refuses, with its application and labels', async () => {
+    await setUp([withoutBody(WORKDAY_LATE_REJECTION)]);
+    await synchronise();
+    expect((await emailsOf()).map((email) => email.category)).toEqual(['acknowledged']);
+    const aiCalls = ai.requests.length;
+    gmail.update(WORKDAY_LATE_REJECTION);
+
+    const { accepted, state } = await reclassify();
+
+    expect(accepted.status).toBe(202);
+    expect(state).toMatchObject({
+      job: 'gmail_reclassify',
+      outcome: 'success',
+      counters: { messages_read: 1, messages_corrected: 1 },
+    });
+    expect((await emailsOf()).map((email) => email.category)).toEqual(['rejected']);
+    expect(await applicationsOf()).toEqual([
+      expect.objectContaining({ company: 'Maison Lumen', status: 'rejected' }),
+    ]);
+    expect(gmail.labelsOfThread(WORKDAY_LATE_REJECTION.threadId ?? '')).toContain('Statut/Refusée');
+    expect(gmail.labelsOfThread(WORKDAY_LATE_REJECTION.threadId ?? '')).not.toContain('Statut/En attente');
+    // EF-GML-20: RG-17 decides; no AI is asked again.
+    expect(ai.requests).toHaveLength(aiCalls);
+  });
+
+  it('[EF-GML-20] leaves alone an acknowledgement that refuses nothing', async () => {
+    await setUp([MCDONALDS_ACKNOWLEDGEMENT]);
+    await synchronise();
+
+    const { state } = await reclassify();
+
+    expect(state?.counters).toEqual({ messages_read: 1, messages_corrected: 0 });
+    expect((await emailsOf()).map((email) => email.category)).toEqual(['acknowledged']);
+  });
+
+  it('[EF-GML-20] reads nothing when no acknowledgement is stored', async () => {
+    await setUp([MAISON_LUMEN_REJECTION]);
+    await synchronise();
+    const readsBefore = gmail.readIds.length;
+
+    const { state } = await reclassify();
+
+    expect(state?.counters).toEqual({ messages_read: 0, messages_corrected: 0 });
+    expect(gmail.readIds).toHaveLength(readsBefore);
+  });
+
+  it('[EF-GML-20] ends in failure, with its reason, when no mailbox is connected', async () => {
+    await setUp([]);
+    await deleteGmailAccount(database.db, aliceId);
+
+    const { state } = await reclassify();
+
+    expect(state).toMatchObject({
+      outcome: 'failure',
+      error: expect.stringContaining('Aucune boîte Gmail') as unknown,
+    });
+  });
+
+  it('[EF-AUT-05] refuses the reading again without a session', async () => {
+    await setUp([]);
+
+    const response = await request(context.app)
+      .post('/api/gmail/reclassify')
+      .set('Content-Type', 'application/json');
+
+    expect(response.status).toBe(401);
   });
 });

@@ -97,6 +97,7 @@ describe('migrations', () => {
         'GET /gmail/status',
         'PATCH /gmail/settings',
         'POST /gmail/sync',
+        'POST /gmail/reclassify',
         'GET /settings/ai',
         'GET /settings/features',
         'GET /profile',

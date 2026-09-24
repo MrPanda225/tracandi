@@ -6,7 +6,7 @@ export type RunCounters = Partial<Record<string, number>>;
 /** État d'une exécution suivie par l'interface (EF-EXE-03). */
 export interface RunState {
   id: number;
-  job: 'gmail_sync' | 'scraper' | 'backup';
+  job: 'gmail_sync' | 'gmail_reclassify' | 'scraper' | 'backup';
   trigger: 'manual' | 'schedule';
   outcome: 'queued' | 'running' | 'success' | 'failure' | 'skipped';
   counters: RunCounters;

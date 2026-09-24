@@ -268,6 +268,77 @@ describe('SettingsPage — Gmail', () => {
     expect(screen.getByRole('button', { name: 'Synchroniser maintenant' })).toBeEnabled();
   });
 
+  it('[EF-GML-20] [EF-EXE-01] queues the reading again of the acknowledgements, then tells what it corrected', async () => {
+    const calls = mockApi({
+      'GET /gmail/status': () => json(200, { ...CONNECTED, lastRunAt: '2026-09-23T08:30:00.000Z' }),
+      'POST /gmail/reclassify': () => json(202, { runId: 21 }),
+    });
+    renderPage();
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: 'Relire les accusés de réception' }));
+    const stream = openStreams.find((open) => open.url.endsWith('/jobs/stream'));
+    stream?.emit('run', {
+      id: 21,
+      job: 'gmail_reclassify',
+      trigger: 'manual',
+      outcome: 'running',
+      counters: { messages_read: 14, messages_corrected: 1 },
+      error: null,
+    });
+    expect(await screen.findByText(/Relecture en cours : 14 messages relus, 1 corrigé en refus/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Relecture…' })).toBeDisabled();
+    // A reading again is not a synchronisation: that button stays as it was.
+    expect(screen.getByRole('button', { name: 'Synchroniser maintenant' })).toBeEnabled();
+
+    stream?.emit('run', {
+      id: 21,
+      job: 'gmail_reclassify',
+      trigger: 'manual',
+      outcome: 'success',
+      counters: { messages_read: 40, messages_corrected: 2 },
+      error: null,
+    });
+
+    expect(
+      await screen.findByText('Relecture terminée : 40 messages relus, 2 corrigés en refus.'),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Relire les accusés de réception' })).toBeEnabled();
+    expect(calls.filter((call) => call === 'POST /gmail/reclassify')).toHaveLength(1);
+  });
+
+  it('[EF-GML-20] [EF-EXE-03] shows why the reading again failed', async () => {
+    mockApi({
+      'GET /gmail/status': () => json(200, CONNECTED),
+      'POST /gmail/reclassify': () => json(202, { runId: 22 }),
+    });
+    renderPage();
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: 'Relire les accusés de réception' }));
+    openStreams
+      .find((open) => open.url.endsWith('/jobs/stream'))
+      ?.emit('run', {
+        id: 22,
+        job: 'gmail_reclassify',
+        trigger: 'manual',
+        outcome: 'failure',
+        counters: {},
+        error: 'Gmail limite temporairement le nombre de requêtes.',
+      });
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Gmail limite temporairement le nombre de requêtes.');
+  });
+
+  it('[EF-GML-20] offers no reading again while the authorisation is expired', async () => {
+    mockApi({ 'GET /gmail/status': () => json(200, { ...CONNECTED, authorizationExpired: true }) });
+    renderPage();
+
+    await screen.findByRole('button', { name: 'Reconnecter Gmail' });
+
+    expect(screen.queryByRole('button', { name: 'Relire les accusés de réception' })).not.toBeInTheDocument();
+  });
+
   it('[EF-GML-17] turns the writing of Gmail labels off, then on again', async () => {
     const bodies: unknown[] = [];
     vi.stubGlobal(

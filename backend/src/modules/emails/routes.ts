@@ -20,9 +20,29 @@ interface GmailModulesDeps {
 }
 
 /**
+ * EF-EXE-01: the executions reading the mailbox are queued, the answer never waits for them (ENF-PERF-06): the
+ * manual synchronisation, and the reading again of the acknowledgements (EF-GML-20).
+ */
+const mountQueuedRuns = (router: Router, sync: GmailSync): void => {
+  router.post(
+    '/gmail/sync',
+    asyncHandler(async (_req, res) => {
+      res.status(202).json({ runId: await sync.synchronise(currentUserId(res), 'manual') });
+    }),
+  );
+  router.post(
+    '/gmail/reclassify',
+    asyncHandler(async (_req, res) => {
+      res.status(202).json({ runId: await sync.reclassify(currentUserId(res)) });
+    }),
+  );
+};
+
+/**
  * Gmail routes: Google's redirection is public (it arrives without the session cookie, the state identifies the
- * user); the consent address, the status, the disconnection and the manual synchronisation need a session.
- * @req EF-GML-01, EF-GML-02, EF-GML-04, EF-GML-17, EF-CFG-01, ENF-SEC-14
+ * user); the consent address, the status, the disconnection, the manual synchronisation and the reading again of
+ * the acknowledgements need a session.
+ * @req EF-GML-01, EF-GML-02, EF-GML-04, EF-GML-17, EF-GML-20, EF-CFG-01, ENF-SEC-14
  */
 export const createGmailModules = ({ service, sync, frontendOrigin }: GmailModulesDeps): ApiModule[] => {
   const limitOAuth = rateLimit({
@@ -74,13 +94,7 @@ export const createGmailModules = ({ service, sync, frontendOrigin }: GmailModul
       res.status(204).end();
     }),
   );
-  protectedRouter.post(
-    '/gmail/sync',
-    asyncHandler(async (_req, res) => {
-      // EF-EXE-01: the pass is queued, the answer does not wait for it (ENF-PERF-06).
-      res.status(202).json({ runId: await sync.synchronise(currentUserId(res), 'manual') });
-    }),
-  );
+  mountQueuedRuns(protectedRouter, sync);
 
   return [
     { router: publicRouter, isPublic: true, registerDocs: registerGmailDocs },

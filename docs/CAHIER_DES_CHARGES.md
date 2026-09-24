@@ -20,6 +20,7 @@
 | 1.16 | 24/09/2026 | Sahiré YAPI (Business Owner) | À valider — offres balisées d'une page lues avant tout appel à l'IA (BES-28, EF-VEI-28) |
 | 1.17 | 24/09/2026 | Sahiré YAPI (Business Owner) | À valider — première mise en production limitée au tableau de bord, aux candidatures et aux réglages de la synchronisation Gmail ; veille et Atelier CV désactivables par configuration, leurs écrans affichés « En préparation », sur `main` comme sur `dev` (BES-29, ENF-MAI-07, EF-TDB-08 précisée) ; hébergement à trancher (Q-18) |
 | 1.18 | 24/09/2026 | Sahiré YAPI (Business Owner) | À valider — le classement d'un message lit le début de son corps, en mémoire et sans le conserver : des refus dont la formule arrive après un long préambule étaient classés « accusé de réception » (BES-30, EF-GML-08 précisée, RG-17 v1.18, ENF-RGP-01 précisée) |
+| 1.19 | 24/09/2026 | Sahiré YAPI (Business Owner) | À valider — relecture, à la demande, des messages déjà classés « accusé de réception », pour corriger ceux que RG-17 désigne désormais comme des refus (BES-31, EF-GML-20) |
 
 > Document de référence pour le développement. Toute évolution de périmètre passe par une mise à jour
 > de ce fichier **avant** le code. Chaque exigence porte un identifiant stable, repris dans
@@ -128,6 +129,7 @@ des candidatures, la veille des offres et la production de CV adaptés.
 | BES-22 | « Pour reconnaître les statuts des mails il faut regarder le contenu et voir la présence de ces termes. Statut/Refusée : “pas retenue”, “ne correspond malheureusement pas”, “au regret”, “suite favorable”, “nous ne pouvons y donner”. Statut/En attente : “bien reçu votre candidature”, “accusé de réception de votre candidature”, “candidature a bien été”. Fais pareil pour les termes en anglais et rajoute quelques termes qui vont dans le sens du statut. » (23/09/2026) |
 | BES-29 | « On va réarranger les branches de façon propre : une branche dev pour tous les développements, la main laisse juste trois fonctionnalités de l'app qu'on va développer à fond avant de la déployer : le tableau de bord, candidature et réglage pour la synchronisation avec le mail pour suivre ces candidatures. » (24/09/2026) |
 | BES-30 | « Nous allons travailler sur la classification des offres : regarde, il l'a mise en attente au lieu de la mettre refusée, pareil sur la deuxième image. » (24/09/2026 ; deux refus — « nous ne pouvons pas donner de suite favorable », « nous avons le regret […] pas retenu votre candidature » — étiquetés « Statut/En attente ») |
+| BES-31 | « Ok vas-y. » (24/09/2026, en réponse à la proposition : relire les messages déjà classés « accusé de réception » avec la lecture du corps de T-307, pour corriger les refus déjà enregistrés comme « En attente ») |
 | BES-23 | « Applique un système de queue pour mes traitements trop longs et même des websockets, avec une architecture asynchrone. » (23/09/2026) |
 
 ### 4.2 Exigences métier (indépendantes de la solution)
@@ -196,6 +198,7 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | EF-GML-17 | Le candidat peut désactiver l'écriture de libellés dans Gmail. | S | EXM-03 | T | Paramètre désactivé : aucun appel `threads.modify`. |
 | EF-GML-18 | Le système doit journaliser chaque exécution de synchronisation avec début, fin, compteurs et erreur éventuelle. | S | ENF-FIA-01 | T | Une ligne `job_runs` par exécution. |
 | EF-GML-19 | Le système doit enregistrer le type de contrat d'une candidature créée depuis un message lorsque ce message le mentionne. | C | EXM-11 | T | Fixture « Accusé de réception — Alternance Data Analyst » : type = alternance. |
+| EF-GML-20 | Le candidat doit pouvoir demander, depuis l'écran Réglages, la relecture des messages reçus déjà classés « accusé de réception ». Chacun est relu dans Gmail ; celui que RG-17 désigne comme un refus est reclassé « refus », sa candidature suit RG-04 et ses libellés Gmail sont mis à jour (EF-GML-13 à 17). Aucun appel à l'IA ; aucun autre message n'est modifié. (v1.19, BES-31) | S | EXM-01 | T | Un accusé de réception enregistré dont le corps refuse devient « refus » et sa candidature « Refusée » ; un accusé de réception sans refus, ou n'annonçant un refus que sous condition, reste inchangé ; la relecture s'exécute en file (EF-EXE-01) et compte les messages relus et corrigés. |
 
 ### 6.2 Suivi des candidatures (CAN)
 
@@ -546,5 +549,6 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | BES-28 | EXM-05, EXM-10 | EF-VEI-28, ENF-COU-01 |
 | BES-29 | — (organisation de la mise en production) | ENF-MAI-07, EF-TDB-08 |
 | BES-30 | EXM-01 | EF-GML-08, RG-17, ENF-RGP-01 |
+| BES-31 | EXM-01 | EF-GML-20, RG-17, RG-04 |
 
 La traçabilité fine exigence → tâche → test est tenue à jour dans `docs/TRACABILITE.md`.

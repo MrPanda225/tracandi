@@ -5,6 +5,7 @@ import {
   fetchGmailAuthorizationUrl,
   fetchGmailStatus,
   type GmailStatus,
+  reclassifyGmail,
   setGmailApplyLabels,
   setGmailLookbackDays,
   synchroniseGmail,
@@ -126,6 +127,70 @@ function LabelsOption({ isOn, onFailure }: { isOn: boolean; onFailure: (message:
   );
 }
 
+/** EF-GML-20 : ce qu'une relecture a fait, en mots. */
+const describeReclassification = ({ counters }: RunState) =>
+  `${countOf(counters['messages_read'] ?? 0, 'message relu', 'messages relus')}, ` +
+  `${countOf(counters['messages_corrected'] ?? 0, 'corrigé', 'corrigés')} en refus`;
+
+/**
+ * EF-GML-20 : relit dans Gmail les messages déjà classés « accusé de réception » et corrige ceux qui refusent en
+ * fait la candidature. Mise en file comme une synchronisation ; l'avancement arrive par le flux (EF-EXE-04).
+ */
+function ReclassifyOption({
+  run,
+  onQueued,
+  onFailure,
+}: {
+  run: RunState | null;
+  onQueued: () => void;
+  onFailure: (message: string) => void;
+}) {
+  const hintId = useId();
+  const [isAsking, setIsAsking] = useState(false);
+  const busy = isAsking || isRunning(run);
+
+  const handleReclassify = async () => {
+    setIsAsking(true);
+    try {
+      await reclassifyGmail();
+      onQueued();
+    } catch (failure) {
+      onFailure(messageOf(failure));
+    } finally {
+      setIsAsking(false);
+    }
+  };
+
+  return (
+    <div className="gmail-settings__option">
+      <p className="gmail-settings__option-label">Accusés de réception déjà classés</p>
+      <p id={hintId} className="gmail-settings__meta">
+        Tracandi relit dans Gmail les messages rangés « En attente » et passe en « Refusée » ceux qui annoncent en fait
+        un refus plus loin dans le message. Rien d’autre n’est modifié.
+      </p>
+      {isRunning(run) && (
+        <p className="gmail-settings__meta" role="status" aria-live="polite">
+          {run?.outcome === 'queued'
+            ? 'Relecture en attente de son tour…'
+            : `Relecture en cours : ${describeReclassification(run as RunState)}…`}
+        </p>
+      )}
+      <div>
+        <button
+          type="button"
+          className="btn btn--quiet"
+          disabled={busy}
+          aria-busy={busy}
+          aria-describedby={hintId}
+          onClick={() => void handleReclassify()}
+        >
+          {busy ? 'Relecture…' : 'Relire les accusés de réception'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /** EF-CFG-04: periods offered for the first synchronisation; the API accepts 1 to 365 days. */
 const LOOKBACK_CHOICES = [
   { days: 7, label: '7 derniers jours' },
@@ -204,12 +269,14 @@ function LookbackOption({
 function ConnectedMailbox({
   gmail,
   run,
+  reclassifyRun,
   onQueued,
   onDisconnected,
   onFailure,
 }: {
   gmail: Extract<GmailStatus, { connected: true }>;
   run: RunState | null;
+  reclassifyRun: RunState | null;
   onQueued: () => void;
   onDisconnected: () => void;
   onFailure: (message: string) => void;
@@ -261,6 +328,9 @@ function ConnectedMailbox({
         onFailure={onFailure}
       />
       <LabelsOption isOn={gmail.applyLabels} onFailure={onFailure} />
+      {!gmail.authorizationExpired && (
+        <ReclassifyOption run={reclassifyRun} onQueued={onQueued} onFailure={onFailure} />
+      )}
       <div className="gmail-settings__actions">
         {isConfirming ? (
           <>
@@ -298,8 +368,8 @@ function ConnectedMailbox({
 /**
  * Gmail block of the settings: connected address, connection day and last synchronisation (EF-CFG-01), connection
  * through Google's consent page (EF-GML-01), manual synchronisation (EF-GML-04), period of the first synchronisation
- * (EF-CFG-04), writing of labels (EF-GML-17), disconnection after confirmation (EF-GML-02), reconnection of an
- * expired authorisation (Q-11).
+ * (EF-CFG-04), writing of labels (EF-GML-17), reading the acknowledgements again (EF-GML-20), disconnection after
+ * confirmation (EF-GML-02), reconnection of an expired authorisation (Q-11).
  */
 export function GmailSettings({ initialNotice }: { initialNotice: Notice | null }) {
   const titleId = useId();
@@ -307,6 +377,7 @@ export function GmailSettings({ initialNotice }: { initialNotice: Notice | null 
   const [notice, setNotice] = useState<Notice | null>(initialNotice);
   const [isLeaving, setIsLeaving] = useState(false);
   const [run, setRun] = useState<RunState | null>(null);
+  const [reclassifyRun, setReclassifyRun] = useState<RunState | null>(null);
 
   const loadStatus = (signal?: AbortSignal) =>
     fetchGmailStatus(signal)
@@ -324,6 +395,16 @@ export function GmailSettings({ initialNotice }: { initialNotice: Notice | null 
   // EF-EXE-04 : l'avancement arrive tout seul, y compris pour une passe lancée par le planificateur.
   useEffect(() => {
     const stop = followRuns((received) => {
+      if (received.job === 'gmail_reclassify') {
+        setReclassifyRun(received);
+        if (received.outcome === 'success') {
+          setNotice({ tone: 'success', text: `Relecture terminée : ${describeReclassification(received)}.` });
+        }
+        if (received.outcome === 'failure') {
+          setNotice({ tone: 'error', text: received.error ?? 'La relecture a échoué.' });
+        }
+        return;
+      }
       if (received.job !== 'gmail_sync') return;
       setRun(received);
       if (received.outcome === 'success') {
@@ -380,6 +461,7 @@ export function GmailSettings({ initialNotice }: { initialNotice: Notice | null 
         <ConnectedMailbox
           gmail={state.gmail}
           run={run}
+          reclassifyRun={reclassifyRun}
           onQueued={() => setNotice(null)}
           onDisconnected={() => {
             setState({ status: 'ready', gmail: { connected: false } });

@@ -20,6 +20,8 @@ export interface FakeGmail {
   deleteLabel: (name: string) => void;
   /** A new message arrives in the mailbox. */
   deliver: (message: gmail_v1.Schema$Message) => void;
+  /** Gmail answers this message, already in the mailbox under the same id, as given from now on. */
+  update: (message: gmail_v1.Schema$Message) => void;
   /** Makes the reading of this message fail like a Gmail outage (HTTP 503), until `restore`. */
   breakMessage: (id: string) => void;
   restore: () => void;
@@ -140,6 +142,11 @@ export const createFakeGmail = (
     deliver: (message) => {
       messages.push(message);
       addToThread(message);
+    },
+    update: (message) => {
+      const at = messages.findIndex((candidate) => candidate.id === message.id);
+      if (at === -1) throw new Error(`no message ${message.id ?? ''} to update`);
+      messages[at] = message;
     },
     breakMessage: (id) => broken.add(id),
     restore: () => broken.clear(),

@@ -94,6 +94,22 @@ const ROUTES: RouteConfig[] = [
       ...errorResponses(401, 415),
     },
   },
+  {
+    tags: TAG,
+    security: SESSION_SECURITY,
+    method: 'post',
+    path: '/gmail/reclassify',
+    summary: 'Relire les accusés de réception déjà classés',
+    description:
+      'EF-GML-20, EF-EXE-01. Met en file la relecture, dans Gmail, des messages reçus classés « accusé de réception » ' +
+      'et répond aussitôt son identifiant d’exécution. Ceux que RG-17 désigne comme des refus deviennent « refus », ' +
+      'leur candidature suit RG-04 et leurs libellés sont mis à jour ; aucun appel à l’IA. Compteurs : ' +
+      '`messages_read`, `messages_corrected`. Les échecs ferment l’exécution avec leur message, jamais la requête.',
+    responses: {
+      202: jsonResponse('Exécution mise en file', AcceptedRunSchema),
+      ...errorResponses(401, 415),
+    },
+  },
 ];
 
 /** Registers the Gmail connection routes in the OpenAPI description (EF-DOC-01). */
