@@ -40,3 +40,10 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
+
+/* EF-TDB-11: a quiet line, not a banner — the new figures are the news. */
+.dashboard__live {
+  margin: 0 0 1rem;
+  color: var(--status-interview);
+  font-size: 0.875rem;
+}

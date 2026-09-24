@@ -77,7 +77,7 @@ const weeklySeries = (
 
 /**
  * Creates the statistics service. Every figure is computed from the user's own data (EF-AUT-06); the rates follow
- * RG-07, follow-ups RG-06 with the user's delay D, and the weekly series covers the last 16 weeks in UTC.
+ * RG-07, follow-ups RG-06 with the user's delay D, and the weekly series covers the last 5 weeks in UTC (EF-TDB-04 v1.21).
  * Without the offers watch (`countsOffers` false), the offers are neither read nor shown: `offers` is null.
  * @req EF-TDB-01 to EF-TDB-09, RG-06, RG-07, ENF-MAI-07
  */

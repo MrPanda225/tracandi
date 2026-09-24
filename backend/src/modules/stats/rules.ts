@@ -1,7 +1,8 @@
 import type { ApplicationStatus } from '../applications/rules.js';
 
 /** EF-TDB-04: number of weeks shown by the weekly chart, current week included. */
-export const WEEKS_SHOWN = 16;
+// EF-TDB-04 (v1.21): the current week and the four before it.
+export const WEEKS_SHOWN = 5;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const WEEK_MS = 7 * DAY_MS;

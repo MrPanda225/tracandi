@@ -45,17 +45,18 @@ const channelRows = (byChannel: Dashboard['byChannel']): BreakdownRow[] =>
 interface DashboardFiguresProps {
   dashboard: Dashboard;
   isRefreshing: boolean;
-  isFirstVisit: boolean;
+  /** The bars grow on the first visit and when new figures arrive on their own (EF-TDB-11). */
+  isChartAnimated: boolean;
 }
 
-function DashboardFigures({ dashboard, isRefreshing, isFirstVisit }: DashboardFiguresProps) {
+function DashboardFigures({ dashboard, isRefreshing, isChartAnimated }: DashboardFiguresProps) {
   return (
     <div className="dashboard" aria-busy={isRefreshing}>
       <KpiCards totals={dashboard.totals} offers={dashboard.offers} />
 
       <div className="dashboard__panel">
         {/* Replaying the drawing on every return would make known figures look like they are loading. */}
-        <WeeklyChart weekly={dashboard.weekly} isAnimated={isFirstVisit} />
+        <WeeklyChart weekly={dashboard.weekly} isAnimated={isChartAnimated} />
       </div>
 
       <div className="dashboard__panel">
@@ -98,12 +99,12 @@ function DashboardFigures({ dashboard, isRefreshing, isFirstVisit }: DashboardFi
 }
 
 /**
- * Dashboard screen (T-602): every figure from `GET /api/stats/dashboard` (EF-TDB-01 to 09), the user's own
- * data only (EF-AUT-06 on the API side). The first visit shows the shape of the page while it loads; later visits
+ * Dashboard screen (T-602): every figure from `GET /api/stats/dashboard` (EF-TDB-01 to 10), the user's own
+ * data only (EF-AUT-06 on the API side), refreshed on its own when a synchronisation ends (EF-TDB-11). The first visit shows the shape of the page while it loads; later visits
  * show the last figures at once and refresh them (ENF-UTI-03).
  */
 export function DashboardPage() {
-  const { dashboard, error, isRefreshing } = useDashboard();
+  const { dashboard, error, isRefreshing, isUpdatedLive } = useDashboard();
   const [isFirstVisit] = useState(() => dashboard === null);
   const today = formatToday(new Date());
 
@@ -116,10 +117,20 @@ export function DashboardPage() {
         <p>Vue d’ensemble de votre recherche : ce qui avance, ce qui attend une relance.</p>
       </PageHeader>
 
+      {isUpdatedLive && (
+        <p className="dashboard__live" role="status">
+          Tableau de bord mis à jour après la synchronisation.
+        </p>
+      )}
+
       {error && <Flash>{dashboard ? `Chiffres de votre dernière visite. ${error}` : error}</Flash>}
 
       {dashboard ? (
-        <DashboardFigures dashboard={dashboard} isRefreshing={isRefreshing} isFirstVisit={isFirstVisit} />
+        <DashboardFigures
+          dashboard={dashboard}
+          isRefreshing={isRefreshing}
+          isChartAnimated={isFirstVisit || isUpdatedLive}
+        />
       ) : (
         !error && <DashboardSkeleton />
       )}
