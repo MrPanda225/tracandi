@@ -241,26 +241,34 @@ describe('MessageFetcher — pre-filter (RG-10)', () => {
     ).toBeNull();
   });
 
-  it('[ENF-RGP-01] hands over metadata and an excerpt of at most 300 characters', async () => {
+  it('[ENF-RGP-01] hands over metadata, an excerpt of at most 300 characters and at most 2 000 of the body', async () => {
     await connectMailbox(aliceId);
 
     const { retained } = await newFetcher().fetchNewMessages(aliceId);
 
-    for (const message of retained) expect([...message.snippet].length).toBeLessThanOrEqual(300);
+    for (const message of retained) {
+      expect([...message.snippet].length).toBeLessThanOrEqual(300);
+      // BES-30: read for the classification only, never stored (gmail-sync.test.ts).
+      expect([...message.text].length).toBeLessThanOrEqual(2000);
+    }
     expect(retained.find((message) => message.gmailMessageId === LONG_NEWSLETTER.id)?.snippet).toHaveLength(
       300,
     );
     expect(Object.keys(retained[0] ?? {}).sort()).toEqual(
       [
+        'correspondentCompany',
         'direction',
         'fromAddress',
         'gmailMessageId',
         'gmailThreadId',
         'platform',
         'receivedAt',
+        'replyToAddress',
         'sender',
         'snippet',
         'subject',
+        'text',
+        'toAddress',
       ].sort(),
     );
   });

@@ -58,7 +58,21 @@ export const CLASSIFICATION_BY_SUBJECT: Readonly<Record<string, Classification>>
     jobTitle: 'Data Analyst',
     contractType: 'alternance',
   }),
+  // BES-30: read from their opening alone, these refusals pass for acknowledgements.
+  'Maison Lumen - Votre candidature au poste de Alternance Data analytics et IA H/F': answer({
+    category: 'acknowledged',
+    employer: 'Maison Lumen',
+    jobTitle: 'Alternance Data analytics et IA',
+    contractType: 'alternance',
+  }),
+  'Alex, votre candidature au poste de chef de projet électricité': answer({
+    category: 'acknowledged',
+    platform: 'LHH',
+    jobTitle: 'Chef de projet électricité',
+  }),
   'Candidature spontanée': answer({ category: 'sent_application' }),
+  // BES-32: the AI finds the title, not the employer, which only the domain of the recipient tells.
+  'Candidature – Data Analyst Poste de Travail': answer({ category: 'sent_application', jobTitle: 'Data Analyst' }),
   'Les offres d’emploi de la semaine': answer({ category: 'job_alert' }),
   'Candidat au marathon : votre dossard': answer({ category: 'off_topic' }),
 };

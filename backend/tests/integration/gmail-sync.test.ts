@@ -18,12 +18,14 @@ import { encryptSecret } from '../../src/lib/crypto.js';
 import { MAX_MESSAGES_PER_PASS } from '../../src/modules/emails/fetcher.js';
 import { CLASSIFY_CONCURRENCY } from '../../src/modules/emails/sync.js';
 import { createGmailMailbox } from '../../src/modules/emails/mailbox.js';
-import { saveGmailAccount } from '../../src/modules/emails/repository.js';
+import { deleteGmailAccount, saveGmailAccount } from '../../src/modules/emails/repository.js';
 import { createFakeGmail, type FakeGmail } from '../fixtures/emails/fakeGmail.js';
 import {
   ALTERNANCE_ACKNOWLEDGEMENT,
   APEC_INNOVA,
   BANK_STATEMENT,
+  DATA_PRAXIS_APPLICATION,
+  HTML_LATE_REJECTION,
   jobAlerts,
   LHH_STUDIO_ARDENT,
   LONG_NEWSLETTER,
@@ -35,6 +37,7 @@ import {
   otherMessages,
   POLITE_REJECTION,
   SENT_APPLICATION,
+  WORKDAY_LATE_REJECTION,
 } from '../fixtures/emails/messages.js';
 import { createScriptedClassifier, type ScriptedClassifier } from '../fixtures/llm/classifications.js';
 import {
@@ -399,6 +402,58 @@ describe('classification and attachment', () => {
     ]);
   });
 
+  it('[BES-30] [RG-17] files as refusals the refusals written after Gmail’s excerpt, plain or HTML', async () => {
+    await setUp([WORKDAY_LATE_REJECTION, HTML_LATE_REJECTION]);
+
+    await synchronise();
+
+    // The recorded AI answers are « acknowledged »: the start of the body, read in memory, decides.
+    expect((await emailsOf()).map((email) => email.category)).toEqual(['rejected', 'rejected']);
+    expect(await applicationsOf()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ company: 'Maison Lumen', status: 'rejected' }),
+      ]) as unknown,
+    );
+  });
+
+  it('[ENF-RGP-01] [BES-30] gives the AI the start of the body, and keeps only the 300 characters of the excerpt', async () => {
+    await setUp([WORKDAY_LATE_REJECTION]);
+
+    await synchronise();
+
+    expect(ai.requests[0]?.prompt).toContain('nous ne pouvons pas donner de suite favorable');
+    const [email] = await emailsOf();
+    expect(email?.snippet?.length).toBeLessThanOrEqual(300);
+    expect(email?.snippet).not.toContain('suite favorable');
+  });
+
+  it('[RG-20] [ENF-RGP-01] keeps with each message the address a follow-up can be written to, never a no-reply', async () => {
+    await setUp([MCDONALDS_ACKNOWLEDGEMENT, APEC_INNOVA, DATA_PRAXIS_APPLICATION]);
+    await readBack(120);
+
+    await synchronise();
+
+    const contacts = await database.db
+      .select({ gmailMessageId: emails.gmailMessageId, contactAddress: emails.contactAddress })
+      .from(emails)
+      .where(eq(emails.userId, aliceId));
+    expect(Object.fromEntries(contacts.map((row) => [row.gmailMessageId, row.contactAddress]))).toEqual({
+      [MCDONALDS_ACKNOWLEDGEMENT.id ?? '']: 'recrutement@mcdonalds.example',
+      [APEC_INNOVA.id ?? '']: null,
+      [DATA_PRAXIS_APPLICATION.id ?? '']: 'christophe.deschamps@data-praxis.example',
+    });
+  });
+
+  it('[RG-03] [BES-32] names the company after the domain of the recipient when the AI finds no employer', async () => {
+    await setUp([DATA_PRAXIS_APPLICATION]);
+
+    await synchronise();
+
+    expect(await applicationsOf()).toEqual([
+      expect.objectContaining({ company: 'Data Praxis', jobTitle: 'Data Analyst', status: 'sent' }),
+    ]);
+  });
+
   it('[EF-CAN-11] [RG-04] never downgrades an interview when a late acknowledgement arrives', async () => {
     await setUp([MCDONALDS_ACKNOWLEDGEMENT]);
     await request(context.app)
@@ -601,5 +656,112 @@ describe('incremental and interrupted synchronisations', () => {
 
     expect(response.counters).toMatchObject({ messages_read: 23, messages_retained: 23, messages_classified: 23 });
     expect(ai.requests.map((call) => (call.prompt.match(/<email ref=/g) ?? []).length)).toEqual([10, 10, 3]);
+  });
+});
+
+describe('reading the acknowledgements again (EF-GML-20)', () => {
+  /** The message as Tracandi read it before T-307: Gmail's excerpt alone, the body never asked for. */
+  const withoutBody = (message: gmail_v1.Schema$Message): gmail_v1.Schema$Message => ({
+    ...message,
+    payload: { ...message.payload, parts: [] },
+  });
+
+  const reclassify = async (cookie = alice) => {
+    const accepted = await request(context.app)
+      .post('/api/gmail/reclassify')
+      .set('Cookie', cookie)
+      .set('Content-Type', 'application/json');
+    await context.queue.drain();
+    const runId = (accepted.body as { runId?: number }).runId;
+    const state = runId === undefined ? null : await context.queue.stateOf(aliceId, runId);
+    return { accepted, state };
+  };
+
+  it('[EF-GML-20] [RG-04] refiles as a refusal an acknowledgement whose body refuses, with its application and labels', async () => {
+    await setUp([withoutBody(WORKDAY_LATE_REJECTION)]);
+    await synchronise();
+    expect((await emailsOf()).map((email) => email.category)).toEqual(['acknowledged']);
+    const aiCalls = ai.requests.length;
+    gmail.update(WORKDAY_LATE_REJECTION);
+
+    const { accepted, state } = await reclassify();
+
+    expect(accepted.status).toBe(202);
+    expect(state).toMatchObject({
+      job: 'gmail_reclassify',
+      outcome: 'success',
+      counters: { messages_read: 1, messages_corrected: 1 },
+    });
+    expect((await emailsOf()).map((email) => email.category)).toEqual(['rejected']);
+    expect(await applicationsOf()).toEqual([
+      expect.objectContaining({ company: 'Maison Lumen', status: 'rejected' }),
+    ]);
+    expect(gmail.labelsOfThread(WORKDAY_LATE_REJECTION.threadId ?? '')).toContain('Statut/Refusée');
+    expect(gmail.labelsOfThread(WORKDAY_LATE_REJECTION.threadId ?? '')).not.toContain('Statut/En attente');
+    // EF-GML-20: RG-17 decides; no AI is asked again.
+    expect(ai.requests).toHaveLength(aiCalls);
+  });
+
+  it('[EF-GML-20] leaves alone an acknowledgement that refuses nothing', async () => {
+    await setUp([MCDONALDS_ACKNOWLEDGEMENT]);
+    await synchronise();
+
+    const { state } = await reclassify();
+
+    expect(state?.counters).toEqual({ messages_read: 1, messages_corrected: 0 });
+    expect((await emailsOf()).map((email) => email.category)).toEqual(['acknowledged']);
+  });
+
+  it('[RG-20] [EF-GML-20] finds the contact address of the messages stored before it was kept', async () => {
+    await setUp([MCDONALDS_ACKNOWLEDGEMENT, MAISON_LUMEN_REJECTION]);
+    await synchronise();
+    // As stored before T-310: no contact address on any message.
+    await database.db.update(emails).set({ contactAddress: null }).where(eq(emails.userId, aliceId));
+
+    const { state } = await reclassify();
+
+    expect(state?.counters).toEqual({ messages_read: 2, messages_corrected: 0 });
+    const contacts = await database.db
+      .select({ contactAddress: emails.contactAddress })
+      .from(emails)
+      .where(eq(emails.userId, aliceId))
+      .orderBy(emails.receivedAt);
+    expect(contacts.map((row) => row.contactAddress)).toEqual([
+      'recrutement@mcdonalds.example',
+      'rh@maison-lumen.example',
+    ]);
+  });
+
+  it('[EF-GML-20] reads nothing when no acknowledgement is stored', async () => {
+    await setUp([MAISON_LUMEN_REJECTION]);
+    await synchronise();
+    const readsBefore = gmail.readIds.length;
+
+    const { state } = await reclassify();
+
+    expect(state?.counters).toEqual({ messages_read: 0, messages_corrected: 0 });
+    expect(gmail.readIds).toHaveLength(readsBefore);
+  });
+
+  it('[EF-GML-20] ends in failure, with its reason, when no mailbox is connected', async () => {
+    await setUp([]);
+    await deleteGmailAccount(database.db, aliceId);
+
+    const { state } = await reclassify();
+
+    expect(state).toMatchObject({
+      outcome: 'failure',
+      error: expect.stringContaining('Aucune boîte Gmail') as unknown,
+    });
+  });
+
+  it('[EF-AUT-05] refuses the reading again without a session', async () => {
+    await setUp([]);
+
+    const response = await request(context.app)
+      .post('/api/gmail/reclassify')
+      .set('Content-Type', 'application/json');
+
+    expect(response.status).toBe(401);
   });
 });

@@ -20,12 +20,15 @@ import { createProfileService } from './modules/cv/service.js';
 import { createApplicationsService } from './modules/applications/service.js';
 import { OWASP_SCRYPT_PARAMS } from './modules/auth/password.js';
 import { createAuthModules } from './modules/auth/routes.js';
+import { createAccountModule } from './modules/account/routes.js';
+import { createAccountService } from './modules/account/service.js';
 import { createAuthService } from './modules/auth/service.js';
 import { createGmailConnectionService } from './modules/emails/connection.js';
 import { createMessageFetcher } from './modules/emails/fetcher.js';
 import { connectGoogleOAuth } from './modules/emails/googleOAuth.js';
 import { connectGmailMailbox } from './modules/emails/mailbox.js';
 import { createOAuthStateStore } from './modules/emails/oauthState.js';
+import { createFollowUpDrafts } from './modules/emails/followUp.js';
 import { createGmailModules } from './modules/emails/routes.js';
 import { createGmailSync } from './modules/emails/sync.js';
 import { createSettingsModule } from './modules/settings/routes.js';
@@ -55,6 +58,8 @@ const authService = createAuthService({
   db: database.db,
   clock: systemClock,
   passwordParams: OWASP_SCRYPT_PARAMS,
+  // EF-AUT-11: a deleted account leaves no Gmail access behind (revocation at Google, best effort).
+  revokeExternalAccess: (userId) => gmailService.disconnect(userId),
 });
 
 const gmailService = createGmailConnectionService({
@@ -94,18 +99,19 @@ const llmRouter = createLlmRouter({
 
 const jobQueue = createJobQueue({ db: database.db, clock: systemClock, logger });
 
+const messageFetcher = createMessageFetcher({
+  db: database.db,
+  openMailbox: connectGmailMailbox(config.gmail, {
+    // ENF-FIA-03: a quota refusal or a Gmail outage is attempted again; the journal keeps why the pass was slow.
+    onRetry: ({ attempt, delayMs, error }) => logger.warn('gmail call attempted again', { attempt, delayMs, error }),
+  }),
+  encryptionKey: config.gmail.tokenEncryptionKey,
+  clock: systemClock,
+});
+
 const gmailSync = createGmailSync({
   db: database.db,
-  fetcher: createMessageFetcher({
-    db: database.db,
-    openMailbox: connectGmailMailbox(config.gmail, {
-      // ENF-FIA-03: a quota refusal or a Gmail outage is attempted again; the journal keeps why the pass was slow.
-      onRetry: ({ attempt, delayMs, error }) =>
-        logger.warn('gmail call attempted again', { attempt, delayMs, error }),
-    }),
-    encryptionKey: config.gmail.tokenEncryptionKey,
-    clock: systemClock,
-  }),
+  fetcher: messageFetcher,
   router: llmRouter,
   queue: jobQueue,
   clock: systemClock,
@@ -143,10 +149,24 @@ const app = createApp({
   modules: [
     ...createAuthModules({ service: authService, isCookieSecure: config.isCookieSecure }),
     createApplicationsModule(createApplicationsService({ db: database.db, clock: systemClock })),
+    // EF-AUT-12
+    createAccountModule(createAccountService({ db: database.db, clock: systemClock })),
     createStatsModule(
       createStatsService({ db: database.db, clock: systemClock, countsOffers: config.features.has('watch') }),
     ),
-    ...createGmailModules({ service: gmailService, sync: gmailSync, frontendOrigin: config.frontendOrigin }),
+    ...createGmailModules({
+      service: gmailService,
+      sync: gmailSync,
+      // EF-CAN-17
+      followUps: createFollowUpDrafts({
+        db: database.db,
+        fetcher: messageFetcher,
+        router: llmRouter,
+        clock: systemClock,
+        logger,
+      }),
+      frontendOrigin: config.frontendOrigin,
+    }),
     createJobsModule(jobQueue),
     // ENF-MAI-07: an optional feature that is not enabled exposes no route.
     ...onlyIf(

@@ -11,6 +11,7 @@ import {
 } from '../../src/db/schema.js';
 import {
   createTestContext,
+  giveContact,
   openTestDatabase,
   registerUser,
   sessionCookieOf,
@@ -234,7 +235,16 @@ describe('GET /api/applications', () => {
     expect(response.body.total).toBe(0);
   });
 
+  const idOf = async (jobTitle: string): Promise<number> => {
+    const items = (await api(alice).get('/api/applications')).body.items as { id: number; jobTitle: string }[];
+    const found = items.find((item) => item.jobTitle === jobTitle);
+    if (!found) throw new Error(`no application ${jobTitle}`);
+    return found.id;
+  };
+
   it('[EF-CAN-12] flags a sent application without activity for 11 days (D = 10 by default)', async () => {
+    const userId = await userIdOf('alice@example.com');
+    await giveContact(database, { userId, applicationId: await idOf('Équipier'), address: 'rh@mcdonalds.example' });
     context.clock.advanceDays(11);
     // The 7-day session has expired meanwhile (EF-AUT-07): log in again, as the user would.
     const login = await request(context.app)
@@ -247,6 +257,19 @@ describe('GET /api/applications', () => {
     expect(response.body.items).toEqual(
       expect.arrayContaining([expect.objectContaining({ jobTitle: 'Équipier', isFollowUpDue: true })]),
     );
+  });
+
+  it('[RG-06] [BES-34] never flags an application nobody can be written to', async () => {
+    context.clock.advanceDays(11);
+    const login = await request(context.app)
+      .post('/api/auth/login')
+      .set('Content-Type', 'application/json')
+      .send({ email: 'alice@example.com', password: 'une phrase de passe longue' });
+
+    const response = await api(sessionCookieOf(login)).get('/api/applications?status=sent');
+
+    // Axa and McDonald's are both sent and silent for 11 days; neither holds an address to write to.
+    expect((response.body.items as { isFollowUpDue: boolean }[]).every((item) => !item.isFollowUpDue)).toBe(true);
   });
 
   it('[ENF-SEC-04] bounds the page size to 500', async () => {
@@ -500,6 +523,7 @@ describe('offer description and application date (T-104)', () => {
   it('[EF-CAN-16] [RG-16] dates a new application in the past and follows it up from that date', async () => {
     const appliedAt = daysAgo(15);
     const id = await createApplication(alice, { companyName: 'Arkema', jobTitle: 'Data Engineer', appliedAt });
+    await giveContact(database, { userId: await userIdOf('alice@example.com'), applicationId: id, address: 'rh@arkema.example' });
 
     const detail = await detailOf(id);
     expect(detail.appliedAt).toBe(appliedAt);
@@ -536,6 +560,7 @@ describe('offer description and application date (T-104)', () => {
 
   it('[RG-16] moves the last activity with the date while nothing else happened', async () => {
     const id = await createApplication(alice, { companyName: 'Arkema', jobTitle: 'Data Engineer' });
+    await giveContact(database, { userId: await userIdOf('alice@example.com'), applicationId: id, address: 'rh@arkema.example' });
     const appliedAt = daysAgo(20);
 
     expect((await api(alice).patch(`/api/applications/${id}`, { appliedAt })).status).toBe(204);

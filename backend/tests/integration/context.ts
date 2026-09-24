@@ -3,6 +3,7 @@ import { sql } from 'drizzle-orm';
 import type { Express } from 'express';
 import request from 'supertest';
 import { createApp } from '../../src/app.js';
+import { emails, processedMessages } from '../../src/db/schema.js';
 import { connectDatabase, type DatabaseHandle } from '../../src/db/client.js';
 import { createJobQueue, type JobQueue } from '../../src/jobs/queue.js';
 import { type EnabledFeatures, OPTIONAL_FEATURES, onlyIf } from '../../src/lib/features.js';
@@ -17,12 +18,15 @@ import { createProfileModule } from '../../src/modules/cv/routes.js';
 import { createProfileService } from '../../src/modules/cv/service.js';
 import { createApplicationsService } from '../../src/modules/applications/service.js';
 import { createAuthModules } from '../../src/modules/auth/routes.js';
+import { createAccountModule } from '../../src/modules/account/routes.js';
+import { createAccountService } from '../../src/modules/account/service.js';
 import { createAuthService } from '../../src/modules/auth/service.js';
 import { createGmailConnectionService } from '../../src/modules/emails/connection.js';
 import { createMessageFetcher } from '../../src/modules/emails/fetcher.js';
 import type { GoogleOAuth } from '../../src/modules/emails/googleOAuth.js';
 import type { OpenMailbox } from '../../src/modules/emails/mailbox.js';
 import { createOAuthStateStore } from '../../src/modules/emails/oauthState.js';
+import { createFollowUpDrafts } from '../../src/modules/emails/followUp.js';
 import { createGmailModules } from '../../src/modules/emails/routes.js';
 import { createGmailSync, type GmailSync } from '../../src/modules/emails/sync.js';
 import { createSettingsModule } from '../../src/modules/settings/routes.js';
@@ -81,7 +85,15 @@ const unreachableGoogle: GoogleOAuth = {
 /** Gmail that must never be reached: tests reading a mailbox pass their own fake. */
 const unreachableMailbox: OpenMailbox = () => {
   const refuse = () => Promise.reject(new Error('Gmail must not be called in this test'));
-  return { listMessageIds: refuse, getMessage: refuse, listLabels: refuse, createLabel: refuse, modifyThread: refuse };
+  return {
+    listMessageIds: refuse,
+    getMessage: refuse,
+    listLabels: refuse,
+    createLabel: refuse,
+    modifyThread: refuse,
+    threadMessages: refuse,
+    createDraft: refuse,
+  };
 };
 
 /** AI that must never be reached: tests needing a classification pass their own scripted provider. */
@@ -106,6 +118,8 @@ export interface ExternalServices {
   collect?: AdapterDeps['fetch'];
   /** ENF-MAI-07: the optional features of this deployment; every one by default. */
   features?: EnabledFeatures;
+  /** BES-39: proxies in front of the API (Vercel, Northflank); none by default. */
+  trustProxyHops?: number;
 }
 
 /** Real application on the local test database, with an injectable clock and fake external services. */
@@ -117,6 +131,7 @@ export const createTestContext = (
     aiProviders = unreachableAi,
     collect = unreachableCollector,
     features = new Set(OPTIONAL_FEATURES),
+    trustProxyHops = 0,
   }: ExternalServices = {},
 ): TestContext => {
   const clock = createTestClock(new Date('2026-09-22T08:00:00.000Z'));
@@ -126,6 +141,7 @@ export const createTestContext = (
     db: database.db,
     clock: clock.now,
     passwordParams: TEST_PASSWORD_PARAMS,
+    revokeExternalAccess: (userId) => gmailService.disconnect(userId),
   });
   const queue = createJobQueue({ db: database.db, clock: clock.now, logger });
   const gmailService = createGmailConnectionService({
@@ -137,9 +153,10 @@ export const createTestContext = (
     logger,
   });
   const llmRouter = createLlmRouter({ providers: aiProviders, journal: createLlmJournal(database.db), logger });
+  const fetcher = createMessageFetcher({ db: database.db, openMailbox, encryptionKey, clock: clock.now });
   const sync = createGmailSync({
     db: database.db,
-    fetcher: createMessageFetcher({ db: database.db, openMailbox, encryptionKey, clock: clock.now }),
+    fetcher,
     router: createLlmRouter({ providers: aiProviders, journal: createLlmJournal(database.db), logger }),
     queue,
     clock: clock.now,
@@ -155,16 +172,22 @@ export const createTestContext = (
     logger,
   });
   const app = createApp({
-    config: { frontendOrigin: FRONTEND_ORIGIN },
+    config: { frontendOrigin: FRONTEND_ORIGIN, trustProxyHops },
     logger,
     authenticate: (token) => authService.authenticate(token),
     modules: [
       ...createAuthModules({ service: authService, isCookieSecure: true }),
       createApplicationsModule(createApplicationsService({ db: database.db, clock: clock.now })),
+      createAccountModule(createAccountService({ db: database.db, clock: clock.now })),
       createStatsModule(
         createStatsService({ db: database.db, clock: clock.now, countsOffers: features.has('watch') }),
       ),
-      ...createGmailModules({ service: gmailService, sync, frontendOrigin: FRONTEND_ORIGIN }),
+      ...createGmailModules({
+        service: gmailService,
+        sync,
+        followUps: createFollowUpDrafts({ db: database.db, fetcher, router: llmRouter, clock: clock.now, logger }),
+        frontendOrigin: FRONTEND_ORIGIN,
+      }),
       createJobsModule(queue),
       ...onlyIf(features, 'cv', createProfileModule(createProfileService({ db: database.db, clock: clock.now }))),
       createSettingsModule({ aiAssignments: describeAssignments(aiProviders), features }),
@@ -200,3 +223,34 @@ export const registerUser = async (app: Express, email: string): Promise<string>
   if (response.status !== 201) throw new Error(`register failed with ${response.status}`);
   return sessionCookieOf(response);
 };
+
+/**
+ * RG-20: attaches to an application a received message carrying a contact address, as a synchronisation would; the
+ * application keeps its last activity. Returns the id of the message.
+ */
+export const giveContact = async (
+  database: DatabaseHandle,
+  { userId, applicationId, address }: { userId: number; applicationId: number; address: string },
+): Promise<number> => {
+  const gmailMessageId = `contact-${applicationId}-${address}`;
+  await database.db.insert(processedMessages).values({ userId, gmailMessageId, outcome: 'retained' });
+  const [row] = await database.db
+    .insert(emails)
+    .values({
+      userId,
+      gmailMessageId,
+      gmailThreadId: `thread-${gmailMessageId}`,
+      applicationId,
+      direction: 'inbound',
+      fromAddress: address,
+      contactAddress: address,
+      subject: 'Votre candidature',
+      snippet: 'Nous avons bien reçu votre candidature.',
+      category: 'acknowledged',
+      receivedAt: new Date('2026-01-05T09:00:00.000Z'),
+    })
+    .returning({ id: emails.id });
+  if (!row) throw new Error('contact message not stored');
+  return row.id;
+};
+

@@ -19,7 +19,8 @@ Référence complète : `.claude/skills/security/SKILL.md`. Exigences : ENF-SEC-
 - Secrets uniquement dans `.env`, validés au démarrage par `config/env.ts` ; le process s'arrête si invalide.
 - Jeton OAuth chiffré AES-256-GCM (`lib/crypto.ts`) avant stockage (ENF-SEC-02).
 - Journaux : jamais de clé, jeton, mot de passe, corps de message, contenu de CV (ENF-SEC-08).
-- Messages : seules les métadonnées et un extrait ≤ 300 caractères sont stockés (ENF-RGP-01).
+- Messages : seules les métadonnées et un extrait ≤ 300 caractères sont stockés (ENF-RGP-01). Le début du corps
+  (2 000 caractères) est lu en mémoire pour le classement, jamais stocké ni journalisé ; 1 000 caractères au plus vont à l'IA (BES-30).
 
 ## Fichiers
 - Noms de fichiers générés par le serveur (UUID) ; une référence reçue est validée par regex puis résolue dans le dossier autorisé (ENF-SEC-13).

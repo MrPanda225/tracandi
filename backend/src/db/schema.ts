@@ -84,9 +84,11 @@ export const llmTask = pgEnum('llm_task', [
   'extract_offers',
   'tailor_cv',
   'write_motivation',
+  // EF-CAN-17
+  'write_follow_up',
 ]);
 export const llmOutcome = pgEnum('llm_outcome', ['success', 'error', 'timeout', 'invalid_output']);
-export const jobName = pgEnum('job_name', ['gmail_sync', 'scraper', 'backup']);
+export const jobName = pgEnum('job_name', ['gmail_sync', 'gmail_reclassify', 'scraper', 'backup']);
 export const triggerType = pgEnum('trigger_type', ['schedule', 'manual']);
 // EF-EXE-01 à 03 : une exécution attend son tour (`queued`) avant de tourner, de réussir, d'échouer ou d'être
 // écartée parce qu'une autre du même travail était déjà en file.
@@ -102,6 +104,8 @@ export const runCounter = pgEnum('run_counter', [
   'messages_retained',
   'messages_classified',
   'messages_pending',
+  // EF-GML-20: received acknowledgements read again and refiled as refusals.
+  'messages_corrected',
   'sources_checked',
   'offers_new',
   'offers_relevant',
@@ -383,6 +387,8 @@ export const emails = pgTable(
     subject: varchar({ length: 500 }),
     // ENF-RGP-01: never the full body.
     snippet: varchar({ length: 300 }),
+    // RG-20: the address a follow-up can be written to; null when the message carries none (no-reply).
+    contactAddress: varchar({ length: 320 }),
     category: emailCategory().notNull(),
     platformId: integer().references(() => platforms.id, { onDelete: 'set null' }),
     receivedAt: instant().notNull(),
@@ -399,6 +405,10 @@ export const emails = pgTable(
     index('ix_emails_application_received').on(t.applicationId, t.receivedAt),
     // EF-GML-13/14 labels by thread
     index('ix_emails_user_thread').on(t.userId, t.gmailThreadId),
+    // EF-GML-20: the received messages of one category, to read them again
+    index('ix_emails_user_category').on(t.userId, t.category),
+    // RG-20: the messages still without a contact address, read again to find one (EF-GML-20)
+    index('ix_emails_user_without_contact').on(t.userId).where(sql`${t.contactAddress} is null`),
   ],
 );
 

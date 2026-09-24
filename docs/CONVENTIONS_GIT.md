@@ -36,6 +36,10 @@ L'ouvrir en production revient à ajouter son nom à `ENABLED_FEATURES` du dépl
 
 `main` et `dev` ne reçoivent jamais de commit ni de push direct, et jamais de `push --force`.
 
+Chaque PR vers `dev` ou `main` passe l'intégration continue (`.github/workflows/ci.yml`, ENF-MAI-08) : une PR rouge
+n'est pas fusionnée. `main` étant déployée automatiquement (Vercel, Northflank), une fusion sur `main` est une mise en
+production.
+
 ## Branches
 
 ```

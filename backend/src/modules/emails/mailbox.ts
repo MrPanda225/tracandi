@@ -1,11 +1,13 @@
 // The Gmail entry point only: the whole googleapis index describes every Google API and exhausts the typed lint.
 import { auth, gmail, type gmail_v1 } from 'googleapis/build/src/apis/gmail/index.js';
 import { z } from 'zod';
+import { bodyTextOf, type MessagePart } from './bodyText.js';
 import type { GoogleOAuthConfig } from './googleOAuth.js';
 import { type GmailRetry, throttleGmailClient } from './quota.js';
 
 /** ENF-RGP-01: at most 300 characters of a message are kept, besides its metadata. */
 export const SNIPPET_MAX_LENGTH = 300;
+export { BODY_TEXT_MAX_LENGTH } from './bodyText.js';
 // Same bounds as the data model: emails.from_address 320, emails.subject 500.
 const ADDRESS_MAX_LENGTH = 320;
 const SUBJECT_MAX_LENGTH = 500;
@@ -29,6 +31,18 @@ export interface GmailClient {
     params: gmail_v1.Params$Resource$Users$Labels$Create,
   ) => Promise<{ data: gmail_v1.Schema$Label }>;
   modifyThread: (params: gmail_v1.Params$Resource$Users$Threads$Modify) => Promise<unknown>;
+  getThread: (params: gmail_v1.Params$Resource$Users$Threads$Get) => Promise<{ data: gmail_v1.Schema$Thread }>;
+  createDraft: (params: gmail_v1.Params$Resource$Users$Drafts$Create) => Promise<{ data: gmail_v1.Schema$Draft }>;
+}
+
+/** A message of a thread, as a reply needs it (EF-CAN-17): its RFC 5322 id, subject and whether the candidate sent it. */
+export interface ThreadMessage {
+  /** The `Message-ID` header, for `In-Reply-To` and `References`; null when absent. */
+  messageId: string | null;
+  subject: string | null;
+  /** Display name of the sender (« Alex Martin »), null without one. */
+  senderName: string | null;
+  isSent: boolean;
 }
 
 /** A Gmail label: its id and its full name (« Candidatures/Atelier Nova »). */
@@ -37,7 +51,10 @@ export interface GmailLabel {
   name: string;
 }
 
-/** A message as the application knows it: metadata and an excerpt, never the body (ENF-RGP-01). */
+/**
+ * A message as the application knows it: metadata, the excerpt kept, and the start of the body, read for the
+ * classification only and never stored (ENF-RGP-01, BES-30).
+ */
 export interface MailboxMessage {
   gmailMessageId: string;
   gmailThreadId: string;
@@ -45,9 +62,15 @@ export interface MailboxMessage {
   /** The From header as written (name and address), for the classification only: never stored. */
   sender: string | null;
   fromAddress: string | null;
+  /** RG-03 (v1.20): address of the first recipient, whose domain may name the company. */
+  toAddress: string | null;
+  /** RG-20: address the sender asks to be answered at (`Reply-To`), or null. */
+  replyToAddress: string | null;
   subject: string | null;
-  /** Gmail's excerpt, decoded, spaces collapsed, at most 300 characters. */
+  /** Gmail's excerpt, decoded, spaces collapsed, at most 300 characters: the only text stored. */
   snippet: string;
+  /** Start of the body as plain text (at most 2 000 characters), empty when unreadable. Never stored nor logged. */
+  text: string;
   receivedAt: Date;
 }
 
@@ -66,12 +89,29 @@ export interface GmailMailbox {
     threadId: string,
     change: { add: readonly string[]; remove: readonly string[] },
   ) => Promise<void>;
+  /** EF-CAN-17: the messages of a thread, oldest first, as a reply needs them. */
+  threadMessages: (threadId: string) => Promise<ThreadMessage[]>;
+  /**
+   * EF-CAN-17: saves a draft in the thread, never sends it. `raw` is the RFC 2822 message, base64url-encoded.
+   * @returns the id of the draft's message, which Gmail opens with `#drafts?compose=`.
+   */
+  createDraft: (draft: { threadId: string; raw: string }) => Promise<string>;
 }
 
 /** Opens the mailbox authorised by a (clear) refresh token. */
 export type OpenMailbox = (refreshToken: string) => GmailMailbox;
 
 // External data: Gmail's answers are parsed before use (clean-code.md).
+const MessagePartSchema: z.ZodType<MessagePart> = z.lazy(() =>
+  z.object({
+    mimeType: z.string().nullish(),
+    filename: z.string().nullish(),
+    headers: z.array(z.object({ name: z.string().nullish(), value: z.string().nullish() })).nullish(),
+    body: z.object({ data: z.string().nullish(), attachmentId: z.string().nullish() }).nullish(),
+    parts: z.array(MessagePartSchema).nullish(),
+  }),
+);
+
 const ListAnswerSchema = z.object({
   messages: z.array(z.object({ id: z.string().min(1) })).nullish(),
   nextPageToken: z.string().nullish(),
@@ -83,11 +123,7 @@ const MessageAnswerSchema = z.object({
   labelIds: z.array(z.string()).nullish(),
   snippet: z.string().nullish(),
   internalDate: z.string().regex(/^\d+$/),
-  payload: z
-    .object({
-      headers: z.array(z.object({ name: z.string().nullish(), value: z.string().nullish() })).nullish(),
-    })
-    .nullish(),
+  payload: MessagePartSchema.nullish(),
 });
 type MessageAnswer = z.infer<typeof MessageAnswerSchema>;
 
@@ -95,6 +131,14 @@ const LabelsAnswerSchema = z.object({
   labels: z.array(z.object({ id: z.string().min(1), name: z.string().min(1) })).nullish(),
 });
 const CreatedLabelSchema = z.object({ id: z.string().min(1) });
+const ThreadAnswerSchema = z.object({
+  messages: z
+    .array(z.object({ labelIds: z.array(z.string()).nullish(), payload: MessagePartSchema.nullish() }))
+    .nullish(),
+});
+const CreatedDraftSchema = z.object({ message: z.object({ id: z.string().min(1) }) });
+// The display name of a From header: « "Alex Martin" <a@b> » gives « Alex Martin ».
+const DISPLAY_NAME = /^\s*"?([^"<]*?)"?\s*</;
 
 const NAMED_ENTITIES: Readonly<Record<string, string>> = {
   amp: '&',
@@ -136,6 +180,16 @@ const addressOf = (from: string): string | null => {
   return address ? clip(address, ADDRESS_MAX_LENGTH) : null;
 };
 
+// The first address of a list, bracketed or bare, in the order written: a display name may hold a comma.
+const FIRST_ADDRESS = /<([^<>\s]+@[^<>\s]+)>|([^\s<>",;]+@[^\s<>",;]+)/;
+
+/** The first address of a To header, or null when it holds none. */
+const firstAddressOf = (recipients: string | null): string | null => {
+  const match = recipients ? FIRST_ADDRESS.exec(recipients) : null;
+  const address = match?.[1] ?? match?.[2];
+  return address ? clip(address.toLowerCase(), ADDRESS_MAX_LENGTH) : null;
+};
+
 const toMailboxMessage = (message: MessageAnswer): MailboxMessage => {
   const sender = headerOf(message, 'From');
   const subject = headerOf(message, 'Subject');
@@ -145,9 +199,28 @@ const toMailboxMessage = (message: MessageAnswer): MailboxMessage => {
     direction: message.labelIds?.includes(SENT_LABEL) ? 'outbound' : 'inbound',
     sender: sender ? clip(sender, ADDRESS_MAX_LENGTH) : null,
     fromAddress: sender ? addressOf(sender) : null,
+    toAddress: firstAddressOf(headerOf(message, 'To')),
+    replyToAddress: firstAddressOf(headerOf(message, 'Reply-To')),
     subject: subject ? clip(subject, SUBJECT_MAX_LENGTH) : null,
     snippet: plainSnippet(message.snippet ?? ''),
+    text: bodyTextOf(message.payload),
     receivedAt: new Date(Number(message.internalDate)),
+  };
+};
+
+const toThreadMessage = (message: {
+  labelIds?: string[] | null;
+  payload?: MessagePart | null;
+}): ThreadMessage => {
+  const header = (name: string) =>
+    message.payload?.headers?.find((candidate) => candidate.name?.toLowerCase() === name.toLowerCase())?.value ??
+    null;
+  const from = header('From');
+  return {
+    messageId: header('Message-ID'),
+    subject: header('Subject'),
+    senderName: (from ? DISPLAY_NAME.exec(from)?.[1]?.trim() : null) || null,
+    isSent: message.labelIds?.includes(SENT_LABEL) ?? false,
   };
 };
 
@@ -170,10 +243,11 @@ export const hasHttpStatus = (error: unknown, status: number): boolean =>
   typeof error === 'object' && error !== null && 'status' in error && error.status === status;
 
 /**
- * Gmail mailbox on Gmail's API: searches, then reads the metadata of one message (From and Subject headers,
- * excerpt, date, labels), and sets labels on threads. The body is never requested (ENF-RGP-01).
+ * Gmail mailbox on Gmail's API: searches, then reads one message (From and Subject headers, excerpt, date, labels,
+ * and the start of its body as text, for the classification only: BES-30), and sets labels on threads. Of the body,
+ * only Gmail's 300-character excerpt is ever kept (ENF-RGP-01).
  * @throws when Gmail fails or answers outside its format, except a message deleted since the listing (null).
- * @req EF-GML-03, EF-GML-05, EF-GML-13, EF-GML-14, EF-GML-15, EF-GML-16, ENF-RGP-01
+ * @req EF-GML-03, EF-GML-05, EF-GML-08, EF-GML-13, EF-GML-14, EF-GML-15, EF-GML-16, ENF-RGP-01
  */
 export const createGmailMailbox = (client: GmailClient): GmailMailbox => ({
   async listMessageIds(query) {
@@ -193,8 +267,8 @@ export const createGmailMailbox = (client: GmailClient): GmailMailbox => ({
       const { data } = await client.get({
         userId: 'me',
         id,
-        format: 'metadata',
-        metadataHeaders: ['From', 'Subject'],
+        // BES-30: `metadata` gives Gmail's excerpt alone, cut before a refusal that follows a long opening.
+        format: 'full',
       });
       return toMailboxMessage(MessageAnswerSchema.parse(data));
     } catch (error) {
@@ -223,6 +297,21 @@ export const createGmailMailbox = (client: GmailClient): GmailMailbox => ({
       requestBody: { addLabelIds: [...add], removeLabelIds: [...remove] },
     });
   },
+
+  async threadMessages(threadId) {
+    const { data } = await client.getThread({
+      userId: 'me',
+      id: threadId,
+      format: 'metadata',
+      metadataHeaders: ['Message-ID', 'Subject', 'From'],
+    });
+    return (ThreadAnswerSchema.parse(data).messages ?? []).map(toThreadMessage);
+  },
+
+  async createDraft({ threadId, raw }) {
+    const { data } = await client.createDraft({ userId: 'me', requestBody: { message: { threadId, raw } } });
+    return CreatedDraftSchema.parse(data).message.id;
+  },
 });
 
 /**
@@ -239,7 +328,7 @@ export const connectGmailMailbox =
   (refreshToken) => {
     const client = new auth.OAuth2(clientId, clientSecret, redirectUri);
     client.setCredentials({ refresh_token: refreshToken });
-    const { messages, labels, threads } = gmail({
+    const { messages, labels, threads, drafts } = gmail({
       version: 'v1',
       auth: client,
       timeout: GMAIL_REQUEST_TIMEOUT_MS,
@@ -252,6 +341,8 @@ export const connectGmailMailbox =
           listLabels: (params) => labels.list(params),
           createLabel: (params) => labels.create(params),
           modifyThread: (params) => threads.modify(params),
+          getThread: (params) => threads.get(params),
+          createDraft: (params) => drafts.create(params),
         },
         { onRetry },
       ),

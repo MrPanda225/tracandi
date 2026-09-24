@@ -3,11 +3,14 @@ import { createFakeGmail } from '../../../tests/fixtures/emails/fakeGmail.js';
 import {
   APEC_INNOVA,
   BANK_STATEMENT,
+  bodyPart,
+  HTML_LATE_REJECTION,
   LONG_NEWSLETTER,
   MCDONALDS_ACKNOWLEDGEMENT,
   SENT_APPLICATION,
+  WORKDAY_LATE_REJECTION,
 } from '../../../tests/fixtures/emails/messages.js';
-import { createGmailMailbox, isInvalidGrant, SNIPPET_MAX_LENGTH } from './mailbox.js';
+import { BODY_TEXT_MAX_LENGTH, createGmailMailbox, isInvalidGrant, SNIPPET_MAX_LENGTH } from './mailbox.js';
 
 describe('createGmailMailbox — listing', () => {
   it('[EF-GML-05] follows every page of the search and asks for large pages', async () => {
@@ -50,7 +53,7 @@ describe('createGmailMailbox — listing', () => {
 });
 
 describe('createGmailMailbox — reading a message', () => {
-  it('[ENF-RGP-01] reads the metadata only, never the body', async () => {
+  it('[EF-GML-08] [BES-30] asks Gmail for the whole message, to read the start of its body', async () => {
     const gmail = createFakeGmail([MCDONALDS_ACKNOWLEDGEMENT]);
     const requests: unknown[] = [];
     const mailbox = createGmailMailbox({
@@ -67,8 +70,7 @@ describe('createGmailMailbox — reading a message', () => {
       {
         userId: 'me',
         id: MCDONALDS_ACKNOWLEDGEMENT.id,
-        format: 'metadata',
-        metadataHeaders: ['From', 'Subject'],
+        format: 'full',
       },
     ]);
   });
@@ -86,8 +88,47 @@ describe('createGmailMailbox — reading a message', () => {
       snippet:
         "Bonjour Alex, merci pour votre candidature au poste d'équipier polyvalent chez McDonald's Lyon " +
         'Part-Dieu. Nous reviendrons vers vous "très vite" & au plus tard sous 15 jours.',
+      toAddress: null,
+      replyToAddress: null,
+      text: '',
       receivedAt: new Date('2026-09-02T14:30:00.000Z'),
     });
+  });
+
+  it('[RG-20] reads the reply address of a message, and none when the header is missing', async () => {
+    const withReplyTo = {
+      ...BANK_STATEMENT,
+      payload: {
+        ...BANK_STATEMENT.payload,
+        headers: [
+          ...(BANK_STATEMENT.payload?.headers ?? []),
+          { name: 'Reply-To', value: 'Camille Durand <Camille.Durand@atelier-nova.example>' },
+        ],
+      },
+    };
+    const mailbox = createGmailMailbox(createFakeGmail([withReplyTo, SENT_APPLICATION]).client);
+
+    expect((await mailbox.getMessage(BANK_STATEMENT.id ?? ''))?.replyToAddress).toBe(
+      'camille.durand@atelier-nova.example',
+    );
+    expect((await mailbox.getMessage(SENT_APPLICATION.id ?? ''))?.replyToAddress).toBeNull();
+  });
+
+  it('[RG-03] [BES-32] reads the address of the first recipient, and none when the header is missing', async () => {
+    const withRecipients = {
+      ...SENT_APPLICATION,
+      payload: {
+        ...SENT_APPLICATION.payload,
+        headers: [
+          ...(SENT_APPLICATION.payload?.headers ?? []),
+          { name: 'To', value: '"Deschamps, Christophe" <c.deschamps@data-praxis.example>, rh@data-praxis.example' },
+        ],
+      },
+    };
+    const mailbox = createGmailMailbox(createFakeGmail([withRecipients, BANK_STATEMENT]).client);
+
+    expect((await mailbox.getMessage(SENT_APPLICATION.id ?? ''))?.toAddress).toBe('c.deschamps@data-praxis.example');
+    expect((await mailbox.getMessage(BANK_STATEMENT.id ?? ''))?.toAddress).toBeNull();
   });
 
   it('[EF-GML-03] tells a message sent by the candidate by its SENT label', async () => {
@@ -143,6 +184,113 @@ describe('createGmailMailbox — reading a message', () => {
     const mailbox = createGmailMailbox(createFakeGmail([message]).client);
 
     expect((await mailbox.getMessage(BANK_STATEMENT.id ?? ''))?.fromAddress).toBe(expected);
+  });
+
+  it('[EF-GML-08] [BES-30] reads the refusal a plain body holds after Gmail’s excerpt', async () => {
+    const mailbox = createGmailMailbox(createFakeGmail([WORKDAY_LATE_REJECTION]).client);
+
+    const message = await mailbox.getMessage(WORKDAY_LATE_REJECTION.id ?? '');
+
+    expect(message?.snippet).not.toContain('suite favorable');
+    expect(message?.text).toContain('nous ne pouvons pas donner de suite favorable');
+    expect(message?.text).not.toMatch(/\s{2}/);
+  });
+
+  it('[EF-GML-08] [BES-30] reads an HTML body as text: no tags, no style, entities decoded', async () => {
+    const mailbox = createGmailMailbox(createFakeGmail([HTML_LATE_REJECTION]).client);
+
+    const text = (await mailbox.getMessage(HTML_LATE_REJECTION.id ?? ''))?.text ?? '';
+
+    expect(text).toContain('Référence : 2065000000 Ville : Rungis');
+    expect(text).toContain("nous avons le regret de vous annoncer que nous n’avons pas retenu votre candidature");
+    expect(text).toContain("l'intérêt");
+    expect(text).not.toMatch(/[<>]|color|titre/);
+  });
+
+  it('[EF-GML-08] prefers the plain part of a message offered in plain text and in HTML', async () => {
+    const message = {
+      ...BANK_STATEMENT,
+      payload: {
+        ...BANK_STATEMENT.payload,
+        parts: [bodyPart('text/html', '<p>version HTML</p>'), bodyPart('text/plain', 'version texte')],
+      },
+    };
+    const mailbox = createGmailMailbox(createFakeGmail([message]).client);
+
+    expect((await mailbox.getMessage(BANK_STATEMENT.id ?? ''))?.text).toBe('version texte');
+  });
+
+  it('[EF-GML-08] finds the text inside nested parts, and never reads an attachment', async () => {
+    const attachment = { ...bodyPart('text/plain', 'pièce jointe : nous avons le regret'), filename: 'refus.txt' };
+    const message = {
+      ...BANK_STATEMENT,
+      payload: {
+        ...BANK_STATEMENT.payload,
+        mimeType: 'multipart/mixed',
+        parts: [
+          attachment,
+          { mimeType: 'multipart/alternative', parts: [bodyPart('text/plain', 'Le corps du message.')] },
+        ],
+      },
+    };
+    const mailbox = createGmailMailbox(createFakeGmail([message]).client);
+
+    expect((await mailbox.getMessage(BANK_STATEMENT.id ?? ''))?.text).toBe('Le corps du message.');
+  });
+
+  it('[EF-GML-08] reads a body whose whole payload is the text, without parts', async () => {
+    const message = {
+      ...BANK_STATEMENT,
+      payload: { ...bodyPart('text/plain', 'Un message sans parties.'), headers: BANK_STATEMENT.payload?.headers },
+    };
+    const mailbox = createGmailMailbox(createFakeGmail([message]).client);
+
+    expect((await mailbox.getMessage(BANK_STATEMENT.id ?? ''))?.text).toBe('Un message sans parties.');
+  });
+
+  it('[EF-GML-08] decodes a body written in Latin-1', async () => {
+    const latin1 = Buffer.from('Nous sommes au regret de ne pas donner suite à votre candidature.', 'latin1');
+    const message = {
+      ...BANK_STATEMENT,
+      payload: { ...BANK_STATEMENT.payload, parts: [bodyPart('text/plain', latin1, 'iso-8859-1')] },
+    };
+    const mailbox = createGmailMailbox(createFakeGmail([message]).client);
+
+    expect((await mailbox.getMessage(BANK_STATEMENT.id ?? ''))?.text).toContain('à votre candidature');
+  });
+
+  it('[EF-GML-08] reads as UTF-8 a body whose charset the runtime does not know', async () => {
+    const message = {
+      ...BANK_STATEMENT,
+      payload: { ...BANK_STATEMENT.payload, parts: [bodyPart('text/plain', 'Réponse négative.', 'x-inconnu')] },
+    };
+    const mailbox = createGmailMailbox(createFakeGmail([message]).client);
+
+    expect((await mailbox.getMessage(BANK_STATEMENT.id ?? ''))?.text).toBe('Réponse négative.');
+  });
+
+  it('[RG-17] leaves out the previous messages a reply quotes', async () => {
+    const reply =
+      'Merci, je reste disponible jeudi.\n\nLe lun. 21 sept. 2026, Maison Lumen <rh@maison-lumen.example> a écrit :\n' +
+      '> Nous avons le regret de vous informer…';
+    const message = {
+      ...BANK_STATEMENT,
+      payload: { ...BANK_STATEMENT.payload, parts: [bodyPart('text/plain', reply)] },
+    };
+    const mailbox = createGmailMailbox(createFakeGmail([message]).client);
+
+    expect((await mailbox.getMessage(BANK_STATEMENT.id ?? ''))?.text).toBe('Merci, je reste disponible jeudi.');
+  });
+
+  it('[ENF-RGP-01] [ENF-COU-01] reads at most 2 000 characters of the body', async () => {
+    const message = {
+      ...BANK_STATEMENT,
+      payload: { ...BANK_STATEMENT.payload, parts: [bodyPart('text/plain', 'mot '.repeat(1000))] },
+    };
+    const mailbox = createGmailMailbox(createFakeGmail([message]).client);
+
+    expect(BODY_TEXT_MAX_LENGTH).toBe(2000);
+    expect((await mailbox.getMessage(BANK_STATEMENT.id ?? ''))?.text).toHaveLength(2000);
   });
 
   it('[EF-GML-06] gives null for a message deleted since the listing', async () => {

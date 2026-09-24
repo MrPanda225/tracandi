@@ -12,6 +12,7 @@ import {
 } from '../../src/db/schema.js';
 import {
   createTestContext,
+  giveContact,
   openTestDatabase,
   registerUser,
   type TestContext,
@@ -123,7 +124,7 @@ describe('GET /api/stats/dashboard', () => {
 
     expect(dashboard.totals).toEqual({ applications: 0, reachedInterview: 0, responseRate: 0 });
     expect(dashboard.byStatus.every((entry) => entry.count === 0)).toBe(true);
-    expect(dashboard.weekly).toHaveLength(16);
+    expect(dashboard.weekly).toHaveLength(5);
     expect(dashboard.followUps).toEqual({ total: 0, items: [] });
     expect(dashboard.offers).toEqual({ newAboveThreshold: 0, threshold: 60 });
     expect(dashboard.followUpDays).toBe(10);
@@ -174,13 +175,13 @@ describe('GET /api/stats/dashboard', () => {
     ]);
   });
 
-  it('[EF-TDB-04] counts sent, interviews and refusals for each of the last 16 weeks (UTC, Monday first)', async () => {
+  it('[EF-TDB-04] counts sent, interviews and refusals for each of the last 5 weeks (UTC, Monday first)', async () => {
     await seedAliceHistory();
 
     const { weekly } = await dashboardOf(alice);
 
-    expect(weekly).toHaveLength(16);
-    expect(weekly[0]?.weekStart).toBe('2026-06-08T00:00:00.000Z');
+    expect(weekly).toHaveLength(5);
+    expect(weekly[0]?.weekStart).toBe('2026-08-24T00:00:00.000Z');
     expect(weekly.find((week) => week.weekStart === '2026-08-31T00:00:00.000Z')).toEqual({
       weekStart: '2026-08-31T00:00:00.000Z',
       sent: 3,
@@ -203,9 +204,17 @@ describe('GET /api/stats/dashboard', () => {
   });
 
   it('[EF-TDB-07] lists the applications to follow up, oldest activity first', async () => {
-    await createAt('2026-09-05T09:00:00.000Z', { companyName: 'Récent', jobTitle: 'Poste B' });
-    await createAt('2026-09-02T09:00:00.000Z', { companyName: 'Ancien', jobTitle: 'Poste A' });
-    await createAt('2026-09-20T09:00:00.000Z', { companyName: 'Frais', jobTitle: 'Poste C' });
+    const userId = await userIdOf('alice@example.com');
+    const recent = await createAt('2026-09-05T09:00:00.000Z', { companyName: 'Récent', jobTitle: 'Poste B' });
+    const old = await createAt('2026-09-02T09:00:00.000Z', { companyName: 'Ancien', jobTitle: 'Poste A' });
+    const fresh = await createAt('2026-09-20T09:00:00.000Z', { companyName: 'Frais', jobTitle: 'Poste C' });
+    for (const [applicationId, address] of [
+      [recent, 'rh@recent.example'],
+      [old, 'rh@ancien.example'],
+      [fresh, 'rh@frais.example'],
+    ] as const) {
+      await giveContact(database, { userId, applicationId, address });
+    }
     context.clock.set(NOW);
 
     const { followUps } = await dashboardOf(alice);
@@ -215,6 +224,19 @@ describe('GET /api/stats/dashboard', () => {
       { company: 'Ancien', jobTitle: 'Poste A', daysSinceActivity: 19 },
       { company: 'Récent', jobTitle: 'Poste B', daysSinceActivity: 16 },
     ]);
+  });
+
+  it('[RG-06] [BES-34] leaves out an application nobody can be written to', async () => {
+    const userId = await userIdOf('alice@example.com');
+    const reachable = await createAt('2026-09-02T09:00:00.000Z', { companyName: 'Joignable', jobTitle: 'Poste A' });
+    await createAt('2026-09-02T09:00:00.000Z', { companyName: 'Muet', jobTitle: 'Poste B' });
+    await giveContact(database, { userId, applicationId: reachable, address: 'rh@joignable.example' });
+    context.clock.set(NOW);
+
+    const { followUps } = await dashboardOf(alice);
+
+    expect(followUps.total).toBe(1);
+    expect(followUps.items.map((item) => item.company)).toEqual(['Joignable']);
   });
 
   it('[RG-06] uses the follow-up delay D of the user', async () => {

@@ -101,3 +101,15 @@ export const createApplication = (application: NewApplication) =>
 /** EF-CAN-07, EF-CAN-15, EF-CAN-16: only the given fields change. */
 export const updateApplication = (id: number, changes: ApplicationChanges) =>
   request<undefined>(`/applications/${id}`, { method: 'PATCH', body: changes });
+
+/** EF-CAN-17: a follow-up saved as a Gmail draft (schema `FollowUpDraft` in /api/docs); nothing is sent. */
+export interface FollowUpDraft {
+  draftUrl: string;
+  to: string;
+  subject: string;
+}
+
+/** EF-CAN-17: has the follow-up of an application written and saved as a draft in its Gmail thread. */
+export const prepareFollowUpDraft = (id: number) =>
+  request<FollowUpDraft>(`/applications/${id}/follow-up-draft`, { method: 'POST' });
+

@@ -1,0 +1,17 @@
+.legal-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.25rem;
+  font-size: 0.875rem;
+}
+
+.legal-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--color-mauve-deep);
+}
+
+.legal-links a:hover {
+  color: var(--color-accent);
+}

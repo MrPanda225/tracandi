@@ -11,11 +11,13 @@ import type { ProviderName } from '../../llm/types.js';
 import { attachIncomingMessage, findApplicationThreads } from '../applications/service.js';
 import { type ClassifiedMessage, ClassificationSchema } from './classification.js';
 import { applyCategoryCues } from './cues.js';
+import { contactAddressOf } from './domains.js';
 import type { MessageFetcher, RetainedMessage } from './fetcher.js';
 import { createThreadLabeler, databaseLabelCache, type ThreadLabeler } from './labels.js';
 import { isInvalidGrant } from './mailbox.js';
 import type { PlatformRef } from './prefilter.js';
 import { isRateLimited } from './quota.js';
+import { createReclassification } from './reclassify.js';
 import * as repository from './repository.js';
 import type { Executor } from './repository.js';
 
@@ -76,6 +78,12 @@ export interface GmailSync {
    * already has one waiting or running is written off as skipped (EF-GML-18). Never throws (ENF-FIA-01).
    */
   synchroniseEveryMailbox: () => Promise<void>;
+  /**
+   * EF-GML-20: puts in the queue the reading again of the acknowledgements already stored, and hands back at once;
+   * followed like a synchronisation (EF-EXE-03), its failures closing the execution with their message.
+   * @returns the identifier of the execution.
+   */
+  reclassify: (userId: number) => Promise<number>;
 }
 
 interface GmailSyncDeps {
@@ -117,6 +125,7 @@ const toMessageToClassify = (message: RetainedMessage): MessageToClassify => ({
   from: message.sender,
   subject: message.subject,
   snippet: message.snippet,
+  text: message.text,
 });
 
 /** The items in slices of `size`, in order; the last slice holds what is left. */
@@ -185,6 +194,7 @@ const recordMessage = async (
     fromAddress: message.fromAddress,
     subject: message.subject,
     snippet: message.snippet,
+    contactAddress: contactAddressOf(message),
     category: classification.category,
     platformId: platform?.id ?? null,
     receivedAt: message.receivedAt,
@@ -196,7 +206,8 @@ const recordMessage = async (
     emailId,
     category: classification.category,
     receivedAt: message.receivedAt,
-    employer: classification.employer,
+    // RG-03 (v1.20): without employer nor platform, the domain of the correspondent names the company.
+    employer: classification.employer ?? (platform ? null : message.correspondentCompany),
     platform,
     jobTitle: classification.jobTitle,
     contractType: classification.contractType,
@@ -356,14 +367,15 @@ const createSyncRun = (
 export const createGmailSync = (deps: GmailSyncDeps): GmailSync => {
   const { db, queue, clock, logger } = deps;
   const run = createSyncRun(deps);
+  const reclassifyRun = createReclassification(deps);
 
   /**
-   * One pass, its failures turned into what they mean for the candidate before the queue journals them: an
-   * authorisation Google refused is marked expired (Q-11), a quota spent says so (ENF-FIA-09).
+   * One execution reading the mailbox, its failures turned into what they mean for the candidate before the queue
+   * journals them: an authorisation Google refused is marked expired (Q-11), a quota spent says so (ENF-FIA-09).
    */
-  const runOnce = async (userId: number, report: (counters: RunCounters) => void): Promise<RunCounters> => {
+  const guarded = async (userId: number, work: () => Promise<RunCounters>): Promise<RunCounters> => {
     try {
-      return countersOf(await run(userId, report));
+      return await work();
     } catch (error) {
       if (isRateLimited(error)) throw new GmailQuotaExceededError();
       if (!isInvalidGrant(error)) throw error;
@@ -376,11 +388,20 @@ export const createGmailSync = (deps: GmailSyncDeps): GmailSync => {
     userId,
     job: 'gmail_sync' as const,
     trigger,
-    run: (report: (counters: RunCounters) => void) => runOnce(userId, report),
+    run: async (report: (counters: RunCounters) => void) =>
+      guarded(userId, async () => countersOf(await run(userId, report))),
   });
 
   return {
     synchronise: (userId, trigger) => queue.enqueue(workFor(userId, trigger)),
+
+    reclassify: (userId) =>
+      queue.enqueue({
+        userId,
+        job: 'gmail_reclassify',
+        trigger: 'manual',
+        run: (report) => guarded(userId, () => reclassifyRun(userId, report)),
+      }),
 
     async synchroniseEveryMailbox() {
       for (const userId of await repository.listSyncableUserIds(db)) {

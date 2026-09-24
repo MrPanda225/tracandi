@@ -12,6 +12,7 @@ const DEFAULT_GMAIL_CRON = '*/30 * * * *';
 // EF-VEI-06: the watch reads its sources at 7, 13 and 19 o'clock, Paris time.
 const DEFAULT_WATCH_CRON = '0 7,13,19 * * *';
 const DEFAULT_PORT = 4000;
+const MAX_PROXY_HOPS = 5;
 const MAX_PORT = 65_535;
 
 const isHttpOrigin = (value: string): boolean => {
@@ -90,6 +91,12 @@ const EnvSchema = z.object({
     .or(z.literal(''))
     .default('')
     .transform((value) => value || null),
+  /*
+   * BES-39: proxies standing in front of the API — 2 on the hosting (Vercel's rewrite, then Northflank's load
+   * balancer). The client address is then read from X-Forwarded-For, so that the rate limits count each visitor
+   * rather than the proxy they share (ENF-SEC-19). 0 in local use: the header is ignored, nobody can forge it.
+   */
+  TRUST_PROXY: z.coerce.number().int().min(0).max(MAX_PROXY_HOPS).default(0),
   // ENF-MAI-07: comma-separated optional features (watch, cv); none when absent, an unknown name stops the server.
   ENABLED_FEATURES: z
     .string()
@@ -151,6 +158,8 @@ export interface Config {
   scraper: ScraperConfig;
   /** ENF-MAI-07: optional features this deployment runs. */
   features: EnabledFeatures;
+  /** BES-39, ENF-SEC-19: proxies in front of the API whose X-Forwarded-For is trusted; 0 trusts none. */
+  trustProxyHops: number;
 }
 
 /** Time zone of the cron expressions and schedule of each job. */
@@ -238,5 +247,6 @@ export const loadConfig = (env: Record<string, string | undefined>): Config => {
     },
     scraper: { contact: result.data.SCRAPER_CONTACT_EMAIL },
     features: result.data.ENABLED_FEATURES,
+    trustProxyHops: result.data.TRUST_PROXY,
   };
 };

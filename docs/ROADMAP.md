@@ -49,6 +49,15 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
 
 ## Lot 1 — Suivi manuel des candidatures
 
+- [x] **T-007 Page de présentation** — *demande du Business Owner du 24/09/2026 (cahier v1.24, BES-36, BES-37).*
+  À l'adresse racine pour un visiteur sans session (`RequireAuth` › `anonymousHome`) ; accès « Se connecter » et
+  « Créer un compte » (`/connexion?mode=inscription`, EF-AUT-10). Sections : présentation avec aperçu du tableau de
+  bord en 3D (données d'exemple), fonctionnement en trois étapes, fonctionnalités en grille, chiffres du produit,
+  confidentialité, appel final. Composants React Bits adaptés (TiltedCard, BlurText, CountUp avec `motion` accordé ;
+  GlareHover, StarBorder, ShinyText sans dépendance ; SpotlightCard, Magnet, ClickSpark existants) ; chargement
+  d'ouverture ; tout mouvement coupé sous `prefers-reduced-motion` (ENF-UTI-04). Bklit écarté : bibliothèque de
+  graphiques exigeant Tailwind, shadcn et React 19. Page chargée à part (49 kB gzip), le reste de l'application
+  inchangé. *Exigences* : EF-AUT-09, EF-AUT-10, ENF-UTI-04, ENF-PERF-01.
 - [x] **T-101 Domaine candidatures** — `normalizeKey` (RG-14), `shouldReplaceStatus` (RG-04), repository
   entreprises/candidatures, service de rattachement (RG-03).
   *Exigences* : EF-CAN-11, RG-03, RG-04, RG-14.
@@ -153,6 +162,56 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
   *Exigences* : EF-CFG-04, EF-GML-05 (v1.5), ENF-FIA-09 (demande du Business Owner du 22/09/2026, cahier v1.5).
   *Fini quand* : tests d'intégration (période par défaut 30 jours, réglage enregistré et refusé hors bornes, passe
   partielle sur refus de quota) et tests Testing Library (sélecteur, refus de l'API) ; `npm run check` vert.
+- [x] **T-307 Classement lu sur le corps du message** — *demande du Business Owner du 24/09/2026 (cahier v1.18,
+  BES-30) : deux refus étiquetés « Statut/En attente ».* Gmail lu au format `full` ; début du corps extrait en texte
+  (`modules/emails/bodyText.ts` : partie `text/plain`, sinon HTML sans balises ni styles ; citations et pièces
+  jointes exclues ; jeu de caractères de la partie) ; indices RG-17 sur 2 000 caractères, phrase par phrase, une
+  expression de refus sous condition ignorée ; 1 000 caractères transmis à l'IA ; seul l'extrait de 300 caractères
+  est conservé. Décodage des entités HTML mis en commun (`lib/html.ts`) avec la veille.
+  *Exigences* : EF-GML-08 (précisée), RG-17 (v1.18), ENF-RGP-01 (précisée), ENF-COU-01.
+  *Fini quand* : les deux refus du Business Owner, reproduits anonymisés, sont classés « refus » malgré une réponse
+  « accusé de réception » de l'IA ; un accusé de réception annonçant un refus conditionnel le reste.
+  *Hors périmètre* : les messages déjà traités ne sont pas relus (EF-GML-06) ; les corriger à la main (EF-CAN-07) ou
+  demander une tâche de reclassement.
+- [x] **T-308 Relecture des accusés de réception déjà classés** — *demande du Business Owner du 24/09/2026 (cahier
+  v1.19, BES-31).* `POST /api/gmail/reclassify` met en file une exécution `gmail_reclassify` (migration 0012 :
+  valeur d'énumération, compteur `messages_corrected`, index `ix_emails_user_category`) ; chaque message reçu classé
+  « accusé de réception » est relu dans Gmail (T-307) et reclassé « refus » quand RG-17 le désigne, sa candidature
+  suivant RG-04 dans la même transaction, puis ses fils relibellés ; aucun appel à l'IA. Réglages → Gmail : bouton
+  « Relire les accusés de réception », avancement et bilan par le flux des exécutions. Jeu de charge complété des
+  10 000 messages d'ENF-PERF-01, jusque-là absents.
+  *Exigences* : EF-GML-20, RG-17, RG-04, ENF-PERF-04, EF-EXE-01, EF-EXE-03.
+  *Fini quand* : un accusé de réception enregistré dont le corps refuse devient « refus », sa candidature « Refusée »
+  et son fil « Statut/Refusée » ; un vrai accusé de réception reste inchangé ; `EXPLAIN` sans parcours complet de
+  `emails` sur le jeu de charge.
+- [x] **T-309 Entreprise déduite du domaine du correspondant** — *demande du Business Owner du 24/09/2026 (cahier
+  v1.20, BES-32) : candidature envoyée à une adresse `@data-praxis.fr` enregistrée « Entreprise inconnue ».* L'en-tête
+  `To` est lu (premier destinataire, jamais conservé) ; sans employeur ni plateforme, l'entreprise est nommée d'après
+  le domaine du destinataire d'un message envoyé ou de l'expéditeur d'un message reçu, les domaines de RG-19 exclus.
+  Listes de domaines (messageries, outils de recrutement, ATS) déplacées de la veille vers `modules/emails/domains.ts`,
+  module toujours actif, et partagées avec le pré-filtre.
+  *Exigences* : RG-03 (v1.20), RG-19, EF-GML-09, EF-GML-11.
+  *Fini quand* : la candidature envoyée à `…@data-praxis.example` est rattachée à « Data Praxis » ; une adresse
+  Gmail, une plateforme, un outil de recrutement ou un ATS ne nomment aucune entreprise.
+  *Hors périmètre* : les candidatures déjà enregistrées « Entreprise inconnue » ne sont pas renommées.
+- [x] **T-310 Relance préparée en brouillon Gmail** — *demande du Business Owner du 24/09/2026 (cahier v1.22,
+  BES-34) : ne relancer que ceux à qui l'on peut écrire, bouton « Relancer » qui rédige le mail et le laisse en
+  attente d'envoi.* Adresse de contact de chaque message (RG-20 : `Reply-To`, sinon expéditeur, destinataire d'un
+  envoi, jamais un « no-reply ») conservée (migration 0013 : colonne `contact_address`, index partiel
+  `ix_emails_user_without_contact`, tâche IA `write_follow_up`) et retrouvée pour les messages déjà enregistrés par la
+  relecture de T-308 ; RG-06 exige une adresse de contact (liste du tableau de bord et drapeau des candidatures) ;
+  `POST /api/applications/{id}/follow-up-draft` : l'IA rédige (80 à 150 mots, contrôlés par le code) à partir des
+  seuls faits de la candidature, le brouillon est enregistré en réponse dans le fil (`In-Reply-To`, `References`,
+  objet « Re: »), jamais envoyé ; bouton « Relancer » ouvrant Gmail sur le brouillon.
+  *Exigences* : RG-06 (v1.22), RG-20, EF-CAN-17, RG-13, ENF-RGP-01, ENF-SEC-04, ENF-SEC-06.
+  *Fini quand* : un brouillon est créé dans le fil, adressé au contact, signé du nom lu sur l'envoi du candidat ;
+  sans contact, statut hors relance ou IA indisponible : aucun brouillon ; aucune candidature sans contact listée.
+- [x] **T-311 Réglages réduits à l'essentiel** — *demande du Business Owner du 24/09/2026 (cahier v1.23, BES-35),
+  selon `ux-design` et `ui-design`.* Carte « Fournisseurs d'IA » retirée de l'écran ; carte Gmail réorganisée :
+  état en badge (mot + point, jamais la seule couleur) et « Synchroniser maintenant » en tête, préférences (libellés en
+  interrupteur, période en puces tant que la première synchronisation n'a pas eu lieu), entretien (relecture), puis
+  connexion à l'écart (déconnexion en rouge, confirmée). *Exigences* : EF-CFG-05, EF-CFG-02 (retirée de l'écran),
+  EF-CFG-01, EF-CFG-04, EF-GML-02, EF-GML-17, EF-GML-20.
 
 ## Lot 4 — Veille des offres
 
@@ -391,6 +450,10 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
   *Fini quand* : chaque requête du tableau de bord s'exécute en moins de 50 ms sur le jeu de charge (`EXPLAIN ANALYZE`,
   test d'intégration) — ENF-PERF-05 ; ENF-PERF-04 ne vise plus ces agrégats (Q-17, cahier des charges v1.3).
 - [~] **T-602 Écran tableau de bord**.
+  *24/09/2026 (cahier v1.21, BES-33)* : suivi hebdomadaire refait selon `bi-dashboard-design` — 5 semaines en
+  barres groupées valeurs inscrites, semaine en cours plus claire et marquée « en cours », les trois chiffres de la
+  semaine comparés à la précédente (EF-TDB-10) servant aussi de légende et de bascule d'affichage, tableau pour
+  lecteur d'écran, actualisation d'elle-même à la fin d'une synchronisation ou d'une relecture (EF-TDB-11).
 
 ## Lot 7 — Exploitation
 
@@ -399,6 +462,8 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
   *Exigences* : ENF-FIA-04 à 08.
   *Fini quand* : une sauvegarde puis une restauration de contrôle réussissent ; durée de restauration mesurée.
 - [ ] **T-702 Purge RGPD** — commande `npm run data:purge` avec confirmation.
+  *24/09/2026* : la suppression d'un compte et de toutes ses données est faite dans l'application (T-708,
+  EF-AUT-11) ; reste la purge de toute la base en ligne de commande.
   *Exigences* : ENF-RGP-02.
 - [ ] **T-703 Jeu de charge et performance** — *ouvert le 23/09/2026 par les journaux de production : chaque requête
   payait deux allers-retours vers Neon (session puis données), et une base injoignable répondait 500 après 15 s.
@@ -425,6 +490,16 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
   `ws` reste possible si un besoin bidirectionnel apparaît.
   *Reste à faire* : la veille (T-404) et la génération de CV (T-504) se brancheront sur la même file.
 
+- [x] **T-708 Conformité RGPD** — *demande du Business Owner du 24/09/2026 (cahier v1.25, BES-38).* Pages publiques
+  mentions légales, politique de confidentialité et cookies (éditeur, contact et hébergeur par défaut,
+  remplaçables par `VITE_LEGAL_*`), liées depuis la connexion, l'application et les Réglages ; mention d'information sur
+  l'unique cookie (session), sans consentement à demander, retenue dans le navigateur ; « Mes données » dans les
+  Réglages : `GET /api/account/export` (fichier JSON de toutes les données, sans secret) et `DELETE /api/auth/account`
+  (mot de passe, révocation Gmail, suppression en cascade, sessions fermées). *Exigences* : EF-AUT-11, EF-AUT-12,
+  EF-LEG-01, EF-LEG-02, ENF-RGP-02, ENF-RGP-04, ENF-RGP-05.
+  *Reste* : lier les pages légales depuis la page de présentation une fois #33 fusionnée ; renseigner les
+  informations légales au déploiement (Q-18).
+
 - [ ] **T-705 Coûts IA** — agrégat mensuel `llm_calls`, affichage EF-CFG-03, contrôle ENF-COU-01.
 
 ---
@@ -448,5 +523,12 @@ développeur l'active sur son poste (`ENABLED_FEATURES=watch,cv`) le temps d'y t
   affichant « En préparation ».
 - [ ] **T-802 Finitions du périmètre de mise en production** — terminer T-602 (écran du tableau de bord), revue
   complète des écrans Candidatures et Réglages (Gmail) à 1440 px et 390 px, démonstration au Business Owner.
-- [ ] **T-803 Hébergement** — après réponse à Q-18 : demande de changement, cible d'hébergement, HTTPS, CI
-  (`npm run check` et tests d'intégration sur chaque PR vers `dev` et `main`), procédure de version `dev` → `main`.
+- [~] **T-803 Hébergement** — Q-18 tranchée le 24/09/2026 (BES-39, cahier v1.26) : Vercel pour l'interface, Northflank
+  pour l'API, Neon pour la base. *Préparé* : `frontend/vercel.json` (relais `/api`, retour à l'application, en-têtes de
+  sécurité et CSP, cache des ressources, garde de build contre l'adresse d'API non renseignée) ; image de l'API prête
+  pour Northflank (écoute `0.0.0.0`, contrôle de santé) ; `TRUST_PROXY` (ENF-SEC-21) ; flux d'exécutions non tamponné
+  par les relais ; pages légales nommant Vercel et Northflank ; guide `docs/DEPLOIEMENT.md`.
+  Intégration continue (BES-40, ENF-MAI-08) : `.github/workflows/ci.yml` — API (types, lint, tests unitaires et
+  d'intégration sur PostgreSQL 18, couverture, audit), interface (vérifications, build, audit), image de l'API.
+  *Reste* : créer les services, renseigner les variables, protéger `main` et `dev` par la CI, premier déploiement,
+  vérification Google OAuth en production.

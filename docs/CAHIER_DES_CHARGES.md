@@ -18,6 +18,16 @@
 | 1.14 | 23/09/2026 | Sahiré YAPI (Business Owner) | À valider — toutes les sources proposées ajoutables d'un seul geste (BES-26, EF-VEI-26) |
 | 1.15 | 24/09/2026 | Sahiré YAPI (Business Owner) | À valider — page carrières retrouvée depuis l'adresse racine d'un site (BES-27, EF-VEI-27) |
 | 1.16 | 24/09/2026 | Sahiré YAPI (Business Owner) | À valider — offres balisées d'une page lues avant tout appel à l'IA (BES-28, EF-VEI-28) |
+| 1.17 | 24/09/2026 | Sahiré YAPI (Business Owner) | À valider — première mise en production limitée au tableau de bord, aux candidatures et aux réglages de la synchronisation Gmail ; veille et Atelier CV désactivables par configuration, leurs écrans affichés « En préparation », sur `main` comme sur `dev` (BES-29, ENF-MAI-07, EF-TDB-08 précisée) ; hébergement à trancher (Q-18) |
+| 1.18 | 24/09/2026 | Sahiré YAPI (Business Owner) | À valider — le classement d'un message lit le début de son corps, en mémoire et sans le conserver : des refus dont la formule arrive après un long préambule étaient classés « accusé de réception » (BES-30, EF-GML-08 précisée, RG-17 v1.18, ENF-RGP-01 précisée) |
+| 1.19 | 24/09/2026 | Sahiré YAPI (Business Owner) | À valider — relecture, à la demande, des messages déjà classés « accusé de réception », pour corriger ceux que RG-17 désigne désormais comme des refus (BES-31, EF-GML-20) |
+| 1.20 | 24/09/2026 | Sahiré YAPI (Business Owner) | À valider — entreprise déduite du domaine de l'adresse du correspondant quand ni l'employeur ni la plateforme ne sont identifiés (BES-32, RG-03 v1.20) |
+| 1.21 | 24/09/2026 | Sahiré YAPI (Business Owner) | À valider — suivi hebdomadaire resserré sur 5 semaines, semaine en cours comparée à la précédente, tableau de bord actualisé sans rechargement à la fin d'une synchronisation (BES-33, EF-TDB-04 v1.21, EF-TDB-10, EF-TDB-11) |
+| 1.22 | 24/09/2026 | Sahiré YAPI (Business Owner) | À valider — relance limitée aux candidatures dont une adresse de contact est connue ; bouton « Relancer » préparant, rédigé par l'IA, un brouillon Gmail en réponse dans le fil, jamais envoyé par le système (BES-34, RG-06 v1.22, RG-20, EF-CAN-17, RG-13, ENF-RGP-01) |
+| 1.23 | 24/09/2026 | Sahiré YAPI (Business Owner) | À valider — écran Réglages réduit à ce qui sert au candidat : fournisseurs d'IA retirés de l'interface, carte Gmail réorganisée (état et synchronisation d'abord, préférences, entretien, déconnexion à part) (BES-35, EF-CFG-02 retirée de l'écran, EF-CFG-05) |
+| 1.25 | 24/09/2026 | Sahiré YAPI (Business Owner) | À valider — conformité RGPD : pages publiques (mentions légales, confidentialité, cookies), mention d'information sur l'unique cookie, suppression du compte et export des données depuis l'application (BES-38, EF-AUT-11, EF-AUT-12, EF-LEG-01, EF-LEG-02, ENF-RGP-04, ENF-RGP-05) |
+| 1.26 | 24/09/2026 | Sahiré YAPI (Business Owner) | À valider — hébergement en ligne : interface sur Vercel, qui relaie `/api` vers l'API hébergée sur Northflank ; base sur Neon (BES-39, Q-18 tranchée, C-05 et §5.2 révisés, ENF-SEC-01 révisée, ENF-SEC-21) |
+| 1.27 | 24/09/2026 | Sahiré YAPI (Business Owner) | À valider — intégration continue : chaque PR et chaque poussée sur `dev` et `main` exécutent types, lint, tests unitaires et d'intégration, couverture, audit et construction de l'image de l'API (BES-40, ENF-MAI-08) |
 
 > Document de référence pour le développement. Toute évolution de périmètre passe par une mise à jour
 > de ce fichier **avant** le code. Chaque exigence porte un identifiant stable, repris dans
@@ -125,6 +135,15 @@ des candidatures, la veille des offres et la production de CV adaptés.
 | BES-24 | « Ajoute une section Profil pour définir ses expériences, ce que l'on recherche aussi, et ses formations (niveau d'études master, licence, etc.) et les certificats passés et tout. » (23/09/2026) |
 | BES-22 | « Pour reconnaître les statuts des mails il faut regarder le contenu et voir la présence de ces termes. Statut/Refusée : “pas retenue”, “ne correspond malheureusement pas”, “au regret”, “suite favorable”, “nous ne pouvons y donner”. Statut/En attente : “bien reçu votre candidature”, “accusé de réception de votre candidature”, “candidature a bien été”. Fais pareil pour les termes en anglais et rajoute quelques termes qui vont dans le sens du statut. » (23/09/2026) |
 | BES-29 | « On va réarranger les branches de façon propre : une branche dev pour tous les développements, la main laisse juste trois fonctionnalités de l'app qu'on va développer à fond avant de la déployer : le tableau de bord, candidature et réglage pour la synchronisation avec le mail pour suivre ces candidatures. » (24/09/2026) |
+| BES-30 | « Nous allons travailler sur la classification des offres : regarde, il l'a mise en attente au lieu de la mettre refusée, pareil sur la deuxième image. » (24/09/2026 ; deux refus — « nous ne pouvons pas donner de suite favorable », « nous avons le regret […] pas retenu votre candidature » — étiquetés « Statut/En attente ») |
+| BES-31 | « Ok vas-y. » (24/09/2026, en réponse à la proposition : relire les messages déjà classés « accusé de réception » avec la lecture du corps de T-307, pour corriger les refus déjà enregistrés comme « En attente ») |
+| BES-32 | « Pour les entreprises inconnues, il suffit de regarder le nom de domaine dans le mail. » (24/09/2026, capture : candidature envoyée à `christophe.deschamps@data-praxis.fr`, enregistrée « Entreprise inconnue ») |
+| BES-33 | « Travaille sur le graphique pour le suivi : regardons sur une période de 5 semaines et sois plus expressif, suis le skill bi-dashboard-design ; il doit être dynamique. » (24/09/2026, captures du graphique des 16 semaines) |
+| BES-34 | « Au niveau des relances, il faudra revoir la politique : relancer tous ceux dont on a un mail de relance, et ajouter un bouton Relance qui va rédiger le mail à envoyer ; en cliquant, ça doit lancer le mail avec l'objet et le contenu, avec le mail en attendant d'être envoyé. » (24/09/2026 ; précisé : adresse joignable, brouillon dans Gmail, rédaction par l'IA) |
+| BES-38 | « Rajoute les cookies, les règles de RGPD, etc., et tout. » (24/09/2026 ; précisé : page cookies et mention d'information discrète — un seul cookie, strictement nécessaire, donc pas de consentement à demander ; suppression du compte et export des données dans l'application ; éditeur et hébergeur fournis par la configuration) |
+| BES-39 | « Prépare le front pour un déploiement sur Vercel et le back pour un déploiement sur Northflank. » (24/09/2026) |
+| BES-40 | « Rajoute aussi la pipeline CI/CD qui va exécuter tous les tests unitaires et d'intégration. » (24/09/2026) |
+| BES-35 | « On va retaper la section Réglages en gardant que ce qui est utile à savoir pour l'utilisateur : déjà retire-moi le fournisseur d'IA, et optimise la section boîte mail en suivant les principes ux-design et ui-design. » (24/09/2026) |
 | BES-23 | « Applique un système de queue pour mes traitements trop longs et même des websockets, avec une architecture asynchrone. » (23/09/2026) |
 
 ### 4.2 Exigences métier (indépendantes de la solution)
@@ -159,9 +178,9 @@ sauvegarde et restauration de la base.
 - Envoi automatique de relances : le système signale, le candidat relance lui-même.
 - Collecte sur LinkedIn, Indeed, Welcome to the Jungle ou toute plateforme dont les conditions interdisent l'automatisation.
 - Messageries autres que Gmail.
-- Partage de données entre utilisateurs, rôles d'administration, hébergement en ligne de l'application (API, interface),
-  application mobile native. (Le multi-utilisateur avec comptes séparés est dans le périmètre depuis v1.2, BES-14.)
-  Seule la base de données est hébergée (BES-10).
+- Partage de données entre utilisateurs, rôles d'administration,
+  application mobile native. (Le multi-utilisateur avec comptes séparés est dans le périmètre depuis v1.2, BES-14 ;
+  l'hébergement en ligne de l'interface et de l'API, depuis v1.26, BES-39.)
 - Rendu des pages carrières exécutant du JavaScript côté client (navigateur automatisé).
 
 ## 6. Exigences fonctionnelles
@@ -181,7 +200,7 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | EF-GML-05 | Lors de la première synchronisation, le système doit traiter les messages des N derniers jours, N paramétrable entre 1 et 365 avec **30 par défaut** (v1.5, BES-19 ; 120 en v1.4). | M | EXM-01 | T | Avec N = 30, aucun message antérieur à J-30 n'est traité. |
 | EF-GML-06 | Le système doit ignorer tout message déjà traité. | M | EXM-01 | T | Deux synchronisations successives sans nouveau message n'ajoutent aucune ligne. |
 | EF-GML-07 | Le système doit écarter sans appel IA tout message ne correspondant à aucun indicateur d'emploi (RG-10). | M | EXM-10 | T | Un message bancaire de test n'entraîne aucun appel fournisseur. |
-| EF-GML-08 | Le système doit attribuer à chaque message retenu une catégorie de message. | M | EXM-01 | T | Sur le jeu de fixtures, chaque message reçoit une catégorie valide. |
+| EF-GML-08 | Le système doit attribuer à chaque message retenu une catégorie de message, lue sur son objet et le début de son corps, et non sur le seul extrait de Gmail (précisée v1.18, BES-30). | M | EXM-01 | T | Sur le jeu de fixtures, chaque message reçoit une catégorie valide. |
 | EF-GML-09 | Le système doit identifier l'employeur réel d'un message transmis par une plateforme lorsque ce nom figure dans l'objet ou le corps. | M | EXM-01 | T | Fixture APEC « Innova Solutions » : entreprise = Innova Solutions. |
 | EF-GML-10 | Le système doit enregistrer le nom de la plateforme intermédiaire d'un message. | S | EXM-09 | T | Fixture LHH : plateforme = LHH. |
 | EF-GML-11 | Le système doit rattacher chaque message de catégorie candidature envoyée, accusé, entretien, proposition ou refus à une candidature selon RG-03. | M | EXM-02 | T | Trois messages McDonald's successifs sont rattachés à une seule candidature. |
@@ -193,6 +212,7 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | EF-GML-17 | Le candidat peut désactiver l'écriture de libellés dans Gmail. | S | EXM-03 | T | Paramètre désactivé : aucun appel `threads.modify`. |
 | EF-GML-18 | Le système doit journaliser chaque exécution de synchronisation avec début, fin, compteurs et erreur éventuelle. | S | ENF-FIA-01 | T | Une ligne `job_runs` par exécution. |
 | EF-GML-19 | Le système doit enregistrer le type de contrat d'une candidature créée depuis un message lorsque ce message le mentionne. | C | EXM-11 | T | Fixture « Accusé de réception — Alternance Data Analyst » : type = alternance. |
+| EF-GML-20 | Le candidat doit pouvoir demander, depuis l'écran Réglages, la relecture des messages reçus déjà classés « accusé de réception ». Chacun est relu dans Gmail ; celui que RG-17 désigne comme un refus est reclassé « refus », sa candidature suit RG-04 et ses libellés Gmail sont mis à jour (EF-GML-13 à 17). Aucun appel à l'IA ; aucun autre message n'est modifié. (v1.19, BES-31) | S | EXM-01 | T | Un accusé de réception enregistré dont le corps refuse devient « refus » et sa candidature « Refusée » ; un accusé de réception sans refus, ou n'annonçant un refus que sous condition, reste inchangé ; la relecture s'exécute en file (EF-EXE-01) et compte les messages relus et corrigés. |
 
 ### 6.2 Suivi des candidatures (CAN)
 
@@ -214,6 +234,7 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | EF-CAN-14 | Le candidat peut filtrer les candidatures par type de contrat. | M | EXM-11 | T | Filtre « Alternance » : seules les candidatures en alternance sont listées. |
 | EF-CAN-15 | Le candidat peut enregistrer, modifier et effacer la description de l'offre d'une candidature, de 20 000 caractères au plus. | S | EXM-02 | T | Description de 20 001 caractères : réponse 400 ; description enregistrée affichée dans le détail de la candidature et absente de la liste. |
 | EF-CAN-16 | Le candidat peut indiquer la date de candidature à la création d'une candidature, puis la modifier ; la date ne peut être ni postérieure au moment de la saisie, ni antérieure au 1er janvier 2000. | S | EXM-02, EXM-04 | T | Candidature Envoyée créée avec une date antérieure de 15 jours et D = 10 : marquée « à relancer » (RG-06, RG-16) ; date du lendemain : réponse 400. |
+| EF-CAN-17 | Le candidat doit pouvoir, depuis une candidature à relancer, obtenir en un geste un brouillon de relance dans sa boîte Gmail : réponse dans le fil de la candidature, adressée à l'adresse de contact (RG-20), objet et texte rédigés (80 à 150 mots, rien d'affirmé qui ne figure dans la candidature). Le brouillon s'ouvre dans Gmail ; le système ne l'envoie jamais. (v1.22, BES-34) | S | EXM-04 | T | Candidature à relancer : un brouillon est créé dans le fil, adressé au contact, et Gmail s'ouvre dessus ; aucun message n'est envoyé ; sans adresse de contact : 409 ; aucun fournisseur d'IA : 502. |
 
 ### 6.3 Veille des offres (VEI)
 
@@ -280,7 +301,9 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | EF-TDB-01 | Le système doit afficher le nombre total de candidatures suivies. | M | EXM-09 | T |
 | EF-TDB-02 | Le système doit afficher le nombre de candidatures ayant atteint le statut Entretien ou Proposition. | M | EXM-09 | T |
 | EF-TDB-03 | Le système doit afficher le taux de réponse calculé selon RG-07. | M | EXM-09 | T |
-| EF-TDB-04 | Le système doit afficher, pour chacune des 16 dernières semaines, le nombre de candidatures envoyées, ayant obtenu un entretien et refusées. | S | EXM-09 | T |
+| EF-TDB-04 | Le système doit afficher, pour chacune des 5 dernières semaines (la semaine en cours comprise et signalée comme telle), le nombre de candidatures envoyées, ayant obtenu un entretien et refusées. (v1.21, BES-33 ; 16 semaines jusqu'en v1.20) | S | EXM-09 | T |
+| EF-TDB-10 | Le système doit afficher, pour la semaine en cours, les candidatures envoyées, les entretiens et les refus, chacun avec son écart à la semaine précédente. (v1.21, BES-33) | S | EXM-09 | T |
+| EF-TDB-11 | Le tableau de bord ouvert doit se mettre à jour, sans action du candidat, à la fin de chaque synchronisation Gmail ou relecture des messages réussie. (v1.21, BES-33) | S | EXM-09 | T |
 | EF-TDB-05 | Le système doit afficher le nombre de candidatures par statut. | M | EXM-09 | T |
 | EF-TDB-06 | Le système doit afficher le nombre de candidatures par canal (direct ou plateforme). | C | EXM-09 | T |
 | EF-TDB-07 | Le système doit afficher la liste des candidatures à relancer, de la plus ancienne à la plus récente. | M | EXM-04 | T |
@@ -303,7 +326,8 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | ID | Exigence | Prio | Source | Vérif. |
 |---|---|---|---|---|
 | EF-CFG-01 | Le système doit afficher l'adresse Gmail connectée et la date de dernière synchronisation. | M | EXM-01 | D |
-| EF-CFG-02 | Le système doit afficher les fournisseurs IA configurés et la tâche attribuée à chacun. | S | EXM-10 | D |
+| EF-CFG-02 | ~~Le système doit afficher les fournisseurs IA configurés et la tâche attribuée à chacun.~~ Retirée de l'écran en v1.23 (BES-35) : l'information ne sert pas au candidat ; la route `GET /api/settings/ai` reste documentée pour le diagnostic. | — | EXM-10 | — |
+| EF-CFG-05 | L'écran Réglages doit présenter d'abord l'état de la boîte Gmail (connectée, synchronisation en cours, autorisation expirée — signalé par un libellé, pas par la seule couleur) et l'action « Synchroniser maintenant », puis les préférences, puis l'entretien, et tenir la déconnexion à l'écart des autres actions. La période de la première synchronisation n'est proposée que tant que celle-ci n'a pas eu lieu. (v1.23, BES-35) | S | EXM-01 | T |
 | EF-CFG-03 | Le système doit afficher le coût IA estimé du mois en cours. | C | ENF-COU-01 | T |
 | EF-CFG-04 | Le candidat doit pouvoir régler, depuis l'écran Réglages, la période de la première synchronisation (N jours, EF-GML-05). | M | BES-19 | T |
 
@@ -337,6 +361,14 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | EF-EXE-04 | Le système doit pousser l'avancement vers l'interface sans que celle-ci ait à redemander, et la reprise du flux après coupure ne doit rien perdre. | S | EXM-15 | T | Le flux émet un événement à chaque changement d'état ; une reconnexion retrouve l'état courant. |
 | EF-EXE-05 | Le système doit reprendre ou marquer en échec toute exécution restée « en cours » après un arrêt du serveur. | S | ENF-FIA-01 | T | Une exécution « en cours » au démarrage est close en échec, jamais laissée telle quelle. |
 
+
+### 6.11 Informations légales (LEG)
+
+| ID | Exigence | Prio | Source | Vérif. |
+|---|---|---|---|---|
+| EF-LEG-01 | Le système doit publier, sans session, les mentions légales, la politique de confidentialité et la page des cookies, liées depuis la page de présentation, la page de connexion et l'application. L'éditeur (par défaut Sahiré YAPI), son adresse de contact (par défaut celle du Business Owner, accord du 24/09/2026) et l'hébergeur (par défaut Vercel et Northflank) peuvent être remplacés par la configuration. (v1.25, BES-38) | M | EXM-13 | T |
+| EF-LEG-02 | À la première visite, le système doit informer, sans bloquer la page ni demander de consentement, qu'il ne dépose qu'un cookie strictement nécessaire à la session ; l'information ne réapparaît pas une fois lue sur le même navigateur. (v1.25, BES-38 — lignes directrices de la CNIL) | S | EXM-13 | T |
+
 ## 7. Exigences non fonctionnelles
 
 ### 7.1 Performance
@@ -352,7 +384,8 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 ### 7.2 Sécurité
 | ID | Exigence | Vérif. |
 |---|---|---|
-| ENF-SEC-01 | L'API et l'interface doivent être joignables uniquement depuis l'adresse 127.0.0.1. | I |
+| ENF-SEC-01 | En local, l'API et l'interface doivent être joignables uniquement depuis l'adresse 127.0.0.1. Hébergées (v1.26, BES-39), elles ne sont servies qu'en HTTPS, l'interface relayant l'API sous sa propre origine. | I |
+| ENF-SEC-21 | Derrière les relais de l'hébergement, les limites de fréquence (ENF-SEC-19) doivent s'appliquer à chaque visiteur, identifié par l'adresse que les relais transmettent, et non au relais qu'ils partagent ; en local, cette adresse transmise est ignorée. (v1.26, BES-39) | T |
 | ENF-SEC-02 | Le jeton de renouvellement OAuth doit être chiffré au repos en AES-256-GCM. | T |
 | ENF-SEC-03 | Aucun secret (clé d'API, mot de passe, jeton) ne doit figurer dans le dépôt Git. | I (hook + revue) |
 | ENF-SEC-04 | Toute donnée entrant dans l'API doit être validée par un schéma ; une donnée invalide doit être rejetée avec le code 400. | T |
@@ -404,6 +437,7 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | ENF-UTI-01 | L'interface doit être rédigée en français. | I |
 | ENF-UTI-02 | L'interface doit rester utilisable sur un écran de 360 px de large. | D |
 | ENF-UTI-03 | Chaque action longue (plus de 1 seconde) doit afficher un indicateur d'attente. | D |
+| ENF-UTI-04 | Les animations de la page de présentation (chargement, survol, mouvement 3D, micro-interactions) doivent s'arrêter lorsque le système de l'utilisateur demande de réduire les animations, sans rien retirer du contenu ni des accès. (v1.24, BES-36) | T |
 | ENF-POR-01 | Le système complet doit démarrer par une seule commande `docker compose up` sous Windows, macOS et Linux. | D |
 
 ### 7.6 Collecte responsable (veille)
@@ -417,9 +451,11 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 ### 7.7 Données personnelles (RGPD)
 | ID | Exigence | Vérif. |
 |---|---|---|
-| ENF-RGP-01 | Le système ne doit conserver d'un message que ses métadonnées (expéditeur, objet, date) et un extrait de 300 caractères maximum. | T |
+| ENF-RGP-01 | Le système ne doit conserver d'un message que ses métadonnées (expéditeur, objet, date, adresse de contact selon RG-20 depuis v1.22) et un extrait de 300 caractères maximum. Le début du corps (2 000 caractères de texte au plus) peut être lu en mémoire pour le classer (EF-GML-08, RG-17), sans être ni conservé ni journalisé ; seuls 1 000 de ces caractères sont transmis à l'IA. (précisée v1.18, BES-30) | T |
 | ENF-RGP-02 | L'utilisateur peut supprimer son compte et l'intégralité de ses données par une action unique. | T |
 | ENF-RGP-03 | Les données doivent être stockées exclusivement sur le poste du candidat et dans la base hébergée, située dans l'Union européenne, à l'exception des contenus transmis aux fournisseurs IA pour traitement. | I |
+| ENF-RGP-04 | Le système ne doit déposer aucun cookie ni traceur autre que le cookie de session (aucune mesure d'audience, aucune publicité, aucun service tiers dans le navigateur). (v1.25) | I |
+| ENF-RGP-05 | La politique de confidentialité doit indiquer le responsable du traitement et son contact, les données traitées, les finalités et leurs bases légales, les durées de conservation (sauvegardes comprises), les destinataires (Neon, Google, Groq, Gemini, Anthropic), les transferts hors de l'Union européenne, les droits et leur exercice, le recours auprès de la CNIL, et le respect de la politique d'utilisation limitée des données des API Google. (v1.25) | I |
 
 ### 7.8 Coûts
 | ID | Exigence | Vérif. |
@@ -434,7 +470,7 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | C-02 | La base de données est PostgreSQL, hébergée par Neon. | Business Owner (v1.1, BES-10) |
 | C-03 | Les fournisseurs IA sont Claude (Anthropic) et Gemini (Google), avec les clés du candidat. | Business Owner |
 | C-04 | La messagerie supportée est Gmail. | Existant |
-| C-05 | Le système est multi-utilisateur à comptes séparés ; l'API et l'interface s'exécutent en local, via Docker ; la base est hébergée par Neon. | Business Owner (v1.2, BES-14) |
+| C-05 | Le système est multi-utilisateur à comptes séparés. En local, l'API et l'interface s'exécutent via Docker. Hébergé (v1.26), l'interface est servie par Vercel, qui relaie `/api` vers l'API servie par Northflank en une seule instance (planificateur et file d'exécution internes) ; la base est hébergée par Neon. | Business Owner (v1.2, BES-14 ; v1.26, BES-39) |
 | C-06 | Le développement est réalisé de manière incrémentale par Claude Code, lot par lot, suivant `docs/ROADMAP.md`. | Organisation |
 | C-07 | Le code respecte les principes des skills `clean-code` et `security` fournis dans `.claude/skills/`, et la règle `.claude/rules/database.md`. | Organisation |
 | C-09 | L'accès aux données passe par l'ORM Drizzle. | Business Owner (v1.1, BES-11) |
@@ -446,10 +482,10 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 |---|---|
 | RG-01 | Les statuts de candidature sont : **À postuler**, **Envoyée**, **Accusé reçu**, **Entretien**, **Proposition**, **Refusée**. |
 | RG-02 | Correspondance catégorie → statut : candidature envoyée → Envoyée ; accusé de réception → Accusé reçu ; entretien → Entretien ; proposition → Proposition ; refus → Refusée. Alerte emploi et hors sujet ne modifient aucune candidature. |
-| RG-03 | Rattachement d'un message : (a) entreprise identifiée par sa clé normalisée (RG-14) ; (b) si le message mentionne un intitulé, candidature de cette entreprise dont l'intitulé normalisé est identique ; (c) si le message ne mentionne aucun intitulé, candidature de l'entreprise dont la dernière activité est la plus récente ; (d) sinon, création d'une candidature avec l'intitulé mentionné ou, à défaut, « Candidature ». Si l'employeur n'est pas identifiable, l'entreprise retenue est la plateforme ; si aucune plateforme n'est identifiable, l'entreprise retenue est « Entreprise inconnue ». |
+| RG-03 | Rattachement d'un message : (a) entreprise identifiée par sa clé normalisée (RG-14) ; (b) si le message mentionne un intitulé, candidature de cette entreprise dont l'intitulé normalisé est identique ; (c) si le message ne mentionne aucun intitulé, candidature de l'entreprise dont la dernière activité est la plus récente ; (d) sinon, création d'une candidature avec l'intitulé mentionné ou, à défaut, « Candidature ». Si l'employeur n'est pas identifiable, l'entreprise retenue est la plateforme ; si aucune plateforme n'est identifiable, l'entreprise est déduite du domaine de l'adresse du correspondant — le destinataire d'un message envoyé, l'expéditeur d'un message reçu — lorsque ce domaine la désigne selon RG-19 (ni messagerie grand public, ni plateforme, ni outil de recrutement, ni job board) : « data-praxis.fr » donne « Data Praxis » (v1.20, BES-32) ; à défaut, l'entreprise retenue est « Entreprise inconnue ». |
 | RG-04 | Évolution du statut : rang À postuler 0, Envoyée 1, Accusé reçu 2, Entretien 3, Proposition 4, Refusée 5. Un nouveau statut remplace le statut courant si et seulement si il vaut Proposition ou Refusée, ou si son rang est supérieur. Les messages sont traités par date croissante. La date de dernière activité prend la plus grande des deux dates. |
 | RG-05 | Libellés Gmail de statut : Refusée → « Statut/Refusée » ; Entretien et Proposition → « Statut/Entretien » ; Envoyée et Accusé reçu → « Statut/En attente ». À postuler → aucun libellé. |
-| RG-06 | Une candidature est « à relancer » lorsque son statut est Envoyée ou Accusé reçu et que sa dernière activité date de plus de D jours, D paramétrable avec 10 par défaut. |
+| RG-06 | Une candidature est « à relancer » lorsque son statut est Envoyée ou Accusé reçu, que sa dernière activité date de plus de D jours, D paramétrable avec 10 par défaut, et qu'au moins un de ses messages porte une adresse de contact (RG-20) — une candidature à laquelle on ne peut pas écrire n'est pas proposée à la relance (v1.22, BES-34). |
 | RG-07 | Taux de réponse = (Entretien + Proposition + Refusée) / total des candidatures × 100, arrondi à l'entier le plus proche ; 0 lorsque le total est nul. |
 | RG-08 | Format d'identifiant de source : Greenhouse, Lever, SmartRecruiters, Recruitee → `^[a-z0-9][a-z0-9._-]{0,80}$` (insensible à la casse) ; Workday → URL https sur un sous-domaine de `myworkdayjobs.com` contenant le nom du site carrières ; page générique → URL https. |
 | RG-09 | Critères de notation : correspondance à une cible du profil ; lieu dans la zone de recherche ou télétravail ; type de contrat de l'offre accepté par la cible (CDI, CDD, alternance, job étudiant ; « non précisé » ne pénalise pas) ; expérience exigée de 3 ans au plus. Un critère non satisfait abaisse le score. |
@@ -457,11 +493,12 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | RG-11 | Charte du CV : format A4, une page ; en-tête deux colonnes (coordonnées à gauche, disponibilités et photo à droite) ; titre centré en gras 15 pt et sous-titre centré en italique 11 pt ; sections en bandeaux de fond `#D9E2F3` bordés de `#AAB5CE`, libellés en majuscules ; lignes « dates \| contenu » (alignement à 2 150 twips, largeur utile 10 620 twips) ; police Calibri 10 pt. Réalisation conforme à RG-15 (tabulations et trames de paragraphe, jamais de tableau). |
 | RG-12 | Fidélité du CV : chaque entreprise, établissement de formation, période, intitulé de poste et diplôme cités dans un CV adapté doit exister à l'identique dans le profil de référence ; chaque compétence et chaque outil cités doivent figurer dans le profil. Autorisé : reformuler une activité réellement exercée avec le vocabulaire de l'offre, réordonner, sélectionner, mettre en avant. Interdit : ajouter une compétence, un outil, une certification, une responsabilité, un chiffre ou un résultat absents du profil ; modifier un intitulé de poste, un employeur ou une date. |
 | RG-15 | Lisibilité par les ATS : texte réel (aucun texte en image) ; aucun tableau, zone de texte, colonne de section ni contenu en en-tête ou pied de page Word — la mise en page de RG-11 est obtenue par tabulations et trames de paragraphe ; titres de sections usuels en français (Profil, Expériences professionnelles, Formation, Compétences, Langues, Centres d'intérêt) ; coordonnées dans le corps du document ; dates au format « MM/AAAA – MM/AAAA » ; police standard ; intitulé du poste visé par l'offre en titre du CV. |
-| RG-13 | Routage IA (v1.8) : trois emplacements Groq (modèles gratuits, choisis dans la configuration) sont essayés dans l'ordre, puis les secours historiques. Classement des messages, notation des offres, extraction de pages → Groq 1, 2, 3, Gemini, Claude. CV adapté, réponse de motivation → Groq 1, 2, 3, Claude, Gemini. Un emplacement vide est ignoré. |
-| RG-17 | Indices lexicaux de statut (v1.10) : dans un message **reçu**, l'objet et l'extrait conservé sont comparés, sans accents ni casse, à une liste d'expressions de refus puis à une liste d'expressions d'accusé de réception, en français et en anglais. Une expression de refus impose « refus » (un refus poli ouvert par « nous avons bien reçu votre candidature » est donc classé « refus ») ; certaines expressions — « suite favorable », « suite positive » — ne valent refus que sous une négation proche. À défaut de refus, une expression d'accusé de réception impose « accusé de réception » lorsque l'IA n'a rien reconnu de plus fort. Jamais corrigés : une proposition d'embauche, un entretien reconnu (vers l'accusé de réception), une alerte emploi (vers le refus), un message envoyé par le candidat. |
+| RG-13 | Routage IA (v1.8) : trois emplacements Groq (modèles gratuits, choisis dans la configuration) sont essayés dans l'ordre, puis les secours historiques. Classement des messages, notation des offres, extraction de pages → Groq 1, 2, 3, Gemini, Claude. CV adapté, réponse de motivation, relance (v1.22) → Groq 1, 2, 3, Claude, Gemini. Un emplacement vide est ignoré. |
+| RG-17 | Indices lexicaux de statut (v1.10, lecture v1.18) : dans un message **reçu**, l'objet et le début du corps (2 000 caractères de texte, citations des réponses précédentes exclues ; l'extrait de Gmail à défaut de corps lisible) sont comparés, sans accents ni casse, à une liste d'expressions de refus puis à une liste d'expressions d'accusé de réception, en français et en anglais. Une expression de refus précédée, dans sa phrase, d'une condition (« si », « sans réponse », « au cas où », « if »…) ne compte pas : « sans réponse sous 4 semaines, considérez que votre candidature n'a pas été retenue » reste un accusé de réception (v1.18). Une expression de refus impose « refus » (un refus poli ouvert par « nous avons bien reçu votre candidature » est donc classé « refus ») ; certaines expressions — « suite favorable », « suite positive » — ne valent refus que sous une négation proche. À défaut de refus, une expression d'accusé de réception impose « accusé de réception » lorsque l'IA n'a rien reconnu de plus fort. Jamais corrigés : une proposition d'embauche, un entretien reconnu (vers l'accusé de réception), une alerte emploi (vers le refus), un message envoyé par le candidat. |
 | RG-14 | Clé normalisée d'un nom : minuscules, accents supprimés, tout caractère non alphanumérique remplacé par une espace, espaces multiples réduits, espaces de bord supprimées. |
 | RG-18 | Niveaux d'études (v1.12) : **Bac**, **Bac+2** (BTS, DUT, BUT 2), **Bac+3** (licence, bachelor, BUT 3), **Bac+5** (master, diplôme d'ingénieur), **Doctorat**, **Autre**. Le niveau est celui le plus élevé atteint ; il est marqué « obtenu » ou « en cours ». Un profil qui n'en déclare aucun vaut « non précisé » et n'en fait rien figurer sur le CV. |
 | RG-19 | Déduction d'une source (v1.13) : le domaine retenu pour une entreprise est celui de l'expéditeur des messages **reçus** rattachés à ses candidatures, le plus fréquent d'abord. Les domaines des plateformes connues (`platform_domains`), des fournisseurs de messagerie grand public, des **outils de recrutement** (Flatchr, Teamtailor, WeRecruit, Taleez…) et des **job boards** sont écartés : ils ne désignent pas l'entreprise, et une source posée sur eux relèverait les offres de tout le monde. Une proposition n'est **jamais** ajoutée d'office ; le candidat la confirme — une par une ou toutes ensemble (EF-VEI-26) — ou l'écarte. L'identifiant proposé pour un job board est une **hypothèse** déduite du nom de l'entreprise : une source ajoutée en lot peut donc échouer à sa première consultation, et le candidat la corrige alors depuis la liste. Rien n'est déduit du corps des messages, dont seuls 300 caractères sont conservés (ENF-RGP-01). |
+| RG-20 | Adresse de contact d'un message (v1.22) : pour un message reçu, l'adresse de réponse (`Reply-To`) si elle existe, sinon l'expéditeur ; pour un message envoyé par le candidat, son premier destinataire. Une adresse qui n'accepte pas de réponse (« no-reply », « noreply », « ne-pas-repondre », « donotreply », « notification », « mailer-daemon »…) n'est pas une adresse de contact. La relance s'adresse au contact du message le plus récent de la candidature qui en porte un. |
 | RG-16 | Date de candidature saisie par le candidat : à la création, la date de dernière activité et la date du statut initial valent la date de candidature. Quand la date de candidature est modifiée, la date de dernière activité prend la nouvelle date si aucune activité n'a eu lieu depuis la création, sinon la plus récente des deux. |
 
 ## 10. Cas d'utilisation principaux
@@ -507,7 +544,7 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | Q-16 | Le profil de référence (CV, cibles) devient propre à chaque utilisateur : faut-il le stocker en base plutôt que dans `backend/data/profile.json` ? (bloque T-501) | Oui : en base, par utilisateur, validé par le même schéma. |
 | Q-15 | Pour l'alternance, faut-il suivre des informations propres (école, rythme, date de début) ? | Non en v1.1 : le rythme figure dans le profil (disponibilités), repris dans le CV. |
 | Q-17 | Les indicateurs EF-TDB-01, 05, 06 et 09 portent sur toutes les candidatures de l'utilisateur, donc sur toute la table `applications` (application mono-utilisateur) : le planificateur choisit le `Seq Scan`, interdit par ENF-PERF-04 ; un index couvrant ne change pas son choix. Que faire ? (bloque T-601) | Tranchée le 22/09/2026 : ENF-PERF-04 limitée aux requêtes sélectives ; indicateurs bornés à 50 ms par requête (ENF-PERF-05). |
-| Q-18 | Le déploiement visé par BES-29 contredit le §5.2 (« hébergement en ligne de l'application » hors périmètre) et C-05 (API et interface locales). Où héberger l'API et l'interface, avec quel nom de domaine, et faut-il revoir les exigences liées à l'exposition locale (ENF-SEC-01, ADR-09 : cookies, origine unique) ? (bloque la mise en production, pas le développement) | À trancher avant la mise en production, par une demande de changement dédiée : hébergeur en UE, HTTPS, `COOKIE_SECURE`, `FRONTEND_ORIGIN` public, API derrière un proxy. |
+| Q-18 | ~~Où héberger l'API et l'interface ?~~ **Tranchée le 24/09/2026 (BES-39)** : interface sur Vercel, API sur Northflank (région de l'Union européenne), base sur Neon ; l'interface relaie `/api` vers l'API, ce qui garde une seule origine (cookie `SameSite=Strict`, garde d'origine, retour OAuth inchangés). | Voir ADR-15 et `docs/DEPLOIEMENT.md`. |
 
 ## 13. Traçabilité besoins → exigences
 
@@ -527,6 +564,8 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | BES-11 | — (choix de solution, C-09) | ENF-SEC-05, ENF-SEC-16 |
 | BES-13 | EXM-07, EXM-12 | EF-CVX-14 à 17, RG-12, RG-15 |
 | BES-14 | EXM-13 | EF-AUT-01 à 08, ENF-SEC-18 à 20, ENF-RGP-02 |
+| EF-AUT-09 | Un visiteur sans session qui ouvre l'adresse racine doit voir une page de présentation du service — suivi des candidatures depuis Gmail, classement des réponses, relances préparées, tableau de bord, données conservées — donnant accès à la connexion et à la création de compte ; avec une session, la même adresse ouvre le tableau de bord. (v1.24, BES-36) | S | EXM-13 | T | Sans session, `/` présente le service et ses deux accès ; avec session, `/` affiche le tableau de bord ; la page de présentation ne demande aucune donnée d'utilisateur à l'API. |
+| EF-AUT-10 | L'accès « Créer un compte » de la page de présentation doit ouvrir le formulaire directement sur la création de compte. (v1.24) | C | EXM-13 | T | `/connexion?mode=inscription` ouvre l'onglet « Créer un compte ». |
 | BES-15 | EXM-14 | EF-DOC-01, 02 |
 | BES-16 | EXM-01 | EF-GML-01 |
 | BES-12 | EXM-11 | EF-GML-19, EF-CAN-13, 14, EF-VEI-20 à 22, EF-TDB-09, RG-09, RG-10 |
@@ -541,5 +580,16 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | BES-26 | EXM-05 | EF-VEI-26 |
 | BES-27 | EXM-05 | EF-VEI-27 |
 | BES-28 | EXM-05, EXM-10 | EF-VEI-28, ENF-COU-01 |
+| BES-29 | — (organisation de la mise en production) | ENF-MAI-07, EF-TDB-08 |
+| ENF-MAI-08 | Chaque pull request vers `dev` ou `main` et chaque poussée sur ces branches doivent exécuter automatiquement le contrôle de types, le lint, les tests unitaires, les tests d'intégration sur un PostgreSQL jetable (seuil de couverture ENF-MAI-01), l'audit des dépendances et la construction de l'image de l'API ; seul un code qui passe ces vérifications est déployé. (v1.27, BES-40) | I |
+| BES-30 | EXM-01 | EF-GML-08, RG-17, ENF-RGP-01 |
+| BES-31 | EXM-01 | EF-GML-20, RG-17, RG-04 |
+| BES-32 | EXM-01, EXM-02 | RG-03, EF-GML-09, EF-GML-11 |
+| BES-33 | EXM-09 | EF-TDB-04, EF-TDB-10, EF-TDB-11 |
+| BES-34 | EXM-04 | RG-06, RG-20, EF-CAN-17, EF-TDB-07, RG-13 |
+| BES-38 | EXM-13 | EF-AUT-11, EF-AUT-12, EF-LEG-01, EF-LEG-02, ENF-RGP-04, ENF-RGP-05 |
+| BES-39 | — (choix de réalisation, C-05) | ENF-SEC-01, ENF-SEC-21 |
+| BES-40 | — (organisation) | ENF-MAI-08, ENF-MAI-01, ENF-MAI-02, ENF-SEC-10 |
+| BES-35 | EXM-01 | EF-CFG-05, EF-CFG-02 (retirée de l'écran) |
 
 La traçabilité fine exigence → tâche → test est tenue à jour dans `docs/TRACABILITE.md`.

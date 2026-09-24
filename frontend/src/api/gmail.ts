@@ -31,6 +31,9 @@ export const disconnectGmail = () => request<undefined>('/gmail/connection', { m
 export const synchroniseGmail = () =>
   request<{ runId: number }>('/gmail/sync', { method: 'POST' });
 
+/** EF-GML-20 : met en file la relecture des accusés de réception déjà classés ; suivie par `/jobs` (EF-EXE-03). */
+export const reclassifyGmail = () => request<{ runId: number }>('/gmail/reclassify', { method: 'POST' });
+
 /** EF-GML-17: turns the writing of labels in Gmail on or off. */
 export const setGmailApplyLabels = (applyLabels: boolean) =>
   request<undefined>('/gmail/settings', { method: 'PATCH', body: { applyLabels } });

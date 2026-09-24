@@ -10,6 +10,8 @@ export interface FakeGmail {
   readIds: string[];
   /** Parameters of every `threads.modify` call, in order. */
   modifyCalls: gmail_v1.Params$Resource$Users$Threads$Modify[];
+  /** Every draft saved (EF-CAN-17), in order: its thread and its RFC 2822 message decoded. Nothing is ever sent. */
+  drafts: { threadId: string; message: string }[];
   /** Names of the labels created through the API, in order. */
   createdLabels: string[];
   /** Number of `labels.list` calls. */
@@ -20,6 +22,8 @@ export interface FakeGmail {
   deleteLabel: (name: string) => void;
   /** A new message arrives in the mailbox. */
   deliver: (message: gmail_v1.Schema$Message) => void;
+  /** Gmail answers this message, already in the mailbox under the same id, as given from now on. */
+  update: (message: gmail_v1.Schema$Message) => void;
   /** Makes the reading of this message fail like a Gmail outage (HTTP 503), until `restore`. */
   breakMessage: (id: string) => void;
   restore: () => void;
@@ -47,6 +51,7 @@ export const createFakeGmail = (
   const readIds: string[] = [];
   const modifyCalls: gmail_v1.Params$Resource$Users$Threads$Modify[] = [];
   const createdLabels: string[] = [];
+  const drafts: { threadId: string; message: string }[] = [];
   let labelListings = 0;
   const broken = new Set<string>();
   const labelNames = new Map<string, string>(
@@ -107,6 +112,25 @@ export const createFakeGmail = (
       createdLabels.push(name);
       return Promise.resolve({ data: { id, name } });
     },
+    getThread: (params) =>
+      Promise.resolve({
+        data: {
+          id: params.id,
+          messages: messages
+            .filter((message) => message.threadId === params.id)
+            .sort((a, b) => Number(a.internalDate) - Number(b.internalDate)),
+        },
+      }),
+    createDraft: (params) => {
+      const message = params.requestBody?.message;
+      drafts.push({
+        threadId: message?.threadId ?? '',
+        message: Buffer.from(message?.raw ?? '', 'base64url').toString('utf8'),
+      });
+      return Promise.resolve({
+        data: { id: `r-${drafts.length}`, message: { id: `draft-${drafts.length}`, threadId: message?.threadId } },
+      });
+    },
     modifyThread: (params) => {
       modifyCalls.push(params);
       const labels = threadLabels.get(params.id ?? '');
@@ -127,6 +151,7 @@ export const createFakeGmail = (
     listCalls,
     readIds,
     modifyCalls,
+    drafts,
     createdLabels,
     labelListings: () => labelListings,
     labelsOfThread: (threadId) =>
@@ -140,6 +165,11 @@ export const createFakeGmail = (
     deliver: (message) => {
       messages.push(message);
       addToThread(message);
+    },
+    update: (message) => {
+      const at = messages.findIndex((candidate) => candidate.id === message.id);
+      if (at === -1) throw new Error(`no message ${message.id ?? ''} to update`);
+      messages[at] = message;
     },
     breakMessage: (id) => broken.add(id),
     restore: () => broken.clear(),

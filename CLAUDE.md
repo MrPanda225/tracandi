@@ -94,9 +94,11 @@ Skills de référence : `.claude/skills/` (`clean-code`, `security`, `requiremen
 | T-502 | `docx` |
 | T-006 (frontend) | `animejs` (animations), `@fontsource-variable/fraunces`, `@fontsource-variable/manrope` (polices auto-hébergées) — installés |
 | T-003+ (frontend) | `recharts` (T-602 uniquement) — installé |
+| T-007 (frontend) | `motion` (animations de la page de présentation, accord du Business Owner du 24/09/2026) — installé |
 
 Composants React Bits : copiés et adaptés dans `frontend/src/components/reactbits/` (licence MIT + Commons Clause, `LICENSE.md`),
-uniquement ceux sans dépendance ; toute version exigeant GSAP, Motion ou Three.js demande un accord.
+uniquement ceux sans dépendance ou ne dépendant que de `motion` (accordé) ; toute version exigeant GSAP ou Three.js
+demande un accord.
 Toute autre dépendance : demander.
 
 ## Conventions rapides

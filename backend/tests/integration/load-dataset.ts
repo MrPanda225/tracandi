@@ -7,14 +7,17 @@ import {
   appSettings,
   companies,
   contractType,
+  emailCategory,
+  emails,
   jobOffers,
   offerStatus,
+  processedMessages,
   users,
   watchedSites,
 } from '../../src/db/schema.js';
 
 // ENF-PERF-01 load, all owned by the single user of the application.
-const LOAD = { companies: 200, applications: 1_000, sites: 20, offers: 5_000 };
+const LOAD = { companies: 200, applications: 1_000, messages: 10_000, sites: 20, offers: 5_000 };
 const INSERT_CHUNK = 500;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -26,8 +29,8 @@ const chunksOf = <T>(rows: readonly T[]): T[][] =>
 const pick = <T>(values: readonly T[], index: number): T => values[index % values.length] as T;
 
 /**
- * Fills an empty database with the ENF-PERF-01 volume (1 000 applications with their status history, 5 000
- * offers) for one fictitious user, then refreshes the planner statistics. Returns the id of that user.
+ * Fills an empty database with the ENF-PERF-01 volume (1 000 applications with their status history, 10 000
+ * messages, 5 000 offers) for one fictitious user, then refreshes the planner statistics. Returns the id of that user.
  */
 export const seedLoadDataset = async (db: Database, pool: pg.Pool, now: Date): Promise<number> => {
   const daysBefore = (days: number) => new Date(now.getTime() - days * DAY_MS);
@@ -82,6 +85,28 @@ export const seedLoadDataset = async (db: Database, pool: pg.Pool, now: Date): P
       : []),
   ]);
   for (const chunk of chunksOf(historyRows)) await db.insert(applicationStatusHistory).values(chunk);
+
+  // Ten messages per application, every category represented, one in ten sent by the candidate.
+  const messageRows = Array.from({ length: LOAD.messages }, (_, i) => ({
+    userId: user.id,
+    gmailMessageId: `msg-${String(i).padStart(6, '0')}`,
+    gmailThreadId: `thread-${String(Math.floor(i / 2)).padStart(6, '0')}`,
+    applicationId: pick(applicationIds, i),
+    direction: i % 10 === 0 ? ('outbound' as const) : ('inbound' as const),
+    fromAddress: `rh@entreprise-${i % LOAD.companies}.example`,
+    subject: `Votre candidature ${i}`,
+    snippet: 'Bonjour, nous avons bien reçu votre candidature.',
+    // RG-20: most messages carry a contact; the ones from a no-reply address do not.
+    contactAddress: i % 3 === 0 ? null : `rh@entreprise-${i % LOAD.companies}.example`,
+    category: pick(emailCategory.enumValues, i),
+    receivedAt: daysBefore(i % 365),
+  }));
+  for (const chunk of chunksOf(messageRows)) {
+    await db.insert(processedMessages).values(
+      chunk.map((row) => ({ userId: row.userId, gmailMessageId: row.gmailMessageId, outcome: 'retained' as const })),
+    );
+    await db.insert(emails).values(chunk);
+  }
 
   const siteIds = (
     await db

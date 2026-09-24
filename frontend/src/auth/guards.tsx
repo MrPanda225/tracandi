@@ -12,13 +12,18 @@ function SessionPending() {
   );
 }
 
-/** Renders its children only for a signed-in user; otherwise redirects to the login page (EF-AUT-05). */
-export function RequireAuth({ children }: { children: ReactNode }) {
+/**
+ * Renders its children only for a signed-in user (EF-AUT-05). A visitor gets `anonymousHome` at the root of the
+ * application, the presentation of the service (EF-AUT-09), and is redirected to the login page anywhere else.
+ */
+export function RequireAuth({ children, anonymousHome }: { children: ReactNode; anonymousHome?: ReactNode }) {
   const { state } = useAuth();
   const location = useLocation();
   if (state.status === 'loading') return <SessionPending />;
-  if (state.status === 'anonymous')
+  if (state.status === 'anonymous') {
+    if (anonymousHome && location.pathname === '/') return anonymousHome;
     return <Navigate to={LOGIN_PATH} replace state={{ from: location.pathname }} />;
+  }
   return children;
 }
 

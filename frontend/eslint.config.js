@@ -4,6 +4,11 @@ import reactHooks from 'eslint-plugin-react-hooks';
 
 export default tseslint.config(
   { ignores: ['dist'] },
+  // Build scripts run on Node (Vercel's build): its globals, the same rules.
+  {
+    files: ['scripts/**/*.mjs'],
+    languageOptions: { globals: { process: 'readonly', URL: 'readonly' } },
+  },
   js.configs.recommended,
   ...tseslint.configs.strict,
   {

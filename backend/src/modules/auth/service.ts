@@ -30,23 +30,61 @@ export interface AuthService {
   logout(token: string): Promise<void>;
   authenticate(token: string): Promise<number | null>;
   getAccount(userId: number): Promise<Account>;
+  /**
+   * EF-AUT-11: deletes the account and every datum of it once the password is checked; access granted to other
+   * services is revoked first (best effort), and every session of the user stops at once.
+   * @throws HttpError 403 when the password is wrong; nothing is deleted then.
+   */
+  deleteAccount(userId: number, password: string): Promise<void>;
 }
 
 interface AuthServiceDeps {
   db: Database;
   clock: Clock;
   passwordParams: ScryptParams;
+  /** EF-AUT-11: revokes what the user granted elsewhere (Gmail) before the account goes; must not throw. */
+  revokeExternalAccess?: (userId: number) => Promise<void>;
 }
 
 const INVALID_CREDENTIALS = 'Adresse e-mail ou mot de passe incorrect';
 
 /**
+ * EF-AUT-11: checks the password, revokes the external access, deletes the user (every table cascades), then
+ * forgets the sessions of the user resolved in the last minute — they would still open without this.
+ */
+const deleteAccountWith =
+  ({
+    db,
+    resolved,
+    revokeExternalAccess,
+  }: {
+    db: Database;
+    resolved: Map<string, { userId: number }>;
+    revokeExternalAccess?: (userId: number) => Promise<void>;
+  }) =>
+  async (userId: number, password: string): Promise<void> => {
+    const passwordHash = await repository.findPasswordHashById(db, userId);
+    if (!passwordHash || !(await verifyPassword(password, passwordHash))) {
+      throw new HttpError(403, 'Mot de passe incorrect : le compte n’a pas été supprimé.');
+    }
+    await revokeExternalAccess?.(userId);
+    await repository.deleteUser(db, userId);
+    for (const [key, session] of resolved) if (session.userId === userId) resolved.delete(key);
+  };
+
+/**
  * Creates the authentication service.
  * Login answers identically for an unknown email and a wrong password, and spends the same hashing time in both
  * cases (ENF-SEC-19). Passwords and tokens are never logged nor returned.
- * @req EF-AUT-01, EF-AUT-03, EF-AUT-04, EF-AUT-07, EF-AUT-08, ENF-SEC-18, ENF-SEC-19, ENF-SEC-20, ENF-PERF-01
+ * @req EF-AUT-01, EF-AUT-03, EF-AUT-04, EF-AUT-07, EF-AUT-08, EF-AUT-11, ENF-SEC-18, ENF-SEC-19, ENF-SEC-20,
+ * ENF-PERF-01
  */
-export const createAuthService = ({ db, clock, passwordParams }: AuthServiceDeps): AuthService => {
+export const createAuthService = ({
+  db,
+  clock,
+  passwordParams,
+  revokeExternalAccess,
+}: AuthServiceDeps): AuthService => {
   // Hash of a random password, checked when the email is unknown, so that timing does not reveal accounts.
   const decoyHash = hashPassword(generateSessionToken(), passwordParams);
   // Sessions resolved recently, by the hexadecimal digest of their token: the raw token is never kept.
@@ -105,5 +143,7 @@ export const createAuthService = ({ db, clock, passwordParams }: AuthServiceDeps
       if (!account) throw new NotFoundError();
       return account;
     },
+
+    deleteAccount: deleteAccountWith({ db, resolved, revokeExternalAccess }),
   };
 };

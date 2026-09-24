@@ -6,10 +6,12 @@ import {
   type OpenAPIRegistry,
   SESSION_SECURITY,
 } from '../../lib/openapi.js';
+import { IdParamsSchema } from '../applications/schemas.js';
 import { AcceptedRunSchema } from '../jobs/schemas.js';
 import {
   AuthorizationAnswerQuerySchema,
   AuthorizationUrlSchema,
+  FollowUpDraftViewSchema,
   GmailSettingsBodySchema,
   GmailStatusSchema,
 } from './schemas.js';
@@ -89,6 +91,39 @@ const ROUTES: RouteConfig[] = [
       'Une passe lit au plus 200 nouveaux messages : la première synchronisation en demande plusieurs. ' +
       'Les échecs — boîte non connectée, autorisation expirée, quota Gmail, aucun fournisseur d’IA — ferment ' +
       'l’exécution en échec avec leur message, jamais la requête.',
+    responses: {
+      202: jsonResponse('Exécution mise en file', AcceptedRunSchema),
+      ...errorResponses(401, 415),
+    },
+  },
+  {
+    tags: TAG,
+    security: SESSION_SECURITY,
+    method: 'post',
+    path: '/applications/{id}/follow-up-draft',
+    summary: 'Préparer la relance d’une candidature en brouillon Gmail',
+    description:
+      'EF-CAN-17. L’IA rédige la relance (80 à 150 mots, à partir des seuls faits de la candidature) ; elle est ' +
+      'enregistrée en brouillon dans Gmail, en réponse dans le fil de l’adresse de contact la plus récente (RG-20). ' +
+      'Rien n’est envoyé. 409 : candidature sans relance (statut) ou sans adresse de contact, Gmail non connecté ou ' +
+      'autorisation expirée ; 502 : aucun fournisseur d’IA ; 503 : quota Gmail.',
+    request: { params: IdParamsSchema },
+    responses: {
+      201: jsonResponse('Brouillon enregistré', FollowUpDraftViewSchema),
+      ...errorResponses(400, 401, 404, 409, 415, 502, 503),
+    },
+  },
+  {
+    tags: TAG,
+    security: SESSION_SECURITY,
+    method: 'post',
+    path: '/gmail/reclassify',
+    summary: 'Relire les accusés de réception déjà classés',
+    description:
+      'EF-GML-20, EF-EXE-01. Met en file la relecture, dans Gmail, des messages reçus classés « accusé de réception » ' +
+      'et répond aussitôt son identifiant d’exécution. Ceux que RG-17 désigne comme des refus deviennent « refus », ' +
+      'leur candidature suit RG-04 et leurs libellés sont mis à jour ; aucun appel à l’IA. Compteurs : ' +
+      '`messages_read`, `messages_corrected`. Les échecs ferment l’exécution avec leur message, jamais la requête.',
     responses: {
       202: jsonResponse('Exécution mise en file', AcceptedRunSchema),
       ...errorResponses(401, 415),

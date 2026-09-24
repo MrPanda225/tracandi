@@ -5,6 +5,11 @@ RUN npm ci --ignore-scripts
 COPY . .
 ARG VITE_API_URL=http://127.0.0.1:4000/api
 ENV VITE_API_URL=$VITE_API_URL
+# EF-LEG-01: publisher, contact and host shown in the legal pages; « à compléter » when left empty.
+ARG VITE_LEGAL_PUBLISHER=
+ARG VITE_LEGAL_CONTACT=
+ARG VITE_LEGAL_HOST=
+ENV VITE_LEGAL_PUBLISHER=$VITE_LEGAL_PUBLISHER VITE_LEGAL_CONTACT=$VITE_LEGAL_CONTACT VITE_LEGAL_HOST=$VITE_LEGAL_HOST
 RUN npm run build
 
 FROM nginx:alpine

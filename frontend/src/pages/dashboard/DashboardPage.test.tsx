@@ -1,6 +1,9 @@
 import { render, screen, within } from '@testing-library/react';
 import type { ReactElement } from 'react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { openPendingTab } from '../../lib/browser';
+import { openStreams } from '../../test/setup';
 import type { Dashboard } from '../../api/stats';
 import { DashboardPage } from './DashboardPage';
 import { DashboardCacheProvider } from './useDashboard';
@@ -24,12 +27,14 @@ const DASHBOARD: Dashboard = {
     { contractType: 'autre', count: 0, responseRate: 0 },
     { contractType: 'non_precise', count: 0, responseRate: 0 },
   ],
-  weekly: Array.from({ length: 16 }, (_, index) => ({
-    weekStart: new Date(Date.UTC(2026, 5, 8 + index * 7)).toISOString(),
-    sent: index === 15 ? 2 : 0,
-    interviews: 0,
-    rejected: 0,
-  })),
+  // EF-TDB-04 (v1.21): the 5 weeks from Monday 24 August to the current week of Monday 21 September.
+  weekly: [
+    { weekStart: '2026-08-24T00:00:00.000Z', sent: 0, interviews: 0, rejected: 0 },
+    { weekStart: '2026-08-31T00:00:00.000Z', sent: 4, interviews: 0, rejected: 0 },
+    { weekStart: '2026-09-07T00:00:00.000Z', sent: 63, interviews: 2, rejected: 13 },
+    { weekStart: '2026-09-14T00:00:00.000Z', sent: 5, interviews: 1, rejected: 3 },
+    { weekStart: '2026-09-21T00:00:00.000Z', sent: 8, interviews: 1, rejected: 1 },
+  ],
   followUps: {
     total: 1,
     items: [
@@ -57,6 +62,9 @@ const EMPTY_DASHBOARD: Dashboard = {
   followUps: { total: 0, items: [] },
   offers: { newAboveThreshold: 0, threshold: 60 },
 };
+
+const pendingTab = { go: vi.fn(), close: vi.fn() };
+vi.mock('../../lib/browser', () => ({ openPendingTab: vi.fn(() => pendingTab), leaveFor: vi.fn() }));
 
 const json = (status: number, body?: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
@@ -92,6 +100,7 @@ const pending = () => {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.clearAllMocks();
 });
 
 describe('DashboardPage', () => {
@@ -179,6 +188,100 @@ describe('DashboardPage', () => {
     expect(within(kpiGroup()).queryByText('Offres à regarder')).not.toBeInTheDocument();
   });
 
+  it('[EF-TDB-04] lists the 5 weeks, the current one named as such, in a table for screen readers', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json(200, DASHBOARD)));
+
+    renderPage();
+    const table = await screen.findByRole('table', { name: 'Suivi des 5 dernières semaines' });
+    const rows = within(table).getAllByRole('row').slice(1);
+
+    expect(rows.map((row) => within(row).getByRole('rowheader').textContent)).toEqual([
+      '24 – 30 août',
+      '31 août – 6 sept.',
+      '7 – 13 sept.',
+      '14 – 20 sept.',
+      'Cette semaine',
+    ]);
+    expect(within(rows[2] as HTMLElement).getAllByRole('cell').map((cell) => cell.textContent)).toEqual([
+      '63',
+      '2',
+      '13',
+    ]);
+  });
+
+  it('[EF-TDB-10] compares the current week with the previous one, for each series', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json(200, DASHBOARD)));
+
+    renderPage();
+    const thisWeek = await screen.findByRole('group', { name: 'Cette semaine' });
+
+    expect(within(thisWeek).getByRole('button', { name: /Envoyées/ })).toHaveAccessibleName(
+      'Envoyées : 8 cette semaine, 3 de plus que la semaine dernière',
+    );
+    expect(within(thisWeek).getByRole('button', { name: /Entretiens/ })).toHaveAccessibleName(
+      'Entretiens : 1 cette semaine, autant que la semaine dernière',
+    );
+    expect(within(thisWeek).getByRole('button', { name: /Refusées/ })).toHaveAccessibleName(
+      'Refusées : 1 cette semaine, 2 de moins que la semaine dernière',
+    );
+  });
+
+  it('[EF-TDB-04] hides a series from the chart, then shows it again, from its figure', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json(200, DASHBOARD)));
+    renderPage();
+    const user = userEvent.setup();
+    const sent = within(await screen.findByRole('group', { name: 'Cette semaine' })).getByRole('button', {
+      name: /Envoyées/,
+    });
+
+    expect(sent).toHaveAttribute('aria-pressed', 'true');
+    await user.click(sent);
+    expect(sent).toHaveAttribute('aria-pressed', 'false');
+    await user.click(sent);
+    expect(sent).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('[EF-TDB-11] refreshes the figures on its own when a Gmail synchronisation ends', async () => {
+    const fresh = {
+      ...DASHBOARD,
+      totals: { applications: 13, reachedInterview: 5, responseRate: 42 },
+      weekly: DASHBOARD.weekly.map((week, index) => (index === 4 ? { ...week, sent: 9 } : week)),
+    };
+    const fetchMock = vi.fn().mockResolvedValueOnce(json(200, DASHBOARD)).mockResolvedValueOnce(json(200, fresh));
+    vi.stubGlobal('fetch', fetchMock);
+    renderPage();
+    await screen.findByText('Candidatures suivies');
+
+    openStreams
+      .find((open) => open.url.endsWith('/jobs/stream'))
+      ?.emit('run', {
+        id: 3,
+        job: 'gmail_sync',
+        trigger: 'schedule',
+        outcome: 'success',
+        counters: { messages_read: 1 },
+        error: null,
+      });
+
+    expect(await within(kpiGroup()).findByText('13')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Envoyées : 9 cette semaine/ })).toBeInTheDocument();
+    expect(screen.getByText('Tableau de bord mis à jour après la synchronisation.')).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('[EF-TDB-11] ignores the executions that change no figure', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(json(200, DASHBOARD));
+    vi.stubGlobal('fetch', fetchMock);
+    renderPage();
+    await screen.findByText('Candidatures suivies');
+
+    const stream = openStreams.find((open) => open.url.endsWith('/jobs/stream'));
+    stream?.emit('run', { id: 4, job: 'gmail_sync', trigger: 'manual', outcome: 'running', counters: {}, error: null });
+    stream?.emit('run', { id: 5, job: 'scraper', trigger: 'manual', outcome: 'success', counters: {}, error: null });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it('[EF-TDB-05] labels every status in French, in its own section', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json(200, DASHBOARD)));
 
@@ -222,6 +325,52 @@ describe('DashboardPage', () => {
     expect(followUps.getByText('Atelier Nova')).toBeInTheDocument();
     expect(followUps.getByText('Développeur')).toBeInTheDocument();
     expect(followUps.getByText('il y a 21 jours')).toBeInTheDocument();
+  });
+
+  it('[EF-CAN-17] prepares the follow-up as a Gmail draft and opens Gmail on it', async () => {
+    const draft = {
+      draftUrl: 'https://mail.google.com/mail/#drafts?compose=draft-1',
+      to: 'rh@atelier-nova.example',
+      subject: 'Re: Votre candidature',
+    };
+    const fetchMock = vi.fn((input: string, init?: RequestInit) =>
+      Promise.resolve(
+        init?.method === 'POST' && input.endsWith('/applications/7/follow-up-draft')
+          ? json(201, draft)
+          : json(200, DASHBOARD),
+      ),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    renderPage();
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: 'Relancer Atelier Nova — Développeur' }));
+
+    expect(vi.mocked(openPendingTab)).toHaveBeenCalledTimes(1);
+    expect(await screen.findByText('Brouillon prêt pour rh@atelier-nova.example.')).toBeInTheDocument();
+    expect(pendingTab.go).toHaveBeenCalledWith(draft.draftUrl);
+    expect(screen.getByRole('link', { name: 'Ouvrir le brouillon' })).toHaveAttribute('href', draft.draftUrl);
+  });
+
+  it('[EF-CAN-17] says why the follow-up could not be prepared, and closes the tab it opened', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((_input: string, init?: RequestInit) =>
+        Promise.resolve(
+          init?.method === 'POST'
+            ? json(409, { error: 'Aucune adresse à laquelle écrire pour cette candidature.' })
+            : json(200, DASHBOARD),
+        ),
+      ),
+    );
+    renderPage();
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: 'Relancer Atelier Nova — Développeur' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Aucune adresse à laquelle écrire');
+    expect(pendingTab.close).toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Relancer Atelier Nova — Développeur' })).toBeEnabled();
   });
 
   it('[EF-TDB-07] tells the user there is nothing to follow up', async () => {

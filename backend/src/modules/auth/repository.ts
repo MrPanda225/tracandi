@@ -79,3 +79,18 @@ export const findActiveSession = async (
 export const deleteSession = async (db: Database, tokenHash: Buffer): Promise<void> => {
   await db.delete(sessions).where(eq(sessions.tokenHash, tokenHash));
 };
+
+/** Returns the password hash of a user, or null (EF-AUT-11: the deletion asks for the password again). */
+export const findPasswordHashById = async (db: Database, userId: number): Promise<string | null> => {
+  const [user] = await db.select({ passwordHash: users.passwordHash }).from(users).where(eq(users.id, userId));
+  return user?.passwordHash ?? null;
+};
+
+/**
+ * Deletes a user: every table holding their rows cascades from `users`, sessions included (EF-AUT-11, ENF-RGP-02).
+ * @req EF-AUT-11
+ */
+export const deleteUser = async (db: Database, userId: number): Promise<void> => {
+  await db.delete(users).where(eq(users.id, userId));
+};
+
