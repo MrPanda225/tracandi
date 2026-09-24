@@ -17,6 +17,7 @@
 | 1.13 | 23/09/2026 | Sahiré YAPI (Business Owner) | À valider — sources à surveiller déduites des entreprises auxquelles le candidat a déjà postulé, proposées et jamais ajoutées d'office (BES-25, EF-VEI-23 à 25, RG-19) |
 | 1.14 | 23/09/2026 | Sahiré YAPI (Business Owner) | À valider — toutes les sources proposées ajoutables d'un seul geste (BES-26, EF-VEI-26) |
 | 1.15 | 24/09/2026 | Sahiré YAPI (Business Owner) | À valider — page carrières retrouvée depuis l'adresse racine d'un site (BES-27, EF-VEI-27) |
+| 1.16 | 24/09/2026 | Sahiré YAPI (Business Owner) | À valider — offres balisées d'une page lues avant tout appel à l'IA (BES-28, EF-VEI-28) |
 
 > Document de référence pour le développement. Toute évolution de périmètre passe par une mise à jour
 > de ce fichier **avant** le code. Chaque exigence porte un identifiant stable, repris dans
@@ -117,6 +118,7 @@ des candidatures, la veille des offres et la production de CV adaptés.
 | BES-19 | « Pour la synchronisation on peut définir la période à vérifier qui doit être modifiable sur l'écran, mais pour éviter ces rate limits on peut passer par les mails sur la période 1 mois. » (après refus de quota de l'API Gmail, 22/09/2026) |
 | BES-20 | « J'ai l'abonnement max avec Claude et je ne veux pas payer de crédit en plus […] je veux utiliser ces trois là Llama 3.3 70B, Qwen, Kimi K2 de Groq. » (22/09/2026) |
 | BES-21 | « Il faut qu'il puisse bien labéliser les offres (quand c'est refusé ne pas confondre avec accusé de réception etc.) en vérifiant la présence de certains mots dans le mail. » (23/09/2026) |
+| BES-28 | « On part avec l'option A et B » — lire le balisage `schema.org/JobPosting` et l'état embarqué des pages, plutôt que de confier chaque page à un modèle. (24/09/2026) |
 | BES-27 | « Comment résoudre ce problème d'adaptateur générique ? Il faudrait résoudre ça automatiquement pour mon scraping. » (24/09/2026) |
 | BES-26 | « Rajoute un bouton pour surveiller tous les sites de la proposition d'un coup. » (23/09/2026) |
 | BES-25 | « L'idée de cette section, c'est de récupérer depuis les offres que j'ai récupérées leur nom de site à travers les mails, et stocker dans ma BD. » (23/09/2026) |
@@ -244,6 +246,7 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | EF-VEI-25 | Le candidat peut écarter une proposition, qui ne lui est alors plus présentée. | S | EXM-05 | T | Proposition écartée : absente de la liste au rappel suivant. |
 | EF-VEI-26 | Le candidat peut ajouter d'un seul geste toutes les sources proposées, et le système lui rend compte de celles qu'il n'a pas pu ajouter, avec la raison. | S | EXM-05 | T | Trois propositions dont une refusée : deux sources ajoutées, la refusée nommée avec sa raison. |
 | EF-VEI-27 | Le système doit retrouver la page qui liste les offres lorsque la source ne désigne que l'accueil du site, en suivant un lien de ce site, et sans jamais en suivre plus d'un. | S | EXM-05 | T | Source `https://exemple.fr/` dont l'accueil porte « Nos offres » : les offres de cette page sont relevées, sans appel d'IA sur l'accueil. Adresse hors du site : jamais suivie. |
+| EF-VEI-28 | Le système doit lire les offres qu'une page publie sous forme balisée — `schema.org/JobPosting` en `application/ld+json`, ou dans l'état embarqué de la page — avant de confier cette page à un modèle, et ne l'y confier que si le balisage n'a rien donné. | M | EXM-05, EXM-10 | T | Page portant trois offres balisées : les trois sont relevées, avec leur date de publication, sans aucun appel d'IA. Page sans balisage : le modèle est appelé comme avant. |
 
 ### 6.4 Production de CV et de réponses (CVX)
 
@@ -537,5 +540,6 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | BES-25 | EXM-05 | EF-VEI-23, 24, 25, RG-19 |
 | BES-26 | EXM-05 | EF-VEI-26 |
 | BES-27 | EXM-05 | EF-VEI-27 |
+| BES-28 | EXM-05, EXM-10 | EF-VEI-28, ENF-COU-01 |
 
 La traçabilité fine exigence → tâche → test est tenue à jour dans `docs/TRACABILITE.md`.

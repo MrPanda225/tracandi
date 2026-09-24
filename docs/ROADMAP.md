@@ -252,6 +252,30 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
   modèle propose est retenue aux mêmes conditions qu'une offre : présente parmi les liens de la page et sur le
   site de la source — le code, jamais le modèle, décide où le candidat est envoyé (ENF-SEC-06).
 
+- [x] **T-409 Offres balisées lues avant l'IA** — *demande du Business Owner du 24/09/2026 (cahier v1.16,
+  BES-28)*, après recherche sur les pratiques de collecte : une page carrières « vide » ne l'est presque jamais,
+  ses offres sont dans son HTML mais hors du texte visible.
+  *Exigences* : EF-VEI-28, EF-VEI-09, ENF-SEC-06, ENF-COU-01.
+  *Fini quand* : une page balisée rend ses offres **sans aucun appel d'IA** ; une page sans balisage part au
+  modèle comme avant.
+  *Livré* : `scraper/page.ts` lit les `<script type="application/ld+json">` et `application/json`
+  (`__NEXT_DATA__`, `__NUXT__`) **avant** de retirer les scripts — c'est là que la plupart des sites publient
+  leurs offres, pour Google for Jobs. `scraper/structuredJobs.ts` en extrait les nœuds `schema.org/JobPosting`
+  où qu'ils soient : racine, `@graph`, liste, ou au fond de l'état d'une application monopage.
+  *Ce que ça rapporte* : zéro appel d'IA sur ces pages, et des champs **exacts** au lieu de devinés — la date de
+  publication et le type de contrat viennent de la source. `postedAt`, toujours nul pour une page générique,
+  est enfin rempli.
+  *Bornes* : 20 blocs par page, 512 ko par bloc, 12 niveaux de profondeur, 20 000 nœuds parcourus, 60 offres.
+  Un bloc mal formé — il y en a beaucoup — est ignoré sans faire perdre les autres.
+  *Sécurité* : un balisage est **du contenu non fiable** comme un autre. Chaque offre passe par un schéma zod,
+  chaque texte est borné, et l'adresse n'est retenue que si elle reste sur le site de la source (ENF-SEC-06).
+  *Correctif de T-408* : le rebond ne part plus que de **l'accueil** d'un site. Sur une page profonde, il
+  quittait le board pour une offre isolée dès qu'un lien portait « offres » dans son chemin.
+  *Choix assumé* : le titre, écrit en français, prime sur `employmentType` quand il nomme un contrat — le
+  vocabulaire de schema.org ne connaît ni CDI, ni CDD, ni alternance, et balise une alternance « INTERN ».
+  *Reste à faire* : reconnaître l'ATS à l'empreinte laissée dans la page pour basculer sur son API (levier C de
+  l'étude du 24/09/2026).
+
 - [ ] **T-405 Récapitulatif e-mail** — envoi via Gmail des offres de score ≥ S.
   *Exigences* : EF-VEI-15.
 - [~] **T-406 Écrans Sites et Offres** — ajout/suspension/retrait, liste triée, filtre score, garder/écarter,

@@ -13,6 +13,7 @@ const fixture = (name: string, extension: string): string =>
   );
 
 const PAGE = fixture('ats/generic-career-page', 'html');
+const STRUCTURED_PAGE = fixture('ats/structured-career-page', 'html');
 const EXTRACTED = JSON.parse(fixture('llm/extract_offers', 'json')) as unknown;
 const ADDRESS = 'https://atelier-aurore.fr/nous-rejoindre';
 
@@ -209,6 +210,66 @@ describe('genericAdapter', () => {
 
     await expect(genericAdapter.fetchOffers('https://atelier-aurore.fr/', dependencies)).resolves.toEqual([]);
     expect(visited).toHaveLength(2);
+  });
+
+  it('[EF-VEI-28] reads the offers a page marks up, without any AI call at all', async () => {
+    const { deps: dependencies, aiCalls } = site({ 'https://atelier-aurore.fr/carrieres': STRUCTURED_PAGE }, [
+      { offers: [] },
+    ]);
+
+    const offers = await genericAdapter.fetchOffers('https://atelier-aurore.fr/carrieres', dependencies);
+
+    // Le texte visible ne porte aucune offre : tout vient du balisage.
+    expect(aiCalls()).toBe(0);
+    expect(offers).toHaveLength(2);
+    expect(offers[0]).toMatchObject({
+      externalId: 'AA-2026-14',
+      title: 'Data Analyst',
+      location: 'Paris',
+      contractType: 'cdi',
+      url: 'https://atelier-aurore.fr/offres/data-analyst',
+      postedAt: new Date('2026-09-18'),
+    });
+    expect(offers[0]?.description).toContain('tableaux de bord');
+  });
+
+  it('[EF-VEI-28] reads what the markup states, rather than guessing it', async () => {
+    const { deps: dependencies } = site({ 'https://atelier-aurore.fr/carrieres': STRUCTURED_PAGE }, [
+      { offers: [] },
+    ]);
+
+    const offers = await genericAdapter.fetchOffers('https://atelier-aurore.fr/carrieres', dependencies);
+
+    expect(offers[1]).toMatchObject({
+      contractType: 'alternance',
+      location: 'Télétravail',
+      postedAt: new Date('2026-09-20'),
+    });
+  });
+
+  it('[ENF-SEC-06] never sends the candidate to an address the markup points off the site', async () => {
+    const hostile = `<script type="application/ld+json">${JSON.stringify({
+      '@type': 'JobPosting',
+      title: 'Data Analyst',
+      url: 'https://www.indeed.fr/viewjob?jk=abc',
+    })}</script>`;
+    const { deps: dependencies } = site({ 'https://atelier-aurore.fr/carrieres': hostile }, [{ offers: [] }]);
+
+    const offers = await genericAdapter.fetchOffers('https://atelier-aurore.fr/carrieres', dependencies);
+
+    expect(offers[0]?.url).toBe('https://atelier-aurore.fr/carrieres');
+  });
+
+  it('[EF-VEI-28] calls the model when the page marks up nothing', async () => {
+    const plain = '<body><h1>Postes ouverts</h1><a href="/p/x">Data Analyst</a></body>';
+    const { deps: dependencies, aiCalls } = site({ 'https://atelier-aurore.fr/carrieres': plain }, [
+      { offers: [{ title: 'Data Analyst', url: 'https://atelier-aurore.fr/p/x' }] },
+    ]);
+
+    const offers = await genericAdapter.fetchOffers('https://atelier-aurore.fr/carrieres', dependencies);
+
+    expect(aiCalls()).toBe(1);
+    expect(offers).toHaveLength(1);
   });
 
   it('[EF-IA-04] says so when no AI service is available, instead of answering nothing', async () => {
