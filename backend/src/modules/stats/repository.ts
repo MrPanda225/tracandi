@@ -1,9 +1,10 @@
-import { and, asc, count, countDistinct, eq, exists, gte, inArray, lt, ne, or, sql } from 'drizzle-orm';
+import { and, asc, count, countDistinct, eq, exists, gte, inArray, isNotNull, lt, ne, or, sql } from 'drizzle-orm';
 import {
   applicationStatusHistory,
   applications,
   appSettings,
   companies,
+  emails,
   jobOffers,
   watchedSites,
 } from '../../db/schema.js';
@@ -134,16 +135,23 @@ export interface FollowUpRow {
   lastActivityAt: Date;
 }
 
-const followUpConditions = (userId: number, inactiveSince: Date) =>
+const followUpConditions = (db: Database, userId: number, inactiveSince: Date) =>
   and(
     ownedBy(userId),
     inArray(applications.status, FOLLOW_UP_STATUSES),
     lt(applications.lastActivityAt, inactiveSince),
+    // RG-06 (v1.22): only an application someone can be written to (RG-20).
+    exists(
+      db
+        .select({ id: emails.id })
+        .from(emails)
+        .where(and(eq(emails.applicationId, applications.id), isNotNull(emails.contactAddress))),
+    ),
   );
 
 /**
- * RG-06: the user's applications at Envoyée or Accusé reçu with no activity since `inactiveSince`, oldest activity
- * first (at most `limit`), and their total number.
+ * RG-06: the user's applications at Envoyée or Accusé reçu with no activity since `inactiveSince` and a contact
+ * address (v1.22), oldest activity first (at most `limit`), and their total number.
  * @req EF-TDB-07, RG-06
  */
 export const listFollowUps = async (
@@ -151,7 +159,7 @@ export const listFollowUps = async (
   userId: number,
   { inactiveSince, limit }: { inactiveSince: Date; limit: number },
 ): Promise<{ rows: FollowUpRow[]; total: number }> => {
-  const where = followUpConditions(userId, inactiveSince);
+  const where = followUpConditions(db, userId, inactiveSince);
   const [rows, totals] = await Promise.all([
     db
       .select({

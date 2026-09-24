@@ -60,13 +60,15 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
   padding: 0.75rem 0.9rem;
   border-radius: var(--radius-sm);
   background: var(--color-canvas);
 }
 
 .follow-ups__item-main {
+  flex: 1;
   min-width: 0;
 }
 
@@ -106,4 +108,47 @@
   color: var(--color-mauve-deep);
   font-size: 0.8125rem;
   text-align: center;
+}
+
+/* EF-CAN-17: the one action of the row, next to what makes it due (the day count). */
+.follow-ups__button {
+  flex: none;
+  padding-inline: 0.9rem;
+}
+
+/* The outcome of the action takes the whole row under the application. */
+.follow-ups__draft {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--status-interview);
+  font-size: 0.8125rem;
+  overflow-wrap: anywhere;
+}
+
+.follow-ups__draft--failed {
+  color: var(--status-rejected);
+}
+
+
+/* On a phone the name comes first on its own line; status, delay and action share the next one (ENF-UTI-02). */
+@container shell-main (max-width: 30rem) {
+  .follow-ups__item-main {
+    flex-basis: 100%;
+  }
+
+  .follow-ups__item {
+    column-gap: 0.5rem;
+  }
+
+  .follow-ups__item-meta {
+    flex-direction: row;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .follow-ups__button {
+    margin-left: auto;
+    padding: 0.45rem 0.75rem;
+    font-size: 0.875rem;
+  }
 }

@@ -96,6 +96,8 @@ export const seedLoadDataset = async (db: Database, pool: pg.Pool, now: Date): P
     fromAddress: `rh@entreprise-${i % LOAD.companies}.example`,
     subject: `Votre candidature ${i}`,
     snippet: 'Bonjour, nous avons bien reçu votre candidature.',
+    // RG-20: most messages carry a contact; the ones from a no-reply address do not.
+    contactAddress: i % 3 === 0 ? null : `rh@entreprise-${i % LOAD.companies}.example`,
     category: pick(emailCategory.enumValues, i),
     receivedAt: daysBefore(i % 365),
   }));

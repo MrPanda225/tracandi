@@ -185,6 +185,18 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
   *Fini quand* : la candidature envoyée à `…@data-praxis.example` est rattachée à « Data Praxis » ; une adresse
   Gmail, une plateforme, un outil de recrutement ou un ATS ne nomment aucune entreprise.
   *Hors périmètre* : les candidatures déjà enregistrées « Entreprise inconnue » ne sont pas renommées.
+- [x] **T-310 Relance préparée en brouillon Gmail** — *demande du Business Owner du 24/09/2026 (cahier v1.22,
+  BES-34) : ne relancer que ceux à qui l'on peut écrire, bouton « Relancer » qui rédige le mail et le laisse en
+  attente d'envoi.* Adresse de contact de chaque message (RG-20 : `Reply-To`, sinon expéditeur, destinataire d'un
+  envoi, jamais un « no-reply ») conservée (migration 0013 : colonne `contact_address`, index partiel
+  `ix_emails_user_without_contact`, tâche IA `write_follow_up`) et retrouvée pour les messages déjà enregistrés par la
+  relecture de T-308 ; RG-06 exige une adresse de contact (liste du tableau de bord et drapeau des candidatures) ;
+  `POST /api/applications/{id}/follow-up-draft` : l'IA rédige (80 à 150 mots, contrôlés par le code) à partir des
+  seuls faits de la candidature, le brouillon est enregistré en réponse dans le fil (`In-Reply-To`, `References`,
+  objet « Re: »), jamais envoyé ; bouton « Relancer » ouvrant Gmail sur le brouillon.
+  *Exigences* : RG-06 (v1.22), RG-20, EF-CAN-17, RG-13, ENF-RGP-01, ENF-SEC-04, ENF-SEC-06.
+  *Fini quand* : un brouillon est créé dans le fil, adressé au contact, signé du nom lu sur l'envoi du candidat ;
+  sans contact, statut hors relance ou IA indisponible : aucun brouillon ; aucune candidature sans contact listée.
 
 ## Lot 4 — Veille des offres
 

@@ -6,7 +6,7 @@ import type { GmailClient } from './mailbox.js';
  * Quota cost of each Gmail method used here, in units (Google, « Usage limits »). Gmail counts the cost of the
  * call, not its result: a listing of 500 ids costs the same as a listing of one.
  */
-const COST = { list: 5, get: 5, listLabels: 1, createLabel: 5, modifyThread: 10 } as const;
+const COST = { list: 5, get: 5, listLabels: 1, createLabel: 5, modifyThread: 10, getThread: 10, createDraft: 10 } as const;
 
 /**
  * A fifth of the 250 units per second and per user Gmail grants (15 000 per minute). The limit is a moving average
@@ -135,5 +135,7 @@ export const throttleGmailClient = (client: GmailClient, deps: GmailThrottleDeps
     listLabels: (params) => guard(COST.listLabels, () => client.listLabels(params)),
     createLabel: (params) => guard(COST.createLabel, () => client.createLabel(params)),
     modifyThread: (params) => guard(COST.modifyThread, () => client.modifyThread(params)),
+    getThread: (params) => guard(COST.getThread, () => client.getThread(params)),
+    createDraft: (params) => guard(COST.createDraft, () => client.createDraft(params)),
   };
 };

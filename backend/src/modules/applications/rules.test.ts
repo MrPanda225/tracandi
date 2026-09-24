@@ -60,21 +60,27 @@ describe('isFollowUpDue', () => {
   const now = day('2026-09-22');
 
   it('[RG-06] flags a sent application without activity for 11 days with D = 10 (EF-CAN-12)', () => {
-    expect(isFollowUpDue({ status: 'sent', lastActivityAt: day('2026-09-11') }, now, 10)).toBe(true);
+    expect(isFollowUpDue({ status: 'sent', lastActivityAt: day('2026-09-11'), hasContact: true }, now, 10)).toBe(true);
   });
 
   it('[RG-06] flags an acknowledged application past the delay', () => {
-    expect(isFollowUpDue({ status: 'acknowledged', lastActivityAt: day('2026-09-01') }, now, 10)).toBe(true);
+    expect(isFollowUpDue({ status: 'acknowledged', lastActivityAt: day('2026-09-01'), hasContact: true }, now, 10)).toBe(true);
   });
 
   it('[RG-06] does not flag exactly D days of inactivity', () => {
-    expect(isFollowUpDue({ status: 'sent', lastActivityAt: day('2026-09-12') }, now, 10)).toBe(false);
+    expect(isFollowUpDue({ status: 'sent', lastActivityAt: day('2026-09-12'), hasContact: true }, now, 10)).toBe(false);
+  });
+
+  it('[RG-06] [BES-34] never flags an application nobody can be written to', () => {
+    expect(isFollowUpDue({ status: 'sent', lastActivityAt: day('2026-09-01'), hasContact: false }, now, 10)).toBe(
+      false,
+    );
   });
 
   it.each<ApplicationStatus>(['to_apply', 'interview', 'offer', 'rejected'])(
     '[RG-06] never flags an application in status %s',
     (status) => {
-      expect(isFollowUpDue({ status, lastActivityAt: day('2026-01-01') }, now, 10)).toBe(false);
+      expect(isFollowUpDue({ status, lastActivityAt: day('2026-01-01'), hasContact: true }, now, 10)).toBe(false);
     },
   );
 });

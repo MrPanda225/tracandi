@@ -166,7 +166,8 @@ function ReclassifyOption({
       <p className="gmail-settings__option-label">Accusés de réception déjà classés</p>
       <p id={hintId} className="gmail-settings__meta">
         Tracandi relit dans Gmail les messages rangés « En attente » et passe en « Refusée » ceux qui annoncent en fait
-        un refus plus loin dans le message. Rien d’autre n’est modifié.
+        un refus plus loin dans le message. Il retrouve aussi l’adresse à qui écrire des messages enregistrés avant la
+        relance : sans elle, une candidature n’apparaît pas « À relancer ». Rien d’autre n’est modifié.
       </p>
       {isRunning(run) && (
         <p className="gmail-settings__meta" role="status" aria-live="polite">

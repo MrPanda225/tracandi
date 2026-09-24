@@ -50,15 +50,16 @@ export const statusOfCategory = (category: EmailCategory): ApplicationStatus | n
   STATUS_OF_CATEGORY[category];
 
 /**
- * RG-06: true when the application is Envoyée or Accusé reçu and its last activity is more than `followUpDays`
- * days before `now` (strictly).
+ * RG-06: true when the application is Envoyée or Accusé reçu, its last activity is more than `followUpDays`
+ * days before `now` (strictly), and someone can be written to (v1.22: a message carries a contact address, RG-20).
  * @req RG-06, EF-CAN-12
  */
 export const isFollowUpDue = (
-  application: { status: ApplicationStatus; lastActivityAt: Date },
+  application: { status: ApplicationStatus; lastActivityAt: Date; hasContact: boolean },
   now: Date,
   followUpDays: number,
 ): boolean =>
+  application.hasContact &&
   FOLLOW_UP_STATUSES.has(application.status) &&
   now.getTime() - application.lastActivityAt.getTime() > followUpDays * DAY_MS;
 

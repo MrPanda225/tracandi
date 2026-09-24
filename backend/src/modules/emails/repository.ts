@@ -1,7 +1,9 @@
-import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNotNull, isNull, ne, sql } from 'drizzle-orm';
 import type { Database } from '../../db/client.js';
 import {
+  applications,
   appSettings,
+  companies,
   emails,
   gmailAccounts,
   gmailLabels,
@@ -276,13 +278,24 @@ export const insertEmail = async (
   return row.id;
 };
 
-/** A stored message to read again (EF-GML-20): what RG-17 reads of it besides its body. */
+/** A stored message to read again (EF-GML-20): what RG-17 reads of it besides its body, and what it lacks. */
 export interface StoredMessage {
   id: number;
   gmailMessageId: string;
   subject: string | null;
   snippet: string | null;
+  category: (typeof emails.$inferSelect)['category'];
+  contactAddress: string | null;
 }
+
+const storedMessageColumns = {
+  id: emails.id,
+  gmailMessageId: emails.gmailMessageId,
+  subject: emails.subject,
+  snippet: emails.snippet,
+  category: emails.category,
+  contactAddress: emails.contactAddress,
+};
 
 /**
  * The received messages of the user stored under this category, oldest first (RG-04 order).
@@ -294,10 +307,30 @@ export const listReceivedEmails = async (
   category: (typeof emails.$inferSelect)['category'],
 ): Promise<StoredMessage[]> =>
   db
-    .select({ id: emails.id, gmailMessageId: emails.gmailMessageId, subject: emails.subject, snippet: emails.snippet })
+    .select(storedMessageColumns)
     .from(emails)
     .where(and(eq(emails.userId, userId), eq(emails.category, category), eq(emails.direction, 'inbound')))
     .orderBy(emails.receivedAt, emails.id);
+
+/**
+ * RG-20: the user's stored messages still without a contact address — stored before it was kept, or from an address
+ * that takes no answer — oldest first. Job alerts are left out: nobody is followed up through them.
+ * @req RG-20, EF-GML-20
+ */
+export const listEmailsWithoutContact = async (db: Executor, userId: number): Promise<StoredMessage[]> =>
+  db
+    .select(storedMessageColumns)
+    .from(emails)
+    .where(and(eq(emails.userId, userId), isNull(emails.contactAddress), ne(emails.category, 'job_alert')))
+    .orderBy(emails.receivedAt, emails.id);
+
+/**
+ * Keeps the contact address found for a stored message (RG-20).
+ * @req RG-20
+ */
+export const setEmailContact = async (db: Executor, emailId: number, contactAddress: string): Promise<void> => {
+  await db.update(emails).set({ contactAddress }).where(eq(emails.id, emailId));
+};
 
 /**
  * Files a stored message under another category (EF-GML-20); its application is the caller's.
@@ -416,3 +449,49 @@ export const listSyncableUserIds = async (db: Executor): Promise<number[]> => {
     .orderBy(gmailAccounts.userId);
   return rows.map((row) => row.userId);
 };
+
+/** What a follow-up is prepared from (EF-CAN-17): the application, and where to write. */
+export interface FollowUpContext {
+  company: string;
+  jobTitle: string;
+  status: (typeof applications.$inferSelect)['status'];
+  appliedAt: Date;
+  lastActivityAt: Date;
+  /** RG-20: the contact of the most recent message that carries one, and its thread; null when none does. */
+  contact: { address: string; gmailThreadId: string } | null;
+}
+
+/**
+ * One application of the user with its most recent contact address (RG-20), or null when absent or owned by another
+ * user (EF-AUT-06). Served by `ix_emails_application_received`.
+ * @req EF-CAN-17, RG-20, EF-AUT-06
+ */
+export const findFollowUpContext = async (
+  db: Executor,
+  userId: number,
+  applicationId: number,
+): Promise<FollowUpContext | null> => {
+  const [application] = await db
+    .select({
+      company: companies.name,
+      jobTitle: applications.jobTitle,
+      status: applications.status,
+      appliedAt: applications.appliedAt,
+      lastActivityAt: applications.lastActivityAt,
+    })
+    .from(applications)
+    .innerJoin(companies, eq(companies.id, applications.companyId))
+    .where(and(eq(applications.id, applicationId), eq(companies.userId, userId)));
+  if (!application) return null;
+  const [contact] = await db
+    .select({ address: emails.contactAddress, gmailThreadId: emails.gmailThreadId })
+    .from(emails)
+    .where(and(eq(emails.applicationId, applicationId), isNotNull(emails.contactAddress)))
+    .orderBy(desc(emails.receivedAt), desc(emails.id))
+    .limit(1);
+  return {
+    ...application,
+    contact: contact?.address ? { address: contact.address, gmailThreadId: contact.gmailThreadId } : null,
+  };
+};
+

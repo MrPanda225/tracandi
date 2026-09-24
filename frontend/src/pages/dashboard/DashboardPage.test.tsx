@@ -2,6 +2,7 @@ import { render, screen, within } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { openPendingTab } from '../../lib/browser';
 import { openStreams } from '../../test/setup';
 import type { Dashboard } from '../../api/stats';
 import { DashboardPage } from './DashboardPage';
@@ -62,6 +63,9 @@ const EMPTY_DASHBOARD: Dashboard = {
   offers: { newAboveThreshold: 0, threshold: 60 },
 };
 
+const pendingTab = { go: vi.fn(), close: vi.fn() };
+vi.mock('../../lib/browser', () => ({ openPendingTab: vi.fn(() => pendingTab), leaveFor: vi.fn() }));
+
 const json = (status: number, body?: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
@@ -96,6 +100,7 @@ const pending = () => {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.clearAllMocks();
 });
 
 describe('DashboardPage', () => {
@@ -320,6 +325,52 @@ describe('DashboardPage', () => {
     expect(followUps.getByText('Atelier Nova')).toBeInTheDocument();
     expect(followUps.getByText('Développeur')).toBeInTheDocument();
     expect(followUps.getByText('il y a 21 jours')).toBeInTheDocument();
+  });
+
+  it('[EF-CAN-17] prepares the follow-up as a Gmail draft and opens Gmail on it', async () => {
+    const draft = {
+      draftUrl: 'https://mail.google.com/mail/#drafts?compose=draft-1',
+      to: 'rh@atelier-nova.example',
+      subject: 'Re: Votre candidature',
+    };
+    const fetchMock = vi.fn((input: string, init?: RequestInit) =>
+      Promise.resolve(
+        init?.method === 'POST' && input.endsWith('/applications/7/follow-up-draft')
+          ? json(201, draft)
+          : json(200, DASHBOARD),
+      ),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    renderPage();
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: 'Relancer Atelier Nova — Développeur' }));
+
+    expect(vi.mocked(openPendingTab)).toHaveBeenCalledTimes(1);
+    expect(await screen.findByText('Brouillon prêt pour rh@atelier-nova.example.')).toBeInTheDocument();
+    expect(pendingTab.go).toHaveBeenCalledWith(draft.draftUrl);
+    expect(screen.getByRole('link', { name: 'Ouvrir le brouillon' })).toHaveAttribute('href', draft.draftUrl);
+  });
+
+  it('[EF-CAN-17] says why the follow-up could not be prepared, and closes the tab it opened', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((_input: string, init?: RequestInit) =>
+        Promise.resolve(
+          init?.method === 'POST'
+            ? json(409, { error: 'Aucune adresse à laquelle écrire pour cette candidature.' })
+            : json(200, DASHBOARD),
+        ),
+      ),
+    );
+    renderPage();
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: 'Relancer Atelier Nova — Développeur' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Aucune adresse à laquelle écrire');
+    expect(pendingTab.close).toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Relancer Atelier Nova — Développeur' })).toBeEnabled();
   });
 
   it('[EF-TDB-07] tells the user there is nothing to follow up', async () => {

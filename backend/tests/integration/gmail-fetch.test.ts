@@ -263,6 +263,7 @@ describe('MessageFetcher — pre-filter (RG-10)', () => {
         'gmailThreadId',
         'platform',
         'receivedAt',
+        'replyToAddress',
         'sender',
         'snippet',
         'subject',
