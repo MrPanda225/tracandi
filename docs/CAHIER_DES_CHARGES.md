@@ -28,6 +28,7 @@
 | 1.25 | 24/09/2026 | Sahiré YAPI (Business Owner) | À valider — conformité RGPD : pages publiques (mentions légales, confidentialité, cookies), mention d'information sur l'unique cookie, suppression du compte et export des données depuis l'application (BES-38, EF-AUT-11, EF-AUT-12, EF-LEG-01, EF-LEG-02, ENF-RGP-04, ENF-RGP-05) |
 | 1.26 | 24/09/2026 | Sahiré YAPI (Business Owner) | À valider — hébergement en ligne : interface sur Vercel, qui relaie `/api` vers l'API hébergée sur Northflank ; base sur Neon (BES-39, Q-18 tranchée, C-05 et §5.2 révisés, ENF-SEC-01 révisée, ENF-SEC-21) |
 | 1.27 | 24/09/2026 | Sahiré YAPI (Business Owner) | À valider — intégration continue : chaque PR et chaque poussée sur `dev` et `main` exécutent types, lint, tests unitaires et d'intégration, couverture, audit et construction de l'image de l'API (BES-40, ENF-MAI-08) |
+| 1.28 | 25/09/2026 | Sahiré YAPI (Business Owner) | À valider — performances et référencement des pages publiques : texte principal visible sans attendre d'animation, état de session sans erreur, titres et descriptions par page, `robots.txt`, `llms.txt`, icône et aperçu de partage (BES-41, EF-AUT-13, EF-SEO-01, ENF-PERF-07) |
 
 > Document de référence pour le développement. Toute évolution de périmètre passe par une mise à jour
 > de ce fichier **avant** le code. Chaque exigence porte un identifiant stable, repris dans
@@ -143,6 +144,7 @@ des candidatures, la veille des offres et la production de CV adaptés.
 | BES-38 | « Rajoute les cookies, les règles de RGPD, etc., et tout. » (24/09/2026 ; précisé : page cookies et mention d'information discrète — un seul cookie, strictement nécessaire, donc pas de consentement à demander ; suppression du compte et export des données dans l'application ; éditeur et hébergeur fournis par la configuration) |
 | BES-39 | « Prépare le front pour un déploiement sur Vercel et le back pour un déploiement sur Northflank. » (24/09/2026) |
 | BES-40 | « Rajoute aussi la pipeline CI/CD qui va exécuter tous les tests unitaires et d'intégration. » (24/09/2026) |
+| BES-41 | « Optimise aussi les performances et le SEO. » (25/09/2026, relevé Lighthouse à l'appui : description absente, `robots.txt` invalide, affichage lent) |
 | BES-35 | « On va retaper la section Réglages en gardant que ce qui est utile à savoir pour l'utilisateur : déjà retire-moi le fournisseur d'IA, et optimise la section boîte mail en suivant les principes ux-design et ui-design. » (24/09/2026) |
 | BES-23 | « Applique un système de queue pour mes traitements trop longs et même des websockets, avec une architecture asynchrone. » (23/09/2026) |
 
@@ -369,6 +371,12 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | EF-LEG-01 | Le système doit publier, sans session, les mentions légales, la politique de confidentialité et la page des cookies, liées depuis la page de présentation, la page de connexion et l'application. L'éditeur (par défaut Sahiré YAPI), son adresse de contact (par défaut celle du Business Owner, accord du 24/09/2026) et l'hébergeur (par défaut Vercel et Northflank) peuvent être remplacés par la configuration. (v1.25, BES-38) | M | EXM-13 | T |
 | EF-LEG-02 | À la première visite, le système doit informer, sans bloquer la page ni demander de consentement, qu'il ne dépose qu'un cookie strictement nécessaire à la session ; l'information ne réapparaît pas une fois lue sur le même navigateur. (v1.25, BES-38 — lignes directrices de la CNIL) | S | EXM-13 | T |
 
+### 6.12 Référencement (SEO)
+
+| ID | Exigence | Prio | Source | Vérif. |
+|---|---|---|---|---|
+| EF-SEO-01 | Les pages publiques (présentation, connexion, pages légales) doivent porter chacune un titre et une description propres, en français, une icône et un aperçu de partage ; le site doit publier un `robots.txt` valide qui ouvre ces pages et ferme l'application et l'API, et un `llms.txt` qui décrit le service. Les écrans de l'application ne sont pas indexés. (v1.28, BES-41) | S | EXM-13 | T |
+
 ## 7. Exigences non fonctionnelles
 
 ### 7.1 Performance
@@ -380,6 +388,7 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | ENF-PERF-04 | Avec le jeu de charge d'ENF-PERF-01, aucune requête sélective de l'application (liste, recherche, détail, rattachement) ne doit effectuer de parcours séquentiel complet (`Seq Scan` dans `EXPLAIN`) sur les tables `applications`, `emails` ou `job_offers`. | I (EXPLAIN) |
 | ENF-PERF-05 | Avec le jeu de charge d'ENF-PERF-01, chaque requête de calcul des indicateurs du tableau de bord (EF-TDB-01 à 09) doit s'exécuter en moins de 50 ms sur la base locale de test. | T (`EXPLAIN ANALYZE`) |
 | ENF-PERF-06 | Aucune route de l'API ne doit dépasser 2 secondes : un traitement plus long est mis en file et suivi (EF-EXE-01). | T |
+| ENF-PERF-07 | Construites pour la production et mesurées par Lighthouse en profil mobile, la page de présentation et la page de connexion doivent obtenir un score de performance d'au moins 90, un score SEO et « bonnes pratiques » de 100, et afficher leur plus grand élément en moins de 3 s ; le titre et le texte principal de la présentation sont visibles sans attendre la fin d'une animation, et la console reste sans erreur pour un visiteur. (v1.28, BES-41) | I (Lighthouse) |
 
 ### 7.2 Sécurité
 | ID | Exigence | Vérif. |
@@ -566,6 +575,7 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | BES-14 | EXM-13 | EF-AUT-01 à 08, ENF-SEC-18 à 20, ENF-RGP-02 |
 | EF-AUT-09 | Un visiteur sans session qui ouvre l'adresse racine doit voir une page de présentation du service — suivi des candidatures depuis Gmail, classement des réponses, relances préparées, tableau de bord, données conservées — donnant accès à la connexion et à la création de compte ; avec une session, la même adresse ouvre le tableau de bord. (v1.24, BES-36) | S | EXM-13 | T | Sans session, `/` présente le service et ses deux accès ; avec session, `/` affiche le tableau de bord ; la page de présentation ne demande aucune donnée d'utilisateur à l'API. |
 | EF-AUT-10 | L'accès « Créer un compte » de la page de présentation doit ouvrir le formulaire directement sur la création de compte. (v1.24) | C | EXM-13 | T | `/connexion?mode=inscription` ouvre l'onglet « Créer un compte ». |
+| EF-AUT-13 | L'interface doit connaître l'état de session d'un visiteur sans produire d'erreur : une route publique répond toujours 200, avec le compte de la session ou rien. (v1.28, BES-41) | S | EXM-13 | T | `GET /api/auth/session` : 200 `{ account }` avec une session valide, 200 `{ account: null }` sans cookie, avec un cookie inconnu ou expiré. |
 | BES-15 | EXM-14 | EF-DOC-01, 02 |
 | BES-16 | EXM-01 | EF-GML-01 |
 | BES-12 | EXM-11 | EF-GML-19, EF-CAN-13, 14, EF-VEI-20 à 22, EF-TDB-09, RG-09, RG-10 |
@@ -590,6 +600,7 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | BES-38 | EXM-13 | EF-AUT-11, EF-AUT-12, EF-LEG-01, EF-LEG-02, ENF-RGP-04, ENF-RGP-05 |
 | BES-39 | — (choix de réalisation, C-05) | ENF-SEC-01, ENF-SEC-21 |
 | BES-40 | — (organisation) | ENF-MAI-08, ENF-MAI-01, ENF-MAI-02, ENF-SEC-10 |
+| BES-41 | EXM-13 | EF-AUT-13, EF-SEO-01, ENF-PERF-07 |
 | BES-35 | EXM-01 | EF-CFG-05, EF-CFG-02 (retirée de l'écran) |
 
 La traçabilité fine exigence → tâche → test est tenue à jour dans `docs/TRACABILITE.md`.
