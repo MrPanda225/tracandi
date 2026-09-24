@@ -23,6 +23,20 @@ class ResizeObserverStub {
 }
 globalThis.ResizeObserver = ResizeObserverStub;
 
+// Used by `motion` to start an animation when its element scrolls into view; nothing ever scrolls in jsdom.
+class IntersectionObserverStub {
+  readonly root = null;
+  readonly rootMargin = '';
+  readonly thresholds: readonly number[] = [];
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+  takeRecords(): IntersectionObserverEntry[] {
+    return [];
+  }
+}
+globalThis.IntersectionObserver = IntersectionObserverStub;
+
 HTMLCanvasElement.prototype.getContext = (() => null) as typeof HTMLCanvasElement.prototype.getContext;
 
 /**
