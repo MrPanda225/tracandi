@@ -25,8 +25,13 @@ const allowMotion = () =>
     removeEventListener: () => undefined,
   }));
 
+const descriptionOf = () => document.head.querySelector<HTMLMetaElement>('meta[name="description"]')?.content;
+
 beforeEach(() => {
-  fetchMock = vi.fn(() => Promise.resolve(json(401, { error: 'Authentification requise' })));
+  window.sessionStorage.clear();
+  fetchMock = vi.fn((url: string) =>
+    Promise.resolve(url === '/api/auth/session' ? json(200, { account: null }) : json(404, { error: 'Ressource introuvable' })),
+  );
   vi.stubGlobal('fetch', fetchMock);
 });
 
@@ -65,7 +70,7 @@ describe('LandingPage', () => {
     renderAt('/');
     await screen.findByRole('heading', { level: 1 });
 
-    expect(fetchMock.mock.calls.map(([url]) => url as string)).toEqual(['/api/auth/me']);
+    expect(fetchMock.mock.calls.map(([url]) => url as string)).toEqual(['/api/auth/session']);
   });
 
   it('[EF-AUT-09] labels the dashboard preview as an example, never as someone’s figures', async () => {
@@ -89,5 +94,35 @@ describe('LandingPage', () => {
     const loader = await screen.findByText('Chargement de Tracandi…');
     await waitForElementToBeRemoved(loader, { timeout: 3000 });
     expect(screen.getByRole('heading', { level: 1 })).toBeInTheDocument();
+  });
+
+  it('[ENF-PERF-07] plays the loader once per visit, not on every return to the page', async () => {
+    allowMotion();
+    const first = renderAt('/');
+    await waitForElementToBeRemoved(await screen.findByText('Chargement de Tracandi…'), { timeout: 3000 });
+    first.unmount();
+
+    renderAt('/');
+    await screen.findByRole('heading', { level: 1 });
+
+    expect(screen.queryByText('Chargement de Tracandi…')).not.toBeInTheDocument();
+  });
+
+  it('[ENF-PERF-07] shows the promise and both ways in at once, without waiting for an animation', async () => {
+    allowMotion();
+    renderAt('/');
+
+    const hero = await screen.findByRole('region', { name: 'Vos candidatures, suivies toutes seules.' });
+    expect(within(hero).getByText(/Tracandi lit vos e-mails de candidature/)).toBeVisible();
+    expect(within(hero).getByRole('link', { name: 'Créer un compte' })).toBeVisible();
+    expect(within(hero).getByRole('link', { name: 'J’ai déjà un compte' })).toBeVisible();
+  });
+
+  it('[EF-SEO-01] gives the page its own title and a description of the service', async () => {
+    renderAt('/');
+    await screen.findByRole('heading', { level: 1 });
+
+    expect(document.title).toBe('Tracandi — suivi de candidatures depuis Gmail');
+    expect(descriptionOf()).toMatch(/^Tracandi lit vos e-mails de candidature.{60,}/);
   });
 });

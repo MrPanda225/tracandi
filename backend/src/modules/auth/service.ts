@@ -29,7 +29,10 @@ export interface AuthService {
   login(credentials: Credentials): Promise<OpenedSession>;
   logout(token: string): Promise<void>;
   authenticate(token: string): Promise<number | null>;
+  /** @throws NotFoundError when the account no longer exists. */
   getAccount(userId: number): Promise<Account>;
+  /** EF-AUT-13: the account, or `null` when it no longer exists. */
+  findAccount(userId: number): Promise<Account | null>;
   /**
    * EF-AUT-11: deletes the account and every datum of it once the password is checked; access granted to other
    * services is revoked first (best effort), and every session of the user stops at once.
@@ -142,6 +145,10 @@ export const createAuthService = ({
       const account = await repository.findAccountById(db, userId);
       if (!account) throw new NotFoundError();
       return account;
+    },
+
+    async findAccount(userId) {
+      return repository.findAccountById(db, userId);
     },
 
     deleteAccount: deleteAccountWith({ db, resolved, revokeExternalAccess }),

@@ -199,3 +199,39 @@ describe('session lifetime', () => {
     expect(response.status).toBe(401);
   });
 });
+
+describe('GET /api/auth/session', () => {
+  it('[EF-AUT-13] answers 200 with the account of a valid session', async () => {
+    const cookie = await registerUser(context.app, 'alex@example.com');
+
+    const response = await request(context.app).get('/api/auth/session').set('Cookie', cookie);
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ account: { id: expect.any(Number) as unknown, email: 'alex@example.com' } });
+  });
+
+  it('[EF-AUT-13] answers 200 with no account without a cookie or with an unknown one', async () => {
+    const withoutCookie = await request(context.app).get('/api/auth/session');
+    const unknownCookie = await request(context.app)
+      .get('/api/auth/session')
+      .set('Cookie', 'tracandi_session=inconnu');
+
+    expect(withoutCookie.status).toBe(200);
+    expect(withoutCookie.body).toEqual({ account: null });
+    expect(unknownCookie.status).toBe(200);
+    expect(unknownCookie.body).toEqual({ account: null });
+  });
+
+  it('[EF-AUT-13] [EF-AUT-07] answers 200 with no account once the session has expired or the account is gone', async () => {
+    const expired = await registerUser(context.app, 'alex@example.com');
+    const orphan = await registerUser(context.app, 'sam@example.com');
+    await database.db.delete(users).where(eq(users.email, 'sam@example.com'));
+    context.clock.advanceDays(7);
+
+    const afterExpiry = await request(context.app).get('/api/auth/session').set('Cookie', expired);
+    const afterDeletion = await request(context.app).get('/api/auth/session').set('Cookie', orphan);
+
+    expect(afterExpiry.body).toEqual({ account: null });
+    expect(afterDeletion.body).toEqual({ account: null });
+  });
+});

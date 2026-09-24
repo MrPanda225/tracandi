@@ -23,4 +23,8 @@ export const logIn = (credentials: Credentials) =>
 export const logOut = () => request<undefined>('/auth/logout', { method: 'POST' });
 
 /** EF-AUT-08: current account; fails with status 401 without a valid session. */
-export const fetchAccount = (signal?: AbortSignal) => request<Account>('/auth/me', { signal });
+export const fetchAccount = () => request<Account>('/auth/me');
+
+/** EF-AUT-13: account of the current session, `null` for a visitor — never a 401 in the browser console. */
+export const fetchSession = async (signal?: AbortSignal): Promise<Account | null> =>
+  (await request<{ account: Account | null }>('/auth/session', { signal })).account;

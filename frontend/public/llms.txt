@@ -1,0 +1,17 @@
+# Tracandi
+
+> Tracandi suit les candidatures d'emploi d'une personne à partir de sa boîte Gmail : il lit les e-mails de candidature, classe chaque réponse (accusé de réception, entretien, refus) et prépare les relances en brouillon Gmail, sans jamais rien envoyer à sa place.
+
+Service en français, pour un seul utilisateur par compte. L'accès à Gmail passe par l'autorisation de Google, révocable à tout moment ; seuls les métadonnées et un extrait de 300 caractères au plus sont conservés par e-mail.
+
+## Pages publiques
+
+- [Présentation du service](/): ce que Tracandi fait, comment, et ce qu'il conserve
+- [Connexion et création de compte](/connexion): accès à l'application
+- [Mentions légales](/mentions-legales): éditeur, contact et hébergeurs
+- [Politique de confidentialité](/confidentialite): données traitées, destinataires, durées et droits
+- [Cookies](/cookies): le seul cookie déposé, strictement nécessaire à la session
+
+## Application
+
+Les écrans de l'application (tableau de bord, candidatures, réglages) demandent une session et ne sont pas publics.

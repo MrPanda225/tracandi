@@ -83,6 +83,7 @@ describe('migrations', () => {
         'POST /auth/register',
         'POST /auth/login',
         'POST /auth/logout',
+        'GET /auth/session',
         'GET /auth/me',
         'DELETE /auth/account',
         'GET /account/export',

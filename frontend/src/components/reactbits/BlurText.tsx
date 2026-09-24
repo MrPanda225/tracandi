@@ -10,6 +10,7 @@ import { prefersReducedMotion } from '../../lib/motion';
 interface BlurTextProps {
   text: string;
   as?: ElementType;
+  id?: string;
   className?: string;
   /** Milliseconds between two words. */
   delay?: number;
@@ -21,14 +22,19 @@ const STEP_SECONDS = 0.35;
 const MS_PER_SECOND = 1000;
 
 /** Text whose words come into focus one after the other, from a blur, when it scrolls into view. */
-export function BlurText({ text, as: Tag = 'p', className = '', delay = 120 }: BlurTextProps) {
+export function BlurText({ text, as: Tag = 'p', id, className = '', delay = 120 }: BlurTextProps) {
   const ref = useRef<HTMLSpanElement>(null);
   const isInView = useInView(ref, { once: true, amount: 0.1 });
 
-  if (prefersReducedMotion()) return <Tag className={className}>{text}</Tag>;
+  if (prefersReducedMotion())
+    return (
+      <Tag id={id} className={className}>
+        {text}
+      </Tag>
+    );
   const words = text.split(' ');
   return (
-    <Tag className={className}>
+    <Tag id={id} className={className}>
       <span className="visually-hidden">{text}</span>
       <span ref={ref} aria-hidden="true">
         {words.map((word, index) => (
