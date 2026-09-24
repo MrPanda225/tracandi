@@ -26,6 +26,8 @@
 | 1.22 | 24/09/2026 | Sahiré YAPI (Business Owner) | À valider — relance limitée aux candidatures dont une adresse de contact est connue ; bouton « Relancer » préparant, rédigé par l'IA, un brouillon Gmail en réponse dans le fil, jamais envoyé par le système (BES-34, RG-06 v1.22, RG-20, EF-CAN-17, RG-13, ENF-RGP-01) |
 | 1.23 | 24/09/2026 | Sahiré YAPI (Business Owner) | À valider — écran Réglages réduit à ce qui sert au candidat : fournisseurs d'IA retirés de l'interface, carte Gmail réorganisée (état et synchronisation d'abord, préférences, entretien, déconnexion à part) (BES-35, EF-CFG-02 retirée de l'écran, EF-CFG-05) |
 | 1.25 | 24/09/2026 | Sahiré YAPI (Business Owner) | À valider — conformité RGPD : pages publiques (mentions légales, confidentialité, cookies), mention d'information sur l'unique cookie, suppression du compte et export des données depuis l'application (BES-38, EF-AUT-11, EF-AUT-12, EF-LEG-01, EF-LEG-02, ENF-RGP-04, ENF-RGP-05) |
+| 1.26 | 24/09/2026 | Sahiré YAPI (Business Owner) | À valider — hébergement en ligne : interface sur Vercel, qui relaie `/api` vers l'API hébergée sur Northflank ; base sur Neon (BES-39, Q-18 tranchée, C-05 et §5.2 révisés, ENF-SEC-01 révisée, ENF-SEC-21) |
+| 1.27 | 24/09/2026 | Sahiré YAPI (Business Owner) | À valider — intégration continue : chaque PR et chaque poussée sur `dev` et `main` exécutent types, lint, tests unitaires et d'intégration, couverture, audit et construction de l'image de l'API (BES-40, ENF-MAI-08) |
 
 > Document de référence pour le développement. Toute évolution de périmètre passe par une mise à jour
 > de ce fichier **avant** le code. Chaque exigence porte un identifiant stable, repris dans
@@ -139,6 +141,8 @@ des candidatures, la veille des offres et la production de CV adaptés.
 | BES-33 | « Travaille sur le graphique pour le suivi : regardons sur une période de 5 semaines et sois plus expressif, suis le skill bi-dashboard-design ; il doit être dynamique. » (24/09/2026, captures du graphique des 16 semaines) |
 | BES-34 | « Au niveau des relances, il faudra revoir la politique : relancer tous ceux dont on a un mail de relance, et ajouter un bouton Relance qui va rédiger le mail à envoyer ; en cliquant, ça doit lancer le mail avec l'objet et le contenu, avec le mail en attendant d'être envoyé. » (24/09/2026 ; précisé : adresse joignable, brouillon dans Gmail, rédaction par l'IA) |
 | BES-38 | « Rajoute les cookies, les règles de RGPD, etc., et tout. » (24/09/2026 ; précisé : page cookies et mention d'information discrète — un seul cookie, strictement nécessaire, donc pas de consentement à demander ; suppression du compte et export des données dans l'application ; éditeur et hébergeur fournis par la configuration) |
+| BES-39 | « Prépare le front pour un déploiement sur Vercel et le back pour un déploiement sur Northflank. » (24/09/2026) |
+| BES-40 | « Rajoute aussi la pipeline CI/CD qui va exécuter tous les tests unitaires et d'intégration. » (24/09/2026) |
 | BES-35 | « On va retaper la section Réglages en gardant que ce qui est utile à savoir pour l'utilisateur : déjà retire-moi le fournisseur d'IA, et optimise la section boîte mail en suivant les principes ux-design et ui-design. » (24/09/2026) |
 | BES-23 | « Applique un système de queue pour mes traitements trop longs et même des websockets, avec une architecture asynchrone. » (23/09/2026) |
 
@@ -174,9 +178,9 @@ sauvegarde et restauration de la base.
 - Envoi automatique de relances : le système signale, le candidat relance lui-même.
 - Collecte sur LinkedIn, Indeed, Welcome to the Jungle ou toute plateforme dont les conditions interdisent l'automatisation.
 - Messageries autres que Gmail.
-- Partage de données entre utilisateurs, rôles d'administration, hébergement en ligne de l'application (API, interface),
-  application mobile native. (Le multi-utilisateur avec comptes séparés est dans le périmètre depuis v1.2, BES-14.)
-  Seule la base de données est hébergée (BES-10).
+- Partage de données entre utilisateurs, rôles d'administration,
+  application mobile native. (Le multi-utilisateur avec comptes séparés est dans le périmètre depuis v1.2, BES-14 ;
+  l'hébergement en ligne de l'interface et de l'API, depuis v1.26, BES-39.)
 - Rendu des pages carrières exécutant du JavaScript côté client (navigateur automatisé).
 
 ## 6. Exigences fonctionnelles
@@ -380,7 +384,8 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 ### 7.2 Sécurité
 | ID | Exigence | Vérif. |
 |---|---|---|
-| ENF-SEC-01 | L'API et l'interface doivent être joignables uniquement depuis l'adresse 127.0.0.1. | I |
+| ENF-SEC-01 | En local, l'API et l'interface doivent être joignables uniquement depuis l'adresse 127.0.0.1. Hébergées (v1.26, BES-39), elles ne sont servies qu'en HTTPS, l'interface relayant l'API sous sa propre origine. | I |
+| ENF-SEC-21 | Derrière les relais de l'hébergement, les limites de fréquence (ENF-SEC-19) doivent s'appliquer à chaque visiteur, identifié par l'adresse que les relais transmettent, et non au relais qu'ils partagent ; en local, cette adresse transmise est ignorée. (v1.26, BES-39) | T |
 | ENF-SEC-02 | Le jeton de renouvellement OAuth doit être chiffré au repos en AES-256-GCM. | T |
 | ENF-SEC-03 | Aucun secret (clé d'API, mot de passe, jeton) ne doit figurer dans le dépôt Git. | I (hook + revue) |
 | ENF-SEC-04 | Toute donnée entrant dans l'API doit être validée par un schéma ; une donnée invalide doit être rejetée avec le code 400. | T |
@@ -465,7 +470,7 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | C-02 | La base de données est PostgreSQL, hébergée par Neon. | Business Owner (v1.1, BES-10) |
 | C-03 | Les fournisseurs IA sont Claude (Anthropic) et Gemini (Google), avec les clés du candidat. | Business Owner |
 | C-04 | La messagerie supportée est Gmail. | Existant |
-| C-05 | Le système est multi-utilisateur à comptes séparés ; l'API et l'interface s'exécutent en local, via Docker ; la base est hébergée par Neon. | Business Owner (v1.2, BES-14) |
+| C-05 | Le système est multi-utilisateur à comptes séparés. En local, l'API et l'interface s'exécutent via Docker. Hébergé (v1.26), l'interface est servie par Vercel, qui relaie `/api` vers l'API servie par Northflank en une seule instance (planificateur et file d'exécution internes) ; la base est hébergée par Neon. | Business Owner (v1.2, BES-14 ; v1.26, BES-39) |
 | C-06 | Le développement est réalisé de manière incrémentale par Claude Code, lot par lot, suivant `docs/ROADMAP.md`. | Organisation |
 | C-07 | Le code respecte les principes des skills `clean-code` et `security` fournis dans `.claude/skills/`, et la règle `.claude/rules/database.md`. | Organisation |
 | C-09 | L'accès aux données passe par l'ORM Drizzle. | Business Owner (v1.1, BES-11) |
@@ -539,7 +544,7 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | Q-16 | Le profil de référence (CV, cibles) devient propre à chaque utilisateur : faut-il le stocker en base plutôt que dans `backend/data/profile.json` ? (bloque T-501) | Oui : en base, par utilisateur, validé par le même schéma. |
 | Q-15 | Pour l'alternance, faut-il suivre des informations propres (école, rythme, date de début) ? | Non en v1.1 : le rythme figure dans le profil (disponibilités), repris dans le CV. |
 | Q-17 | Les indicateurs EF-TDB-01, 05, 06 et 09 portent sur toutes les candidatures de l'utilisateur, donc sur toute la table `applications` (application mono-utilisateur) : le planificateur choisit le `Seq Scan`, interdit par ENF-PERF-04 ; un index couvrant ne change pas son choix. Que faire ? (bloque T-601) | Tranchée le 22/09/2026 : ENF-PERF-04 limitée aux requêtes sélectives ; indicateurs bornés à 50 ms par requête (ENF-PERF-05). |
-| Q-18 | Le déploiement visé par BES-29 contredit le §5.2 (« hébergement en ligne de l'application » hors périmètre) et C-05 (API et interface locales). Où héberger l'API et l'interface, avec quel nom de domaine, et faut-il revoir les exigences liées à l'exposition locale (ENF-SEC-01, ADR-09 : cookies, origine unique) ? (bloque la mise en production, pas le développement) | À trancher avant la mise en production, par une demande de changement dédiée : hébergeur en UE, HTTPS, `COOKIE_SECURE`, `FRONTEND_ORIGIN` public, API derrière un proxy. |
+| Q-18 | ~~Où héberger l'API et l'interface ?~~ **Tranchée le 24/09/2026 (BES-39)** : interface sur Vercel, API sur Northflank (région de l'Union européenne), base sur Neon ; l'interface relaie `/api` vers l'API, ce qui garde une seule origine (cookie `SameSite=Strict`, garde d'origine, retour OAuth inchangés). | Voir ADR-15 et `docs/DEPLOIEMENT.md`. |
 
 ## 13. Traçabilité besoins → exigences
 
@@ -576,12 +581,15 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | BES-27 | EXM-05 | EF-VEI-27 |
 | BES-28 | EXM-05, EXM-10 | EF-VEI-28, ENF-COU-01 |
 | BES-29 | — (organisation de la mise en production) | ENF-MAI-07, EF-TDB-08 |
+| ENF-MAI-08 | Chaque pull request vers `dev` ou `main` et chaque poussée sur ces branches doivent exécuter automatiquement le contrôle de types, le lint, les tests unitaires, les tests d'intégration sur un PostgreSQL jetable (seuil de couverture ENF-MAI-01), l'audit des dépendances et la construction de l'image de l'API ; seul un code qui passe ces vérifications est déployé. (v1.27, BES-40) | I |
 | BES-30 | EXM-01 | EF-GML-08, RG-17, ENF-RGP-01 |
 | BES-31 | EXM-01 | EF-GML-20, RG-17, RG-04 |
 | BES-32 | EXM-01, EXM-02 | RG-03, EF-GML-09, EF-GML-11 |
 | BES-33 | EXM-09 | EF-TDB-04, EF-TDB-10, EF-TDB-11 |
 | BES-34 | EXM-04 | RG-06, RG-20, EF-CAN-17, EF-TDB-07, RG-13 |
 | BES-38 | EXM-13 | EF-AUT-11, EF-AUT-12, EF-LEG-01, EF-LEG-02, ENF-RGP-04, ENF-RGP-05 |
+| BES-39 | — (choix de réalisation, C-05) | ENF-SEC-01, ENF-SEC-21 |
+| BES-40 | — (organisation) | ENF-MAI-08, ENF-MAI-01, ENF-MAI-02, ENF-SEC-10 |
 | BES-35 | EXM-01 | EF-CFG-05, EF-CFG-02 (retirée de l'écran) |
 
 La traçabilité fine exigence → tâche → test est tenue à jour dans `docs/TRACABILITE.md`.

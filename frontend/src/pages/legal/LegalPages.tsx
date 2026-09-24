@@ -56,6 +56,12 @@ export function LegalNoticePage() {
 }
 
 const RECIPIENTS: { name: string; role: string; place: string }[] = [
+  {
+    name: 'Vercel',
+    role: 'hébergement de l’interface et relais des requêtes vers l’API',
+    place: 'réseau mondial, société établie aux États-Unis',
+  },
+  { name: 'Northflank', role: 'hébergement de l’API', place: 'Union européenne, région choisie au déploiement' },
   { name: 'Neon', role: 'hébergement de la base de données', place: 'Union européenne, Francfort' },
   {
     name: 'Google (Gmail API)',
@@ -119,7 +125,7 @@ export function PrivacyPage() {
 
       <h2>Transferts hors de l’Union européenne</h2>
       <p>
-        Les fournisseurs d’intelligence artificielle et Google peuvent traiter ces données aux États-Unis. Ces transferts
+        Vercel, les fournisseurs d’intelligence artificielle et Google peuvent traiter ces données aux États-Unis. Ces transferts
         sont encadrés par les garanties que chacun propose : clauses contractuelles types de la Commission européenne ou
         adhésion au Data Privacy Framework.
       </p>

@@ -37,7 +37,7 @@ describe('legal pages (EF-LEG-01)', () => {
 
     const main = await screen.findByRole('main');
     expect(within(main).getByRole('heading', { level: 1, name: 'Politique de confidentialité' })).toBeInTheDocument();
-    for (const recipient of ['Neon', 'Google', 'Groq', 'Gemini', 'Anthropic']) {
+    for (const recipient of ['Vercel', 'Northflank', 'Neon', 'Google', 'Groq', 'Gemini', 'Anthropic']) {
       expect(within(main).getAllByText(new RegExp(recipient)).length).toBeGreaterThan(0);
     }
     expect(within(main).getAllByText(/CNIL/).length).toBeGreaterThan(0);

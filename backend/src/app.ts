@@ -29,7 +29,8 @@ const ALLOWED_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
 
 /** Dependencies of the HTTP application, injected so that tests never open a port nor touch real services. */
 export interface AppOptions {
-  config: Pick<Config, 'frontendOrigin'>;
+  /** `trustProxyHops`: proxies in front of the API (BES-39); none when absent. */
+  config: Pick<Config, 'frontendOrigin'> & Partial<Pick<Config, 'trustProxyHops'>>;
   logger: Logger;
   /** Resolves a session token to its user, or null (EF-AUT-05). */
   authenticate: (token: string) => Promise<number | null>;
@@ -78,6 +79,8 @@ const createApiRouter = ({ authenticate, modules = [] }: AppOptions): Router => 
 export const createApp = (options: AppOptions): Express => {
   const { config, logger } = options;
   const app = express();
+  // BES-39, ENF-SEC-19: behind the hosting proxies, the client is the address they forward, not the last proxy.
+  if (config.trustProxyHops) app.set('trust proxy', config.trustProxyHops);
   app.use(helmet());
   app.use(logRequests(logger));
   app.use(

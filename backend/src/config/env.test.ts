@@ -46,7 +46,15 @@ describe('loadConfig', () => {
       scraper: { contact: null },
       // ENF-MAI-07: an optional feature is off until the configuration names it.
       features: new Set(),
+      // BES-39: no proxy in front of the API unless the deployment says so.
+      trustProxyHops: 0,
     });
+  });
+
+  it('[ENF-SEC-19] [BES-39] reads how many proxies stand in front of the API, and refuses anything else', () => {
+    expect(loadConfig({ ...VALID_ENV, TRUST_PROXY: '2' }).trustProxyHops).toBe(2);
+    expect(() => loadConfig({ ...VALID_ENV, TRUST_PROXY: 'oui' })).toThrow(/TRUST_PROXY/);
+    expect(() => loadConfig({ ...VALID_ENV, TRUST_PROXY: '9' })).toThrow(/TRUST_PROXY/);
   });
 
   it('[ENF-MAI-07] enables the optional features the configuration names, and only those', () => {

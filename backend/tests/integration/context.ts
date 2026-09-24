@@ -118,6 +118,8 @@ export interface ExternalServices {
   collect?: AdapterDeps['fetch'];
   /** ENF-MAI-07: the optional features of this deployment; every one by default. */
   features?: EnabledFeatures;
+  /** BES-39: proxies in front of the API (Vercel, Northflank); none by default. */
+  trustProxyHops?: number;
 }
 
 /** Real application on the local test database, with an injectable clock and fake external services. */
@@ -129,6 +131,7 @@ export const createTestContext = (
     aiProviders = unreachableAi,
     collect = unreachableCollector,
     features = new Set(OPTIONAL_FEATURES),
+    trustProxyHops = 0,
   }: ExternalServices = {},
 ): TestContext => {
   const clock = createTestClock(new Date('2026-09-22T08:00:00.000Z'));
@@ -169,7 +172,7 @@ export const createTestContext = (
     logger,
   });
   const app = createApp({
-    config: { frontendOrigin: FRONTEND_ORIGIN },
+    config: { frontendOrigin: FRONTEND_ORIGIN, trustProxyHops },
     logger,
     authenticate: (token) => authService.authenticate(token),
     modules: [

@@ -126,6 +126,21 @@ describe('POST /api/auth/login', () => {
     expect(wrongPassword.headers['set-cookie']).toBeUndefined();
   });
 
+  it('[ENF-SEC-19] [BES-39] behind the hosting proxies, limits each visitor, not the proxy they share', async () => {
+    const behindProxies = createTestContext(database, { trustProxyHops: 2 });
+    // The client as seen by Vercel, then Vercel as seen by Northflank's load balancer.
+    const loginFrom = (client: string, password: string) =>
+      request(behindProxies.app)
+        .post('/api/auth/login')
+        .set('Content-Type', 'application/json')
+        .set('X-Forwarded-For', `${client}, 10.0.0.1`)
+        .send({ email: 'alex@example.com', password });
+    for (let attempt = 0; attempt < 10; attempt += 1) await loginFrom('203.0.113.7', 'mauvais mot de passe');
+
+    expect((await loginFrom('203.0.113.7', PASSWORD)).status).toBe(429);
+    expect((await loginFrom('198.51.100.9', PASSWORD)).status).toBe(200);
+  });
+
   it('[ENF-SEC-19] blocks the 11th attempt within 15 minutes with 429', async () => {
     const attempts = Array.from({ length: 10 }, () =>
       post('/api/auth/login', { email: 'alex@example.com', password: 'mauvais mot de passe' }),

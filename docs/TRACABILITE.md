@@ -194,4 +194,7 @@ Commande de contrôle : `/project:check-req EF-CAN-07`.
 | EF-AUT-12 | T-708 | `account.test.ts` (fichier JSON en pièce jointe, candidatures avec historique et messages, aucun secret, rien d'un autre utilisateur, 401) ; `SettingsPage.test.tsx` (téléchargement) | couverte |
 | EF-LEG-01 / ENF-RGP-05 | T-708 | `frontend/src/pages/legal/LegalPages.test.tsx` (trois pages sans session ; « à compléter » ; destinataires, droits, CNIL, utilisation limitée des API Google ; lien depuis la connexion) | couverte |
 | EF-LEG-02 / ENF-RGP-04 | T-708 | `LegalPages.test.tsx` (mention unique, sans bouton accepter ni refuser, lien vers la page des cookies, absente une fois lue) ; page des cookies : seul `tracandi_session` | couverte |
+| ENF-SEC-21 | T-803 | `backend/src/config/env.test.ts` (`TRUST_PROXY` lu, borné, refusé sinon) ; `tests/integration/auth.test.ts` (derrière deux relais, chaque visiteur limité séparément) | couverte |
+| ENF-SEC-01 (v1.26) | T-803 | `frontend/src/test/vercelConfig.test.ts` (relais `/api` avant le retour à l'application, en-têtes de sécurité, CSP à la seule origine du site, cache) ; garde `frontend/scripts/check-vercel-config.mjs` | couverte |
+| ENF-MAI-08 | T-803 | `.github/workflows/ci.yml` (trois vérifications sur chaque PR et poussée vers `dev` et `main`) | couverte |
 

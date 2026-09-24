@@ -523,5 +523,12 @@ développeur l'active sur son poste (`ENABLED_FEATURES=watch,cv`) le temps d'y t
   affichant « En préparation ».
 - [ ] **T-802 Finitions du périmètre de mise en production** — terminer T-602 (écran du tableau de bord), revue
   complète des écrans Candidatures et Réglages (Gmail) à 1440 px et 390 px, démonstration au Business Owner.
-- [ ] **T-803 Hébergement** — après réponse à Q-18 : demande de changement, cible d'hébergement, HTTPS, CI
-  (`npm run check` et tests d'intégration sur chaque PR vers `dev` et `main`), procédure de version `dev` → `main`.
+- [~] **T-803 Hébergement** — Q-18 tranchée le 24/09/2026 (BES-39, cahier v1.26) : Vercel pour l'interface, Northflank
+  pour l'API, Neon pour la base. *Préparé* : `frontend/vercel.json` (relais `/api`, retour à l'application, en-têtes de
+  sécurité et CSP, cache des ressources, garde de build contre l'adresse d'API non renseignée) ; image de l'API prête
+  pour Northflank (écoute `0.0.0.0`, contrôle de santé) ; `TRUST_PROXY` (ENF-SEC-21) ; flux d'exécutions non tamponné
+  par les relais ; pages légales nommant Vercel et Northflank ; guide `docs/DEPLOIEMENT.md`.
+  Intégration continue (BES-40, ENF-MAI-08) : `.github/workflows/ci.yml` — API (types, lint, tests unitaires et
+  d'intégration sur PostgreSQL 18, couverture, audit), interface (vérifications, build, audit), image de l'API.
+  *Reste* : créer les services, renseigner les variables, protéger `main` et `dev` par la CI, premier déploiement,
+  vérification Google OAuth en production.

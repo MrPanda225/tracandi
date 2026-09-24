@@ -59,6 +59,8 @@ export const createJobsModule = (queue: JobQueue): ApiModule => {
         'Content-Type': 'text/event-stream; charset=utf-8',
         'Cache-Control': 'no-cache, no-transform',
         Connection: 'keep-alive',
+        // BES-39: a proxy on the way (Vercel, Northflank) must pass each event on at once, not buffer the stream.
+        'X-Accel-Buffering': 'no',
       });
       res.write(': flux ouvert\n\n');
       const send = (state: RunState) => res.write(`event: run\ndata: ${JSON.stringify(state)}\n\n`);
