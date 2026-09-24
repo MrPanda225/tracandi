@@ -24,6 +24,10 @@ const CvWorkshopPage = lazy(async () => ({
 }));
 // EF-AUT-09: the presentation page is for visitors only; its motion and decor never weigh on the application.
 const LandingPage = lazy(async () => ({ default: (await import('./pages/landing/LandingPage')).LandingPage }));
+// EF-LEG-01: the legal pages travel together, apart from the application.
+const LegalNoticePage = lazy(async () => ({ default: (await import('./pages/legal/LegalPages')).LegalNoticePage }));
+const PrivacyPage = lazy(async () => ({ default: (await import('./pages/legal/LegalPages')).PrivacyPage }));
+const CookiesPage = lazy(async () => ({ default: (await import('./pages/legal/LegalPages')).CookiesPage }));
 const SitesPage = lazy(async () => ({ default: (await import('./pages/sites/SitesPage')).SitesPage }));
 
 /** The screens not built yet (T-003 shell), each stating what it will offer instead of an empty page. */
