@@ -32,7 +32,7 @@ const captureDashboardQueries = async (): Promise<CapturedQuery[]> => {
     casing: 'snake_case',
     logger: { logQuery: (text, params) => captured.push({ text, params }) },
   });
-  await createStatsService({ db, clock: () => NOW }).dashboard(userId);
+  await createStatsService({ db, clock: () => NOW, countsOffers: true }).dashboard(userId);
   return captured;
 };
 

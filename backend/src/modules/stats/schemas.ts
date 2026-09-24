@@ -55,7 +55,11 @@ export const DashboardSchema = z
       }),
     offers: z
       .object({ newAboveThreshold: CountSchema, threshold: RateSchema.openapi({ description: 'Seuil S' }) })
-      .openapi({ description: 'EF-TDB-08 : offres « nouvelles » de score ≥ S' }),
+      .nullable()
+      .openapi({
+        description:
+          'EF-TDB-08 : offres « nouvelles » de score ≥ S ; null si la veille est désactivée (ENF-MAI-07)',
+      }),
     followUpDays: z.number().int().min(1).openapi({ description: 'Délai de relance D (RG-06)' }),
   })
   .openapi('Dashboard');

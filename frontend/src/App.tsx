@@ -9,6 +9,7 @@ import { DashboardCacheProvider } from './pages/dashboard/useDashboard';
 import { SettingsPage } from './pages/settings/SettingsPage';
 import { UpcomingPage } from './pages/UpcomingPage';
 import { ScreenLoading } from './components/ScreenLoading';
+import { FeaturesProvider, RequireFeature } from './features/FeaturesContext';
 
 // ENF-PERF-01: these two screens carry what weighs on the first load — the charts of the dashboard, and the fonts,
 // animations and decor of the login page. They are fetched when their route is opened, not before.
@@ -32,8 +33,8 @@ const UPCOMING_SCREENS = [
 ] as const;
 
 /**
- * Application routes: the login page is public (EF-AUT-05), the 6 screens of the shell require a session
- * and share the navigation frame (T-003).
+ * Application routes: the login page is public (EF-AUT-05), the screens of the shell require a session
+ * and share the navigation frame (T-003); those of a disabled optional feature show « En préparation » (ENF-MAI-07).
  */
 export function App() {
   return (
@@ -52,11 +53,13 @@ export function App() {
         <Route
           element={
             <RequireAuth>
-              <DashboardCacheProvider>
-                <ApplicationsCacheProvider>
-                  <AppShell />
-                </ApplicationsCacheProvider>
-              </DashboardCacheProvider>
+              <FeaturesProvider>
+                <DashboardCacheProvider>
+                  <ApplicationsCacheProvider>
+                    <AppShell />
+                  </ApplicationsCacheProvider>
+                </DashboardCacheProvider>
+              </FeaturesProvider>
             </RequireAuth>
           }
         >
@@ -72,17 +75,29 @@ export function App() {
           <Route
             path="/atelier-cv"
             element={
-              <Suspense fallback={<ScreenLoading label="Chargement de l’Atelier CV…" />}>
-                <CvWorkshopPage />
-              </Suspense>
+              <RequireFeature
+                feature="cv"
+                title="Atelier CV"
+                promise="Un CV adapté à chaque offre, au format de votre modèle Word, et vos réponses de motivation."
+              >
+                <Suspense fallback={<ScreenLoading label="Chargement de l’Atelier CV…" />}>
+                  <CvWorkshopPage />
+                </Suspense>
+              </RequireFeature>
             }
           />
           <Route
             path="/sites"
             element={
-              <Suspense fallback={<ScreenLoading label="Chargement des sites surveillés…" />}>
-                <SitesPage />
-              </Suspense>
+              <RequireFeature
+                feature="watch"
+                title="Sites surveillés"
+                promise="Les sites carrières des entreprises qui vous intéressent, consultés pour vous trois fois par jour."
+              >
+                <Suspense fallback={<ScreenLoading label="Chargement des sites surveillés…" />}>
+                  <SitesPage />
+                </Suspense>
+              </RequireFeature>
             }
           />
           <Route path="/reglages" element={<SettingsPage />} />

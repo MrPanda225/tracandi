@@ -78,9 +78,18 @@ const weeklySeries = (
 /**
  * Creates the statistics service. Every figure is computed from the user's own data (EF-AUT-06); the rates follow
  * RG-07, follow-ups RG-06 with the user's delay D, and the weekly series covers the last 16 weeks in UTC.
- * @req EF-TDB-01 to EF-TDB-09, RG-06, RG-07
+ * Without the offers watch (`countsOffers` false), the offers are neither read nor shown: `offers` is null.
+ * @req EF-TDB-01 to EF-TDB-09, RG-06, RG-07, ENF-MAI-07
  */
-export const createStatsService = ({ db, clock }: { db: Database; clock: Clock }): StatsService => ({
+export const createStatsService = ({
+  db,
+  clock,
+  countsOffers,
+}: {
+  db: Database;
+  clock: Clock;
+  countsOffers: boolean;
+}): StatsService => ({
   async dashboard(userId) {
     const now = clock();
     const weeks = lastWeekStarts(now);
@@ -96,7 +105,7 @@ export const createStatsService = ({ db, clock }: { db: Database; clock: Clock }
       repository.countSentPerWeek(db, userId, since),
       repository.countStatusChangesPerWeek(db, userId, since),
       repository.listFollowUps(db, userId, { inactiveSince, limit: FOLLOW_UPS_SHOWN }),
-      repository.countNewOffersAbove(db, userId, threshold),
+      countsOffers ? repository.countNewOffersAbove(db, userId, threshold) : null,
     ]);
     const summary = summarize(groups);
 
@@ -113,7 +122,7 @@ export const createStatsService = ({ db, clock }: { db: Database; clock: Clock }
           daysSinceActivity: daysBetween(row.lastActivityAt, now),
         })),
       },
-      offers: { newAboveThreshold: newOffers, threshold },
+      offers: newOffers === null ? null : { newAboveThreshold: newOffers, threshold },
       followUpDays,
     };
   },

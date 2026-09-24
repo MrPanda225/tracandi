@@ -16,6 +16,8 @@
 | 1.11 | 23/09/2026 | Sahiré YAPI (Business Owner) | À valider — traitements longs exécutés en file d'attente, l'interface répondant aussitôt et suivant l'avancement en direct (BES-23, EXM-15, EF-EXE-01 à 05, ENF-PERF-06) |
 | 1.13 | 23/09/2026 | Sahiré YAPI (Business Owner) | À valider — sources à surveiller déduites des entreprises auxquelles le candidat a déjà postulé, proposées et jamais ajoutées d'office (BES-25, EF-VEI-23 à 25, RG-19) |
 | 1.14 | 23/09/2026 | Sahiré YAPI (Business Owner) | À valider — toutes les sources proposées ajoutables d'un seul geste (BES-26, EF-VEI-26) |
+| 1.15 | 24/09/2026 | Sahiré YAPI (Business Owner) | À valider — page carrières retrouvée depuis l'adresse racine d'un site (BES-27, EF-VEI-27) |
+| 1.16 | 24/09/2026 | Sahiré YAPI (Business Owner) | À valider — offres balisées d'une page lues avant tout appel à l'IA (BES-28, EF-VEI-28) |
 
 > Document de référence pour le développement. Toute évolution de périmètre passe par une mise à jour
 > de ce fichier **avant** le code. Chaque exigence porte un identifiant stable, repris dans
@@ -116,10 +118,13 @@ des candidatures, la veille des offres et la production de CV adaptés.
 | BES-19 | « Pour la synchronisation on peut définir la période à vérifier qui doit être modifiable sur l'écran, mais pour éviter ces rate limits on peut passer par les mails sur la période 1 mois. » (après refus de quota de l'API Gmail, 22/09/2026) |
 | BES-20 | « J'ai l'abonnement max avec Claude et je ne veux pas payer de crédit en plus […] je veux utiliser ces trois là Llama 3.3 70B, Qwen, Kimi K2 de Groq. » (22/09/2026) |
 | BES-21 | « Il faut qu'il puisse bien labéliser les offres (quand c'est refusé ne pas confondre avec accusé de réception etc.) en vérifiant la présence de certains mots dans le mail. » (23/09/2026) |
+| BES-28 | « On part avec l'option A et B » — lire le balisage `schema.org/JobPosting` et l'état embarqué des pages, plutôt que de confier chaque page à un modèle. (24/09/2026) |
+| BES-27 | « Comment résoudre ce problème d'adaptateur générique ? Il faudrait résoudre ça automatiquement pour mon scraping. » (24/09/2026) |
 | BES-26 | « Rajoute un bouton pour surveiller tous les sites de la proposition d'un coup. » (23/09/2026) |
 | BES-25 | « L'idée de cette section, c'est de récupérer depuis les offres que j'ai récupérées leur nom de site à travers les mails, et stocker dans ma BD. » (23/09/2026) |
 | BES-24 | « Ajoute une section Profil pour définir ses expériences, ce que l'on recherche aussi, et ses formations (niveau d'études master, licence, etc.) et les certificats passés et tout. » (23/09/2026) |
 | BES-22 | « Pour reconnaître les statuts des mails il faut regarder le contenu et voir la présence de ces termes. Statut/Refusée : “pas retenue”, “ne correspond malheureusement pas”, “au regret”, “suite favorable”, “nous ne pouvons y donner”. Statut/En attente : “bien reçu votre candidature”, “accusé de réception de votre candidature”, “candidature a bien été”. Fais pareil pour les termes en anglais et rajoute quelques termes qui vont dans le sens du statut. » (23/09/2026) |
+| BES-29 | « On va réarranger les branches de façon propre : une branche dev pour tous les développements, la main laisse juste trois fonctionnalités de l'app qu'on va développer à fond avant de la déployer : le tableau de bord, candidature et réglage pour la synchronisation avec le mail pour suivre ces candidatures. » (24/09/2026) |
 | BES-23 | « Applique un système de queue pour mes traitements trop longs et même des websockets, avec une architecture asynchrone. » (23/09/2026) |
 
 ### 4.2 Exigences métier (indépendantes de la solution)
@@ -240,6 +245,8 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | EF-VEI-24 | Le système doit proposer le type de source d'une entreprise lorsque le domaine d'envoi désigne un ATS connu, et « page carrières » sinon. | S | EXM-05 | T | Message envoyé depuis `no-reply@greenhouse.io` : type Greenhouse proposé. |
 | EF-VEI-25 | Le candidat peut écarter une proposition, qui ne lui est alors plus présentée. | S | EXM-05 | T | Proposition écartée : absente de la liste au rappel suivant. |
 | EF-VEI-26 | Le candidat peut ajouter d'un seul geste toutes les sources proposées, et le système lui rend compte de celles qu'il n'a pas pu ajouter, avec la raison. | S | EXM-05 | T | Trois propositions dont une refusée : deux sources ajoutées, la refusée nommée avec sa raison. |
+| EF-VEI-27 | Le système doit retrouver la page qui liste les offres lorsque la source ne désigne que l'accueil du site, en suivant un lien de ce site, et sans jamais en suivre plus d'un. | S | EXM-05 | T | Source `https://exemple.fr/` dont l'accueil porte « Nos offres » : les offres de cette page sont relevées, sans appel d'IA sur l'accueil. Adresse hors du site : jamais suivie. |
+| EF-VEI-28 | Le système doit lire les offres qu'une page publie sous forme balisée — `schema.org/JobPosting` en `application/ld+json`, ou dans l'état embarqué de la page — avant de confier cette page à un modèle, et ne l'y confier que si le balisage n'a rien donné. | M | EXM-05, EXM-10 | T | Page portant trois offres balisées : les trois sont relevées, avec leur date de publication, sans aucun appel d'IA. Page sans balisage : le modèle est appelé comme avant. |
 
 ### 6.4 Production de CV et de réponses (CVX)
 
@@ -277,7 +284,7 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | EF-TDB-05 | Le système doit afficher le nombre de candidatures par statut. | M | EXM-09 | T |
 | EF-TDB-06 | Le système doit afficher le nombre de candidatures par canal (direct ou plateforme). | C | EXM-09 | T |
 | EF-TDB-07 | Le système doit afficher la liste des candidatures à relancer, de la plus ancienne à la plus récente. | M | EXM-04 | T |
-| EF-TDB-08 | Le système doit afficher le nombre d'offres à l'état « nouvelle » de score supérieur ou égal à S. | S | EXM-06 | T |
+| EF-TDB-08 | Le système doit afficher le nombre d'offres à l'état « nouvelle » de score supérieur ou égal à S, lorsque la veille des offres est activée (ENF-MAI-07). | S | EXM-06 | T |
 | EF-TDB-09 | Le système doit afficher le nombre de candidatures et le taux de réponse (RG-07) par type de contrat. | S | EXM-11 | T |
 
 ### 6.6 Orchestration IA (IA)
@@ -389,6 +396,7 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | ENF-MAI-04 | L'ajout d'une tâche IA ne doit nécessiter aucune modification des fournisseurs existants. | I |
 | ENF-MAI-05 | Toute modification de structure de base doit passer par un fichier de migration versionné. | I |
 | ENF-MAI-06 | Chaque exigence de ce document doit être couverte par au moins un test ou une procédure de vérification référencée dans `docs/TRACABILITE.md`. | I |
+| ENF-MAI-07 | La veille des offres (§6.3) et la production de CV (§6.4) doivent chacune pouvoir être activées ou désactivées par la configuration du serveur, sans modification de code. Une fonctionnalité désactivée n'expose aucune route d'API ni aucun traitement planifié, et ses écrans restent dans la navigation en affichant « En préparation » sans charger leur contenu ; une fonctionnalité que la configuration ne nomme pas est désactivée ; un nom inconnu empêche le démarrage. Le tableau de bord, les candidatures, la synchronisation Gmail et les réglages sont toujours actifs. (BES-29) | T |
 
 ### 7.5 Utilisabilité et portabilité
 | ID | Exigence | Vérif. |
@@ -453,7 +461,7 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | RG-17 | Indices lexicaux de statut (v1.10) : dans un message **reçu**, l'objet et l'extrait conservé sont comparés, sans accents ni casse, à une liste d'expressions de refus puis à une liste d'expressions d'accusé de réception, en français et en anglais. Une expression de refus impose « refus » (un refus poli ouvert par « nous avons bien reçu votre candidature » est donc classé « refus ») ; certaines expressions — « suite favorable », « suite positive » — ne valent refus que sous une négation proche. À défaut de refus, une expression d'accusé de réception impose « accusé de réception » lorsque l'IA n'a rien reconnu de plus fort. Jamais corrigés : une proposition d'embauche, un entretien reconnu (vers l'accusé de réception), une alerte emploi (vers le refus), un message envoyé par le candidat. |
 | RG-14 | Clé normalisée d'un nom : minuscules, accents supprimés, tout caractère non alphanumérique remplacé par une espace, espaces multiples réduits, espaces de bord supprimées. |
 | RG-18 | Niveaux d'études (v1.12) : **Bac**, **Bac+2** (BTS, DUT, BUT 2), **Bac+3** (licence, bachelor, BUT 3), **Bac+5** (master, diplôme d'ingénieur), **Doctorat**, **Autre**. Le niveau est celui le plus élevé atteint ; il est marqué « obtenu » ou « en cours ». Un profil qui n'en déclare aucun vaut « non précisé » et n'en fait rien figurer sur le CV. |
-| RG-19 | Déduction d'une source (v1.13) : le domaine retenu pour une entreprise est celui de l'expéditeur des messages **reçus** rattachés à ses candidatures, le plus fréquent d'abord. Les domaines des plateformes connues (`platform_domains`) et des fournisseurs de messagerie grand public sont écartés : ils ne désignent pas l'entreprise. Une proposition n'est **jamais** ajoutée d'office ; le candidat la confirme — une par une ou toutes ensemble (EF-VEI-26) — ou l'écarte. L'identifiant proposé pour un job board est une **hypothèse** déduite du nom de l'entreprise : une source ajoutée en lot peut donc échouer à sa première consultation, et le candidat la corrige alors depuis la liste. Rien n'est déduit du corps des messages, dont seuls 300 caractères sont conservés (ENF-RGP-01). |
+| RG-19 | Déduction d'une source (v1.13) : le domaine retenu pour une entreprise est celui de l'expéditeur des messages **reçus** rattachés à ses candidatures, le plus fréquent d'abord. Les domaines des plateformes connues (`platform_domains`), des fournisseurs de messagerie grand public, des **outils de recrutement** (Flatchr, Teamtailor, WeRecruit, Taleez…) et des **job boards** sont écartés : ils ne désignent pas l'entreprise, et une source posée sur eux relèverait les offres de tout le monde. Une proposition n'est **jamais** ajoutée d'office ; le candidat la confirme — une par une ou toutes ensemble (EF-VEI-26) — ou l'écarte. L'identifiant proposé pour un job board est une **hypothèse** déduite du nom de l'entreprise : une source ajoutée en lot peut donc échouer à sa première consultation, et le candidat la corrige alors depuis la liste. Rien n'est déduit du corps des messages, dont seuls 300 caractères sont conservés (ENF-RGP-01). |
 | RG-16 | Date de candidature saisie par le candidat : à la création, la date de dernière activité et la date du statut initial valent la date de candidature. Quand la date de candidature est modifiée, la date de dernière activité prend la nouvelle date si aucune activité n'a eu lieu depuis la création, sinon la plus récente des deux. |
 
 ## 10. Cas d'utilisation principaux
@@ -499,6 +507,7 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | Q-16 | Le profil de référence (CV, cibles) devient propre à chaque utilisateur : faut-il le stocker en base plutôt que dans `backend/data/profile.json` ? (bloque T-501) | Oui : en base, par utilisateur, validé par le même schéma. |
 | Q-15 | Pour l'alternance, faut-il suivre des informations propres (école, rythme, date de début) ? | Non en v1.1 : le rythme figure dans le profil (disponibilités), repris dans le CV. |
 | Q-17 | Les indicateurs EF-TDB-01, 05, 06 et 09 portent sur toutes les candidatures de l'utilisateur, donc sur toute la table `applications` (application mono-utilisateur) : le planificateur choisit le `Seq Scan`, interdit par ENF-PERF-04 ; un index couvrant ne change pas son choix. Que faire ? (bloque T-601) | Tranchée le 22/09/2026 : ENF-PERF-04 limitée aux requêtes sélectives ; indicateurs bornés à 50 ms par requête (ENF-PERF-05). |
+| Q-18 | Le déploiement visé par BES-29 contredit le §5.2 (« hébergement en ligne de l'application » hors périmètre) et C-05 (API et interface locales). Où héberger l'API et l'interface, avec quel nom de domaine, et faut-il revoir les exigences liées à l'exposition locale (ENF-SEC-01, ADR-09 : cookies, origine unique) ? (bloque la mise en production, pas le développement) | À trancher avant la mise en production, par une demande de changement dédiée : hébergeur en UE, HTTPS, `COOKIE_SECURE`, `FRONTEND_ORIGIN` public, API derrière un proxy. |
 
 ## 13. Traçabilité besoins → exigences
 
@@ -530,5 +539,7 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | BES-23 | EXM-15 | EF-EXE-01 à 05, ENF-PERF-06 |
 | BES-25 | EXM-05 | EF-VEI-23, 24, 25, RG-19 |
 | BES-26 | EXM-05 | EF-VEI-26 |
+| BES-27 | EXM-05 | EF-VEI-27 |
+| BES-28 | EXM-05, EXM-10 | EF-VEI-28, ENF-COU-01 |
 
 La traçabilité fine exigence → tâche → test est tenue à jour dans `docs/TRACABILITE.md`.

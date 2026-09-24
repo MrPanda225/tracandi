@@ -7,6 +7,13 @@ export const MAX_LINKS = 120;
 const LINK_LABEL_MAX_LENGTH = 200;
 const HTTPS = 'https:';
 
+/** EF-VEI-28 : bornes de ce qui est lu dans les scripts d'une page, avant même d'essayer de l'analyser. */
+export const MAX_JSON_BLOCKS = 20;
+export const MAX_JSON_BLOCK_BYTES = 512 * 1024;
+
+/** Scripts qui portent du JSON : le balisage des moteurs de recherche, et l'état des applications monopage. */
+const JSON_SCRIPTS = 'script[type="application/ld+json"], script[type="application/json"]';
+
 /** Parts of a page that hold no text at all for a reader: dropped before anything is read. */
 const CODE = 'script, style, noscript, svg, template, iframe';
 /** Furniture of the site: dropped from the text, but their links are kept, some boards listing offers there. */
@@ -18,10 +25,16 @@ export interface PageLink {
   label: string;
 }
 
-/** A career page as the extraction sees it: readable text, and the links it can point an offer at. */
+/** A career page as the extraction sees it: readable text, the links it can point an offer at, and its data. */
 export interface ReadablePage {
   text: string;
   links: PageLink[];
+  /**
+   * EF-VEI-28 : le JSON que la page embarque — balisage `application/ld+json` posé pour Google for Jobs, et
+   * état d'une application monopage (`__NEXT_DATA__`, `__NUXT__`). Lu **avant** que les scripts soient retirés :
+   * c'est souvent là que sont les offres d'une page qui paraît vide.
+   */
+  jsonBlocks: string[];
 }
 
 // A career page is full of non-breaking spaces; they are spaces like the others once the page is read.
@@ -53,6 +66,17 @@ const resolveLink = (href: string, pageUrl: string): string | null => {
  */
 export const readPage = (html: string, pageUrl: string): ReadablePage => {
   const $ = cheerio.load(html);
+
+  /* Avant toute suppression : un `<script type="application/ld+json">` ne s'affiche pas, mais c'est là que la
+     plupart des sites publient leurs offres, pour Google for Jobs (EF-VEI-28). */
+  const jsonBlocks: string[] = [];
+  $(JSON_SCRIPTS).each((_index, element) => {
+    if (jsonBlocks.length >= MAX_JSON_BLOCKS) return;
+    const payload = $(element).text().trim();
+    // Un état embarqué pèse parfois plusieurs mégaoctets : on refuse de l'analyser plutôt que de le tronquer.
+    if (payload !== '' && payload.length <= MAX_JSON_BLOCK_BYTES) jsonBlocks.push(payload);
+  });
+
   $(CODE).remove();
   const links: PageLink[] = [];
   const seen = new Set<string>();
@@ -68,5 +92,9 @@ export const readPage = (html: string, pageUrl: string): ReadablePage => {
   });
 
   $(FURNITURE).remove();
-  return { text: collapse($('body').text() || $.root().text()).slice(0, PAGE_TEXT_MAX_LENGTH), links };
+  return {
+    text: collapse($('body').text() || $.root().text()).slice(0, PAGE_TEXT_MAX_LENGTH),
+    links,
+    jsonBlocks,
+  };
 };

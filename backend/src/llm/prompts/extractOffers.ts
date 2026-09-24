@@ -28,10 +28,11 @@ const SYSTEM = [
   'N’invente jamais une offre, un lieu, un contrat ni une adresse : si la page ne le dit pas, réponds null.',
   'Ignore les liens de navigation, de candidature spontanée, de mentions légales et de réseaux sociaux : ce ne ' +
     'sont pas des offres.',
+  'Si la page ne publie aucune offre mais renvoie vers celle qui les liste — « Carrières », « Nous rejoindre », « Nos offres » —, donne son adresse dans "careerPageUrl", recopiée depuis <page_links> sans la modifier ; sinon "careerPageUrl" vaut null.',
   'Si la page ne publie aucune offre, réponds {"offers":[]}.',
   'Réponds uniquement par un objet JSON de la forme {"offers":[{"title":"Data Analyst",' +
     '"url":"https://exemple.fr/offres/data-analyst","location":"Paris","contract":"CDI",' +
-    '"summary":"Construction des tableaux de bord."}]}.',
+    '"summary":"Construction des tableaux de bord."}],"careerPageUrl":null}.',
   UNTRUSTED_CONTENT_NOTICE,
 ].join('\n');
 

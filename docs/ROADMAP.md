@@ -237,6 +237,45 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
   *Reste à faire* : la description d'une offre nouvelle chez SmartRecruiters et Workday n'est toujours pas lue
   (une requête par offre, 3 s chacune) — la notation s'y appuie sur l'intitulé, le lieu et le contrat ; à traiter
   avec T-406, qui affichera le détail d'une offre. Le récapitulatif e-mail (EF-VEI-15) est T-405.
+- [x] **T-408 Page carrières retrouvée depuis la racine du site** — *demande du Business Owner du 24/09/2026
+  (cahier v1.15, BES-27)* : une source déduite ne donne que le domaine ; l'accueil d'un site ne publie pas
+  d'offres, et l'adaptateur générique n'y trouvait rien.
+  *Exigences* : EF-VEI-27, EF-VEI-11 (messages d'échec), ENF-SEC-06.
+  *Fini quand* : une source pointant la racine d'un site dont l'accueil renvoie aux offres les relève ; une
+  adresse hors du site n'est jamais suivie.
+  *Livré* : `scraper/careerLink.ts` — le lien vers les offres reconnu **sans appel d'IA**, par le libellé et par
+  l'adresse (« Nos offres », « Carrières », « Nous rejoindre », « Join us »…), en écartant ce qui parle d'emploi
+  sans rien lister (candidature spontanée, politique de recrutement, actualités). `ExtractedOffersSchema` gagne
+  `careerPageUrl`, second recours quand le site ne nomme aucun lien reconnaissable.
+  *Choix assumés* : **un seul rebond**, jamais de parcours de site (ENF-COL-02 : chaque saut coûte 3 s). Le lien
+  du site passe **avant** le modèle, ce qui épargne un appel d'IA sur chaque page d'accueil. L'adresse que le
+  modèle propose est retenue aux mêmes conditions qu'une offre : présente parmi les liens de la page et sur le
+  site de la source — le code, jamais le modèle, décide où le candidat est envoyé (ENF-SEC-06).
+
+- [x] **T-409 Offres balisées lues avant l'IA** — *demande du Business Owner du 24/09/2026 (cahier v1.16,
+  BES-28)*, après recherche sur les pratiques de collecte : une page carrières « vide » ne l'est presque jamais,
+  ses offres sont dans son HTML mais hors du texte visible.
+  *Exigences* : EF-VEI-28, EF-VEI-09, ENF-SEC-06, ENF-COU-01.
+  *Fini quand* : une page balisée rend ses offres **sans aucun appel d'IA** ; une page sans balisage part au
+  modèle comme avant.
+  *Livré* : `scraper/page.ts` lit les `<script type="application/ld+json">` et `application/json`
+  (`__NEXT_DATA__`, `__NUXT__`) **avant** de retirer les scripts — c'est là que la plupart des sites publient
+  leurs offres, pour Google for Jobs. `scraper/structuredJobs.ts` en extrait les nœuds `schema.org/JobPosting`
+  où qu'ils soient : racine, `@graph`, liste, ou au fond de l'état d'une application monopage.
+  *Ce que ça rapporte* : zéro appel d'IA sur ces pages, et des champs **exacts** au lieu de devinés — la date de
+  publication et le type de contrat viennent de la source. `postedAt`, toujours nul pour une page générique,
+  est enfin rempli.
+  *Bornes* : 20 blocs par page, 512 ko par bloc, 12 niveaux de profondeur, 20 000 nœuds parcourus, 60 offres.
+  Un bloc mal formé — il y en a beaucoup — est ignoré sans faire perdre les autres.
+  *Sécurité* : un balisage est **du contenu non fiable** comme un autre. Chaque offre passe par un schéma zod,
+  chaque texte est borné, et l'adresse n'est retenue que si elle reste sur le site de la source (ENF-SEC-06).
+  *Correctif de T-408* : le rebond ne part plus que de **l'accueil** d'un site. Sur une page profonde, il
+  quittait le board pour une offre isolée dès qu'un lien portait « offres » dans son chemin.
+  *Choix assumé* : le titre, écrit en français, prime sur `employmentType` quand il nomme un contrat — le
+  vocabulaire de schema.org ne connaît ni CDI, ni CDD, ni alternance, et balise une alternance « INTERN ».
+  *Reste à faire* : reconnaître l'ATS à l'empreinte laissée dans la page pour basculer sur son API (levier C de
+  l'étude du 24/09/2026).
+
 - [ ] **T-405 Récapitulatif e-mail** — envoi via Gmail des offres de score ≥ S.
   *Exigences* : EF-VEI-15.
 - [~] **T-406 Écrans Sites et Offres** — ajout/suspension/retrait, liste triée, filtre score, garder/écarter,
@@ -273,6 +312,11 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
   geste (EF-VEI-26). Les ajouts se font l'un après l'autre et **celles que l'API refuse sont nommées avec leur
   raison** : un lot n'échoue jamais en bloc. RG-19 tient toujours — rien n'est ajouté sans un geste du candidat,
   qu'il porte sur une proposition ou sur toutes.
+  *Correctif du 23/09/2026 (journaux réels)* : plusieurs entreprises étaient proposées avec le domaine de
+  l'**outil de leur recruteur** — `mail.flatchr.io`, `ateme.teamtailor-mail.com`, `daunat.werecruit.io` — ou
+  d'un **job board** (`free-work.com`), dont les offres ne sont celles de personne en particulier. RG-19 écarte
+  désormais ces domaines. `scraper/failures.ts` traduit par ailleurs les échecs réseau : « fetch failed »
+  devient « ce domaine n'existe pas », « le certificat du site a expiré »… (EF-VEI-11).
   *Reste à faire* : deviner le slug exact d'un job board demanderait de sonder l'ATS ; l'identifiant proposé est
   le nom normalisé de l'entreprise, que le candidat corrige au besoin. Une source ajoutée en lot peut donc
   échouer à sa première consultation, ce que l'écran annonce sous le bouton.
@@ -382,3 +426,27 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
   *Reste à faire* : la veille (T-404) et la génération de CV (T-504) se brancheront sur la même file.
 
 - [ ] **T-705 Coûts IA** — agrégat mensuel `llm_calls`, affichage EF-CFG-03, contrôle ENF-COU-01.
+
+---
+
+## Lot 8 — Première mise en production (BES-29, cahier v1.17)
+
+Branches (`docs/CONVENTIONS_GIT.md`) : tout développement part de `dev` et y revient ; `main` ne reçoit que des
+**versions** fusionnées depuis `dev`. Sur les deux branches, `ENABLED_FEATURES` est vide : seuls le tableau de bord,
+les candidatures et les réglages de la synchronisation Gmail sont utilisables ; Offres, Sites surveillés et Atelier CV
+restent dans la navigation et affichent « En préparation ». Le code de la veille et du CV reste en place : un
+développeur l'active sur son poste (`ENABLED_FEATURES=watch,cv`) le temps d'y travailler.
+
+- [x] **T-801 Fonctionnalités activables par configuration** — *demande du Business Owner du 24/09/2026.*
+  `ENABLED_FEATURES` (`watch`, `cv`) lue et validée au démarrage ; modules d'API et tâche planifiée `scraper` montés
+  seulement si leur fonctionnalité est active ; `GET /api/settings/features` ; interface : les écrans d'une
+  fonctionnalité désactivée affichent « En préparation » (`FeaturesProvider`, `RequireFeature`), sans appel à leur API ;
+  carte « Offres à regarder » absente sans veille (`offers: null`).
+  Couvre ENF-MAI-07, EF-TDB-08 (précisée).
+  *Fini quand* : une configuration sans fonctionnalité facultative répond 404 sur `/api/profile` et `/api/sites`, ne
+  planifie que `gmail_sync`, et l'interface n'offre que Tableau de bord, Candidatures et Réglages, les autres écrans
+  affichant « En préparation ».
+- [ ] **T-802 Finitions du périmètre de mise en production** — terminer T-602 (écran du tableau de bord), revue
+  complète des écrans Candidatures et Réglages (Gmail) à 1440 px et 390 px, démonstration au Business Owner.
+- [ ] **T-803 Hébergement** — après réponse à Q-18 : demande de changement, cible d'hébergement, HTTPS, CI
+  (`npm run check` et tests d'intégration sur chaque PR vers `dev` et `main`), procédure de version `dev` → `main`.

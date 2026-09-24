@@ -51,6 +51,8 @@ services:
       SCHEDULER_TIMEZONE: ${SCHEDULER_TIMEZONE:-Europe/Paris}
       CRON_GMAIL: ${CRON_GMAIL:-*/30 * * * *}
       CRON_SCRAPER: ${CRON_SCRAPER:-0 7,13,19 * * *}
+      # ENF-MAI-07 : fonctionnalités facultatives (watch, cv) ; aucune par défaut
+      ENABLED_FEATURES: ${ENABLED_FEATURES:-}
       # LibreOffice a besoin d'un HOME inscriptible ; le reste du système de fichiers est en lecture seule.
       HOME: /tmp
     volumes:
