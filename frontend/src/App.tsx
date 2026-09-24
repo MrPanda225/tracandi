@@ -8,6 +8,7 @@ import { ApplicationsCacheProvider } from './pages/applications/useApplications'
 import { DashboardCacheProvider } from './pages/dashboard/useDashboard';
 import { SettingsPage } from './pages/settings/SettingsPage';
 import { UpcomingPage } from './pages/UpcomingPage';
+import { CookieNotice } from './components/CookieNotice';
 import { ScreenLoading } from './components/ScreenLoading';
 import { FeaturesProvider, RequireFeature } from './features/FeaturesContext';
 
@@ -32,6 +33,12 @@ const UPCOMING_SCREENS = [
     title: 'Offres',
     promise: 'Les offres détectées par la veille des sites carrières, triées par pertinence.',
   },
+] as const;
+
+const LEGAL_ROUTES = [
+  { path: '/mentions-legales', Page: LegalNoticePage },
+  { path: '/confidentialite', Page: PrivacyPage },
+  { path: '/cookies', Page: CookiesPage },
 ] as const;
 
 /**
@@ -117,8 +124,22 @@ export function App() {
             />
           ))}
         </Route>
+        {/* EF-LEG-01: public, with or without a session. */}
+        {LEGAL_ROUTES.map(({ path, Page }) => (
+          <Route
+            key={path}
+            path={path}
+            element={
+              <Suspense fallback={<ScreenLoading label="Chargement de la page…" />}>
+                <Page />
+              </Suspense>
+            }
+          />
+        ))}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      {/* EF-LEG-02: once, on whatever page the visit starts. */}
+      <CookieNotice />
     </AuthProvider>
   );
 }

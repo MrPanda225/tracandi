@@ -303,3 +303,8 @@
 .btn--danger:hover:not(:disabled) {
   background: color-mix(in srgb, var(--status-rejected) 88%, var(--color-ink));
 }
+
+.my-data__password {
+  max-width: 20rem;
+}
+

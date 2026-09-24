@@ -1,0 +1,87 @@
+.legal {
+  min-height: 100vh;
+  background: var(--color-canvas);
+  color: var(--color-ink);
+}
+
+.legal__header,
+.legal__footer {
+  padding: 1rem clamp(1rem, 0.5rem + 3vw, 3rem);
+}
+
+.legal__header {
+  background: var(--color-ink-deep);
+}
+
+.legal__brand {
+  color: var(--color-canvas);
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  font-style: italic;
+  text-decoration: none;
+}
+
+/* A readable measure: 65 to 75 characters a line (ui-design). */
+.legal__main {
+  max-width: 44rem;
+  margin: 0 auto;
+  padding: clamp(2rem, 1.5rem + 3vw, 4rem) clamp(1rem, 0.5rem + 3vw, 2rem);
+  line-height: 1.65;
+}
+
+.legal__main h1 {
+  margin: 0;
+  font-size: clamp(2rem, 1.5rem + 2vw, 2.8rem);
+}
+
+.legal__updated {
+  margin: 0.4rem 0 2rem;
+  color: var(--color-mauve-deep);
+  font-size: 0.875rem;
+}
+
+.legal__main h2 {
+  margin: 2rem 0 0.5rem;
+  font-family: var(--font-body);
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.legal__main p,
+.legal__main li {
+  color: var(--color-ink);
+}
+
+.legal__main ul {
+  padding-left: 1.2rem;
+}
+
+.legal__main li + li {
+  margin-top: 0.45rem;
+}
+
+.legal__main a {
+  color: var(--color-accent);
+}
+
+.legal__table-wrap {
+  overflow-x: auto;
+}
+
+.legal__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9375rem;
+}
+
+.legal__table th,
+.legal__table td {
+  padding: 0.6rem 0.5rem 0.6rem 0;
+  border-bottom: 1px solid var(--color-line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.legal__footer {
+  border-top: 1px solid var(--color-line);
+}

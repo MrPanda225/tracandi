@@ -73,6 +73,10 @@ services:
       context: ./frontend
       args:
         VITE_API_URL: http://127.0.0.1:4000/api
+        # EF-LEG-01
+        VITE_LEGAL_PUBLISHER: ${VITE_LEGAL_PUBLISHER:-}
+        VITE_LEGAL_CONTACT: ${VITE_LEGAL_CONTACT:-}
+        VITE_LEGAL_HOST: ${VITE_LEGAL_HOST:-}
     ports:
       - "127.0.0.1:5173:80"
     depends_on:
