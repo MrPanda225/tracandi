@@ -7,10 +7,11 @@ adapté au suivi par tâche (`docs/ROADMAP.md`).
 
 | Branche | Rôle | Reçoit |
 |---|---|---|
-| `dev` | Intégration : tous les développements, toutes fonctionnalités activées (`ENABLED_FEATURES=watch,cv`) | Les PR de tâche, en « Squash and merge » |
+| `dev` | Intégration : tous les développements. Même périmètre visible que `main` (`ENABLED_FEATURES` vide) ; la veille et le CV ne s'activent que sur le poste qui y travaille | Les PR de tâche, en « Squash and merge » |
 | `main` | Versions déployables : même code que `dev`, déployé avec `ENABLED_FEATURES` vide (tableau de bord, candidatures, réglages Gmail) | Uniquement la PR de version `dev` → `main`, en **« Create a merge commit »**, et les correctifs urgents |
 
-Une fonctionnalité n'est pas retirée de `main` : elle y est **désactivée** par la configuration (ENF-MAI-07, ADR-14).
+Une fonctionnalité n'est pas retirée du code : elle est **désactivée** par la configuration et son écran affiche
+« En préparation » (ENF-MAI-07, ADR-14).
 L'ouvrir en production revient à ajouter son nom à `ENABLED_FEATURES` du déploiement, sans changer le code.
 
 ## Cycle d'une tâche

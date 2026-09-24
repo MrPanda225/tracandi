@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
-import { useFeatures } from '../../features/FeaturesContext';
 import { GmailExpiryBanner } from './GmailExpiryBanner';
 import { NAV_ITEMS } from './navigation';
 import './AppShell.css';
@@ -11,13 +10,10 @@ const MAIN_ID = 'contenu';
 /**
  * Frame of every signed-in page: ink side panel (30 %) with the navigation of the 6 screens, light canvas (60 %)
  * for the content. On a phone the frame becomes that of an application: a slim top bar for the name and the
- * account, and a fixed bottom bar holding the same destinations, thumb-reachable (ENF-UTI-02). The screens of a
- * disabled optional feature are left out (ENF-MAI-07).
+ * account, and a fixed bottom bar holding the same six destinations, thumb-reachable (ENF-UTI-02).
  */
 export function AppShell() {
   const { state, signOut } = useAuth();
-  const features = useFeatures();
-  const navItems = NAV_ITEMS.filter((item) => !item.feature || features.has(item.feature));
   const [isSigningOut, setIsSigningOut] = useState(false);
   const email = state.status === 'authenticated' ? state.account.email : '';
 
@@ -42,7 +38,7 @@ export function AppShell() {
 
         <nav className="shell__nav-wrap" aria-label="Navigation principale">
           <ul className="shell__nav">
-            {navItems.map((item) => (
+            {NAV_ITEMS.map((item) => (
               <li key={item.path}>
                 {/* The accessible name stays the full one, whichever label the screen is wide enough to show. */}
                 <NavLink to={item.path} end={item.path === '/'} className="shell__link" aria-label={item.label}>

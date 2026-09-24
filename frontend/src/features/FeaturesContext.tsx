@@ -1,7 +1,7 @@
 import { createContext, type ReactNode, useContext, useEffect, useState } from 'react';
-import { Navigate } from 'react-router-dom';
 import { fetchEnabledFeatures, type OptionalFeature } from '../api/settings';
 import { ScreenLoading } from '../components/ScreenLoading';
+import { UpcomingPage } from '../pages/UpcomingPage';
 
 type EnabledFeatures = ReadonlySet<OptionalFeature>;
 
@@ -9,8 +9,9 @@ const FeaturesContext = createContext<EnabledFeatures | null>(null);
 
 /**
  * Loads once the optional features the server runs, then renders the signed-in frame. Until they are known nothing
- * is routed, so a screen opened by its address is not sent away before its feature is confirmed. If they cannot be
- * read, only the core screens are shown: the server exposes no route for a disabled feature anyway (ENF-MAI-07).
+ * is routed, so a screen opened by its address does not flash « En préparation » before its feature is confirmed. If
+ * they cannot be read, every optional feature counts as disabled: the server exposes no route for one anyway
+ * (ENF-MAI-07).
  */
 export function FeaturesProvider({ children }: { children: ReactNode }) {
   const [features, setFeatures] = useState<EnabledFeatures | null>(null);
@@ -44,10 +45,18 @@ export function useFeatures(): EnabledFeatures {
   return features;
 }
 
+interface RequireFeatureProps {
+  feature: OptionalFeature;
+  /** Heading and promise of the « En préparation » screen shown while the feature is disabled. */
+  title: string;
+  promise: string;
+  children: ReactNode;
+}
+
 /**
- * Renders a screen of an optional feature, or leads back to the dashboard when the feature is disabled: its address
- * opens nothing (ENF-MAI-07).
+ * Renders a screen of an optional feature, or, while the feature is disabled, the « En préparation » screen in its
+ * place: the navigation keeps every screen, and the disabled content is neither loaded nor called (ENF-MAI-07).
  */
-export function RequireFeature({ feature, children }: { feature: OptionalFeature; children: ReactNode }) {
-  return useFeature(feature) ? children : <Navigate to="/" replace />;
+export function RequireFeature({ feature, title, promise, children }: RequireFeatureProps) {
+  return useFeature(feature) ? children : <UpcomingPage title={title} promise={promise} />;
 }

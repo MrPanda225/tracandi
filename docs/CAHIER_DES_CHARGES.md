@@ -16,7 +16,7 @@
 | 1.11 | 23/09/2026 | Sahiré YAPI (Business Owner) | À valider — traitements longs exécutés en file d'attente, l'interface répondant aussitôt et suivant l'avancement en direct (BES-23, EXM-15, EF-EXE-01 à 05, ENF-PERF-06) |
 | 1.13 | 23/09/2026 | Sahiré YAPI (Business Owner) | À valider — sources à surveiller déduites des entreprises auxquelles le candidat a déjà postulé, proposées et jamais ajoutées d'office (BES-25, EF-VEI-23 à 25, RG-19) |
 | 1.14 | 23/09/2026 | Sahiré YAPI (Business Owner) | À valider — toutes les sources proposées ajoutables d'un seul geste (BES-26, EF-VEI-26) |
-| 1.17 | 24/09/2026 | Sahiré YAPI (Business Owner) | À valider — première mise en production limitée au tableau de bord, aux candidatures et aux réglages de la synchronisation Gmail ; veille et Atelier CV désactivables par configuration (BES-29, ENF-MAI-07, EF-TDB-08 précisée) ; hébergement à trancher (Q-18). Numéro 1.17 : les versions 1.15 et 1.16 sont en cours d'intégration (T-408, T-409). |
+| 1.17 | 24/09/2026 | Sahiré YAPI (Business Owner) | À valider — première mise en production limitée au tableau de bord, aux candidatures et aux réglages de la synchronisation Gmail ; veille et Atelier CV désactivables par configuration, leurs écrans affichés « En préparation », sur `main` comme sur `dev` (BES-29, ENF-MAI-07, EF-TDB-08 précisée) ; hébergement à trancher (Q-18). Numéro 1.17 : les versions 1.15 et 1.16 sont en cours d'intégration (T-408, T-409). |
 
 > Document de référence pour le développement. Toute évolution de périmètre passe par une mise à jour
 > de ce fichier **avant** le code. Chaque exigence porte un identifiant stable, repris dans
@@ -391,7 +391,7 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | ENF-MAI-04 | L'ajout d'une tâche IA ne doit nécessiter aucune modification des fournisseurs existants. | I |
 | ENF-MAI-05 | Toute modification de structure de base doit passer par un fichier de migration versionné. | I |
 | ENF-MAI-06 | Chaque exigence de ce document doit être couverte par au moins un test ou une procédure de vérification référencée dans `docs/TRACABILITE.md`. | I |
-| ENF-MAI-07 | La veille des offres (§6.3) et la production de CV (§6.4) doivent chacune pouvoir être activées ou désactivées par la configuration du serveur, sans modification de code. Une fonctionnalité désactivée n'expose aucune route d'API, aucun écran ni aucun traitement planifié ; une fonctionnalité que la configuration ne nomme pas est désactivée ; un nom inconnu empêche le démarrage. Le tableau de bord, les candidatures, la synchronisation Gmail et les réglages sont toujours actifs. (BES-29) | T |
+| ENF-MAI-07 | La veille des offres (§6.3) et la production de CV (§6.4) doivent chacune pouvoir être activées ou désactivées par la configuration du serveur, sans modification de code. Une fonctionnalité désactivée n'expose aucune route d'API ni aucun traitement planifié, et ses écrans restent dans la navigation en affichant « En préparation » sans charger leur contenu ; une fonctionnalité que la configuration ne nomme pas est désactivée ; un nom inconnu empêche le démarrage. Le tableau de bord, les candidatures, la synchronisation Gmail et les réglages sont toujours actifs. (BES-29) | T |
 
 ### 7.5 Utilisabilité et portabilité
 | ID | Exigence | Vérif. |

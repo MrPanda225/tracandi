@@ -1,10 +1,7 @@
 import type { ReactNode } from 'react';
-import type { OptionalFeature } from '../../api/settings';
 
 /** One screen of the application, as listed in the navigation (T-003: the 6 pages). */
 export interface NavItem {
-  /** ENF-MAI-07: the optional feature the screen belongs to; absent for the core screens, always shown. */
-  feature?: OptionalFeature;
   path: string;
   label: string;
   /** ENF-UTI-02: what the bottom bar of a phone shows under the icon; the full label stays the accessible name. */
@@ -57,7 +54,6 @@ export const NAV_ITEMS: readonly NavItem[] = [
   },
   {
     path: '/offres',
-    feature: 'watch',
     label: 'Offres',
     shortLabel: 'Offres',
     icon: (
@@ -69,7 +65,6 @@ export const NAV_ITEMS: readonly NavItem[] = [
   },
   {
     path: '/sites',
-    feature: 'watch',
     label: 'Sites surveillés',
     shortLabel: 'Sites',
     icon: (
@@ -81,7 +76,6 @@ export const NAV_ITEMS: readonly NavItem[] = [
   },
   {
     path: '/atelier-cv',
-    feature: 'cv',
     label: 'Atelier CV',
     shortLabel: 'CV',
     icon: (

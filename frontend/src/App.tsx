@@ -27,7 +27,6 @@ const SitesPage = lazy(async () => ({ default: (await import('./pages/sites/Site
 const UPCOMING_SCREENS = [
   {
     path: '/offres',
-    feature: 'watch',
     title: 'Offres',
     promise: 'Les offres détectées par la veille des sites carrières, triées par pertinence.',
   },
@@ -35,7 +34,7 @@ const UPCOMING_SCREENS = [
 
 /**
  * Application routes: the login page is public (EF-AUT-05), the screens of the shell require a session
- * and share the navigation frame (T-003); those of a disabled optional feature open nothing (ENF-MAI-07).
+ * and share the navigation frame (T-003); those of a disabled optional feature show « En préparation » (ENF-MAI-07).
  */
 export function App() {
   return (
@@ -76,7 +75,11 @@ export function App() {
           <Route
             path="/atelier-cv"
             element={
-              <RequireFeature feature="cv">
+              <RequireFeature
+                feature="cv"
+                title="Atelier CV"
+                promise="Un CV adapté à chaque offre, au format de votre modèle Word, et vos réponses de motivation."
+              >
                 <Suspense fallback={<ScreenLoading label="Chargement de l’Atelier CV…" />}>
                   <CvWorkshopPage />
                 </Suspense>
@@ -86,7 +89,11 @@ export function App() {
           <Route
             path="/sites"
             element={
-              <RequireFeature feature="watch">
+              <RequireFeature
+                feature="watch"
+                title="Sites surveillés"
+                promise="Les sites carrières des entreprises qui vous intéressent, consultés pour vous trois fois par jour."
+              >
                 <Suspense fallback={<ScreenLoading label="Chargement des sites surveillés…" />}>
                   <SitesPage />
                 </Suspense>
@@ -98,11 +105,7 @@ export function App() {
             <Route
               key={screen.path}
               path={screen.path}
-              element={
-                <RequireFeature feature={screen.feature}>
-                  <UpcomingPage title={screen.title} promise={screen.promise} />
-                </RequireFeature>
-              }
+              element={<UpcomingPage title={screen.title} promise={screen.promise} />}
             />
           ))}
         </Route>

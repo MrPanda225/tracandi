@@ -50,8 +50,8 @@ scripts/db/backup.sh && scripts/db/restore-check.sh
 7. Commits sur la branche : `T-xxx <type>(<module>): <summary>` + exigences couvertes dans le corps. Tâche finie :
    push de la branche et pull request vers `dev` décrite avec `.github/pull_request_template.md` ; le Business Owner
    fusionne en « Squash and merge » (un commit par tâche sur `dev`). Détails : `docs/CONVENTIONS_GIT.md`.
-   Périmètre de `main` (BES-29) : tableau de bord, candidatures, réglages Gmail ; veille et CV désactivés par
-   `ENABLED_FEATURES` (ENF-MAI-07), jamais retirés du code.
+   Périmètre de `main` et `dev` (BES-29) : tableau de bord, candidatures, réglages Gmail ; veille et CV désactivés par
+   `ENABLED_FEATURES` (ENF-MAI-07), écrans « En préparation », code jamais retiré.
 8. **S'arrêter et faire un rapport.** Ne jamais enchaîner la tâche suivante sans accord.
 
 ## Définition de fini (toute tâche)
