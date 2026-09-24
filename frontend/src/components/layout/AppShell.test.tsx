@@ -41,7 +41,7 @@ const mockApi = (handlers: Record<string, Handler>) => {
 
 const renderSignedIn = (path: string, features: Handler = ALL_FEATURES) => {
   mockApi({
-    '/auth/me': () => json(200, ACCOUNT),
+    '/auth/session': () => json(200, { account: ACCOUNT }),
     '/stats/dashboard': () => json(200, EMPTY_DASHBOARD),
     '/auth/logout': () => new Response(null, { status: 204 }),
     '/settings/features': features,
@@ -96,7 +96,7 @@ describe('AppShell', () => {
 
   it('[ENF-MAI-07] shows a disabled screen as in preparation, without loading its content', async () => {
     const fetchMock = mockApi({
-      '/auth/me': () => json(200, ACCOUNT),
+      '/auth/session': () => json(200, { account: ACCOUNT }),
       '/settings/features': () => json(200, { features: [] }),
     });
     render(
@@ -168,7 +168,7 @@ describe('AppShell', () => {
         total: 1,
       });
     mockApi({
-      '/auth/me': () => json(200, ACCOUNT),
+      '/auth/session': () => json(200, { account: ACCOUNT }),
       '/stats/dashboard': () => json(200, EMPTY_DASHBOARD),
       [FIRST_PAGE]: () => answerApplications(),
       '/auth/logout': () => new Response(null, { status: 204 }),
@@ -198,7 +198,7 @@ describe('AppShell', () => {
     let answerDashboard: Handler = () =>
       json(200, { ...EMPTY_DASHBOARD, totals: { applications: 12, reachedInterview: 0, responseRate: 0 } });
     mockApi({
-      '/auth/me': () => json(200, ACCOUNT),
+      '/auth/session': () => json(200, { account: ACCOUNT }),
       '/stats/dashboard': () => answerDashboard(),
       '/auth/logout': () => new Response(null, { status: 204 }),
       '/auth/login': () => json(200, OTHER_ACCOUNT),
@@ -228,7 +228,7 @@ describe('AppShell', () => {
 
   it('[Q-11] asks to reconnect Gmail on every screen once Google refused the authorisation', async () => {
     mockApi({
-      '/auth/me': () => json(200, ACCOUNT),
+      '/auth/session': () => json(200, { account: ACCOUNT }),
       '/stats/dashboard': () => json(200, EMPTY_DASHBOARD),
       '/gmail/status': () =>
         json(200, {

@@ -1,5 +1,13 @@
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { type Account, type Credentials, fetchAccount, logIn, logOut, registerAccount } from '../api/auth';
+import {
+  type Account,
+  type Credentials,
+  fetchAccount,
+  fetchSession,
+  logIn,
+  logOut,
+  registerAccount,
+} from '../api/auth';
 import { ApiError } from '../api/client';
 
 export type AuthMode = 'login' | 'register';
@@ -24,8 +32,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const controller = new AbortController();
-    fetchAccount(controller.signal)
-      .then((account) => setState({ status: 'authenticated', account }))
+    fetchSession(controller.signal)
+      .then((account) => setState(account ? { status: 'authenticated', account } : { status: 'anonymous' }))
       .catch((error: unknown) => {
         if (!(error instanceof DOMException && error.name === 'AbortError'))
           setState({ status: 'anonymous' });

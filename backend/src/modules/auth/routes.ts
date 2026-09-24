@@ -26,6 +26,7 @@ interface AuthModuleDeps {
 }
 
 const CreatedSchema = z.object({ id: z.number().int() }).openapi('Created');
+const SessionSchema = z.object({ account: AccountSchema.nullable() }).openapi('Session');
 
 const registerDocs = (registry: OpenAPIRegistry): void => {
   registry.registerPath({
@@ -60,6 +61,14 @@ const registerDocs = (registry: OpenAPIRegistry): void => {
     summary: 'Se déconnecter',
     description: 'EF-AUT-04. Invalide la session côté serveur et efface le cookie. Sans effet sans session.',
     responses: { 204: { description: 'Session fermée' }, ...errorResponses(415) },
+  });
+  registry.registerPath({
+    method: 'get',
+    path: '/auth/session',
+    tags: ['Comptes'],
+    summary: 'État de la session',
+    description: 'EF-AUT-13. Toujours 200 : le compte de la session, ou `null` sans session valide.',
+    responses: { 200: jsonResponse('État de la session', SessionSchema) },
   });
   registry.registerPath({
     method: 'get',
@@ -109,9 +118,9 @@ const mountAccountDeletion = (
 };
 
 /**
- * Account routes: public module (register, login, logout) and protected module (`me`).
+ * Account routes: public module (register, login, logout, session state) and protected module (`me`, deletion).
  * The session cookie is `HttpOnly`, `SameSite=Strict`, limited to `/api` and expires with the session (EF-AUT-03).
- * @req EF-AUT-01, EF-AUT-02, EF-AUT-03, EF-AUT-04, EF-AUT-08, EF-AUT-11, ENF-SEC-19
+ * @req EF-AUT-01, EF-AUT-02, EF-AUT-03, EF-AUT-04, EF-AUT-08, EF-AUT-11, EF-AUT-13, ENF-SEC-19
  */
 export const createAuthModules = ({ service, isCookieSecure }: AuthModuleDeps): ApiModule[] => {
   const cookieOptions: CookieOptions = {
@@ -150,6 +159,15 @@ export const createAuthModules = ({ service, isCookieSecure }: AuthModuleDeps): 
       const session = await service.login(body);
       setSessionCookie(res, session);
       res.status(200).json(await service.getAccount(session.userId));
+    }),
+  );
+  // EF-AUT-13: a visitor without a session is an expected state, not an error the browser should report.
+  publicRouter.get(
+    '/auth/session',
+    asyncHandler(async (req, res) => {
+      const token = readCookie(req.headers.cookie, SESSION_COOKIE_NAME);
+      const userId = token ? await service.authenticate(token) : null;
+      res.status(200).json({ account: userId === null ? null : await service.findAccount(userId) });
     }),
   );
   publicRouter.post(
