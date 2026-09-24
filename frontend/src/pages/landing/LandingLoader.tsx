@@ -5,16 +5,36 @@ import { prefersReducedMotion } from '../../lib/motion';
 // Long enough to read the name, short enough never to feel like a wait.
 const LOADER_MS = 1100;
 const LETTERS = Array.from('Tracandi');
+const PLAYED_KEY = 'tracandi.landing-intro-played';
+
+/** ENF-PERF-07: the opening plays once per visit; storage refused (private window) means it plays each time. */
+const hasPlayedThisVisit = (): boolean => {
+  try {
+    return window.sessionStorage.getItem(PLAYED_KEY) === '1';
+  } catch {
+    return false;
+  }
+};
+
+const rememberPlayed = (): void => {
+  try {
+    window.sessionStorage.setItem(PLAYED_KEY, '1');
+  } catch {
+    // Nothing to keep: the opening simply plays again on the next return to the page.
+  }
+};
 
 /**
  * Opening of the presentation page: the name rises letter by letter over a filling line, then the curtain lifts on
- * the page, already rendered underneath. Skipped when the user prefers reduced motion (ENF-UTI-04).
+ * the page, already rendered underneath. Skipped when the user prefers reduced motion (ENF-UTI-04), and after the
+ * first time in the same visit (ENF-PERF-07).
  */
 export function LandingLoader() {
-  const [isVisible, setIsVisible] = useState(() => !prefersReducedMotion());
+  const [isVisible, setIsVisible] = useState(() => !prefersReducedMotion() && !hasPlayedThisVisit());
 
   useEffect(() => {
     if (!isVisible) return;
+    rememberPlayed();
     const timer = window.setTimeout(() => setIsVisible(false), LOADER_MS);
     return () => window.clearTimeout(timer);
   }, [isVisible]);

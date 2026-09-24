@@ -97,6 +97,11 @@ Northflank attribue une adresse du type `https://p01--api--xxxx.code.run`. Notez
 `vercel.json` pose aussi les en-têtes de sécurité (CSP n'autorisant que l'origine du site, HSTS, `X-Frame-Options`,
 `Referrer-Policy`) et met en cache un an les ressources à empreinte (`/assets/*`), jamais `index.html`.
 
+**Référencement** (EF-SEO-01) : `robots.txt`, `llms.txt` et `favicon.svg` (dossier `frontend/public/`) sont servis tels
+quels, avant le retour à l'application. Une fois le domaine définitif connu, ajoutez à `robots.txt` la ligne
+`Sitemap: https://<domaine>/sitemap.xml` avec un `sitemap.xml` des cinq pages publiques, et à `index.html` les balises
+`og:url` et `og:image` (adresses absolues), puis déclarez le domaine dans Google Search Console.
+
 ## 4. Google Cloud (client OAuth Gmail)
 
 - **URI de redirection autorisée** : `https://<domaine-vercel>/api/gmail/callback`.
@@ -114,6 +119,8 @@ Northflank attribue une adresse du type `https://p01--api--xxxx.code.run`. Notez
 3. Réglages → Connecter Gmail → retour sur Réglages avec « Gmail est connecté ».
 4. « Synchroniser maintenant » : l'avancement s'affiche en direct (flux `/api/jobs/stream` à travers le relais).
 5. Journaux Northflank : aucune erreur ; la ligne `api listening` indique `features: []`.
+6. `https://<domaine-vercel>/robots.txt` et `/llms.txt` renvoient du texte, pas la page de l'application.
+7. Lighthouse (mobile) sur `/` et `/connexion` : performance ≥ 90, SEO et bonnes pratiques à 100 (ENF-PERF-07).
 
 ## Limites connues
 

@@ -2,10 +2,12 @@ import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { LegalLinks } from '../../components/LegalLinks';
 import { LEGAL, LEGAL_UPDATED_ON } from '../../lib/legal';
+import { usePageMeta } from '../../lib/pageMeta';
 import './LegalPages.css';
 
-/** Frame of a legal page: readable measure, a way back, the other legal pages at the foot. */
-function LegalLayout({ title, children }: { title: string; children: ReactNode }) {
+/** Frame of a legal page: readable measure, a way back, the other legal pages at the foot; its own title (EF-SEO-01). */
+function LegalLayout({ title, description, children }: { title: string; description: string; children: ReactNode }) {
+  usePageMeta({ title: `${title} — Tracandi`, description });
   return (
     <div className="legal">
       <header className="legal__header">
@@ -33,7 +35,10 @@ function ContactLink() {
 /** EF-LEG-01: legal notice (LCEN, art. 6). */
 export function LegalNoticePage() {
   return (
-    <LegalLayout title="Mentions légales">
+    <LegalLayout
+      title="Mentions légales"
+      description="Mentions légales de Tracandi : éditeur du service, contact et hébergeurs de l’interface, de l’application et des données."
+    >
       <h2>Éditeur du site</h2>
       <p>
         Tracandi est un service édité à titre personnel par {LEGAL.publisher}. Pour toute question, vous pouvez écrire à{' '}
@@ -84,7 +89,10 @@ const RECIPIENTS: { name: string; role: string; place: string }[] = [
 /** EF-LEG-01, ENF-RGP-05: what is processed, why, how long, by whom, and the rights of the user. */
 export function PrivacyPage() {
   return (
-    <LegalLayout title="Politique de confidentialité">
+    <LegalLayout
+      title="Politique de confidentialité"
+      description="Comment Tracandi traite vos données : ce qui est lu dans Gmail, ce qui est conservé, les destinataires, les durées et vos droits."
+    >
       <p>
         Tracandi vous aide à suivre vos candidatures à partir de votre boîte Gmail. Cette page explique quelles données
         sont utilisées pour cela, dans quel but, pendant combien de temps, et comment garder la main sur elles.
@@ -206,7 +214,10 @@ export function PrivacyPage() {
 /** EF-LEG-01, ENF-RGP-04: the one cookie, and why no consent is asked. */
 export function CookiesPage() {
   return (
-    <LegalLayout title="Cookies">
+    <LegalLayout
+      title="Cookies"
+      description="Tracandi ne dépose qu’un cookie, strictement nécessaire à la session : ni mesure d’audience, ni publicité, ni consentement à donner."
+    >
       <p>
         Tracandi n’utilise qu’un seul cookie, et uniquement parce qu’il est indispensable : c’est lui qui vous garde
         connecté d’une page à l’autre. Les cookies strictement nécessaires au service ne demandent pas de consentement,
@@ -240,7 +251,8 @@ export function CookiesPage() {
       </p>
       <p>
         Pour ne pas vous afficher le message d’information à chaque visite, votre navigateur retient simplement que vous
-        l’avez lu. Cette information reste sur votre appareil et n’est jamais envoyée.
+        l’avez lu ; de même, il retient pendant la visite en cours que l’animation d’ouverture de la page d’accueil a
+        déjà été jouée. Ces informations restent sur votre appareil et ne sont jamais envoyées.
       </p>
     </LegalLayout>
   );

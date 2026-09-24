@@ -25,6 +25,18 @@ afterEach(() => {
 });
 
 describe('legal pages (EF-LEG-01)', () => {
+  it.each([
+    ['/mentions-legales', 'Mentions légales — Tracandi'],
+    ['/confidentialite', 'Politique de confidentialité — Tracandi'],
+    ['/cookies', 'Cookies — Tracandi'],
+  ])('[EF-SEO-01] gives %s its own title and description', async (path, title) => {
+    renderAt(path);
+    await screen.findByRole('heading', { level: 1 });
+
+    expect(document.title).toBe(title);
+    expect(document.head.querySelector<HTMLMetaElement>('meta[name="description"]')?.content).toMatch(/Tracandi/);
+  });
+
   it('[EF-LEG-01] publishes the legal notice without a session: publisher, contact and hosts', async () => {
     renderAt('/mentions-legales');
 

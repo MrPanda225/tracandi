@@ -11,10 +11,11 @@ import { UpcomingPage } from './pages/UpcomingPage';
 import { CookieNotice } from './components/CookieNotice';
 import { ScreenLoading } from './components/ScreenLoading';
 import { FeaturesProvider, RequireFeature } from './features/FeaturesContext';
+import { loadAuthPage, loadLandingPage, loadLegalPages } from './routeChunks';
 
 // ENF-PERF-01: these two screens carry what weighs on the first load — the charts of the dashboard, and the fonts,
 // animations and decor of the login page. They are fetched when their route is opened, not before.
-const AuthPage = lazy(async () => ({ default: (await import('./pages/auth/AuthPage')).AuthPage }));
+const AuthPage = lazy(async () => ({ default: (await loadAuthPage()).AuthPage }));
 const DashboardPage = lazy(async () => ({
   default: (await import('./pages/dashboard/DashboardPage')).DashboardPage,
 }));
@@ -23,11 +24,11 @@ const CvWorkshopPage = lazy(async () => ({
   default: (await import('./pages/cv/CvWorkshopPage')).CvWorkshopPage,
 }));
 // EF-AUT-09: the presentation page is for visitors only; its motion and decor never weigh on the application.
-const LandingPage = lazy(async () => ({ default: (await import('./pages/landing/LandingPage')).LandingPage }));
+const LandingPage = lazy(async () => ({ default: (await loadLandingPage()).LandingPage }));
 // EF-LEG-01: the legal pages travel together, apart from the application.
-const LegalNoticePage = lazy(async () => ({ default: (await import('./pages/legal/LegalPages')).LegalNoticePage }));
-const PrivacyPage = lazy(async () => ({ default: (await import('./pages/legal/LegalPages')).PrivacyPage }));
-const CookiesPage = lazy(async () => ({ default: (await import('./pages/legal/LegalPages')).CookiesPage }));
+const LegalNoticePage = lazy(async () => ({ default: (await loadLegalPages()).LegalNoticePage }));
+const PrivacyPage = lazy(async () => ({ default: (await loadLegalPages()).PrivacyPage }));
+const CookiesPage = lazy(async () => ({ default: (await loadLegalPages()).CookiesPage }));
 const SitesPage = lazy(async () => ({ default: (await import('./pages/sites/SitesPage')).SitesPage }));
 
 /** The screens not built yet (T-003 shell), each stating what it will offer instead of an empty page. */
