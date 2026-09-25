@@ -547,3 +547,8 @@ développeur l'active sur son poste (`ENABLED_FEATURES=watch,cv`) le temps d'y t
   contenant le libellé court du téléphone (WCAG 2.5.3) ; gris du panneau éclairci (`--color-mist-on-ink`, 5,1:1) ;
   squelette de la carte Gmail à la forme d'une boîte connectée. `/candidatures` et `/reglages` : performance 95,
   accessibilité 97/96 → 100, CLS de Réglages 0,02 ; SEO 63 voulu (seul `is-crawlable` échoue : `robots.txt`).
+- [x] **T-805 Limite globale de la file d'exécution** — *demande du Business Owner du 25/09/2026* (BES-42, cahier
+  v1.29). Les traitements longs (synchronisation Gmail, relecture, veille) passent tous par des créneaux partagés :
+  au plus `MAX_CONCURRENT_JOBS` à la fois sur tout le serveur (1 par défaut), les autres attendent leur tour dans
+  l'ordre, l'ordre de chaque candidat restant garanti. Couvre EF-EXE-06.
+  *Fini quand* : avec 1 créneau, deux candidats ne synchronisent jamais en même temps ; avec 2, ils le peuvent.

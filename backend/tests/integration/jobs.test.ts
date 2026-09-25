@@ -93,6 +93,43 @@ describe('createJobQueue', () => {
     expect(journaled.map((run) => run.id)).toEqual(ids);
   });
 
+  it('[EF-EXE-06] runs one treatment at a time on the whole server, in the order of the requests', async () => {
+    await registerUser(context.app, 'bob@example.com');
+    const bobId = await userIdOf('bob@example.com');
+    const events: string[] = [];
+    const work = (name: string) => async () => {
+      events.push(`start ${name}`);
+      await new Promise((done) => setTimeout(done, 5));
+      events.push(`end ${name}`);
+      return { messages_read: 1 };
+    };
+
+    await queue.enqueue({ userId: aliceId, job: 'gmail_sync', trigger: 'schedule', run: work('alice') });
+    await queue.enqueue({ userId: bobId, job: 'gmail_sync', trigger: 'schedule', run: work('bob') });
+    await queue.drain();
+
+    expect(events).toEqual(['start alice', 'end alice', 'start bob', 'end bob']);
+  });
+
+  it('[EF-EXE-06] lets the treatments of two candidates overlap when the configuration allows two', async () => {
+    await registerUser(context.app, 'bob@example.com');
+    const bobId = await userIdOf('bob@example.com');
+    const wider = createJobQueue({ db: database.db, clock: context.clock.now, logger: silent, maxConcurrentRuns: 2 });
+    const events: string[] = [];
+    const work = (name: string) => async () => {
+      events.push(`start ${name}`);
+      await new Promise((done) => setTimeout(done, 5));
+      events.push(`end ${name}`);
+      return { messages_read: 1 };
+    };
+
+    await wider.enqueue({ userId: aliceId, job: 'gmail_sync', trigger: 'schedule', run: work('alice') });
+    await wider.enqueue({ userId: bobId, job: 'gmail_sync', trigger: 'schedule', run: work('bob') });
+    await wider.drain();
+
+    expect(events.slice(0, 2)).toEqual(['start alice', 'start bob']);
+  });
+
   it('[EF-EXE-03] publishes the counters a treatment reports while it runs, then those it ends with', async () => {
     const work = controllable();
     const seen: RunState[] = [];

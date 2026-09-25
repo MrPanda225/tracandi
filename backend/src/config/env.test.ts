@@ -48,6 +48,8 @@ describe('loadConfig', () => {
       features: new Set(),
       // BES-39: no proxy in front of the API unless the deployment says so.
       trustProxyHops: 0,
+      // EF-EXE-06: one long treatment at a time on the whole server, unless the deployment allows more.
+      maxConcurrentJobs: 1,
     });
   });
 
@@ -55,6 +57,12 @@ describe('loadConfig', () => {
     expect(loadConfig({ ...VALID_ENV, TRUST_PROXY: '2' }).trustProxyHops).toBe(2);
     expect(() => loadConfig({ ...VALID_ENV, TRUST_PROXY: 'oui' })).toThrow(/TRUST_PROXY/);
     expect(() => loadConfig({ ...VALID_ENV, TRUST_PROXY: '9' })).toThrow(/TRUST_PROXY/);
+  });
+
+  it('[EF-EXE-06] reads how many long treatments may run at once, and refuses anything else', () => {
+    expect(loadConfig({ ...VALID_ENV, MAX_CONCURRENT_JOBS: '3' }).maxConcurrentJobs).toBe(3);
+    expect(() => loadConfig({ ...VALID_ENV, MAX_CONCURRENT_JOBS: '0' })).toThrow(/MAX_CONCURRENT_JOBS/);
+    expect(() => loadConfig({ ...VALID_ENV, MAX_CONCURRENT_JOBS: 'beaucoup' })).toThrow(/MAX_CONCURRENT_JOBS/);
   });
 
   it('[ENF-MAI-07] enables the optional features the configuration names, and only those', () => {
