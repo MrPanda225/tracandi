@@ -61,6 +61,7 @@ describe('legal pages (EF-LEG-01)', () => {
     }
     expect(within(main).getAllByText(/CNIL/).length).toBeGreaterThan(0);
     expect(within(main).getByText(/utilisation limitée/)).toBeInTheDocument();
+    expect(within(main).getByText(/Royaume-Uni, pays reconnu par une décision d’adéquation/)).toBeInTheDocument();
     expect(within(main).getByRole('heading', { name: 'Vos droits' })).toBeInTheDocument();
     expect(within(main).queryByText(/à compléter|\[/)).not.toBeInTheDocument();
   });

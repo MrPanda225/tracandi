@@ -74,7 +74,7 @@ const RECIPIENTS: { name: string; role: string; place: string }[] = [
     role: 'héberge l’interface et achemine vos requêtes vers le serveur de l’application',
     place: 'réseau mondial, société établie aux États-Unis',
   },
-  { name: 'Northflank', role: 'héberge le serveur de l’application', place: 'Union européenne' },
+  { name: 'Northflank', role: 'héberge le serveur de l’application', place: 'Royaume-Uni, Londres' },
   { name: 'Neon', role: 'héberge la base de données', place: 'Union européenne, Francfort' },
   {
     name: 'Google (API Gmail)',
@@ -153,7 +153,9 @@ export function PrivacyPage() {
       <p>
         Vercel, Google et les fournisseurs d’intelligence artificielle peuvent traiter certaines données aux
         États-Unis. Ces transferts sont encadrés par les garanties prévues par chacun d’eux : clauses contractuelles
-        types de la Commission européenne ou adhésion au Data Privacy Framework.
+        types de la Commission européenne ou adhésion au Data Privacy Framework. Le serveur de l’application
+        fonctionne au Royaume-Uni, pays reconnu par une décision d’adéquation de la Commission européenne : vos
+        données y bénéficient d’une protection équivalente à celle de l’Union.
       </p>
 
       <h2>Données provenant des API Google</h2>
