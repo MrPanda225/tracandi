@@ -127,7 +127,8 @@ describe('createJobQueue', () => {
     await wider.enqueue({ userId: bobId, job: 'gmail_sync', trigger: 'schedule', run: work('bob') });
     await wider.drain();
 
-    expect(events.slice(0, 2)).toEqual(['start alice', 'start bob']);
+    // Both started before either ended, in whichever order the database answered.
+    expect(events.slice(0, 2).sort()).toEqual(['start alice', 'start bob']);
   });
 
   it('[EF-EXE-03] publishes the counters a treatment reports while it runs, then those it ends with', async () => {
@@ -225,7 +226,16 @@ describe('createJobQueue', () => {
 
   it('[EF-EXE-05] closes in failure what a stopped server left waiting or running', async () => {
     const work = controllable();
+    const isRunning = new Promise<void>((resolve) => {
+      const stop = queue.follow(aliceId, (state) => {
+        if (state.outcome !== 'running') return;
+        stop();
+        resolve();
+      });
+    });
     await queue.enqueue({ userId: aliceId, job: 'gmail_sync', trigger: 'manual', run: work.run });
+    // The server stops while the execution runs: its journal line says so before the restart.
+    await isRunning;
     // A second queue, as after a restart: the executions of the journal are no longer running anywhere.
     const afterRestart = createJobQueue({ db: database.db, clock: context.clock.now, logger: silent });
 
