@@ -26,6 +26,8 @@ describe('vercel.json (BES-39)', () => {
     expect(policy).toContain("script-src 'self'");
     expect(policy).toContain("connect-src 'self'");
     expect(policy).toContain("frame-ancestors 'none'");
+    // Vite inlines the smallest font subsets as data: URLs; blocked, the page falls back to a system font.
+    expect(policy).toContain("font-src 'self' data:");
   });
 
   it('[BES-39] sends the security headers on every page', () => {
