@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { hashPassword, verifyPassword } from './password.js';
+import { hashPassword, OWASP_SCRYPT_PARAMS, verifyPassword } from './password.js';
 import { generateSessionToken, hashSessionToken } from './token.js';
 
 // Low cost for fast tests; production uses OWASP_SCRYPT_PARAMS.
@@ -48,5 +48,30 @@ describe('session tokens', () => {
     expect(hashSessionToken(token)).toHaveLength(32);
     expect(hashSessionToken(token).equals(hashSessionToken(token))).toBe(true);
     expect(hashSessionToken(token).toString('base64url')).not.toBe(token);
+  });
+});
+
+describe('OWASP_SCRYPT_PARAMS', () => {
+  // OWASP Password Storage Cheat Sheet: settings of equal strength, from N = 2^17, p = 1 down to N = 2^13, p = 10.
+  const OWASP_EQUIVALENTS = [
+    [2 ** 17, 1],
+    [2 ** 16, 2],
+    [2 ** 15, 3],
+    [2 ** 14, 5],
+    [2 ** 13, 10],
+  ];
+  const MIB = 1024 * 1024;
+
+  it('[ENF-SEC-18] is one of the OWASP settings for scrypt', () => {
+    const { cost, blockSize, parallelization } = OWASP_SCRYPT_PARAMS;
+
+    expect(blockSize).toBe(8);
+    expect(OWASP_EQUIVALENTS).toContainEqual([cost, parallelization]);
+  });
+
+  it('[ENF-SEC-18] [BES-39] needs at most 32 MiB per hash, so that a 256 MB container survives a login', () => {
+    const { cost, blockSize } = OWASP_SCRYPT_PARAMS;
+
+    expect(128 * cost * blockSize).toBeLessThanOrEqual(32 * MIB);
   });
 });

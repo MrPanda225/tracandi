@@ -410,7 +410,7 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | ENF-SEC-14 | Le callback OAuth doit rejeter toute réponse dont le paramètre `state` ne correspond pas à celui émis dans les 10 dernières minutes. | T |
 | ENF-SEC-15 | Toute connexion à la base de données hébergée doit être chiffrée, avec vérification du certificat du serveur. | T (connexion sans chiffrement refusée) |
 | ENF-SEC-16 | Le code applicatif ne doit construire aucune requête par assemblage de chaînes : toute valeur est transmise comme paramètre, tout nom de table ou de colonne est vérifié à la compilation. | I (règle lint + revue) |
-| ENF-SEC-18 | Les mots de passe doivent être stockés sous forme d'empreinte salée calculée par une fonction lente (scrypt, paramètres OWASP), jamais en clair ni dans les journaux. | T |
+| ENF-SEC-18 | Les mots de passe doivent être stockés sous forme d'empreinte salée calculée par une fonction lente (scrypt, paramètres OWASP ; depuis la v1.28, le réglage équivalent N = 2^15, r = 8, p = 3, qui demande 32 Mo par calcul au lieu de 128, pour tenir dans le conteneur d'hébergement), jamais en clair ni dans les journaux. | T |
 | ENF-SEC-19 | La connexion doit renvoyer la même réponse pour une adresse inconnue et un mot de passe faux, et accepter au plus 10 tentatives par 15 minutes et par adresse IP. | T |
 | ENF-SEC-20 | Le jeton de session doit être aléatoire (256 bits au moins) et stocké en base sous forme d'empreinte uniquement. | T |
 | ENF-SEC-17 | Les identifiants de connexion à la base hébergée doivent être propres à chaque compte (application, migrations, sauvegarde), distincts et révocables séparément. | I |

@@ -7,8 +7,11 @@ export interface ScryptParams {
   parallelization: number;
 }
 
-// ENF-SEC-18: OWASP recommendation for scrypt (N = 2^17, r = 8, p = 1).
-export const OWASP_SCRYPT_PARAMS: ScryptParams = { cost: 2 ** 17, blockSize: 8, parallelization: 1 };
+/*
+ * ENF-SEC-18: OWASP setting for scrypt of the same strength as N = 2^17, p = 1, with a quarter of its memory: 32 MiB
+ * per hash instead of 128. The hosting container has 256 MB, and each login derives a key (BES-39).
+ */
+export const OWASP_SCRYPT_PARAMS: ScryptParams = { cost: 2 ** 15, blockSize: 8, parallelization: 3 };
 
 const KEY_LENGTH = 64;
 const SALT_LENGTH = 16;
