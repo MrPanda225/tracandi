@@ -1,0 +1,15 @@
+# Tracandi — pages publiques ouvertes, application et API fermées (EF-SEO-01).
+User-agent: *
+Allow: /$
+Allow: /connexion
+Allow: /mentions-legales
+Allow: /confidentialite
+Allow: /cookies
+Allow: /favicon.svg
+Allow: /llms.txt
+Disallow: /api/
+Disallow: /candidatures
+Disallow: /reglages
+Disallow: /offres
+Disallow: /sites
+Disallow: /atelier-cv

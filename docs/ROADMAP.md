@@ -532,3 +532,18 @@ développeur l'active sur son poste (`ENABLED_FEATURES=watch,cv`) le temps d'y t
   d'intégration sur PostgreSQL 18, couverture, audit), interface (vérifications, build, audit), image de l'API.
   *Reste* : créer les services, renseigner les variables, protéger `main` et `dev` par la CI, premier déploiement,
   vérification Google OAuth en production.
+- [x] **T-804 Performances et référencement des pages publiques** — *demande du Business Owner du 25/09/2026*
+  (BES-41, cahier v1.28). Texte d'accroche et accès de la présentation affichés sans animation ; ouverture animée
+  jouée une fois par visite ; écran d'entrée (présentation, connexion, pages légales) téléchargé en même temps que la
+  vérification de session ; axes SOFT et WONK de Fraunces chargés après le premier affichage de la connexion ;
+  `GET /api/auth/session` (toujours 200) à la place du 401 de `/auth/me` au démarrage ; titre et description par
+  page, icône, aperçu de partage, `robots.txt`, `llms.txt` ; statut « En attente » assombri (contraste AA) ;
+  formulaire de connexion gardant son rôle de formulaire. Couvre EF-AUT-13, EF-SEO-01, ENF-PERF-07.
+  *Fini quand* : Lighthouse mobile sur la version construite donne, pour `/` et `/connexion`, performance ≥ 90,
+  SEO 100, bonnes pratiques 100 et plus grand élément affiché en moins de 3 s. Mesuré le 25/09/2026 : `/` 95 / 100 /
+  100, 2,8 s ; `/connexion` 96 / 100 / 100, 2,7 s (avant : 96 et 90 en performance, SEO 82, bonnes pratiques 96).
+  Écrans de l'application (demande du 25/09/2026, mesurés avec une API simulée) : les fonctionnalités facultatives ne
+  bloquent plus que leurs propres écrans ; titre d'onglet par écran ; nom accessible des liens de navigation
+  contenant le libellé court du téléphone (WCAG 2.5.3) ; gris du panneau éclairci (`--color-mist-on-ink`, 5,1:1) ;
+  squelette de la carte Gmail à la forme d'une boîte connectée. `/candidatures` et `/reglages` : performance 95,
+  accessibilité 97/96 → 100, CLS de Réglages 0,02 ; SEO 63 voulu (seul `is-crawlable` échoue : `robots.txt`).

@@ -61,7 +61,7 @@
   font-size: 0.75rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--color-mist);
+  color: var(--color-mist-on-ink);
 }
 
 /* The navigation takes the free height, which pushes the account block to the bottom of the panel. */
@@ -89,7 +89,7 @@
   min-height: 2.875rem;
   padding: 0.6rem 0.75rem;
   border-radius: var(--radius-sm);
-  color: var(--color-mist);
+  color: var(--color-mist-on-ink);
   font-weight: 550;
   text-decoration: none;
   transition:
@@ -143,7 +143,7 @@
   margin: 0;
   overflow: hidden;
   font-size: 0.875rem;
-  color: var(--color-mist);
+  color: var(--color-mist-on-ink);
   text-overflow: ellipsis;
   white-space: nowrap;
 }

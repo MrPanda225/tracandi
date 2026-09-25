@@ -542,7 +542,7 @@ describe('SettingsPage — my data (EF-AUT-11, EF-AUT-12)', () => {
           bodies.push(JSON.parse(String(init.body)));
           return Promise.resolve(new Response(null, { status: 204 }));
         }
-        return Promise.resolve(json(200, input.endsWith('/auth/me') ? { id: 1, email: 'alex.martin@example.com' } : CONNECTED));
+        return Promise.resolve(json(200, input.endsWith('/auth/session') ? { account: { id: 1, email: 'alex.martin@example.com' } } : CONNECTED));
       }),
     );
     renderPage();

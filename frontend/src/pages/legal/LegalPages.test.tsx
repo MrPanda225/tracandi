@@ -25,6 +25,18 @@ afterEach(() => {
 });
 
 describe('legal pages (EF-LEG-01)', () => {
+  it.each([
+    ['/mentions-legales', 'Mentions légales — Tracandi'],
+    ['/confidentialite', 'Politique de confidentialité — Tracandi'],
+    ['/cookies', 'Cookies — Tracandi'],
+  ])('[EF-SEO-01] gives %s its own title and description', async (path, title) => {
+    renderAt(path);
+    await screen.findByRole('heading', { level: 1 });
+
+    expect(document.title).toBe(title);
+    expect(document.head.querySelector<HTMLMetaElement>('meta[name="description"]')?.content).toMatch(/Tracandi/);
+  });
+
   it('[EF-LEG-01] publishes the legal notice without a session: publisher, contact and hosts', async () => {
     renderAt('/mentions-legales');
 
@@ -49,6 +61,7 @@ describe('legal pages (EF-LEG-01)', () => {
     }
     expect(within(main).getAllByText(/CNIL/).length).toBeGreaterThan(0);
     expect(within(main).getByText(/utilisation limitée/)).toBeInTheDocument();
+    expect(within(main).getByText(/Royaume-Uni, pays reconnu par une décision d’adéquation/)).toBeInTheDocument();
     expect(within(main).getByRole('heading', { name: 'Vos droits' })).toBeInTheDocument();
     expect(within(main).queryByText(/à compléter|\[/)).not.toBeInTheDocument();
   });

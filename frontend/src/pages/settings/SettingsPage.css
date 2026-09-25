@@ -183,7 +183,7 @@
 
 .gmail-card__loading {
   display: grid;
-  gap: 0.5rem;
+  gap: 1rem;
 }
 
 .gmail-card__expired .flash {

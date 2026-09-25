@@ -41,7 +41,7 @@ const mockApi = (handlers: Record<string, Handler>) => {
 
 const renderSignedIn = (path: string, features: Handler = ALL_FEATURES) => {
   mockApi({
-    '/auth/me': () => json(200, ACCOUNT),
+    '/auth/session': () => json(200, { account: ACCOUNT }),
     '/stats/dashboard': () => json(200, EMPTY_DASHBOARD),
     '/auth/logout': () => new Response(null, { status: 204 }),
     '/settings/features': features,
@@ -85,8 +85,8 @@ describe('AppShell', () => {
 
     const navigation = within(screen.getByRole('navigation', { name: 'Navigation principale' }));
     expect(navigation.getAllByRole('link').map((link) => link.getAttribute('aria-label'))).toEqual([
-      'Tableau de bord',
-      'Candidatures',
+      'Tableau de bord (Accueil)',
+      'Candidatures (Suivi)',
       'Offres',
       'Sites surveillés',
       'Atelier CV',
@@ -96,7 +96,7 @@ describe('AppShell', () => {
 
   it('[ENF-MAI-07] shows a disabled screen as in preparation, without loading its content', async () => {
     const fetchMock = mockApi({
-      '/auth/me': () => json(200, ACCOUNT),
+      '/auth/session': () => json(200, { account: ACCOUNT }),
       '/settings/features': () => json(200, { features: [] }),
     });
     render(
@@ -124,14 +124,37 @@ describe('AppShell', () => {
     expect(screen.getByRole('link', { name: /Tableau de bord/ })).not.toHaveAttribute('aria-current');
   });
 
-  it('[ENF-UTI-02] keeps the full name of a screen while the bottom bar of a phone shows a short one', async () => {
+  it('[ENF-UTI-02] names each screen with the words it shows, whether the full label or the short one of a phone', async () => {
     renderSignedIn('/');
     await screen.findByRole('heading', { name: 'Tableau de bord' });
 
-    // The bar of a phone has room for « Suivi » only; what a screen reader announces stays the whole name.
-    const link = screen.getByRole('link', { name: 'Candidatures' });
-    expect(link).toHaveAccessibleName('Candidatures');
+    // WCAG 2.5.3: « Suivi », shown on a phone, must be a word of the name a voice command can say.
+    const link = screen.getByRole('link', { name: 'Candidatures (Suivi)' });
     expect(within(link).getByText('Suivi')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Tableau de bord (Accueil)' })).toBeInTheDocument();
+    // A short label already in the full one adds nothing.
+    expect(screen.getByRole('link', { name: 'Sites surveillés' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Réglages' })).toBeInTheDocument();
+  });
+
+  it('[EF-SEO-01] names the browser tab after the screen shown', async () => {
+    renderSignedIn('/reglages');
+
+    await screen.findByRole('heading', { level: 1, name: 'Réglages' });
+    expect(document.title).toBe('Réglages — Tracandi');
+  });
+
+  it('[ENF-PERF-07] shows a screen of the core without waiting for the list of optional features', async () => {
+    renderSignedIn('/reglages', () => new Promise<Response>(() => undefined));
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Réglages' })).toBeInTheDocument();
+  });
+
+  it('[ENF-MAI-07] waits for the list of features before showing a screen of an optional one', async () => {
+    renderSignedIn('/atelier-cv', () => new Promise<Response>(() => undefined));
+
+    expect(await screen.findByText('Chargement de l’application…')).toBeInTheDocument();
+    expect(screen.queryByText(/En préparation/)).not.toBeInTheDocument();
   });
 
   it('[EF-AUT-04] [EF-AUT-09] signs out from the shell and returns to the presentation of the service', async () => {
@@ -168,7 +191,7 @@ describe('AppShell', () => {
         total: 1,
       });
     mockApi({
-      '/auth/me': () => json(200, ACCOUNT),
+      '/auth/session': () => json(200, { account: ACCOUNT }),
       '/stats/dashboard': () => json(200, EMPTY_DASHBOARD),
       [FIRST_PAGE]: () => answerApplications(),
       '/auth/logout': () => new Response(null, { status: 204 }),
@@ -198,7 +221,7 @@ describe('AppShell', () => {
     let answerDashboard: Handler = () =>
       json(200, { ...EMPTY_DASHBOARD, totals: { applications: 12, reachedInterview: 0, responseRate: 0 } });
     mockApi({
-      '/auth/me': () => json(200, ACCOUNT),
+      '/auth/session': () => json(200, { account: ACCOUNT }),
       '/stats/dashboard': () => answerDashboard(),
       '/auth/logout': () => new Response(null, { status: 204 }),
       '/auth/login': () => json(200, OTHER_ACCOUNT),
@@ -228,7 +251,7 @@ describe('AppShell', () => {
 
   it('[Q-11] asks to reconnect Gmail on every screen once Google refused the authorisation', async () => {
     mockApi({
-      '/auth/me': () => json(200, ACCOUNT),
+      '/auth/session': () => json(200, { account: ACCOUNT }),
       '/stats/dashboard': () => json(200, EMPTY_DASHBOARD),
       '/gmail/status': () =>
         json(200, {

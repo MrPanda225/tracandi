@@ -149,116 +149,119 @@ export function AuthForm() {
         ))}
       </div>
 
-      <form
-        ref={formRef}
-        id="auth-panel"
-        role="tabpanel"
-        aria-labelledby={`auth-tab-${mode}`}
-        className="auth-form__panel"
-        onSubmit={(event) => void handleSubmit(event)}
-        noValidate
-      >
-        <header className="auth-form__header" data-reveal>
-          <h2 className="auth-form__title">{copy.title}</h2>
-          <p className="auth-form__subtitle">{copy.subtitle}</p>
-        </header>
+      {/* The panel wraps the form: a form keeps its own role, which assistive technologies and agents rely on. */}
+      <div id="auth-panel" role="tabpanel" aria-labelledby={`auth-tab-${mode}`}>
+        <form
+          ref={formRef}
+          className="auth-form__panel"
+          onSubmit={(event) => void handleSubmit(event)}
+          noValidate
+        >
+          <header className="auth-form__header" data-reveal>
+            <h2 className="auth-form__title">{copy.title}</h2>
+            <p className="auth-form__subtitle">{copy.subtitle}</p>
+          </header>
 
-        <div className={`field ${fieldErrors.email ? 'field--invalid' : ''}`} data-reveal>
-          <input
-            id={ids.email}
-            type="email"
-            name="email"
-            autoComplete="email"
-            inputMode="email"
-            placeholder=" "
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            aria-invalid={Boolean(fieldErrors.email)}
-            aria-describedby={fieldErrors.email ? `${ids.email}-error` : undefined}
-            disabled={isSubmitting}
-          />
-          <label htmlFor={ids.email}>Adresse e-mail</label>
-          {fieldErrors.email && (
-            <p id={`${ids.email}-error`} className="field__error">
-              {fieldErrors.email}
-            </p>
-          )}
-        </div>
-
-        <div className={`field field--password ${fieldErrors.password ? 'field--invalid' : ''}`} data-reveal>
-          <input
-            id={ids.password}
-            type={isPasswordVisible ? 'text' : 'password'}
-            name="password"
-            autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-            placeholder=" "
-            maxLength={128}
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            aria-invalid={Boolean(fieldErrors.password)}
-            aria-describedby={
-              [mode === 'register' ? ids.hint : '', fieldErrors.password ? `${ids.password}-error` : '']
-                .filter(Boolean)
-                .join(' ') || undefined
-            }
-            disabled={isSubmitting}
-          />
-          <label htmlFor={ids.password}>Mot de passe</label>
-          <button
-            type="button"
-            className="field__toggle"
-            aria-pressed={isPasswordVisible}
-            aria-label={isPasswordVisible ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
-            onClick={() => setIsPasswordVisible((visible) => !visible)}
-          >
-            {isPasswordVisible ? 'Masquer' : 'Afficher'}
-          </button>
-          {fieldErrors.password && (
-            <p id={`${ids.password}-error`} className="field__error">
-              {fieldErrors.password}
-            </p>
-          )}
-        </div>
-
-        {mode === 'register' && (
-          <div className="password-meter" data-reveal>
-            <span className="password-meter__track" aria-hidden="true">
-              <span className="password-meter__fill" style={{ transform: `scaleX(${passwordProgress})` }} />
-            </span>
-            <span id={ids.hint} className="password-meter__label" aria-live="polite">
-              {password.length >= PASSWORD_MIN_LENGTH
-                ? 'Longueur suffisante'
-                : `${PASSWORD_MIN_LENGTH} caractères minimum — ${password.length}/${PASSWORD_MIN_LENGTH}`}
-            </span>
+          <div className={`field ${fieldErrors.email ? 'field--invalid' : ''}`} data-reveal>
+            <input
+              id={ids.email}
+              type="email"
+              name="email"
+              autoComplete="email"
+              inputMode="email"
+              placeholder=" "
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              aria-invalid={Boolean(fieldErrors.email)}
+              aria-describedby={fieldErrors.email ? `${ids.email}-error` : undefined}
+              disabled={isSubmitting}
+            />
+            <label htmlFor={ids.email}>Adresse e-mail</label>
+            {fieldErrors.email && (
+              <p id={`${ids.email}-error`} className="field__error">
+                {fieldErrors.email}
+              </p>
+            )}
           </div>
-        )}
 
-        {formError && (
-          <p id={ids.error} role="alert" className="auth-form__error">
-            {formError}
+          <div
+            className={`field field--password ${fieldErrors.password ? 'field--invalid' : ''}`}
+            data-reveal
+          >
+            <input
+              id={ids.password}
+              type={isPasswordVisible ? 'text' : 'password'}
+              name="password"
+              autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+              placeholder=" "
+              maxLength={128}
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              aria-invalid={Boolean(fieldErrors.password)}
+              aria-describedby={
+                [mode === 'register' ? ids.hint : '', fieldErrors.password ? `${ids.password}-error` : '']
+                  .filter(Boolean)
+                  .join(' ') || undefined
+              }
+              disabled={isSubmitting}
+            />
+            <label htmlFor={ids.password}>Mot de passe</label>
+            <button
+              type="button"
+              className="field__toggle"
+              aria-pressed={isPasswordVisible}
+              aria-label={isPasswordVisible ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+              onClick={() => setIsPasswordVisible((visible) => !visible)}
+            >
+              {isPasswordVisible ? 'Masquer' : 'Afficher'}
+            </button>
+            {fieldErrors.password && (
+              <p id={`${ids.password}-error`} className="field__error">
+                {fieldErrors.password}
+              </p>
+            )}
+          </div>
+
+          {mode === 'register' && (
+            <div className="password-meter" data-reveal>
+              <span className="password-meter__track" aria-hidden="true">
+                <span className="password-meter__fill" style={{ transform: `scaleX(${passwordProgress})` }} />
+              </span>
+              <span id={ids.hint} className="password-meter__label" aria-live="polite">
+                {password.length >= PASSWORD_MIN_LENGTH
+                  ? 'Longueur suffisante'
+                  : `${PASSWORD_MIN_LENGTH} caractères minimum — ${password.length}/${PASSWORD_MIN_LENGTH}`}
+              </span>
+            </div>
+          )}
+
+          {formError && (
+            <p id={ids.error} role="alert" className="auth-form__error">
+              {formError}
+            </p>
+          )}
+
+          <div data-reveal>
+            <Magnet className="auth-submit-magnet" disabled={isSubmitting}>
+              <ClickSpark>
+                <button
+                  type="submit"
+                  className="button-primary"
+                  disabled={isSubmitting}
+                  aria-busy={isSubmitting}
+                >
+                  {isSubmitting && <span className="button-primary__spinner" aria-hidden="true" />}
+                  <span>{isSubmitting ? copy.pending : copy.submit}</span>
+                </button>
+              </ClickSpark>
+            </Magnet>
+          </div>
+
+          <p className="auth-form__footnote" data-reveal>
+            Votre mot de passe n’est jamais stocké en clair et vos données ne sont partagées avec personne.
           </p>
-        )}
-
-        <div data-reveal>
-          <Magnet className="auth-submit-magnet" disabled={isSubmitting}>
-            <ClickSpark>
-              <button
-                type="submit"
-                className="button-primary"
-                disabled={isSubmitting}
-                aria-busy={isSubmitting}
-              >
-                {isSubmitting && <span className="button-primary__spinner" aria-hidden="true" />}
-                <span>{isSubmitting ? copy.pending : copy.submit}</span>
-              </button>
-            </ClickSpark>
-          </Magnet>
-        </div>
-
-        <p className="auth-form__footnote" data-reveal>
-          Votre mot de passe n’est jamais stocké en clair et vos données ne sont partagées avec personne.
-        </p>
-      </form>
+        </form>
+      </div>
     </div>
   );
 }

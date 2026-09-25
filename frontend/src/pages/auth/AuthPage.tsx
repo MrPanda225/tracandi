@@ -1,12 +1,10 @@
-// The SOFT and WONK axes of Fraunces are used by this page only: they travel with its own chunk (ENF-PERF-01).
-import '@fontsource-variable/fraunces/full.css';
-import '@fontsource-variable/fraunces/full-italic.css';
 import { createScope, createTimeline, type Scope, stagger } from 'animejs';
-import { Fragment, useLayoutEffect, useRef } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useRef } from 'react';
 import { Noise } from '../../components/reactbits/Noise';
 import { LegalLinks } from '../../components/LegalLinks';
 import { SpotlightCard } from '../../components/reactbits/SpotlightCard';
 import { REDUCED_MOTION_QUERY } from '../../lib/motion';
+import { usePageMeta } from '../../lib/pageMeta';
 import { ApplicationsScene } from './ApplicationsScene';
 import { AuthForm } from './AuthForm';
 import './AuthPage.css';
@@ -21,6 +19,21 @@ const HEADLINE_WORDS = ['Chaque', 'candidature', 'mérite'];
 export function AuthPage() {
   const rootRef = useRef<HTMLDivElement>(null);
   const scopeRef = useRef<Scope | null>(null);
+  usePageMeta({
+    title: 'Connexion — Tracandi',
+    description:
+      'Connectez-vous à Tracandi ou créez un compte pour suivre vos candidatures depuis Gmail et préparer vos relances.',
+  });
+
+  // The SOFT and WONK axes of Fraunces are used by this page only (271 kB). They come once the page is painted: the
+  // title shows first in the Fraunces already loaded, then softens — the page no longer waits for them (ENF-PERF-07).
+  useEffect(() => {
+    // Unreachable fonts are no failure: the title simply keeps the standard Fraunces.
+    void Promise.all([
+      import('@fontsource-variable/fraunces/full.css'),
+      import('@fontsource-variable/fraunces/full-italic.css'),
+    ]).catch(() => undefined);
+  }, []);
 
   // Layout effect: the entrance starts before the first paint, so nothing flashes in its final state.
   useLayoutEffect(() => {
@@ -36,7 +49,7 @@ export function AuthPage() {
           { opacity: [0, 1], translateY: ['0.6em', 0], rotateX: [-40, 0], delay: stagger(70) },
           '-=850',
         )
-        .add('.auth-story__lede', { opacity: [0, 1], translateY: [14, 0] }, '-=800')
+        // ENF-PERF-07: the lede is painted at once, not faded in — it is the largest text of the page.
         .add('.scene', { opacity: [0, 1], scale: [0.94, 1], duration: 1600 }, '-=900')
         .add('.auth-card', { opacity: [0, 1], translateY: [28, 0] }, '-=1500');
     });

@@ -7,7 +7,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://REMPLACER-PAR-L-HOTE-NORTHFLANK/api/:path*"
+      "destination": "https://p01--api--sxm9wcswsc89.code.run/api/:path*"
     },
     { "source": "/(.*)", "destination": "/index.html" }
   ],

@@ -16,6 +16,8 @@
   --color-accent-strong: #83412b;
   --color-accent-soft: rgb(155 78 53 / 0.12);
   --color-mist-soft: rgb(175 162 164 / 0.35);
+  /* Mist for text on the ink panel: 5.1:1 on ink (AA), where the palette mist gives 4.3:1. */
+  --color-mist-on-ink: #bbb0b2;
   --color-line: rgb(62 61 71 / 0.12);
   --color-danger: #9b2f35;
 
@@ -34,7 +36,7 @@
    * waiting yellow). Muted to sit inside the palette; always shown with their text label (WCAG 1.4.1).
    * Text on its soft background ≥ 4.5:1; the solid colour ≥ 3:1 on the canvas (charts, WCAG 1.4.11).
    */
-  --status-waiting: #8a6a1c;
+  --status-waiting: #7a5d17;
   --status-waiting-soft: #f4ead0;
   --status-interview: #3f7250;
   --status-interview-soft: #dfece2;

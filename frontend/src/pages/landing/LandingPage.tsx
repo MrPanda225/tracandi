@@ -9,12 +9,20 @@ import { Magnet } from '../../components/reactbits/Magnet';
 import { ShinyText } from '../../components/reactbits/ShinyText';
 import { SpotlightCard } from '../../components/reactbits/SpotlightCard';
 import { StarBorder } from '../../components/reactbits/StarBorder';
+import { usePageMeta } from '../../lib/pageMeta';
 import { DashboardPreview } from './DashboardPreview';
 import { LandingLoader } from './LandingLoader';
 import { Reveal } from './Reveal';
 import './LandingPage.css';
 
 const LOGIN = '/connexion';
+// EF-SEO-01: the same words as index.html, which search engines read before any script runs.
+const LANDING_META = {
+  title: 'Tracandi — suivi de candidatures depuis Gmail',
+  description:
+    'Tracandi lit vos e-mails de candidature, classe chaque réponse (accusé de réception, entretien, refus) et ' +
+    'prépare vos relances en brouillon Gmail, sans jamais rien envoyer à votre place.',
+};
 const REGISTER = '/connexion?mode=inscription';
 
 const STEPS = [
@@ -75,6 +83,7 @@ function PrimaryAction({ children }: { children: ReactNode }) {
  * ways in. Asks nothing of the API; all its motion stops when the user prefers reduced motion (ENF-UTI-04).
  */
 export function LandingPage() {
+  usePageMeta(LANDING_META);
   return (
     <div className="landing">
       <LandingLoader />
@@ -102,19 +111,18 @@ export function LandingPage() {
         <section className="landing__hero" aria-labelledby="landing-title">
           <div className="landing__hero-copy">
             <p className="landing__eyebrow">Carnet de candidatures</p>
-            <BlurText as="h1" className="landing__title" text="Vos candidatures, suivies toutes seules." />
-            <Reveal delay={0.35}>
-              <p className="landing__lede">
-                Tracandi lit vos e-mails de candidature, classe chaque réponse et vous dit qui relancer — sans jamais
-                rien envoyer à votre place.
-              </p>
-            </Reveal>
-            <Reveal delay={0.5} className="landing__actions">
+            <BlurText as="h1" id="landing-title" className="landing__title" text="Vos candidatures, suivies toutes seules." />
+            {/* ENF-PERF-07: the promise and the ways in are painted at once — only the title plays. */}
+            <p className="landing__lede">
+              Tracandi lit vos e-mails de candidature, classe chaque réponse et vous dit qui relancer — sans jamais
+              rien envoyer à votre place.
+            </p>
+            <div className="landing__actions">
               <PrimaryAction>Créer un compte</PrimaryAction>
               <Link to={LOGIN} className="btn btn--quiet">
                 J’ai déjà un compte
               </Link>
-            </Reveal>
+            </div>
           </div>
           <Reveal delay={0.25} className="landing__hero-visual">
             <DashboardPreview />

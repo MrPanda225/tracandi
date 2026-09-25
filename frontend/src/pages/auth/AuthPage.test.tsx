@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { ROUTER_FUTURE } from '../../lib/router';
@@ -28,7 +28,7 @@ const json = (status: number, body?: unknown) =>
 
 type Handler = (method: string, body: unknown) => Response | Promise<Response>;
 
-/** Fake API: one handler per path; a signed-out user gets 401 on /auth/me until a handler says otherwise. */
+/** Fake API: one handler per path; any other path answers 404. */
 const mockApi = (handlers: Record<string, Handler>) => {
   const fetchMock = vi.fn((url: string, init?: RequestInit) => {
     const path = url.replace(/^\/api/, '');
@@ -57,7 +57,7 @@ const fillCredentials = async (email: string, password: string) => {
 };
 
 beforeEach(() => {
-  mockApi({ '/auth/me': () => json(401, { error: 'Authentification requise' }) });
+  mockApi({ '/auth/session': () => json(200, { account: null }) });
 });
 
 afterEach(() => {
@@ -65,6 +65,24 @@ afterEach(() => {
 });
 
 describe('AuthPage', () => {
+  it('[EF-SEO-01] gives the login page its own title and description', async () => {
+    renderAt('/connexion');
+    await screen.findByRole('heading', { level: 2 });
+
+    expect(document.title).toBe('Connexion — Tracandi');
+    expect(document.head.querySelector<HTMLMetaElement>('meta[name="description"]')?.content).toMatch(
+      /Connectez-vous à Tracandi/,
+    );
+  });
+
+  it('[ENF-PERF-07] keeps the login form a form, inside the panel of the selected tab', async () => {
+    renderAt('/connexion');
+
+    const panel = await screen.findByRole('tabpanel', { name: 'Connexion' });
+    expect(within(panel).getByRole('button', { name: 'Se connecter' })).toBeInTheDocument();
+    expect(panel.querySelector('form')).not.toBeNull();
+  });
+
   it('[ENF-UTI-01] shows the login form in French', async () => {
     renderAt('/connexion');
 
@@ -90,7 +108,7 @@ describe('AuthPage', () => {
 
   it('[EF-AUT-03] logs in and lands on the dashboard', async () => {
     const fetchMock = mockApi({
-      '/auth/me': () => json(401, { error: 'Authentification requise' }),
+      '/auth/session': () => json(200, { account: null }),
       '/auth/login': () => json(200, ACCOUNT),
       '/stats/dashboard': () => json(200, EMPTY_DASHBOARD),
     });
@@ -111,7 +129,7 @@ describe('AuthPage', () => {
 
   it('[EF-AUT-03] shows the API message when the credentials are refused, and stays on the page', async () => {
     mockApi({
-      '/auth/me': () => json(401, { error: 'Authentification requise' }),
+      '/auth/session': () => json(200, { account: null }),
       '/auth/login': () => json(401, { error: 'Adresse e-mail ou mot de passe incorrect' }),
     });
     renderAt('/connexion');
@@ -127,7 +145,7 @@ describe('AuthPage', () => {
   it('[ENF-UTI-03] disables the button and shows a waiting state during the request', async () => {
     let answer: (response: Response) => void = () => undefined;
     mockApi({
-      '/auth/me': () => json(401, { error: 'Authentification requise' }),
+      '/auth/session': () => json(200, { account: null }),
       '/auth/login': () => new Promise<Response>((resolve) => (answer = resolve)),
     });
     renderAt('/connexion');
@@ -144,7 +162,7 @@ describe('AuthPage', () => {
   });
 
   it('[ENF-SEC-04] checks the email locally before calling the API', async () => {
-    const fetchMock = mockApi({ '/auth/me': () => json(401, { error: 'Authentification requise' }) });
+    const fetchMock = mockApi({ '/auth/session': () => json(200, { account: null }) });
     renderAt('/connexion');
     await screen.findByRole('heading', { name: 'Bon retour.' });
 
@@ -157,7 +175,7 @@ describe('AuthPage', () => {
   });
 
   it('[EF-AUT-01] creates an account and lands on the dashboard', async () => {
-    const fetchMock = mockApi({ '/auth/me': () => json(401, { error: 'Authentification requise' }) });
+    const fetchMock = mockApi({ '/auth/session': () => json(200, { account: null }) });
     renderAt('/connexion');
     const user = userEvent.setup();
     await user.click(await screen.findByRole('tab', { name: 'Créer un compte' }));
@@ -176,7 +194,7 @@ describe('AuthPage', () => {
   });
 
   it('[EF-AUT-02] refuses a password shorter than 12 characters when creating an account', async () => {
-    const fetchMock = mockApi({ '/auth/me': () => json(401, { error: 'Authentification requise' }) });
+    const fetchMock = mockApi({ '/auth/session': () => json(200, { account: null }) });
     renderAt('/connexion');
     const user = userEvent.setup();
     await user.click(await screen.findByRole('tab', { name: 'Créer un compte' }));
@@ -191,7 +209,7 @@ describe('AuthPage', () => {
 
   it('[EF-AUT-01] shows the conflict message of an address already used', async () => {
     mockApi({
-      '/auth/me': () => json(401, { error: 'Authentification requise' }),
+      '/auth/session': () => json(200, { account: null }),
       '/auth/register': () => json(409, { error: 'Un compte existe déjà avec cette adresse' }),
     });
     renderAt('/connexion');
