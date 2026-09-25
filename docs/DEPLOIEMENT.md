@@ -73,6 +73,10 @@ Tâche Northflank (*Job*, déclenchée à la main avant chaque déploiement qui 
 ### 2.4 Adresse publique
 
 Northflank attribue une adresse du type `https://p01--api--xxxx.code.run`. Notez-en l'**hôte** pour l'étape 3.
+Le port 4000 doit être en **HTTP** et **Public** : en TCP, Northflank ne l'expose pas.
+
+En production (25/09/2026) : `p01--api--sxm9wcswsc89.code.run`, région Europe - West (Londres, Royaume-Uni, pays
+sous décision d'adéquation de la Commission européenne ; mentionné dans la politique de confidentialité).
 
 ## 3. Interface sur Vercel
 
