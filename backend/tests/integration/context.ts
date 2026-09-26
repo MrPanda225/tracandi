@@ -6,6 +6,10 @@ import { createApp } from '../../src/app.js';
 import { emails, processedMessages } from '../../src/db/schema.js';
 import { connectDatabase, type DatabaseHandle } from '../../src/db/client.js';
 import { createJobQueue, type JobQueue } from '../../src/jobs/queue.js';
+import { createPdfOcr } from '../../src/modules/cvWorkshop/ocr.js';
+import { createAnalysisResults } from '../../src/modules/cvWorkshop/results.js';
+import { createCvWorkshopModule } from '../../src/modules/cvWorkshop/routes.js';
+import { type CvAnalysis, createCvWorkshopService } from '../../src/modules/cvWorkshop/service.js';
 import { type EnabledFeatures, OPTIONAL_FEATURES, onlyIf } from '../../src/lib/features.js';
 import { createLogger } from '../../src/lib/logger.js';
 import { describeAssignments } from '../../src/llm/assignments.js';
@@ -189,7 +193,14 @@ export const createTestContext = (
         frontendOrigin: FRONTEND_ORIGIN,
       }),
       createJobsModule(queue),
-      ...onlyIf(features, 'cv', createProfileModule(createProfileService({ db: database.db, clock: clock.now }))),
+      ...onlyIf(
+        features,
+        'cv',
+        createProfileModule(createProfileService({ db: database.db, clock: clock.now })),
+        createCvWorkshopModule(
+          createCvWorkshopService({ queue, ocr: createPdfOcr(), results: createAnalysisResults<CvAnalysis>() }),
+        ),
+      ),
       createSettingsModule({ aiAssignments: describeAssignments(aiProviders), features }),
       ...onlyIf(features, 'watch', createSitesModule(watch)),
     ],

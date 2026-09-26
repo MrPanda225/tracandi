@@ -24,9 +24,10 @@ export interface QueuedWork {
   trigger: TriggerType;
   /**
    * The treatment itself. `report` publishes what is done so far, as often as it likes; the counters it returns
-   * are the ones journaled at the end.
+   * are the ones journaled at the end. `runId` identifies the execution, for a treatment that hands a result back
+   * under it (EF-CVX-32).
    */
-  run: (report: (counters: RunCounters) => void) => Promise<RunCounters>;
+  run: (report: (counters: RunCounters) => void, runId: number) => Promise<RunCounters>;
 }
 
 /** State of one execution, as the interface follows it (EF-EXE-03). */
@@ -136,7 +137,7 @@ const executeRun = async (
   try {
     const counters = await work.run((progress) => {
       followers.publish(work.userId, { ...state, counters: progress });
-    });
+    }, runId);
     await repository.finishJobRun(db, runId, {
       finishedAt: clock(),
       outcome: 'success',
