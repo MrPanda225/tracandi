@@ -510,11 +510,19 @@ l'offre n'est écrite en base, sur disque ou dans les journaux (ENF-RGP-06).
   *Exigences* : EF-CVX-25, EF-CVX-26, EF-CVX-27, EF-CVX-29, RG-21.
   *Fini quand* : réponse simulée citant une entreprise, un diplôme ou un chiffre absents du CV rejetée puis
   confiée à nouveau ; compétence absente listée et non ajoutée.
-- [ ] **T-513 Rendu Word lisible par les ATS** — fichier .docx d'une colonne (RG-22) depuis le CV adapté,
+- [~] **T-513 Rendu Word lisible par les ATS** — fichier .docx d'une colonne (RG-22) depuis le CV adapté,
   coordonnées rétablies, compétences cochées ajoutées sans nouveau score, téléchargement.
   *Exigences* : EF-CVX-28, EF-CVX-31, RG-22.
   *Fini quand* : test de structure du .docx (aucun `w:tbl`, `w:drawing`, `w:txbxContent`, en-tête ni pied de page) ;
   titres de RG-22 dans l'ordre ; compétences cochées présentes.
+  *Livré, partie 1 (26/09/2026)* : `modules/cvWorkshop/adaptedCv.ts` — `AdaptedCvSchema`, le CV adapté section par
+  section (titre, profil, expériences, formation, compétences, certifications, langues, centres d'intérêt), borné,
+  que la tâche IA de T-512 remplira ; `atsDocx.ts` — `renderAtsDocx` : une colonne de texte réel, Calibri 11, A4 ;
+  coordonnées en tête du corps (jamais dans un en-tête Word) ; titres RG-22 en styles « Titre 2 », dans l'ordre,
+  sections vides omises ; expériences « Poste — Entreprise, lieu », dates, réalisations en puces ; compétences
+  cochées ajoutées sans doublon. Aucune dépendance nouvelle (`docx` était déjà là).
+  *Reste* : le téléchargement (route et bouton), dès que T-512 produit le CV adapté.
+
 - [~] **T-514 Écran Atelier CV** — parcours en quatre étapes : CV, offre, analyse suivie en direct, résultat
   (score et sous-scores expliqués, points faibles, compétences manquantes à cocher, modifications avant/après,
   téléchargement).
