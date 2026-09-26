@@ -202,7 +202,8 @@ export function OfferDetails({ application, onUpdated }: OfferDetailsProps) {
         </h3>
         {!isEditing && (
           <button ref={editButtonRef} type="button" className="btn btn--quiet btn--small" onClick={() => setIsEditing(true)}>
-            Modifier<span className="visually-hidden"> l’offre et la date</span>
+            Modifier{' '}
+            <span className="visually-hidden">l’offre et la date</span>
           </button>
         )}
       </div>

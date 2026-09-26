@@ -34,7 +34,8 @@ function Message({ email }: { email: ApplicationEmail }) {
       {email.snippet && <p className="chronology__snippet">{email.snippet}</p>}
       {isGmailUrl(email.gmailUrl) && (
         <a className="chronology__link" href={email.gmailUrl} target="_blank" rel="noopener noreferrer">
-          Ouvrir dans Gmail<span className="visually-hidden"> (nouvel onglet)</span>
+          Ouvrir dans Gmail{' '}
+          <span className="visually-hidden">(nouvel onglet)</span>
         </a>
       )}
     </li>
