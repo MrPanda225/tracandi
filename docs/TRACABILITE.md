@@ -202,3 +202,9 @@ Commande de contrôle : `/project:check-req EF-CAN-07`.
 | ENF-PERF-07 | T-804 | `LandingPage.test.tsx` (accroche et accès visibles d'emblée, ouverture jouée une fois par visite) ; `frontend/src/routeChunks.test.ts` (écran d'entrée public téléchargé d'emblée, jamais un écran de l'application, échec laissé à la route) ; `AuthPage.test.tsx` (formulaire dans le panneau de l'onglet) ; mesure Lighthouse consignée dans `docs/ROADMAP.md` (T-804) | couverte |
 | ENF-PERF-07 (écrans de l'application) | T-804 | `frontend/src/components/layout/AppShell.test.tsx` (écran du cœur affiché sans attendre la liste des fonctionnalités ; écran facultatif en attente, jamais « En préparation » avant la réponse ; noms des liens contenant le libellé court ; titre d'onglet) ; mesure Lighthouse consignée dans `docs/ROADMAP.md` | couverte |
 | EF-EXE-06 | T-805 | `backend/src/lib/async.test.ts` › createSlots (jamais plus de tâches que de créneaux, ordre d'arrivée, créneau libéré après un échec, 0 refusé) ; `src/config/env.test.ts` (`MAX_CONCURRENT_JOBS` lu, 1 par défaut, borné) ; `tests/integration/jobs.test.ts` (un traitement à la fois sur tout le serveur, dans l'ordre ; chevauchement permis avec 2 créneaux) | couverte |
+| EF-CVX-21, EF-CVX-22, EF-CVX-34, ENF-SEC-22, ENF-RGP-07 | T-510 | — | à faire |
+| EF-CVX-23, EF-CVX-24, EF-CVX-30, EF-CVX-32, EF-CVX-33, RG-23, ENF-RGP-06, ENF-PERF-08 | T-511 | — | à faire |
+| EF-CVX-25, EF-CVX-26, EF-CVX-27, EF-CVX-29, RG-21 | T-512 | — | à faire |
+| EF-CVX-28, EF-CVX-31, RG-22 | T-513 | — | à faire |
+| EF-CVX-24, EF-CVX-27 à 31 (écran) | T-514 | — | à faire |
+| ENF-RGP-08 ; remplacement de EF-CVX-01, 02, 04 à 11, 14 à 20, RG-11, 12, 15, 18 | T-515 | — | à faire |
