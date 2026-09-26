@@ -204,6 +204,7 @@ export const createTestContext = (
             router: llmRouter,
             results: createAnalysisResults<CvAnalysis>(),
             clock: clock.now,
+            analysesPerDay: 5,
           }),
         ),
       ),

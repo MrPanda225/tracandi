@@ -5,7 +5,7 @@ import { buildDiagnoseCvPrompt } from '../../llm/prompts/diagnoseCv.js';
 import type { LlmRouter } from '../../llm/router.js';
 import { buildDiagnosis, type Diagnosis, DiagnosisAnswerSchema } from './diagnosis.js';
 import type { PdfOcr } from './ocr.js';
-import { ANALYSES_PER_DAY, startOfParisDay } from './quota.js';
+import { startOfParisDay } from './quota.js';
 import { type ReadCv, readCv } from './reading.js';
 import type { AnalysisResults } from './results.js';
 import { decodeCvUpload } from './upload.js';
@@ -52,18 +52,23 @@ export const createCvWorkshopService = ({
   router,
   results,
   clock,
+  analysesPerDay,
 }: {
   queue: JobQueue;
   ocr: PdfOcr;
   router: LlmRouter;
   results: AnalysisResults<CvAnalysis>;
   clock: Clock;
+  /** EF-CVX-33: analyses per candidate and per day, Paris time; 0 lifts the limit. */
+  analysesPerDay: number;
 }): CvWorkshopService => ({
   async startAnalysis(userId, { file, offer }) {
     const pdf = decodeCvUpload(file);
-    const today = await queue.countRunsSince(userId, 'cv_analysis', startOfParisDay(clock()));
-    if (today >= ANALYSES_PER_DAY) {
-      throw new HttpError(429, 'Vous avez fait vos 5 analyses du jour. Rendez-vous demain !');
+    if (analysesPerDay > 0) {
+      const today = await queue.countRunsSince(userId, 'cv_analysis', startOfParisDay(clock()));
+      if (today >= analysesPerDay) {
+        throw new HttpError(429, `Vous avez fait vos ${String(analysesPerDay)} analyses du jour. Rendez-vous demain !`);
+      }
     }
     return queue.enqueue({
       userId,

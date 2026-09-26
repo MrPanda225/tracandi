@@ -15,6 +15,9 @@ const DEFAULT_PORT = 4000;
 const MAX_PROXY_HOPS = 5;
 // EF-EXE-06: beyond this, a single small container could not hold the treatments anyway.
 const MAX_JOB_SLOTS = 5;
+// EF-CVX-33: 5 a day by default; a bound keeps a typo from meaning « unlimited » in production.
+const DEFAULT_CV_ANALYSES_PER_DAY = 5;
+const MAX_CV_ANALYSES_PER_DAY = 1_000;
 const MAX_PORT = 65_535;
 
 const isHttpOrigin = (value: string): boolean => {
@@ -101,6 +104,8 @@ const EnvSchema = z.object({
   TRUST_PROXY: z.coerce.number().int().min(0).max(MAX_PROXY_HOPS).default(0),
   // EF-EXE-06: long treatments run at once on the whole server; 1 keeps a small container within its memory.
   MAX_CONCURRENT_JOBS: z.coerce.number().int().min(1).max(MAX_JOB_SLOTS).default(1),
+  // EF-CVX-33: analyses of the CV workshop per candidate and per day (AI cost, ENF-COU-01); 0 lifts it, for tests.
+  CV_ANALYSES_PER_DAY: z.coerce.number().int().min(0).max(MAX_CV_ANALYSES_PER_DAY).default(DEFAULT_CV_ANALYSES_PER_DAY),
   // ENF-MAI-07: comma-separated optional features (watch, cv); none when absent, an unknown name stops the server.
   ENABLED_FEATURES: z
     .string()
@@ -166,6 +171,8 @@ export interface Config {
   trustProxyHops: number;
   /** EF-EXE-06: long treatments run at once, all candidates together. */
   maxConcurrentJobs: number;
+  /** EF-CVX-33: CV analyses a candidate may launch per day; 0 lifts the limit. */
+  cvAnalysesPerDay: number;
 }
 
 /** Time zone of the cron expressions and schedule of each job. */
@@ -255,5 +262,6 @@ export const loadConfig = (env: Record<string, string | undefined>): Config => {
     features: result.data.ENABLED_FEATURES,
     trustProxyHops: result.data.TRUST_PROXY,
     maxConcurrentJobs: result.data.MAX_CONCURRENT_JOBS,
+    cvAnalysesPerDay: result.data.CV_ANALYSES_PER_DAY,
   };
 };

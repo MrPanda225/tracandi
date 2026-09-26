@@ -1,6 +1,3 @@
-/** EF-CVX-33: analyses a candidate may launch per day, Paris time. */
-export const ANALYSES_PER_DAY = 5;
-
 const PARIS = 'Europe/Paris';
 const MS_PER_SECOND = 1000;
 const SECONDS_PER_MINUTE = 60;
