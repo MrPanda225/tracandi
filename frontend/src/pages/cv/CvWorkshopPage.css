@@ -1,126 +1,94 @@
-/* Atelier CV : profil de référence (EF-CVX-01, EF-CVX-02). */
-.profile {
+/* Atelier CV (EF-CVX-21 à 34) : une colonne de cartes, comme les Réglages. */
+.cv-workshop {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 1.5rem;
-}
-
-.profile__block {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 0.35rem;
-}
-
-.profile__block h2 {
-  font-size: 1rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--color-ink-soft);
-  margin: 0 0 0.25rem;
-}
-
-.profile__name {
-  font-weight: 600;
-  margin: 0;
-}
-
-.profile__meta {
-  color: var(--color-ink-soft);
-  margin: 0;
-}
-
-.profile__list,
-.profile__bullets {
-  display: grid;
-  gap: 0.6rem;
-  margin: 0;
-  padding-left: 1.1rem;
-}
-
-.profile__bullets {
-  gap: 0.2rem;
-  margin-top: 0.3rem;
-}
-
-.profile__actions,
-.profile-form__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  margin-bottom: 1rem;
-}
-
-.profile__absent,
-.profile__loading {
-  display: grid;
-  gap: 0.75rem;
-  max-width: 40rem;
-}
-
-.profile__rejected {
-  display: grid;
-  gap: 0.3rem;
-  margin: 0 0 1rem;
-  padding-left: 1.1rem;
-  color: var(--color-danger, #8a1f1f);
-}
-
-.profile-form {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 1.25rem;
+  gap: clamp(1rem, 0.8rem + 0.8vw, 1.5rem);
+  justify-items: start;
   max-width: 48rem;
 }
 
-.profile-form__group {
+.cv-card {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 0.75rem;
-  border: 1px solid var(--color-line);
-  border-radius: 0.5rem;
-  padding: 1rem;
+  gap: 0.9rem;
+  width: 100%;
+  padding: clamp(1.1rem, 0.9rem + 0.8vw, 1.5rem);
+  border-radius: var(--radius-md);
+  background: var(--color-canvas-raised);
+  box-shadow: var(--shadow-soft);
 }
 
-.profile-form__entry {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 0.75rem;
-  padding-bottom: 1rem;
-  border-bottom: 1px dashed var(--color-line);
-}
-
-.profile-form__checks {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-}
-
-/* Une période : les deux sélecteurs de mois côte à côte dès qu'il y a la place, l'un sous l'autre sinon. */
-.period-field {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 0.75rem;
-}
-
-@container shell-main (min-width: 34rem) {
-  .period-field {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .period-field__current {
-    grid-column: 1 / -1;
-  }
-}
-
-.period-field__current {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.875rem;
-}
-
-.profile-form__legend {
+.cv-card .flash {
   margin: 0;
-  color: var(--color-ink-soft);
+}
+
+.cv-card__title {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.cv-card__lede {
+  margin: 0;
+  color: var(--color-mauve-deep);
+}
+
+.cv-contacts {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+}
+
+.cv-contacts__row {
+  display: grid;
+  grid-template-columns: 7rem minmax(0, 1fr);
+  gap: 0.75rem;
+}
+
+.cv-contacts__row dt {
+  color: var(--color-mauve-deep);
+  font-weight: 650;
+}
+
+.cv-contacts__row dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.cv-contacts__none {
+  color: var(--color-mauve-deep);
+  font-style: italic;
+}
+
+/* Le texte lu, en entier : il défile dans sa carte plutôt que d'allonger la page sans fin. */
+.cv-text {
+  max-height: 28rem;
+  margin: 0;
+  padding: 0.9rem 1rem;
+  overflow: auto;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  background: var(--color-canvas);
+  font: inherit;
   font-size: 0.875rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.cv-text:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.cv-workshop__note {
+  margin: 0;
+  color: var(--color-mauve-deep);
+  font-size: 0.875rem;
+}
+
+@media (max-width: 30rem) {
+  .cv-contacts__row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.1rem;
+  }
 }

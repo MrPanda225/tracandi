@@ -99,6 +99,13 @@
       "when": 1790255823100,
       "tag": "0013_follow_up_contact",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1790413976022,
+      "tag": "0014_cv_analysis_job",
+      "breakpoints": true
     }
   ]
 }

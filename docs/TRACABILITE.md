@@ -211,3 +211,6 @@ Commande de contrôle : `/project:check-req EF-CAN-07`.
 | EF-CVX-28, EF-CVX-31, RG-22 | T-513 | — | à faire |
 | EF-CVX-24, EF-CVX-27 à 31 (écran) | T-514 | — | à faire |
 | ENF-RGP-08 ; remplacement de EF-CVX-01, 02, 04 à 11, 14 à 20, RG-11, 12, 15, 18 | T-515 | — | à faire |
+| EF-CVX-32 (partie lecture) | T-511 | `backend/src/modules/cvWorkshop/service.test.ts` (analyse mise en file `cv_analysis` manuelle ; résultat rangé sous l'exécution ; non-PDF refusé sans rien mettre en file ; 404 hors mémoire) ; `results.test.ts` ; `tests/integration/cv-workshop.test.ts` (202 puis résultat ; journal réduit aux compteurs ; échec motivé d'un PDF protégé ; 413 au-delà de 5 Mo sans mise en file ; DOCX 400 ; corps invalide 400 ; limite de 100 ko conservée ailleurs ; 401 ; 404 autre compte ; 400 identifiant) ; `frontend/src/pages/cv/CvWorkshopPage.test.tsx` (envoi en base64, bouton désactivé pendant la lecture) | partielle |
+| ENF-RGP-06 (partie lecture) | T-511 | `results.test.ts` (effacé au bout de 30 min sans nouvelle demande ; jamais rendu à un autre compte) ; `cv-workshop.test.ts` (seule la ligne `job_runs` est écrite, sans erreur) | partielle |
+| EF-CVX-35 | T-514 | `frontend/src/pages/cv/CvWorkshopPage.test.tsx` (texte lu et coordonnées mises à part ; « non repéré » ; pages lues par OCR ; refus PDF et 5 Mo sans envoi ; raison d'un échec) | couverte |

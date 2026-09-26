@@ -88,7 +88,8 @@ export const llmTask = pgEnum('llm_task', [
   'write_follow_up',
 ]);
 export const llmOutcome = pgEnum('llm_outcome', ['success', 'error', 'timeout', 'invalid_output']);
-export const jobName = pgEnum('job_name', ['gmail_sync', 'gmail_reclassify', 'scraper', 'backup']);
+// EF-CVX-32 (v1.30): an analysis of the CV workshop runs in the queue like the other long treatments.
+export const jobName = pgEnum('job_name', ['gmail_sync', 'gmail_reclassify', 'scraper', 'backup', 'cv_analysis']);
 export const triggerType = pgEnum('trigger_type', ['schedule', 'manual']);
 // EF-EXE-01 à 03 : une exécution attend son tour (`queued`) avant de tourner, de réussir, d'échouer ou d'être
 // écartée parce qu'une autre du même travail était déjà en file.
@@ -109,6 +110,8 @@ export const runCounter = pgEnum('run_counter', [
   'sources_checked',
   'offers_new',
   'offers_relevant',
+  // EF-CVX-22: pages of an imported CV read by OCR (the CV itself is never journaled, ENF-RGP-06).
+  'cv_pages_ocr',
 ]);
 
 // ---------- Accounts (EF-AUT, ADR-09) ----------

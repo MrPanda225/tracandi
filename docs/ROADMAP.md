@@ -482,13 +482,21 @@ l'offre n'est écrite en base, sur disque ou dans les journaux (ENF-RGP-06).
   arrive avec l'analyse (T-511), qui l'enchaîne au diagnostic. L'OCR réel et sa mémoire ne sont vérifiés qu'en CI
   (`tests/integration/cv-ocr.test.ts`) : Tesseract n'est pas installé sur le poste de développement.
 
-- [ ] **T-511 Diagnostic de compatibilité** — tâche IA « diagnostic » par le routeur (procédure `add-llm-task`) :
+- [~] **T-511 Diagnostic de compatibilité** — tâche IA « diagnostic » par le routeur (procédure `add-llm-task`) :
   quatre sous-scores expliqués en français, score global calculé par RG-23 ; analyse menée dans la file
   d'exécution (nouvelle tâche `cv_analysis`, compteurs seuls) ; résultat gardé en mémoire 30 min puis effacé ;
   quota de 5 analyses par jour.
   *Exigences* : EF-CVX-23, EF-CVX-24, EF-CVX-30, EF-CVX-32, EF-CVX-33, RG-23, ENF-RGP-06, ENF-PERF-08.
   *Fini quand* : réponse de la route en moins d'une seconde avec un identifiant ; sous-score hors bornes rejeté ;
   résultat introuvable (404) après 30 min ; sixième analyse du jour refusée (429) ; aucune ligne créée hors `job_runs`.
+  *Livré, partie 1 (26/09/2026, demande du Business Owner : « active la page de l'Atelier CV, que je teste »)* :
+  l'analyse passe par la file — `POST /api/cv-workshop/analyses` (PDF en base64, seule route de l'API dont le corps
+  peut dépasser 100 ko : 7 Mo), nouvelle tâche `cv_analysis` et compteur `cv_pages_ocr` (migration 0014), réponse
+  202 avec l'identifiant ; lecture et OCR dans la file ; résultat gardé en mémoire (`createAnalysisResults`, effacé
+  au bout de 30 min même sans nouvelle demande) et rendu par `GET /api/cv-workshop/analyses/:id` (404 pour un autre
+  compte, avant la fin ou après l'effacement). La file transmet désormais son identifiant au traitement.
+  *Reste* : tâche IA de diagnostic (sous-scores, RG-23), texte de l'offre (EF-CVX-23), points faibles, quota.
+
 - [ ] **T-512 CV adapté** — tâche IA « adaptation » : CV réécrit par sections, liste des modifications (section,
   avant, après, raison), compétences de l'offre absentes du CV ; contrôle RG-21 avant toute présentation.
   *Exigences* : EF-CVX-25, EF-CVX-26, EF-CVX-27, EF-CVX-29, RG-21.
@@ -499,12 +507,18 @@ l'offre n'est écrite en base, sur disque ou dans les journaux (ENF-RGP-06).
   *Exigences* : EF-CVX-28, EF-CVX-31, RG-22.
   *Fini quand* : test de structure du .docx (aucun `w:tbl`, `w:drawing`, `w:txbxContent`, en-tête ni pied de page) ;
   titres de RG-22 dans l'ordre ; compétences cochées présentes.
-- [ ] **T-514 Écran Atelier CV** — parcours en quatre étapes : CV, offre, analyse suivie en direct, résultat
+- [~] **T-514 Écran Atelier CV** — parcours en quatre étapes : CV, offre, analyse suivie en direct, résultat
   (score et sous-scores expliqués, points faibles, compétences manquantes à cocher, modifications avant/après,
   téléchargement).
   *Exigences* : EF-CVX-24, EF-CVX-27 à EF-CVX-31 (affichage), ENF-UTI-01 à 04.
   *Fini quand* : parcours complet au clavier, 360 px et 1440 px, erreurs en français, rien de conservé au
   rechargement de la page.
+  *Livré, étape 1 (26/09/2026)* : `/atelier-cv` remplace l'écran du profil — choix du PDF (refus immédiat d'un
+  autre format ou de plus de 5 Mo), envoi, attente suivie en direct et par une vérification toutes les 2 s, puis
+  texte lu tel que l'IA le recevra et coordonnées mises à part (EF-CVX-35), nombre de pages lues par OCR, raison
+  d'un échec. L'écran du profil (`ProfileForm`, `CvPreview`, `api/profile`) est retiré de l'interface ; son API
+  part avec T-515. *Reste* : étapes offre, analyse et résultat.
+
 - [ ] **T-515 Retrait de l'ancien atelier** — code du profil de référence et du modèle Word (T-501, T-502, T-507),
   LibreOffice retiré de l'image, migration de suppression de `candidate_profiles` et `cv_versions`, politique de
   confidentialité complétée.
