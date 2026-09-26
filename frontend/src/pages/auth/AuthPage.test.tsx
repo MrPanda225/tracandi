@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { ROUTER_FUTURE } from '../../lib/router';
@@ -69,7 +69,8 @@ describe('AuthPage', () => {
     renderAt('/connexion');
     await screen.findByRole('heading', { level: 2 });
 
-    expect(document.title).toBe('Connexion — Tracandi');
+    // The page names itself in an effect, which may run just after its heading is painted.
+    await waitFor(() => expect(document.title).toBe('Connexion — Tracandi'));
     expect(document.head.querySelector<HTMLMetaElement>('meta[name="description"]')?.content).toMatch(
       /Connectez-vous à Tracandi/,
     );
