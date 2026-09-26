@@ -8,6 +8,10 @@ const BYTES_PER_BLOCK = 3;
 /** Longest base64 text a CV of CV_MAX_BYTES can take, padding included. */
 export const CV_MAX_BASE64_LENGTH = Math.ceil(CV_MAX_BYTES / BYTES_PER_BLOCK) * BASE64_CHARS_PER_BLOCK;
 
+/** Messages for the candidate: what happened, and what to do. */
+export const TOO_LARGE = 'Votre CV dépasse 5 Mo : essayez une version plus légère.';
+export const NOT_A_PDF = 'Ce fichier n’est pas un PDF. Exportez votre CV en PDF, puis réessayez.';
+
 const BASE64_PATTERN = /^[A-Za-z0-9+/]*={0,2}$/;
 // Every PDF starts with this signature, whatever the name of the file (ENF-SEC-22).
 const PDF_SIGNATURE = Buffer.from('%PDF-', 'latin1');
@@ -19,14 +23,14 @@ const PDF_SIGNATURE = Buffer.from('%PDF-', 'latin1');
  * @req EF-CVX-21, ENF-SEC-22
  */
 export const decodeCvUpload = (base64: string): Buffer => {
-  if (base64.length > CV_MAX_BASE64_LENGTH) throw new HttpError(413, 'Le CV dépasse 5 Mo.');
+  if (base64.length > CV_MAX_BASE64_LENGTH) throw new HttpError(413, TOO_LARGE);
   if (base64.length % BASE64_CHARS_PER_BLOCK !== 0 || !BASE64_PATTERN.test(base64)) {
-    throw new HttpError(400, 'Le fichier du CV est mal transmis : importez-le à nouveau.');
+    throw new HttpError(400, 'Votre CV n’est pas arrivé en entier. Réessayez.');
   }
   const bytes = Buffer.from(base64, 'base64');
-  if (bytes.length > CV_MAX_BYTES) throw new HttpError(413, 'Le CV dépasse 5 Mo.');
+  if (bytes.length > CV_MAX_BYTES) throw new HttpError(413, TOO_LARGE);
   if (!bytes.subarray(0, PDF_SIGNATURE.length).equals(PDF_SIGNATURE)) {
-    throw new HttpError(400, 'Seul un CV au format PDF est accepté.');
+    throw new HttpError(400, NOT_A_PDF);
   }
   return bytes;
 };

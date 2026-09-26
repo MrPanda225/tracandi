@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, count, desc, eq, gte, inArray } from 'drizzle-orm';
 import type { Database } from '../db/client.js';
 import { type jobName, jobRunCounters, jobRuns, type runCounter, type runOutcome, type triggerType } from '../db/schema.js';
 
@@ -77,6 +77,32 @@ export const hasPendingRun = async (db: Database, userId: number, job: JobName):
     .orderBy(desc(jobRuns.id))
     .limit(1);
   return row !== undefined;
+};
+
+/** Outcomes that use up a daily allowance: an execution that failed costs the candidate nothing (EF-CVX-33). */
+const COUNTED_OUTCOMES = [...PENDING_OUTCOMES, 'success'] as const;
+
+/**
+ * How many executions of this job the user started since `since` that are waiting, running or done well. Served by
+ * the index `ix_job_runs_user_job_started` (user, job, start).
+ * @req EF-CVX-33
+ */
+export const countRunsSince = async (
+  db: Database,
+  { userId, job, since }: { userId: number; job: JobName; since: Date },
+): Promise<number> => {
+  const [row] = await db
+    .select({ total: count() })
+    .from(jobRuns)
+    .where(
+      and(
+        eq(jobRuns.userId, userId),
+        eq(jobRuns.job, job),
+        gte(jobRuns.startedAt, since),
+        inArray(jobRuns.outcome, [...COUNTED_OUTCOMES]),
+      ),
+    );
+  return row?.total ?? 0;
 };
 
 /**

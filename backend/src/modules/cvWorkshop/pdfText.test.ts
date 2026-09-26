@@ -27,7 +27,7 @@ describe('readPdfPages', () => {
 
     await expect(readPdfPages(damaged)).rejects.toMatchObject({
       statusCode: 422,
-      message: expect.stringContaining('endommagé') as string,
+      message: expect.stringContaining('abîmé') as string,
     });
   });
 });
