@@ -183,7 +183,14 @@ const app = createApp({
       'cv',
       createProfileModule(createProfileService({ db: database.db, clock: systemClock })),
       createCvWorkshopModule(
-        createCvWorkshopService({ queue: jobQueue, ocr: createPdfOcr(), results: createAnalysisResults<CvAnalysis>() }),
+        createCvWorkshopService({
+          queue: jobQueue,
+          ocr: createPdfOcr(),
+          router: llmRouter,
+          results: createAnalysisResults<CvAnalysis>(),
+          clock: systemClock,
+          analysesPerDay: config.cvAnalysesPerDay,
+        }),
       ),
     ),
     createSettingsModule({ aiAssignments: describeAssignments(config.llm), features: config.features }),

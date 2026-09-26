@@ -12,8 +12,24 @@ export interface CvContacts {
   links: string[];
 }
 
+/** EF-CVX-23 : bornes du texte de l'offre, contrôlées aussi par l'API. */
+export const OFFER_MIN_LENGTH = 200;
+export const OFFER_MAX_LENGTH = 20_000;
+
+/** Les quatre dimensions du diagnostic (EF-CVX-24). */
+export type Dimension = 'skills' | 'experience' | 'education' | 'techStack';
+
+/** Diagnostic d'un CV face à une offre (EF-CVX-24, EF-CVX-27, EF-CVX-30, RG-23). */
+export interface Diagnosis {
+  overallScore: number;
+  dimensions: Record<Dimension, { score: number; explanation: string }>;
+  weakDimensions: Dimension[];
+  missingSkills: string[];
+}
+
 /** Résultat d'une analyse (schéma `CvAnalysis` dans /api/docs). */
 export interface CvAnalysis {
+  diagnosis: Diagnosis;
   reading: {
     /** Le texte lu, tel que l'IA le recevra : sans les coordonnées. */
     text: string;
@@ -23,9 +39,9 @@ export interface CvAnalysis {
   };
 }
 
-/** EF-CVX-32 : met l'analyse du CV en file ; rend aussitôt l'identifiant de l'exécution. */
-export const startCvAnalysis = (fileBase64: string) =>
-  request<{ runId: number }>('/cv-workshop/analyses', { method: 'POST', body: { file: fileBase64 } });
+/** EF-CVX-32 : met en file l'analyse du CV face à l'offre ; rend aussitôt l'identifiant de l'exécution. */
+export const startCvAnalysis = (fileBase64: string, offer: string) =>
+  request<{ runId: number }>('/cv-workshop/analyses', { method: 'POST', body: { file: fileBase64, offer } });
 
 /** Le résultat d'une analyse terminée ; 404 une fois effacé (30 minutes, ENF-RGP-06). */
 export const fetchCvAnalysis = (runId: number, signal?: AbortSignal) =>

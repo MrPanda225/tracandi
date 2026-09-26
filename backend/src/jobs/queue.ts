@@ -57,6 +57,8 @@ export interface JobQueue {
   stateOf: (userId: number, runId: number) => Promise<RunState | null>;
   /** EF-EXE-04: every change of state of the executions of this user, until `stop` is called. */
   follow: (userId: number, onChange: (state: RunState) => void) => () => void;
+  /** EF-CVX-33: executions of this job the user started since `since`, failures left out. */
+  countRunsSince: (userId: number, job: JobName, since: Date) => Promise<number>;
   /** EF-EXE-05: closes in failure the executions a stopped server left waiting or running. */
   closeInterrupted: () => Promise<void>;
   /** Waits for the queue to be empty; used by the tests and by the shutdown. */
@@ -241,6 +243,8 @@ export const createJobQueue = (deps: QueueDeps): JobQueue => {
     },
 
     follow: (userId, onChange) => followers.follow(userId, onChange),
+
+    countRunsSince: (userId, job, since) => repository.countRunsSince(db, { userId, job, since }),
 
     async closeInterrupted() {
       const closed = await repository.failInterruptedRuns(db, clock(), INTERRUPTED);

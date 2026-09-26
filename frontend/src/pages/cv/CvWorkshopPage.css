@@ -1,4 +1,4 @@
-/* Atelier CV (EF-CVX-21 à 34) : une colonne de cartes, comme les Réglages. */
+/* Atelier CV (EF-CVX-21 à 35) : une colonne de cartes, comme les Réglages. */
 .cv-workshop {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -86,9 +86,296 @@
   font-size: 0.875rem;
 }
 
+/* La fin du parcours : l'action suivante, puis la promesse tenue sur les données (Peak-End). */
+.cv-workshop__end {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1.25rem;
+}
+
+/* ---------- Formulaire ---------- */
+
+.cv-offer {
+  min-height: 10rem;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.cv-offer__count {
+  justify-self: end;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Avancement (EF-CVX-32) ---------- */
+
+.cv-progress {
+  display: grid;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 1rem 1.25rem;
+  border-radius: var(--radius-md);
+  background: var(--color-canvas-raised);
+  box-shadow: var(--shadow-soft);
+}
+
+.cv-progress__steps {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cv-progress__step {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  color: var(--color-mauve-deep);
+}
+
+.cv-progress__step[aria-current='step'] {
+  color: var(--color-ink);
+  font-weight: 650;
+}
+
+.cv-progress__marker {
+  display: grid;
+  place-items: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  flex: none;
+  border-radius: 50%;
+  background: var(--color-mist-soft);
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+.cv-progress__step[aria-current='step'] .cv-progress__marker {
+  background: var(--color-accent);
+  color: var(--color-canvas);
+}
+
+/* ---------- Score (EF-CVX-24, RG-23) ---------- */
+
+.cv-score {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 1.25rem;
+}
+
+.cv-score__value {
+  display: flex;
+  align-items: baseline;
+  gap: 0.15rem;
+  margin: 0;
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+}
+
+.cv-score__number {
+  color: var(--color-ink);
+  font-size: clamp(3rem, 2.4rem + 2.5vw, 4.25rem);
+  font-weight: 600;
+  line-height: 1;
+}
+
+.cv-score__scale {
+  color: var(--color-mauve-deep);
+  font-size: 1.1rem;
+}
+
+.cv-score__verdict {
+  margin: 0 0 0.2rem;
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+}
+
+/* ---------- Dimensions (EF-CVX-24, EF-CVX-30) ---------- */
+
+.cv-dimensions {
+  display: grid;
+  gap: 1.1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cv-dimension {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.cv-dimension__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.6rem;
+}
+
+.cv-dimension__label {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.cv-dimension__weak {
+  padding: 0.1rem 0.55rem;
+  border-radius: 999px;
+  background: var(--status-waiting-soft);
+  color: var(--status-waiting);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.cv-dimension__score {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+}
+
+/* Jauge native, accessible ; couleurs des statuts, lisibles sur leur piste (WCAG 1.4.11). */
+.cv-dimension__meter {
+  width: 100%;
+  height: 0.6rem;
+  appearance: none;
+  border: none;
+  border-radius: 999px;
+  background: var(--color-mist-soft);
+}
+
+.cv-dimension__meter::-webkit-meter-bar {
+  height: 0.6rem;
+  border: none;
+  border-radius: 999px;
+  background: var(--color-mist-soft);
+}
+
+.cv-dimension__meter::-webkit-meter-optimum-value {
+  border-radius: 999px;
+  background: var(--status-interview);
+}
+
+.cv-dimension__meter::-webkit-meter-suboptimum-value {
+  border-radius: 999px;
+  background: var(--status-waiting);
+}
+
+.cv-dimension__meter::-webkit-meter-even-less-good-value {
+  border-radius: 999px;
+  background: var(--status-rejected);
+}
+
+.cv-dimension__meter:-moz-meter-optimum::-moz-meter-bar {
+  border-radius: 999px;
+  background: var(--status-interview);
+}
+
+.cv-dimension__meter:-moz-meter-sub-optimum::-moz-meter-bar {
+  border-radius: 999px;
+  background: var(--status-waiting);
+}
+
+.cv-dimension__meter:-moz-meter-sub-sub-optimum::-moz-meter-bar {
+  border-radius: 999px;
+  background: var(--status-rejected);
+}
+
+.cv-dimension__explanation {
+  margin: 0;
+  line-height: 1.55;
+}
+
+/* ---------- Compétences manquantes (EF-CVX-27) ---------- */
+
+.cv-skills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cv-skills__item {
+  padding: 0.3rem 0.75rem;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  background: var(--color-canvas);
+  font-size: 0.875rem;
+}
+
+/* ---------- Ce que l'IA a reçu (EF-CVX-35) ---------- */
+
+.cv-received__summary {
+  position: relative;
+  display: grid;
+  gap: 0.1rem;
+  min-height: 44px;
+  padding-left: 1.6rem;
+  cursor: pointer;
+  list-style: none;
+}
+
+.cv-received__summary::-webkit-details-marker {
+  display: none;
+}
+
+/* Chevron de divulgation : il annonce que le bloc s'ouvre, et pivote une fois ouvert (WCAG 3.2.4). */
+.cv-received__summary::before {
+  content: '';
+  position: absolute;
+  top: 0.45rem;
+  left: 0.2rem;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+
+.cv-received[open] > .cv-received__summary::before {
+  transform: rotate(45deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cv-received__summary::before {
+    transition: none;
+  }
+}
+
+.cv-received__label {
+  font-weight: 650;
+}
+
+.cv-received__hint {
+  color: var(--color-mauve-deep);
+  font-size: 0.875rem;
+}
+
+.cv-received__summary:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.cv-received__title {
+  margin: 0.5rem 0 0;
+  font-family: var(--font-body);
+  font-size: 0.9375rem;
+  font-weight: 700;
+}
+
 @media (max-width: 30rem) {
   .cv-contacts__row {
     grid-template-columns: minmax(0, 1fr);
     gap: 0.1rem;
+  }
+
+  .cv-score {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.5rem;
   }
 }

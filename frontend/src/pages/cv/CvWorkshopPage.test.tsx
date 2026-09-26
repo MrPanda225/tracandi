@@ -10,6 +10,8 @@ const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
 const RUN_ID = 5;
+const OFFER = 'Data Analyst en CDI à Lyon. Vous maîtrisez SQL, Python, dbt et Airflow. '.repeat(4);
+const explained = (score: number, explanation: string) => ({ score, explanation });
 const ANALYSIS = {
   reading: {
     text: 'Data Analyst - Atelier Nova\nTableaux de bord Power BI pour 12 equipes commerciales.',
@@ -22,9 +24,20 @@ const ANALYSIS = {
     },
     ocrPageCount: 0,
   },
+  diagnosis: {
+    overallScore: 70,
+    dimensions: {
+      skills: explained(80, 'Vous maîtrisez SQL et Python, deux piliers de l’offre.'),
+      experience: explained(60, 'Deux ans de tableaux de bord chez Atelier Nova, c’est un vrai atout.'),
+      education: explained(90, 'Votre master correspond exactement au niveau demandé.'),
+      techStack: explained(40, 'Airflow et dbt n’apparaissent pas dans votre CV.'),
+    },
+    weakDimensions: ['techStack'],
+    missingSkills: ['dbt', 'Airflow'],
+  },
 };
 
-const mockApi = (analysis = ANALYSIS) => {
+const mockApi = (analysis: unknown = ANALYSIS) => {
   const fetchMock = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>((url) => {
     if (url === '/api/cv-workshop/analyses') return Promise.resolve(json(202, { runId: RUN_ID }));
     if (url === `/api/cv-workshop/analyses/${String(RUN_ID)}`) return Promise.resolve(json(200, analysis));
@@ -41,101 +54,167 @@ const renderPage = () =>
     </MemoryRouter>,
   );
 
-const pdfFile = (content = '%PDF-1.4 cv fictif', name = 'cv.pdf') => new File([content], name, { type: 'application/pdf' });
+const pdfFile = (content = '%PDF-1.4 cv fictif') => new File([content], 'cv.pdf', { type: 'application/pdf' });
 
-/** Publishes the end of the run on the stream of executions, as the API does (EF-EXE-04). */
-const endRun = (outcome: 'success' | 'failure', error: string | null = null) =>
+/** Publishes a state of the run on the stream of executions, as the API does (EF-EXE-04). */
+const publish = (outcome: 'running' | 'success' | 'failure', extra: object = {}) =>
   act(() => {
     for (const stream of openStreams) {
-      stream.emit('run', { id: RUN_ID, job: 'cv_analysis', trigger: 'manual', outcome, counters: {}, error });
+      stream.emit('run', { id: RUN_ID, job: 'cv_analysis', trigger: 'manual', outcome, counters: {}, error: null, ...extra });
     }
   });
 
-const chooseAndRead = async (file: File) => {
+const fillForm = async ({ file = pdfFile(), offer = OFFER } = {}) => {
   const user = userEvent.setup({ applyAccept: false });
-  await user.upload(screen.getByLabelText('CV au format PDF, 5 Mo au plus'), file);
-  await user.click(screen.getByRole('button', { name: 'Lire mon CV' }));
+  await user.upload(screen.getByLabelText('1. Votre CV'), file);
+  if (offer) {
+    await user.click(screen.getByLabelText('2. L’offre qui vous intéresse'));
+    await user.paste(offer);
+  }
+  return user;
+};
+
+/** Fills the form, sends it, and waits for the API to have received it. */
+const analyse = async (fetchMock: ReturnType<typeof mockApi>) => {
+  const user = await fillForm();
+  await user.click(screen.getByRole('button', { name: 'Analyser' }));
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/cv-workshop/analyses', expect.anything()));
+  return user;
 };
 
 afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe('CvWorkshopPage', () => {
-  it('[EF-CVX-21] refuses a file that is not a PDF, without sending it', async () => {
+describe('CvWorkshopPage — the form', () => {
+  it('[EF-CVX-21] says under the field that a file is not a PDF, and sends nothing', async () => {
     const fetchMock = mockApi();
     renderPage();
-    const user = userEvent.setup({ applyAccept: false });
 
-    await user.upload(
-      screen.getByLabelText('CV au format PDF, 5 Mo au plus'),
-      new File(['docx'], 'cv.docx', { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }),
+    await fillForm({ file: new File(['docx'], 'cv.docx', { type: 'application/msword' }), offer: '' });
+
+    expect(screen.getByLabelText('1. Votre CV')).toHaveAccessibleDescription(/Ce fichier n’est pas un PDF/);
+    expect(screen.getByRole('button', { name: 'Analyser' })).toBeDisabled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('[EF-CVX-21] says a CV of more than 5 MB is too heavy, and sends nothing', async () => {
+    const fetchMock = mockApi();
+    renderPage();
+
+    await fillForm({ file: pdfFile('x'.repeat(5 * 1024 * 1024 + 1)), offer: '' });
+
+    expect(screen.getByText('Votre CV dépasse 5 Mo : essayez une version plus légère.')).toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('[EF-CVX-23] asks for the whole offer when it is too short, under its field', async () => {
+    const fetchMock = mockApi();
+    renderPage();
+    const user = await fillForm({ offer: 'Data Analyst, SQL.' });
+
+    await user.click(screen.getByRole('button', { name: 'Analyser' }));
+
+    expect(screen.getByLabelText('2. L’offre qui vous intéresse')).toHaveAccessibleDescription(
+      /L’offre semble incomplète : collez le texte entier de l’annonce\./,
     );
-
-    expect(screen.getByRole('alert')).toHaveTextContent('Seul un CV au format PDF est accepté.');
-    expect(screen.getByRole('button', { name: 'Lire mon CV' })).toBeDisabled();
     expect(fetchMock).not.toHaveBeenCalled();
   });
+});
 
-  it('[EF-CVX-21] refuses a CV of more than 5 MB, without sending it', async () => {
-    const fetchMock = mockApi();
-    renderPage();
-    const user = userEvent.setup({ applyAccept: false });
-
-    await user.upload(screen.getByLabelText('CV au format PDF, 5 Mo au plus'), pdfFile('x'.repeat(5 * 1024 * 1024 + 1)));
-
-    expect(screen.getByRole('alert')).toHaveTextContent('Le CV dépasse 5 Mo.');
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
-  it('[EF-CVX-32] sends the PDF in base64 and waits for the queue, its button disabled', async () => {
+describe('CvWorkshopPage — the analysis', () => {
+  it('[EF-CVX-32] sends the PDF in base64 with the offer, then tells where the analysis stands', async () => {
     const fetchMock = mockApi();
     renderPage();
 
-    await chooseAndRead(pdfFile());
+    await analyse(fetchMock);
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/cv-workshop/analyses', expect.anything()));
     const init = fetchMock.mock.calls.find(([url]) => url === '/api/cv-workshop/analyses')?.[1];
-    expect(JSON.parse(String(init?.body))).toEqual({ file: btoa('%PDF-1.4 cv fictif') });
-    expect(screen.getByRole('button', { name: 'Lecture en cours…' })).toBeDisabled();
+    expect(JSON.parse(String(init?.body))).toEqual({ file: btoa('%PDF-1.4 cv fictif'), offer: OFFER.trim() });
+    expect(screen.getByRole('button', { name: 'Analyse en cours…' })).toBeDisabled();
+    expect(screen.getByRole('status')).toHaveTextContent('On lit votre CV…');
+
+    await publish('running', { counters: { cv_steps_done: 1 } });
+
+    expect(screen.getByRole('status')).toHaveTextContent('On lit votre CV : c’est fait.');
+    expect(screen.getByRole('status')).toHaveTextContent('On le compare à l’offre…');
   });
 
-  it('[ENF-RGP-07] shows the text the AI will receive and the contact details kept aside', async () => {
+  it('[EF-CVX-34] shows why the analysis failed, and lets the candidate try again', async () => {
     const fetchMock = mockApi();
     renderPage();
-    await chooseAndRead(pdfFile());
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/cv-workshop/analyses', expect.anything()));
+    await analyse(fetchMock);
 
-    await endRun('success');
-
-    const text = await screen.findByRole('region', { name: 'Texte lu, tel que l’IA le recevra' });
-    expect(text).toHaveTextContent('Data Analyst - Atelier Nova');
-    const contacts = screen.getByRole('region', { name: 'Coordonnées mises à part' });
-    expect(within(contacts).getByText('camille.durand@example.com')).toBeInTheDocument();
-    expect(within(contacts).getByText('06 12 34 56 78')).toBeInTheDocument();
-    expect(within(contacts).getAllByText('non repéré')).toHaveLength(2);
-  });
-
-  it('[EF-CVX-22] says how many pages were read by OCR, so that the candidate checks them', async () => {
-    const fetchMock = mockApi({ reading: { ...ANALYSIS.reading, ocrPageCount: 2 } });
-    renderPage();
-    await chooseAndRead(pdfFile());
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/cv-workshop/analyses', expect.anything()));
-
-    await endRun('success');
-
-    expect(await screen.findByText(/2 pages lues par reconnaissance de caractères/)).toBeInTheDocument();
-  });
-
-  it('[EF-CVX-34] shows the reason a CV could not be read, and lets the candidate try again', async () => {
-    const fetchMock = mockApi();
-    renderPage();
-    await chooseAndRead(pdfFile());
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/cv-workshop/analyses', expect.anything()));
-
-    await endRun('failure', 'Ce PDF est protégé par un mot de passe : exportez-le sans protection.');
+    await publish('failure', { error: 'Ce PDF est protégé par un mot de passe.' });
 
     expect(await screen.findByRole('alert')).toHaveTextContent('protégé par un mot de passe');
-    expect(screen.getByRole('button', { name: 'Lire mon CV' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Analyser' })).toBeEnabled();
+  });
+});
+
+describe('CvWorkshopPage — the result', () => {
+  const showResult = async (analysis: unknown = ANALYSIS) => {
+    const fetchMock = mockApi(analysis);
+    renderPage();
+    const user = await analyse(fetchMock);
+    await publish('success');
+    await screen.findByRole('region', { name: 'Votre score' });
+    return user;
+  };
+
+  it('[EF-CVX-24] [RG-23] shows the overall score with a verdict in words', async () => {
+    await showResult();
+
+    const score = screen.getByRole('region', { name: 'Votre score' });
+    expect(score).toHaveTextContent('70/100');
+    expect(score).toHaveTextContent('Correspondance partielle');
+  });
+
+  it('[EF-CVX-24] [EF-CVX-30] details the four dimensions, their reasons, and names the weak one', async () => {
+    await showResult();
+
+    const detail = screen.getByRole('region', { name: 'Dans le détail' });
+    expect(within(detail).getAllByRole('heading', { level: 3 }).map((heading) => heading.textContent)).toEqual([
+      'Compétences',
+      'Expérience',
+      'Outils et technologies',
+      'Formation',
+    ]);
+    expect(within(detail).getByRole('meter', { name: 'Outils et technologies : 40 sur 100' })).toBeInTheDocument();
+    expect(within(detail).getByText('Airflow et dbt n’apparaissent pas dans votre CV.')).toBeInTheDocument();
+    expect(within(detail).getAllByText('À renforcer')).toHaveLength(1);
+  });
+
+  it('[EF-CVX-27] lists what the offer asks for and the CV does not say', async () => {
+    await showResult();
+
+    const missing = screen.getByRole('region', { name: 'Ce que l’offre demande et que votre CV ne dit pas' });
+    expect(within(missing).getAllByRole('listitem').map((item) => item.textContent)).toEqual(['dbt', 'Airflow']);
+  });
+
+  it('[EF-CVX-27] says so warmly when nothing important is missing', async () => {
+    await showResult({ ...ANALYSIS, diagnosis: { ...ANALYSIS.diagnosis, missingSkills: [] } });
+
+    expect(screen.getByText('Rien d’important ne manque. Bravo !')).toBeInTheDocument();
+  });
+
+  it('[EF-CVX-35] [ENF-RGP-07] keeps folded what the AI received, and the contact details kept aside', async () => {
+    const user = await showResult();
+
+    await user.click(screen.getByText('Ce que l’IA a reçu'));
+
+    expect(screen.getByText(/Tableaux de bord Power BI/)).toBeVisible();
+    expect(screen.getByText('camille.durand@example.com')).toBeVisible();
+    expect(screen.getAllByText('non repéré')).toHaveLength(2);
+  });
+
+  it('[ENF-RGP-06] offers another offer, keeping the CV, and recalls that nothing is kept', async () => {
+    const user = await showResult();
+    expect(screen.getByText('Rien n’est gardé : ce résultat s’efface dans 30 minutes.')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Analyser une autre offre' }));
+
+    expect(screen.getByText('Votre CV : cv.pdf. Choisissez-en un autre si besoin.')).toBeInTheDocument();
+    expect(screen.getByLabelText('2. L’offre qui vous intéresse')).toHaveValue('');
   });
 });

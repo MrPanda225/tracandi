@@ -22,6 +22,8 @@ export const TASK_ROUTES: Readonly<Record<LlmTaskName, readonly ProviderName[]>>
   write_motivation: WRITING_ROUTE,
   // EF-CAN-17 (RG-13 v1.22): a short text in French for the candidate to send.
   write_follow_up: WRITING_ROUTE,
+  // EF-CVX-24 (RG-13): an analysis with bounded scores, like the scoring of the offers.
+  diagnose_cv: VOLUME_ROUTE,
 };
 
 /** EF-IA-02: a provider silent for longer than this is abandoned for the next one. */

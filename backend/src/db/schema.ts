@@ -86,6 +86,8 @@ export const llmTask = pgEnum('llm_task', [
   'write_motivation',
   // EF-CAN-17
   'write_follow_up',
+  // EF-CVX-24 (v1.30): diagnostic of an imported CV against an offer.
+  'diagnose_cv',
 ]);
 export const llmOutcome = pgEnum('llm_outcome', ['success', 'error', 'timeout', 'invalid_output']);
 // EF-CVX-32 (v1.30): an analysis of the CV workshop runs in the queue like the other long treatments.
@@ -112,6 +114,8 @@ export const runCounter = pgEnum('run_counter', [
   'offers_relevant',
   // EF-CVX-22: pages of an imported CV read by OCR (the CV itself is never journaled, ENF-RGP-06).
   'cv_pages_ocr',
+  // EF-CVX-32: steps of an analysis done so far (1 read, 2 diagnosed), published as it goes.
+  'cv_steps_done',
 ]);
 
 // ---------- Accounts (EF-AUT, ADR-09) ----------

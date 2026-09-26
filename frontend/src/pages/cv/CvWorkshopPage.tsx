@@ -1,160 +1,197 @@
 import { type FormEvent, useId, useState } from 'react';
-import { CV_MAX_BYTES, type CvAnalysis, type CvContacts } from '../../api/cvWorkshop';
+import { CV_MAX_BYTES, OFFER_MAX_LENGTH, OFFER_MIN_LENGTH, type CvAnalysis } from '../../api/cvWorkshop';
 import { Flash } from '../../components/Flash';
 import { PageHeader } from '../../components/PageHeader';
-import { useCvAnalysis } from './useCvAnalysis';
+import { DiagnosisResult } from './DiagnosisResult';
+import { type AnalysisStep, useCvAnalysis } from './useCvAnalysis';
 import './CvWorkshopPage.css';
 
 const PDF_TYPE = 'application/pdf';
+const numberFormat = new Intl.NumberFormat('fr-FR');
 
 /** EF-CVX-21: checked here to answer at once; the API checks the content again (ENF-SEC-22). */
-const describeRefusal = (file: File): string | null => {
+const describeFileRefusal = (file: File): string | null => {
   const isPdf = file.type === PDF_TYPE || file.name.toLowerCase().endsWith('.pdf');
-  if (!isPdf) return 'Seul un CV au format PDF est accepté.';
-  if (file.size > CV_MAX_BYTES) return 'Le CV dépasse 5 Mo.';
+  if (!isPdf) return 'Ce fichier n’est pas un PDF. Exportez votre CV en PDF, puis réessayez.';
+  if (file.size > CV_MAX_BYTES) return 'Votre CV dépasse 5 Mo : essayez une version plus légère.';
   return null;
 };
 
-const CONTACT_ROWS: { label: string; valuesOf: (contacts: CvContacts) => string[] }[] = [
-  { label: 'Nom', valuesOf: (contacts) => (contacts.name ? [contacts.name] : []) },
-  { label: 'E-mail', valuesOf: (contacts) => contacts.emails },
-  { label: 'Téléphone', valuesOf: (contacts) => contacts.phones },
-  { label: 'Adresse', valuesOf: (contacts) => (contacts.address ? [contacts.address] : []) },
-  { label: 'Liens', valuesOf: (contacts) => contacts.links },
-];
+/** EF-CVX-23: same bounds and words as the API. */
+const describeOfferRefusal = (offer: string): string | null => {
+  const length = offer.trim().length;
+  if (length < OFFER_MIN_LENGTH) return 'L’offre semble incomplète : collez le texte entier de l’annonce.';
+  if (length > OFFER_MAX_LENGTH) return 'L’offre dépasse 20 000 caractères : gardez l’essentiel de l’annonce.';
+  return null;
+};
 
-/** ENF-RGP-07: what is kept aside, so that the candidate sees what the AI will never receive. */
-function ContactsCard({ contacts }: { contacts: CvContacts }) {
-  const titleId = useId();
+const STEPS: readonly string[] = ['On lit votre CV…', 'On le compare à l’offre…'];
+
+/** EF-CVX-32: where the analysis stands, in words (ENF-UTI-03). */
+function Progress({ step }: { step: AnalysisStep }) {
   return (
-    <section className="cv-card" aria-labelledby={titleId}>
-      <h2 id={titleId} className="cv-card__title">
-        Coordonnées mises à part
-      </h2>
-      <p className="cv-card__lede">Jamais envoyées à l’IA : elles reviendront telles quelles dans votre CV adapté.</p>
-      <dl className="cv-contacts">
-        {CONTACT_ROWS.map(({ label, valuesOf }) => {
-          const values = valuesOf(contacts);
-          return (
-            <div key={label} className="cv-contacts__row">
-              <dt>{label}</dt>
-              <dd>{values.length > 0 ? values.join(', ') : <span className="cv-contacts__none">non repéré</span>}</dd>
-            </div>
-          );
-        })}
-      </dl>
-    </section>
+    <div className="cv-progress" role="status" aria-live="polite">
+      <ol className="cv-progress__steps">
+        {STEPS.map((label, index) => (
+          <li key={label} className="cv-progress__step" aria-current={index === step ? 'step' : undefined}>
+            <span className="cv-progress__marker" aria-hidden="true">
+              {index < step ? '✓' : String(index + 1)}
+            </span>
+            {index < step ? <span>{label.replace('…', '')} : c’est fait.</span> : <span>{label}</span>}
+          </li>
+        ))}
+      </ol>
+      <p className="form-field__hint">Comptez moins d’une minute, un peu plus pour un scan.</p>
+    </div>
   );
 }
 
-/** The text read, exactly as the AI will receive it (ENF-RGP-07). */
-function ReadingResult({ analysis, onRestart }: { analysis: CvAnalysis; onRestart: () => void }) {
-  const titleId = useId();
-  const { text, contacts, ocrPageCount } = analysis.reading;
+/** The form: the CV, then the offer, in the order the candidate thinks of them. */
+function AnalysisForm({
+  file,
+  offer,
+  isRunning,
+  failure,
+  onFileChange,
+  onOfferChange,
+  onSubmit,
+}: {
+  file: File | null;
+  offer: string;
+  isRunning: boolean;
+  failure: string | null;
+  onFileChange: (file: File | null) => void;
+  onOfferChange: (offer: string) => void;
+  onSubmit: () => void;
+}) {
+  const fileId = useId();
+  const fileHintId = useId();
+  const fileErrorId = useId();
+  const offerId = useId();
+  const offerHintId = useId();
+  const offerErrorId = useId();
+  const [hasTriedOffer, setHasTriedOffer] = useState(false);
+  // The field shows the file it was given; a CV kept from the previous analysis is named under an empty field.
+  const [hasPickedHere, setHasPickedHere] = useState(false);
+  const fileRefusal = file ? describeFileRefusal(file) : null;
+  const offerRefusal = hasTriedOffer ? describeOfferRefusal(offer) : null;
+
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setHasTriedOffer(true);
+    if (!file || fileRefusal || describeOfferRefusal(offer)) return;
+    onSubmit();
+  };
+
   return (
-    <>
-      <Flash tone="success">
-        Votre CV est lu.
-        {ocrPageCount > 0 &&
-          ` ${String(ocrPageCount)} page${ocrPageCount > 1 ? 's' : ''} lue${ocrPageCount > 1 ? 's' : ''} par ` +
-            'reconnaissance de caractères : relisez le texte ci-dessous.'}
-      </Flash>
-      <ContactsCard contacts={contacts} />
-      <section className="cv-card" aria-labelledby={titleId}>
-        <h2 id={titleId} className="cv-card__title">
-          Texte lu, tel que l’IA le recevra
-        </h2>
-        <p className="cv-card__lede">
-          Si une coordonnée apparaît encore ici, elle n’a pas été repérée : signalez-le avant d’aller plus loin.
+    <form className="cv-card" onSubmit={handleSubmit} noValidate aria-label="Votre CV face à une offre">
+      <div className="form-field">
+        <label htmlFor={fileId} className="form-field__label">
+          1. Votre CV
+        </label>
+        <p id={fileHintId} className="form-field__hint">
+          En PDF, 5 Mo au plus. Un scan marche aussi, c’est juste un peu plus long.
         </p>
-        <pre className="cv-text" tabIndex={0}>
-          {text}
-        </pre>
-      </section>
-      <p className="cv-workshop__note">
-        Rien n’est conservé : ce résultat est effacé 30 minutes après la lecture. L’analyse d’une offre et le CV adapté
-        arrivent aux prochaines étapes.
-      </p>
-      <button type="button" className="btn btn--quiet" onClick={onRestart}>
-        Lire un autre CV
-      </button>
-    </>
+        <input
+          id={fileId}
+          className="control"
+          type="file"
+          accept={`${PDF_TYPE},.pdf`}
+          aria-describedby={fileRefusal ? `${fileHintId} ${fileErrorId}` : fileHintId}
+          aria-invalid={fileRefusal !== null}
+          disabled={isRunning}
+          onChange={(event) => {
+            setHasPickedHere(true);
+            onFileChange(event.target.files?.[0] ?? null);
+          }}
+        />
+        {file && !fileRefusal && !hasPickedHere && (
+          <p className="form-field__hint">Votre CV : {file.name}. Choisissez-en un autre si besoin.</p>
+        )}
+        {fileRefusal && (
+          <p id={fileErrorId} className="form-field__error">
+            {fileRefusal}
+          </p>
+        )}
+      </div>
+
+      <div className="form-field">
+        <label htmlFor={offerId} className="form-field__label">
+          2. L’offre qui vous intéresse
+        </label>
+        <p id={offerHintId} className="form-field__hint">
+          Collez le texte complet de l’annonce : missions, profil recherché, outils.
+        </p>
+        <textarea
+          id={offerId}
+          className="control cv-offer"
+          rows={8}
+          value={offer}
+          aria-describedby={offerRefusal ? `${offerHintId} ${offerErrorId}` : offerHintId}
+          aria-invalid={offerRefusal !== null}
+          disabled={isRunning}
+          onChange={(event) => onOfferChange(event.target.value)}
+          onBlur={() => offer.trim() !== '' && setHasTriedOffer(true)}
+        />
+        <p className="form-field__hint cv-offer__count">
+          {numberFormat.format(offer.trim().length)} / {numberFormat.format(OFFER_MAX_LENGTH)} caractères
+        </p>
+        {offerRefusal && (
+          <p id={offerErrorId} className="form-field__error">
+            {offerRefusal}
+          </p>
+        )}
+      </div>
+
+      {failure && <Flash>{failure}</Flash>}
+      <div>
+        <button type="submit" className="btn" disabled={!file || fileRefusal !== null || isRunning}>
+          {isRunning ? 'Analyse en cours…' : 'Analyser'}
+        </button>
+      </div>
+    </form>
   );
 }
 
 /**
- * Atelier CV, first step (EF-CVX-21, EF-CVX-22, EF-CVX-32): the candidate imports a PDF CV, the API reads it in the
- * queue — scanned pages by OCR on the server — and the screen shows the text the AI will receive and the contact
- * details kept aside. Nothing is stored (ENF-RGP-06).
+ * Atelier CV (EF-CVX-21 to 35): the candidate gives a PDF CV and the text of an offer; the API reads the CV in the
+ * queue — scanned pages by OCR on the server — and diagnoses it against the offer. The result shows the overall
+ * score, the four sub-scores explained, what to strengthen, and what the AI received. Nothing is stored (ENF-RGP-06).
  */
 export function CvWorkshopPage() {
-  const inputId = useId();
-  const hintId = useId();
   const [file, setFile] = useState<File | null>(null);
-  const [refusal, setRefusal] = useState<string | null>(null);
+  const [offer, setOffer] = useState('');
   const { state, analyse, reset } = useCvAnalysis();
-  const isReading = state.status === 'reading';
 
-  const handleChoose = (chosen: File | null) => {
-    setFile(chosen);
-    setRefusal(chosen ? describeRefusal(chosen) : null);
-  };
-
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!file || refusal) return;
-    void analyse(file);
-  };
-
-  const handleRestart = () => {
-    setFile(null);
-    setRefusal(null);
+  const handleAnotherOffer = () => {
+    setOffer('');
     reset();
   };
 
+  const analysis: CvAnalysis | null = state.status === 'done' ? state.analysis : null;
   return (
     <>
       <PageHeader title="Atelier CV">
-        <p>Importez votre CV en PDF : Tracandi le lit, puis l’adaptera à une offre. Rien n’est conservé.</p>
+        <p>Déposez votre CV, collez une offre : on vous dit ce qui colle et ce qui manque.</p>
       </PageHeader>
       <div className="cv-workshop">
-        {state.status === 'done' ? (
-          <ReadingResult analysis={state.analysis} onRestart={handleRestart} />
+        {analysis ? (
+          <DiagnosisResult analysis={analysis} onAnotherOffer={handleAnotherOffer} />
         ) : (
-          <form className="cv-card" onSubmit={handleSubmit} noValidate aria-label="Votre CV">
-            <h2 className="cv-card__title">1. Votre CV</h2>
-            <div className="form-field">
-              <label htmlFor={inputId} className="form-field__label">
-                CV au format PDF, 5 Mo au plus
-              </label>
-              <input
-                id={inputId}
-                className="control"
-                type="file"
-                accept={`${PDF_TYPE},.pdf`}
-                aria-describedby={hintId}
-                aria-invalid={refusal !== null}
-                disabled={isReading}
-                onChange={(event) => handleChoose(event.target.files?.[0] ?? null)}
-              />
-              <p id={hintId} className="form-field__hint">
-                Un CV scanné est lu par reconnaissance de caractères, sur notre serveur : comptez jusqu’à une minute
-                par page.
-              </p>
-            </div>
-            {refusal && <Flash>{refusal}</Flash>}
-            {state.status === 'failed' && <Flash>{state.message}</Flash>}
-            <div>
-              <button type="submit" className="btn" disabled={!file || refusal !== null || isReading}>
-                {isReading ? 'Lecture en cours…' : 'Lire mon CV'}
-              </button>
-            </div>
-            {isReading && (
-              <p className="form-field__hint" role="status" aria-live="polite">
-                Lecture de votre CV dans la file d’attente…
-              </p>
-            )}
-          </form>
+          <>
+            <AnalysisForm
+              file={file}
+              offer={offer}
+              isRunning={state.status === 'running'}
+              failure={state.status === 'failed' ? state.message : null}
+              onFileChange={setFile}
+              onOfferChange={setOffer}
+              onSubmit={() => {
+                if (file) void analyse(file, offer.trim());
+              }}
+            />
+            {state.status === 'running' && <Progress step={state.step} />}
+          </>
         )}
       </div>
     </>

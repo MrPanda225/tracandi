@@ -1,0 +1,19 @@
+{
+  "skills": {
+    "score": 80,
+    "explanation": "Vous maîtrisez SQL et Python, deux piliers de l’offre. Il manque dbt, que l’équipe utilise au quotidien."
+  },
+  "experience": {
+    "score": 60,
+    "explanation": "Deux ans de tableaux de bord chez Atelier Nova, c’est un vrai atout. L’offre attend en plus un travail avec les équipes métier."
+  },
+  "education": {
+    "score": 90,
+    "explanation": "Votre master en informatique correspond exactement au niveau demandé."
+  },
+  "techStack": {
+    "score": 40,
+    "explanation": "Power BI colle bien. En revanche, Airflow et dbt n’apparaissent pas dans votre CV."
+  },
+  "missingSkills": ["dbt", "Airflow", "Power BI"]
+}

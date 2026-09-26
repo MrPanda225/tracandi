@@ -51,7 +51,7 @@ describe('readCv', () => {
   it('[EF-CVX-34] refuses a CV in which even OCR finds no text', async () => {
     await expect(readCv(buildScannedPdf([blankImage()]), { ocr: fakeOcr(() => '  \n ') })).rejects.toMatchObject({
       statusCode: 422,
-      message: expect.stringContaining('Aucun texte') as string,
+      message: expect.stringContaining('aucun texte') as string,
     });
   });
 });

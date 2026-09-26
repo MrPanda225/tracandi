@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildTextPdf, FICTITIOUS_CV_LINES } from '../../../tests/fixtures/cv/pdf.js';
-import { CV_MAX_BYTES, decodeCvUpload } from './upload.js';
+import { CV_MAX_BYTES, decodeCvUpload, NOT_A_PDF, TOO_LARGE } from './upload.js';
 
 const base64Of = (bytes: Buffer): string => bytes.toString('base64');
 /** A PDF padded to an exact size: readers ignore what follows the end of the file. */
@@ -18,7 +18,7 @@ describe('decodeCvUpload', () => {
 
   it('[EF-CVX-21] [ENF-SEC-22] refuses a file of 5 MB and one byte, before reading it', () => {
     expect(() => decodeCvUpload(base64Of(pdfOfSize(CV_MAX_BYTES + 1)))).toThrow(
-      expect.objectContaining({ statusCode: 413, message: 'Le CV dépasse 5 Mo.' }) as Error,
+      expect.objectContaining({ statusCode: 413, message: TOO_LARGE }) as Error,
     );
   });
 
@@ -26,7 +26,7 @@ describe('decodeCvUpload', () => {
     const docx = Buffer.concat([Buffer.from('PK\u0003\u0004', 'latin1'), Buffer.alloc(200, 0)]);
 
     expect(() => decodeCvUpload(base64Of(docx))).toThrow(
-      expect.objectContaining({ statusCode: 400, message: 'Seul un CV au format PDF est accepté.' }) as Error,
+      expect.objectContaining({ statusCode: 400, message: NOT_A_PDF }) as Error,
     );
   });
 

@@ -198,7 +198,14 @@ export const createTestContext = (
         'cv',
         createProfileModule(createProfileService({ db: database.db, clock: clock.now })),
         createCvWorkshopModule(
-          createCvWorkshopService({ queue, ocr: createPdfOcr(), results: createAnalysisResults<CvAnalysis>() }),
+          createCvWorkshopService({
+            queue,
+            ocr: createPdfOcr(),
+            router: llmRouter,
+            results: createAnalysisResults<CvAnalysis>(),
+            clock: clock.now,
+            analysesPerDay: 5,
+          }),
         ),
       ),
       createSettingsModule({ aiAssignments: describeAssignments(aiProviders), features }),

@@ -1,4 +1,4 @@
-import { render, screen, waitForElementToBeRemoved, within } from '@testing-library/react';
+import { render, screen, waitFor, waitForElementToBeRemoved, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from '../../App';
@@ -122,7 +122,8 @@ describe('LandingPage', () => {
     renderAt('/');
     await screen.findByRole('heading', { level: 1 });
 
-    expect(document.title).toBe('Tracandi — suivi de candidatures depuis Gmail');
+    // The page names itself in an effect, which may run just after its heading is painted.
+    await waitFor(() => expect(document.title).toBe('Tracandi — suivi de candidatures depuis Gmail'));
     expect(descriptionOf()).toMatch(/^Tracandi lit vos e-mails de candidature.{60,}/);
   });
 });

@@ -5,17 +5,17 @@ export type UnreadableReason = 'locked' | 'damaged' | 'noText' | 'tooManyScanned
 
 // Written for the candidate: what happened, and what to do about it.
 const MESSAGES: Readonly<Record<UnreadableReason, string>> = {
-  locked: 'Ce PDF est protégé par un mot de passe : exportez-le sans protection, puis importez-le à nouveau.',
-  damaged: 'Ce fichier PDF est endommagé et ne peut pas être lu. Exportez à nouveau votre CV en PDF.',
+  locked: 'Ce PDF est protégé par un mot de passe. Enregistrez-le sans protection, puis réessayez.',
+  damaged: 'Ce PDF semble abîmé. Exportez de nouveau votre CV en PDF, puis réessayez.',
   noText:
-    'Aucun texte n’a pu être lu dans ce CV, même par reconnaissance de caractères. Vérifiez la netteté du scan, ' +
-    'ou importez un PDF exporté depuis votre traitement de texte.',
+    'On n’a trouvé aucun texte dans ce CV, même en lisant l’image. Essayez un scan plus net, ou le PDF exporté ' +
+    'depuis votre traitement de texte.',
   tooManyScannedPages:
-    'Ce CV scanné compte plus de 3 pages sans texte : la reconnaissance de caractères est limitée à 3 pages.',
-  ocrTooSlow:
-    'La lecture de votre CV scanné a pris trop de temps. Réessayez, ou importez un PDF qui contient du texte.',
-  ocrFailed: 'La lecture de votre CV scanné a échoué. Réessayez, ou importez un PDF qui contient du texte.',
-};
+    'Ce scan compte plus de 3 pages sans texte, et on en lit 3 au maximum. Essayez plutôt le PDF exporté depuis ' +
+    'votre traitement de texte.',
+  ocrTooSlow: 'La lecture de votre scan a pris trop de temps. Réessayez, ou importez le PDF exporté de votre CV.',
+  ocrFailed: 'On n’a pas réussi à lire votre scan. Réessayez, ou importez le PDF exporté de votre CV.',
+}
 
 /**
  * An imported CV the workshop cannot turn into text (422). Nothing of it has been sent anywhere (EF-CVX-34).
