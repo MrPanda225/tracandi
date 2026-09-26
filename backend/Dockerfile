@@ -7,8 +7,10 @@ COPY . .
 RUN npm run build
 
 FROM node:22-slim
-# LibreOffice : conversion des CV .docx en PDF ; poppler-utils (pdfinfo) : contrôle 1 page A4 (T-503, EF-CVX-07)
+# LibreOffice : conversion des CV .docx en PDF (retirée par T-515) ; poppler-utils (pdftoppm) et tesseract
+# (français, anglais) : lecture sur le serveur des CV scannés de l'Atelier CV (EF-CVX-22, T-510).
 RUN apt-get update && apt-get install -y --no-install-recommends libreoffice-writer fonts-crosextra-carlito poppler-utils \
+    tesseract-ocr tesseract-ocr-fra tesseract-ocr-eng \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY package*.json ./

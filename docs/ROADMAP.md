@@ -456,7 +456,7 @@ Une étape par tâche, chacune sur sa branche et sa PR. L'atelier reste derrièr
 sur `main`, il affiche « En préparation » tant que le Business Owner ne l'active pas. Aucune donnée du CV ni de
 l'offre n'est écrite en base, sur disque ou dans les journaux (ENF-RGP-06).
 
-- [ ] **T-510 Import et lecture du CV** — réception du fichier (5 Mo, refus avant lecture), type identifié par son
+- [x] **T-510 Import et lecture du CV** — réception du fichier (5 Mo, refus avant lecture), type identifié par son
   contenu (PDF uniquement), extraction du texte en mémoire, OCR sur le serveur des pages sans texte (Tesseract
   français et anglais, 3 pages au plus, 60 s par page, dossier temporaire effacé), refus d'un CV illisible, repérage et retrait des coordonnées
   (nom, e-mail, téléphone, adresse, liens) gardées à part pour le rendu.
@@ -468,6 +468,20 @@ l'offre n'est écrite en base, sur disque ou dans les journaux (ENF-RGP-06).
   *Fini quand* : fichier de 5 Mo + 1 octet, DOCX et faux PDF refusés ; PDF scanné lu par OCR ; page blanche,
   PDF protégé et scan de 4 pages refusés sans appel IA ; dossier temporaire absent après succès comme après échec ; texte extrait
   sans l'e-mail ni le téléphone des fixtures (CV fictifs dans `tests/fixtures/cv/`).
+  *Livré (26/09/2026)* : `modules/cvWorkshop/` — `decodeCvUpload` (taille contrôlée sur le base64 avant tout
+  décodage, 413 au-delà de 5 Mo ; signature `%PDF-` exigée, DOCX et faux PDF en 400), `readPdfPages` (texte de
+  chaque page par `unpdf`, en mémoire ; PDF protégé ou endommagé : `CvUnreadableError` 422 avec un message pour le
+  candidat ; avertissements de pdf.js coupés), `createPdfOcr` (`pdftoppm` 200 dpi en gris puis `tesseract fra+eng`,
+  par `execFile` sans shell, environnement réduit à `PATH` — aucun secret de l'API transmis — et un seul fil ;
+  60 s par page ; dossier `0700` effacé après succès comme après échec), `separateContacts` (nom de la première
+  ligne, e-mails, téléphones français et internationaux, adresse postale, liens), `readCv` (OCR des seules pages
+  sans texte, 3 au plus). Dépendance `unpdf` 1.8.1 (MIT, unjs, aucune dépendance, pdf.js 6.1 sans chemin `eval`),
+  approuvée le 26/09/2026 ; `npm run audit` sans vulnérabilité haute ni critique. Image de l'API et CI : paquets
+  `tesseract-ocr`, `tesseract-ocr-fra`, `tesseract-ocr-eng`.
+  *Reste* : la route qui reçoit le fichier (limite de corps propre à cette route, le reste de l'API gardant 100 ko)
+  arrive avec l'analyse (T-511), qui l'enchaîne au diagnostic. L'OCR réel et sa mémoire ne sont vérifiés qu'en CI
+  (`tests/integration/cv-ocr.test.ts`) : Tesseract n'est pas installé sur le poste de développement.
+
 - [ ] **T-511 Diagnostic de compatibilité** — tâche IA « diagnostic » par le routeur (procédure `add-llm-task`) :
   quatre sous-scores expliqués en français, score global calculé par RG-23 ; analyse menée dans la file
   d'exécution (nouvelle tâche `cv_analysis`, compteurs seuls) ; résultat gardé en mémoire 30 min puis effacé ;
