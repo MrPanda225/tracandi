@@ -457,13 +457,16 @@ sur `main`, il affiche « En préparation » tant que le Business Owner ne l'act
 l'offre n'est écrite en base, sur disque ou dans les journaux (ENF-RGP-06).
 
 - [ ] **T-510 Import et lecture du CV** — réception du fichier (5 Mo, refus avant lecture), type identifié par son
-  contenu (PDF uniquement), extraction du texte en mémoire, refus d'un CV illisible, repérage et retrait des coordonnées
+  contenu (PDF uniquement), extraction du texte en mémoire, OCR sur le serveur des pages sans texte (Tesseract
+  français et anglais, 3 pages au plus, 60 s par page, dossier temporaire effacé), refus d'un CV illisible, repérage et retrait des coordonnées
   (nom, e-mail, téléphone, adresse, liens) gardées à part pour le rendu.
-  *Exigences* : EF-CVX-21, EF-CVX-22, ENF-SEC-22, ENF-RGP-07.
+  *Exigences* : EF-CVX-21, EF-CVX-22, EF-CVX-34, ENF-SEC-22, ENF-RGP-07.
   *Dépendance* : lecture PDF (`unpdf`) — justification (téléchargements, publication, mainteneurs, `npm run audit`)
   dans la PR. Le fichier arrive en base64 dans une requête JSON : aucune réception multipart, la garde JSON
-  d'ENF-SEC-12 reste sans exception.
-  *Fini quand* : fichier de 5 Mo + 1 octet, DOCX et faux PDF refusés ; PDF scanné refusé sans appel IA ; texte extrait
+  d'ENF-SEC-12 reste sans exception. OCR : paquets système `tesseract-ocr`, `tesseract-ocr-fra` et `tesseract-ocr-eng`
+  dans l'image de l'API et la CI (`pdftoppm` vient de `poppler-utils`, déjà installé), lancés par `execFile`.
+  *Fini quand* : fichier de 5 Mo + 1 octet, DOCX et faux PDF refusés ; PDF scanné lu par OCR ; page blanche,
+  PDF protégé et scan de 4 pages refusés sans appel IA ; dossier temporaire absent après succès comme après échec ; texte extrait
   sans l'e-mail ni le téléphone des fixtures (CV fictifs dans `tests/fixtures/cv/`).
 - [ ] **T-511 Diagnostic de compatibilité** — tâche IA « diagnostic » par le routeur (procédure `add-llm-task`) :
   quatre sous-scores expliqués en français, score global calculé par RG-23 ; analyse menée dans la file
