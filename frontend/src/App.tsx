@@ -19,7 +19,7 @@ const AuthPage = lazy(async () => ({ default: (await loadAuthPage()).AuthPage })
 const DashboardPage = lazy(async () => ({
   default: (await import('./pages/dashboard/DashboardPage')).DashboardPage,
 }));
-// Le formulaire du profil ne sert qu'à l'Atelier CV : il voyage avec son écran (ENF-PERF-01).
+// L'Atelier CV et son suivi d'analyse voyagent avec leur écran (ENF-PERF-01).
 const CvWorkshopPage = lazy(async () => ({
   default: (await import('./pages/cv/CvWorkshopPage')).CvWorkshopPage,
 }));

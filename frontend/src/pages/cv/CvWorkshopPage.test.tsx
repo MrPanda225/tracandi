@@ -1,334 +1,141 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ROUTER_FUTURE } from '../../lib/router';
+import { openStreams } from '../../test/setup';
 import { CvWorkshopPage } from './CvWorkshopPage';
 
-const PROFILE = {
-  identity: {
-    name: 'Alex MARTIN',
-    city: 'Villeurbanne',
-    phone: '06 00 00 00 00',
-    email: 'alex.martin@example.com',
-    extra: 'Permis B',
-  },
-  location: { searchArea: 'Lyon ou télétravail' },
-  availability: 'CDI : immédiatement',
-  studyLevel: { level: 'bac_5', isInProgress: true },
-  targets: [{ label: 'Data analyst', contractTypes: ['cdi', 'alternance'], keywords: ['data', 'sql'] }],
-  cvSource: {
-    defaultTitle: 'Data Analyst',
-    defaultSubtitle: 'CDI ou alternance',
-    profile: 'Étudiant en Master MIAGE.',
-    experiences: [
-      {
-        dates: 'Oct. 2024 – Avril 2026',
-        company: 'Boulangerie Exemple',
-        place: 'Rennes',
-        role: 'Équipier polyvalent',
-        duration: '1 an et 6 mois',
-        bullets: ['Tenue de caisse.', 'Rotation des stocks.'],
-      },
-    ],
-    education: [
-      { dates: '2024 – 2026', school: 'Université de Rennes', place: null, degree: 'Master MIAGE', detail: null },
-    ],
-    skills: [{ label: 'Outils', value: 'SQL, Python' }],
-    certifications: [{ name: 'Tableau Desktop Specialist', issuer: 'Tableau', year: 2025 }],
-    interests: ['Basketball'],
+const json = (status: number, body: unknown) =>
+  new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
+
+const RUN_ID = 5;
+const ANALYSIS = {
+  reading: {
+    text: 'Data Analyst - Atelier Nova\nTableaux de bord Power BI pour 12 equipes commerciales.',
+    contacts: {
+      name: 'Camille Durand',
+      emails: ['camille.durand@example.com'],
+      phones: ['06 12 34 56 78'],
+      address: null,
+      links: [],
+    },
+    ocrPageCount: 0,
   },
 };
 
-const json = (status: number, body?: unknown) =>
-  new Response(body === undefined ? null : JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
+const mockApi = (analysis = ANALYSIS) => {
+  const fetchMock = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>((url) => {
+    if (url === '/api/cv-workshop/analyses') return Promise.resolve(json(202, { runId: RUN_ID }));
+    if (url === `/api/cv-workshop/analyses/${String(RUN_ID)}`) return Promise.resolve(json(200, analysis));
+    return Promise.resolve(json(200, { id: RUN_ID, job: 'cv_analysis', outcome: 'running', counters: {} }));
   });
-
-type Route = () => Response | Promise<Response>;
-
-const mockApi = (routes: Record<string, Route>) => {
-  const sent: unknown[] = [];
-  vi.stubGlobal(
-    'fetch',
-    vi.fn((input: string, init?: RequestInit) => {
-      const key = `${init?.method ?? 'GET'} ${input.replace(/^\/api/, '')}`;
-      if (init?.body !== undefined) sent.push(JSON.parse(String(init.body)));
-      const route = routes[key];
-      return Promise.resolve(route ? route() : json(404, { error: 'Ressource introuvable' }));
-    }),
-  );
-  return sent;
+  vi.stubGlobal('fetch', fetchMock);
+  return fetchMock;
 };
 
 const renderPage = () =>
   render(
-    <MemoryRouter initialEntries={['/atelier-cv']} future={ROUTER_FUTURE}>
+    <MemoryRouter future={ROUTER_FUTURE}>
       <CvWorkshopPage />
     </MemoryRouter>,
   );
+
+const pdfFile = (content = '%PDF-1.4 cv fictif', name = 'cv.pdf') => new File([content], name, { type: 'application/pdf' });
+
+/** Publishes the end of the run on the stream of executions, as the API does (EF-EXE-04). */
+const endRun = (outcome: 'success' | 'failure', error: string | null = null) =>
+  act(() => {
+    for (const stream of openStreams) {
+      stream.emit('run', { id: RUN_ID, job: 'cv_analysis', trigger: 'manual', outcome, counters: {}, error });
+    }
+  });
+
+const chooseAndRead = async (file: File) => {
+  const user = userEvent.setup({ applyAccept: false });
+  await user.upload(screen.getByLabelText('CV au format PDF, 5 Mo au plus'), file);
+  await user.click(screen.getByRole('button', { name: 'Lire mon CV' }));
+};
 
 afterEach(() => {
   vi.unstubAllGlobals();
 });
 
 describe('CvWorkshopPage', () => {
-  it('[EF-CVX-01] [RG-11] shows the profile as the CV it will become, in one page', async () => {
-    mockApi({ 'GET /profile': () => json(200, PROFILE) });
-
+  it('[EF-CVX-21] refuses a file that is not a PDF, without sending it', async () => {
+    const fetchMock = mockApi();
     renderPage();
+    const user = userEvent.setup({ applyAccept: false });
 
-    const cv = within(await screen.findByRole('region', { name: 'Aperçu du CV' }));
-    // RG-11: contacts on the left of the header, availability on the right.
-    expect(cv.getByText('Alex MARTIN')).toBeInTheDocument();
-    expect(cv.getByText('Villeurbanne')).toBeInTheDocument();
-    expect(cv.getByText('CDI : immédiatement')).toBeInTheDocument();
-    // RG-11: title and subtitle, then the usual French sections (RG-15).
-    expect(cv.getByText('Data Analyst')).toBeInTheDocument();
-    expect(cv.getByText('CDI ou alternance')).toBeInTheDocument();
-    for (const section of ['PROFIL', 'EXPÉRIENCES PROFESSIONNELLES', 'FORMATION', 'COMPÉTENCES']) {
-      expect(cv.getByText(section)).toBeInTheDocument();
-    }
-    expect(cv.getByText('Équipier polyvalent')).toBeInTheDocument();
-    expect(cv.getByText('Rotation des stocks.')).toBeInTheDocument();
-    expect(cv.getByText('Master MIAGE')).toBeInTheDocument();
-    expect(cv.getByText('Basketball')).toBeInTheDocument();
+    await user.upload(
+      screen.getByLabelText('CV au format PDF, 5 Mo au plus'),
+      new File(['docx'], 'cv.docx', { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }),
+    );
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Seul un CV au format PDF est accepté.');
+    expect(screen.getByRole('button', { name: 'Lire mon CV' })).toBeDisabled();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('[EF-CVX-01] [RG-09] keeps visible what the profile holds and the CV does not show', async () => {
-    mockApi({ 'GET /profile': () => json(200, PROFILE) });
-
+  it('[EF-CVX-21] refuses a CV of more than 5 MB, without sending it', async () => {
+    const fetchMock = mockApi();
     renderPage();
+    const user = userEvent.setup({ applyAccept: false });
 
-    // The targets and the search area score the offers; they have no place on a CV.
-    expect(await screen.findByRole('heading', { name: 'Ce que vous cherchez' })).toBeInTheDocument();
-    expect(screen.getByText(/Lyon ou télétravail/)).toBeInTheDocument();
-    expect(screen.getByText('Data analyst')).toBeInTheDocument();
-    expect(screen.getByText('CDI, Alternance')).toBeInTheDocument();
-    const cv = within(screen.getByRole('region', { name: 'Aperçu du CV' }));
-    expect(cv.queryByText('CDI, Alternance')).not.toBeInTheDocument();
+    await user.upload(screen.getByLabelText('CV au format PDF, 5 Mo au plus'), pdfFile('x'.repeat(5 * 1024 * 1024 + 1)));
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Le CV dépasse 5 Mo.');
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('[EF-CVX-01] invites the candidate to create a profile when none is saved', async () => {
-    mockApi({ 'GET /profile': () => json(404, { error: 'Aucun profil de référence enregistré' }) });
-
+  it('[EF-CVX-32] sends the PDF in base64 and waits for the queue, its button disabled', async () => {
+    const fetchMock = mockApi();
     renderPage();
 
-    expect(await screen.findByText(/Aucun profil de référence n’est enregistré/)).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Créer mon profil' }));
-    expect(screen.getByRole('button', { name: 'Enregistrer le profil' })).toBeInTheDocument();
+    await chooseAndRead(pdfFile());
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/cv-workshop/analyses', expect.anything()));
+    const init = fetchMock.mock.calls.find(([url]) => url === '/api/cv-workshop/analyses')?.[1];
+    expect(JSON.parse(String(init?.body))).toEqual({ file: btoa('%PDF-1.4 cv fictif') });
+    expect(screen.getByRole('button', { name: 'Lecture en cours…' })).toBeDisabled();
   });
 
-  it('[EF-CVX-02] saves what the candidate changed, and shows the profile again', async () => {
-    let saved = false;
-    const sent = mockApi({
-      'GET /profile': () => json(200, saved ? { ...PROFILE, availability: 'Disponible en mai' } : PROFILE),
-      'PUT /profile': () => {
-        saved = true;
-        return new Response(null, { status: 204 });
-      },
-    });
+  it('[ENF-RGP-07] shows the text the AI will receive and the contact details kept aside', async () => {
+    const fetchMock = mockApi();
     renderPage();
-    const user = userEvent.setup();
+    await chooseAndRead(pdfFile());
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/cv-workshop/analyses', expect.anything()));
 
-    await user.click(await screen.findByRole('button', { name: 'Modifier le profil' }));
-    const availability = screen.getByLabelText('Disponibilités');
-    await user.clear(availability);
-    await user.type(availability, 'Disponible en mai');
-    await user.click(screen.getByRole('button', { name: 'Enregistrer le profil' }));
+    await endRun('success');
 
-    expect(await screen.findByRole('status')).toHaveTextContent('Profil enregistré.');
-    expect(sent[0]).toMatchObject({ availability: 'Disponible en mai' });
-    const cv = within(await screen.findByRole('region', { name: 'Aperçu du CV' }));
-    expect(cv.getByText('Disponible en mai')).toBeInTheDocument();
+    const text = await screen.findByRole('region', { name: 'Texte lu, tel que l’IA le recevra' });
+    expect(text).toHaveTextContent('Data Analyst - Atelier Nova');
+    const contacts = screen.getByRole('region', { name: 'Coordonnées mises à part' });
+    expect(within(contacts).getByText('camille.durand@example.com')).toBeInTheDocument();
+    expect(within(contacts).getByText('06 12 34 56 78')).toBeInTheDocument();
+    expect(within(contacts).getAllByText('non repéré')).toHaveLength(2);
   });
 
-  it('[EF-CVX-02] [ENF-SEC-04] shows what the API refused on the field itself, and keeps the form open', async () => {
-    mockApi({
-      'GET /profile': () => json(200, PROFILE),
-      'PUT /profile': () =>
-        json(400, {
-          error: 'Données invalides',
-          details: [{ path: 'body.identity.email', message: 'Adresse e-mail invalide' }],
-        }),
-    });
+  it('[EF-CVX-22] says how many pages were read by OCR, so that the candidate checks them', async () => {
+    const fetchMock = mockApi({ reading: { ...ANALYSIS.reading, ocrPageCount: 2 } });
     renderPage();
-    const user = userEvent.setup();
+    await chooseAndRead(pdfFile());
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/cv-workshop/analyses', expect.anything()));
 
-    await user.click(await screen.findByRole('button', { name: 'Modifier le profil' }));
-    await user.click(screen.getByRole('button', { name: 'Enregistrer le profil' }));
+    await endRun('success');
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Données invalides');
-    const email = screen.getByLabelText('Adresse e-mail');
-    expect(email).toHaveAttribute('aria-invalid', 'true');
-    // The message is tied to the field, so a screen reader announces it with it (WCAG 3.3.1).
-    expect(email).toHaveAccessibleDescription('Adresse e-mail invalide');
-    // No list at the top any more: the refusal is shown where it happened.
-    expect(screen.queryByLabelText('Champs refusés')).not.toBeInTheDocument();
-    // Nothing is lost: the form is still there with what was typed.
-    expect(screen.getByRole('button', { name: 'Enregistrer le profil' })).toBeInTheDocument();
+    expect(await screen.findByText(/2 pages lues par reconnaissance de caractères/)).toBeInTheDocument();
   });
 
-  it('[ENF-SEC-04] keeps at the top a refusal no field of the form can show', async () => {
-    mockApi({
-      'GET /profile': () => json(200, PROFILE),
-      'PUT /profile': () =>
-        json(400, { error: 'Données invalides', details: [{ path: 'body', message: 'Champ inconnu' }] }),
-    });
+  it('[EF-CVX-34] shows the reason a CV could not be read, and lets the candidate try again', async () => {
+    const fetchMock = mockApi();
     renderPage();
-    const user = userEvent.setup();
+    await chooseAndRead(pdfFile());
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/cv-workshop/analyses', expect.anything()));
 
-    await user.click(await screen.findByRole('button', { name: 'Modifier le profil' }));
-    await user.click(screen.getByRole('button', { name: 'Enregistrer le profil' }));
+    await endRun('failure', 'Ce PDF est protégé par un mot de passe : exportez-le sans protection.');
 
-    expect(await screen.findByLabelText('Champs refusés')).toHaveTextContent('Champ inconnu');
-  });
-
-  it('[EF-CVX-02] marks every field the profile requires, and leaves the optional ones alone', async () => {
-    mockApi({ 'GET /profile': () => json(200, PROFILE) });
-    renderPage();
-    const user = userEvent.setup();
-
-    await user.click(await screen.findByRole('button', { name: 'Modifier le profil' }));
-
-    expect(screen.getByLabelText('Nom')).toBeRequired();
-    expect(screen.getByLabelText('Disponibilités')).toBeRequired();
-    expect(screen.getByLabelText('Complément')).not.toBeRequired();
-    expect(screen.getByText('Les champs marqués d’un astérisque sont obligatoires.')).toBeInTheDocument();
-  });
-
-  it('[EF-CVX-02] [ENF-UTI-02] lets the candidate pick a period instead of typing it', async () => {
-    const sent = mockApi({
-      'GET /profile': () => json(200, PROFILE),
-      'PUT /profile': () => new Response(null, { status: 204 }),
-    });
-    renderPage();
-    const user = userEvent.setup();
-
-    await user.click(await screen.findByRole('button', { name: 'Modifier le profil' }));
-    const experiences = screen.getByRole('group', { name: 'Expériences professionnelles' });
-    const start = within(experiences).getByLabelText('Période — début');
-    // « Oct. 2024 – Avril 2026 » of the profile is read back into the two pickers.
-    expect(start).toHaveAttribute('type', 'month');
-    expect(start).toHaveValue('2024-10');
-    expect(within(experiences).getByLabelText('Période — fin')).toHaveValue('2026-04');
-
-    await user.click(within(experiences).getByLabelText('En cours aujourd’hui'));
-    await user.click(screen.getByRole('button', { name: 'Enregistrer le profil' }));
-
-    expect(sent[0]).toMatchObject({
-      cvSource: { experiences: [{ dates: '10/2024 – aujourd’hui' }] },
-    });
-  });
-
-  it('[EF-CVX-02] adds and removes a repeated entry', async () => {
-    mockApi({ 'GET /profile': () => json(200, PROFILE) });
-    renderPage();
-    const user = userEvent.setup();
-
-    await user.click(await screen.findByRole('button', { name: 'Modifier le profil' }));
-    const skills = screen.getByRole('group', { name: 'Compétences' });
-    await user.click(within(skills).getByRole('button', { name: 'Ajouter une compétence' }));
-
-    expect(within(skills).getAllByLabelText('Intitulé')).toHaveLength(2);
-    await user.click(within(skills).getAllByRole('button', { name: 'Retirer' })[0] as HTMLElement);
-    expect(within(skills).getAllByLabelText('Intitulé')).toHaveLength(1);
-  });
-
-  it('[EF-CVX-18] [RG-18] shows the level of study, and says it is under way', async () => {
-    mockApi({ 'GET /profile': () => json(200, PROFILE) });
-
-    renderPage();
-
-    const cv = within(await screen.findByRole('region', { name: 'Aperçu du CV' }));
-    // RG-18: written under the degrees it sums up, as the document writes it.
-    expect(cv.getByText(/Bac\+5 \(master, diplôme d’ingénieur\)/)).toBeInTheDocument();
-    expect(cv.getByText(/\(en cours\)/)).toBeInTheDocument();
-  });
-
-  it('[EF-CVX-18] shows no level at all when the profile states none', async () => {
-    mockApi({
-      'GET /profile': () => json(200, { ...PROFILE, studyLevel: { level: null, isInProgress: false } }),
-    });
-
-    renderPage();
-
-    await screen.findByText('Alex MARTIN');
-    expect(screen.queryByText(/Niveau d’études/)).not.toBeInTheDocument();
-  });
-
-  it('[EF-CVX-19] shows the certifications with their issuer and their year', async () => {
-    mockApi({ 'GET /profile': () => json(200, PROFILE) });
-
-    renderPage();
-
-    const cv = within(await screen.findByRole('region', { name: 'Aperçu du CV' }));
-    expect(cv.getByText('CERTIFICATIONS')).toBeInTheDocument();
-    expect(cv.getByText('Tableau Desktop Specialist')).toBeInTheDocument();
-    expect(cv.getByText('2025')).toBeInTheDocument();
-  });
-
-  it('[EF-CVX-19] opens no section when the candidate holds no certification', async () => {
-    mockApi({ 'GET /profile': () => json(200, { ...PROFILE, cvSource: { ...PROFILE.cvSource, certifications: [] } }) });
-
-    renderPage();
-
-    await screen.findByText('Alex MARTIN');
-    expect(screen.queryByText('CERTIFICATIONS')).not.toBeInTheDocument();
-  });
-
-  it('[EF-CVX-18] [EF-CVX-19] records a level and a certification, and sends them to the API', async () => {
-    const sent = mockApi({
-      'GET /profile': () =>
-        json(200, {
-          ...PROFILE,
-          studyLevel: { level: null, isInProgress: false },
-          cvSource: { ...PROFILE.cvSource, certifications: [] },
-        }),
-      'PUT /profile': () => new Response(null, { status: 204 }),
-    });
-    renderPage();
-    const user = userEvent.setup();
-
-    await user.click(await screen.findByRole('button', { name: 'Modifier le profil' }));
-    await user.selectOptions(screen.getByLabelText('Niveau le plus élevé'), 'bac_3');
-    await user.click(screen.getByLabelText('Ce diplôme est en cours'));
-
-    const certifications = screen.getByRole('group', { name: 'Certifications' });
-    await user.click(within(certifications).getByRole('button', { name: 'Ajouter une certification' }));
-    await user.type(within(certifications).getByLabelText('Intitulé'), 'TOEIC');
-    await user.type(within(certifications).getByLabelText('Année'), '2024');
-    await user.click(screen.getByRole('button', { name: 'Enregistrer le profil' }));
-
-    expect(sent[0]).toMatchObject({
-      studyLevel: { level: 'bac_3', isInProgress: true },
-      cvSource: { certifications: [{ name: 'TOEIC', issuer: null, year: 2024 }] },
-    });
-  });
-
-  it('[EF-CVX-19] lets the candidate remove every certification, unlike the required groups', async () => {
-    mockApi({ 'GET /profile': () => json(200, PROFILE) });
-    renderPage();
-    const user = userEvent.setup();
-
-    await user.click(await screen.findByRole('button', { name: 'Modifier le profil' }));
-    const certifications = screen.getByRole('group', { name: 'Certifications' });
-    await user.click(within(certifications).getByRole('button', { name: 'Retirer' }));
-
-    expect(within(certifications).queryByLabelText('Intitulé')).not.toBeInTheDocument();
-    // A group the profile requires keeps its last entry: the button stays disabled there.
-    const skills = screen.getByRole('group', { name: 'Compétences' });
-    expect(within(skills).getByRole('button', { name: 'Retirer' })).toBeDisabled();
-  });
-
-  it('[ENF-UTI-03] shows a readable message when the profile cannot be read', async () => {
-    mockApi({ 'GET /profile': () => json(500, { error: 'Erreur interne du serveur' }) });
-
-    renderPage();
-
-    await waitFor(() => {
-      expect(screen.getByRole('alert')).toHaveTextContent('Erreur interne du serveur');
-    });
+    expect(await screen.findByRole('alert')).toHaveTextContent('protégé par un mot de passe');
+    expect(screen.getByRole('button', { name: 'Lire mon CV' })).toBeEnabled();
   });
 });
