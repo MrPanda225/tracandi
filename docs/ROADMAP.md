@@ -58,6 +58,11 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
   d'ouverture ; tout mouvement coupé sous `prefers-reduced-motion` (ENF-UTI-04). Bklit écarté : bibliothèque de
   graphiques exigeant Tailwind, shadcn et React 19. Page chargée à part (49 kB gzip), le reste de l'application
   inchangé. *Exigences* : EF-AUT-09, EF-AUT-10, ENF-UTI-04, ENF-PERF-01.
+  *Retouche du 27/09/2026 (demande du Business Owner : « des textes plus naturels, qui donnent envie d'être lus, pas
+  une justification »)* : textes réécrits en bénéfices plutôt qu'en mécanique — titre « Postulez. On s'occupe du
+  suivi. » (espaces insécables pour une coupure au rythme de la phrase), étapes, fonctionnalités, chiffres et
+  garanties au ton parlé ; les garanties regroupées dans « Vos données restent les vôtres ». Chaque phrase reste
+  vraie (lecture sans suppression, libellés posés, conservation limitée). Sujets d'EF-AUT-09 inchangés.
 - [x] **T-101 Domaine candidatures** — `normalizeKey` (RG-14), `shouldReplaceStatus` (RG-04), repository
   entreprises/candidatures, service de rattachement (RG-03).
   *Exigences* : EF-CAN-11, RG-03, RG-04, RG-14.

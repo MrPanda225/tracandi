@@ -16,6 +16,8 @@ import { Reveal } from './Reveal';
 import './LandingPage.css';
 
 const LOGIN = '/connexion';
+// Non-breaking spaces keep « On s’occupe » and « du suivi » together: the title breaks as the sentence is said.
+const HERO_TITLE = 'Postulez. On\u00a0s’occupe du\u00a0suivi.';
 // EF-SEO-01: the same words as index.html, which search engines read before any script runs.
 const LANDING_META = {
   title: 'Tracandi — suivi de candidatures depuis Gmail',
@@ -25,42 +27,50 @@ const LANDING_META = {
 };
 const REGISTER = '/connexion?mode=inscription';
 
+// Written for someone in the middle of a job search: what changes for them, in plain words — the guarantees come
+// later, where people look for them (ux-design: benefits before mechanics).
 const STEPS = [
   {
-    title: 'Connectez votre boîte Gmail',
-    text: 'Une autorisation depuis la page de Google, révocable à tout moment. Tracandi lit, ne supprime rien.',
+    title: 'Branchez votre Gmail',
+    text: 'Deux clics sur la page de Google, et Tracandi lit vos e-mails de candidature. Il n’en supprime aucun.',
   },
   {
-    title: 'Chaque réponse est classée',
-    text: 'Accusé de réception, entretien, refus : l’IA lit le début de chaque e-mail et range la candidature au bon statut.',
+    title: 'Les réponses se rangent',
+    text: 'Accusé de réception, entretien, refus : chaque réponse rejoint la bonne candidature, au bon statut.',
   },
   {
     title: 'Relancez au bon moment',
-    text: 'Après 10 jours de silence, la candidature remonte. Un clic, et la relance vous attend en brouillon dans Gmail.',
+    text: 'Dix jours sans nouvelles ? La candidature remonte, et votre relance vous attend dans Gmail, déjà rédigée.',
   },
 ];
 
 const FEATURES: { title: string; text: string; wide?: boolean }[] = [
   {
-    title: 'Un tableau de bord qui se tient à jour',
-    text: 'Candidatures, entretiens, taux de réponse, et vos 5 dernières semaines comparées d’un coup d’œil.',
+    title: 'Votre recherche d’un coup d’œil',
+    text: 'Candidatures envoyées, entretiens décrochés, taux de réponse : vos cinq dernières semaines sur un seul écran.',
     wide: true,
   },
-  { title: 'Des libellés Gmail rangés pour vous', text: '« Candidatures/Entreprise » et « Statut/… », sur chaque fil.' },
-  { title: 'Les refus reconnus', text: 'Même quand la mauvaise nouvelle arrive après trois paragraphes de politesse.' },
-  { title: 'L’entreprise retrouvée', text: 'Par son nom, ou par le domaine de l’adresse quand le message ne le dit pas.' },
   {
-    title: 'Des relances rédigées, jamais envoyées seules',
-    text: 'Un texte court et fidèle à votre candidature, en réponse dans le bon fil : vous relisez, vous envoyez.',
+    title: 'Une boîte mail enfin rangée',
+    text: 'Chaque fil porte le nom de l’entreprise et son statut. Vous retrouvez tout en une seconde.',
+  },
+  { title: 'Les refus démasqués', text: 'Même noyés sous trois paragraphes de politesse. Vous savez à quoi vous en tenir.' },
+  {
+    title: 'L’entreprise retrouvée',
+    text: 'Le message ne dit pas qui vous écrit ? Son adresse suffit à la reconnaître.',
+  },
+  {
+    title: 'Des relances prêtes à partir',
+    text: 'Courtes, polies, écrites pour votre candidature. Vous relisez, vous envoyez : c’est vous qui décidez.',
   },
 ];
 
 // Facts about the product, not a claim about its users (ux-design: no invented social proof).
 const FACTS = [
-  { value: 300, unit: 'caractères', text: 'au plus conservés par e-mail' },
-  { value: 0, unit: 'e-mail', text: 'envoyé à votre place' },
-  { value: 5, unit: 'semaines', text: 'de suivi d’un coup d’œil' },
-  { value: 10, unit: 'jours', text: 'de silence avant de proposer une relance' },
+  { value: 5, unit: 'semaines', text: 'de recherche sous les yeux' },
+  { value: 10, unit: 'jours', text: 'sans nouvelles, et la relance est prête' },
+  { value: 0, unit: 'e-mail', text: 'envoyé sans votre accord' },
+  { value: 300, unit: 'caractères', text: 'gardés par e-mail, pas un de plus' },
 ];
 
 /** The one main action, framed by travelling lights, pulled toward the pointer, sparking on click. */
@@ -110,15 +120,15 @@ export function LandingPage() {
       <main>
         <section className="landing__hero" aria-labelledby="landing-title">
           <div className="landing__hero-copy">
-            <p className="landing__eyebrow">Carnet de candidatures</p>
-            <BlurText as="h1" id="landing-title" className="landing__title" text="Vos candidatures, suivies toutes seules." />
+            <p className="landing__eyebrow">Recherche d’emploi</p>
+            <BlurText as="h1" id="landing-title" className="landing__title" text={HERO_TITLE} />
             {/* ENF-PERF-07: the promise and the ways in are painted at once — only the title plays. */}
             <p className="landing__lede">
-              Tracandi lit vos e-mails de candidature, classe chaque réponse et vous dit qui relancer — sans jamais
-              rien envoyer à votre place.
+              Tracandi range chaque réponse de vos candidatures à sa place. Vous savez où vous en êtes, et qui
+              relancer.
             </p>
             <div className="landing__actions">
-              <PrimaryAction>Créer un compte</PrimaryAction>
+              <PrimaryAction>Créer mon compte</PrimaryAction>
               <Link to={LOGIN} className="btn btn--quiet">
                 J’ai déjà un compte
               </Link>
@@ -131,7 +141,7 @@ export function LandingPage() {
 
         <section id="fonctionnement" className="landing__section" aria-labelledby="steps-title">
           <Reveal>
-            <p className="landing__eyebrow">Trois étapes</p>
+            <p className="landing__eyebrow">Trois étapes, c’est tout</p>
             <h2 id="steps-title">Comment ça marche</h2>
           </Reveal>
           <ol className="landing__steps">
@@ -154,7 +164,7 @@ export function LandingPage() {
         <section id="fonctionnalites" className="landing__section" aria-labelledby="features-title">
           <Reveal>
             <p className="landing__eyebrow">Au quotidien</p>
-            <h2 id="features-title">Ce que Tracandi fait pour vous</h2>
+            <h2 id="features-title">Ce qui change pour vous</h2>
           </Reveal>
           <div className="landing__bento">
             {FEATURES.map((feature, index) => (
@@ -189,9 +199,9 @@ export function LandingPage() {
             <p className="landing__eyebrow">Confidentialité</p>
             <h2 id="privacy-title">Vos données restent les vôtres</h2>
             <ul className="landing__promises">
-              <li>Seuls l’expéditeur, l’objet, la date et un extrait de 300 caractères sont conservés.</li>
-              <li>Le jeton d’accès à Gmail est chiffré, et révoqué dès que vous vous déconnectez.</li>
-              <li>Aucun e-mail n’est supprimé, aucun n’est envoyé sans vous.</li>
+              <li>On ne garde que l’essentiel de chaque e-mail : l’expéditeur, l’objet, la date et quelques lignes.</li>
+              <li>Votre accès à Gmail est chiffré, et coupé dès que vous déconnectez votre boîte.</li>
+              <li>Rien n’est supprimé, et rien ne part sans vous.</li>
             </ul>
           </Reveal>
         </section>
@@ -201,7 +211,7 @@ export function LandingPage() {
             <h2 id="final-title">
               <ShinyText text="Votre prochaine réponse mérite d’être vue." />
             </h2>
-            <p>Deux minutes pour créer un compte et connecter Gmail.</p>
+            <p>Deux minutes pour commencer. Le suivi, lui, se fait tout seul.</p>
             <div className="landing__final-action">
               <PrimaryAction>Commencer maintenant</PrimaryAction>
             </div>
