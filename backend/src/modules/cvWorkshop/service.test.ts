@@ -41,9 +41,9 @@ const scriptedRouter = (answer: unknown = ANSWER) => {
 const noOcr = { readPages: vi.fn(() => Promise.reject(new Error('no OCR expected'))) };
 const request = () => ({ file: buildTextPdf([[...FICTITIOUS_CV_LINES]]).toString('base64'), offer: OFFER });
 
-const serviceWith = ({ queue = immediateQueue().queue, router = scriptedRouter().router } = {}) => {
+const serviceWith = ({ queue = immediateQueue().queue, router = scriptedRouter().router, analysesPerDay = 5 } = {}) => {
   const results = createAnalysisResults<CvAnalysis>();
-  const service = createCvWorkshopService({ queue, ocr: noOcr, router, results, clock: () => NOW });
+  const service = createCvWorkshopService({ queue, ocr: noOcr, router, results, clock: () => NOW, analysesPerDay });
   return { service, results };
 };
 
@@ -102,6 +102,22 @@ describe('createCvWorkshopService', () => {
     });
     expect(queue.enqueue).not.toHaveBeenCalled();
     expect(queue.countRunsSince).toHaveBeenCalledWith(7, 'cv_analysis', new Date('2026-09-25T22:00:00.000Z'));
+  });
+
+  it('[EF-CVX-33] follows the allowance of the deployment, its number in the message', async () => {
+    const { queue } = immediateQueue(20);
+
+    await expect(serviceWith({ queue, analysesPerDay: 20 }).service.startAnalysis(7, request())).rejects.toMatchObject({
+      statusCode: 429,
+      message: 'Vous avez fait vos 20 analyses du jour. Rendez-vous demain !',
+    });
+  });
+
+  it('[EF-CVX-33] lifts the allowance when the deployment sets it to 0, for tests', async () => {
+    const { queue } = immediateQueue(500);
+
+    expect(await serviceWith({ queue, analysesPerDay: 0 }).service.startAnalysis(7, request())).toBe(41);
+    expect(queue.countRunsSince).not.toHaveBeenCalled();
   });
 
   it('[EF-IA-04] ends the run in failure when no AI could diagnose, and keeps nothing', async () => {

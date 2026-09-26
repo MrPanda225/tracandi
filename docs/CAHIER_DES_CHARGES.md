@@ -314,7 +314,7 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | EF-CVX-30 | Le système doit présenter comme points faibles les sous-scores inférieurs à 50 et les compétences manquantes. (v1.30) | S | EXM-16 | T | Sous-score de 42 : affiché parmi les points faibles ; de 50 : non. |
 | EF-CVX-31 | Le candidat peut télécharger le CV adapté au format Word (.docx) conforme à RG-22. (v1.30) | M | EXM-16 | T | Fichier sans tableau, image, zone de texte ni contenu d'en-tête ou de pied de page ; titres de RG-22 présents. |
 | EF-CVX-32 | Le système doit mener l'analyse dans la file d'exécution, sans faire attendre la requête, et en publier l'avancement. (v1.30) | M | EXM-15, EXM-16 | T | Réponse en moins d'une seconde avec un identifiant d'exécution (EF-EXE-01) ; chaque étape (lecture, diagnostic, adaptation) publiée en direct (EF-EXE-04). |
-| EF-CVX-33 | Le candidat peut lancer au plus 5 analyses par jour (jour calendaire de Paris). (v1.30) | S | EXM-16, ENF-COU-01 | T | Sixième analyse du même jour : réponse 429 avec un message ; le lendemain : acceptée. |
+| EF-CVX-33 | Le candidat peut lancer au plus N analyses par jour (jour calendaire de Paris), N fixé par la configuration, 5 par défaut ; 0 lève la limite, pour les tests (précisé le 26/09/2026). Une analyse en échec n'est pas comptée. (v1.30) | S | EXM-16, ENF-COU-01 | T | Sixième analyse du même jour : réponse 429 avec un message ; le lendemain : acceptée. |
 
 ### 6.5 Tableau de bord (TDB)
 
