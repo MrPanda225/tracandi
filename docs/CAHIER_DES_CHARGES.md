@@ -303,6 +303,7 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | EF-CVX-21 | Le candidat peut importer un CV au format PDF d'au plus 5 Mo ; tout autre format est refusé. (v1.30) | M | EXM-16 | T | Fichier de 5 Mo + 1 octet, fichier DOCX, ou fichier dont le contenu n'est pas un PDF quelle que soit son extension : refusé avec un message en français. |
 | EF-CVX-22 | Le système doit lire par reconnaissance optique de caractères (OCR), sur son propre serveur, les pages d'un CV PDF qui ne portent pas de texte (CV scanné ou exporté en image), dans la limite de 3 pages, en français et en anglais. (v1.30) | M | EXM-16 | T | PDF d'une page scannée (fixture fictive) : le texte extrait contient le nom de l'entreprise et l'intitulé de poste de la page ; aucun appel réseau pendant l'OCR. |
 | EF-CVX-34 | Le système doit refuser, en indiquant la cause, un CV dont ni la lecture ni l'OCR ne tirent de texte (PDF protégé, corrompu, page blanche ou illisible), ou dont l'OCR dépasserait 3 pages, sans rien transmettre au fournisseur IA. (v1.30) | M | EXM-16 | T | PDF protégé par mot de passe, page blanche, scan de 4 pages : message explicite, aucun appel IA. |
+| EF-CVX-35 | Le candidat peut voir, dès la lecture de son CV, le texte lu tel qu'il sera transmis au fournisseur IA et les coordonnées mises à part. (v1.30, précisée le 26/09/2026 pour tester la lecture) | S | EXM-16, ENF-RGP-07 | T | CV fictif lu : son texte s'affiche sans l'e-mail ni le téléphone, qui figurent dans la liste des coordonnées mises à part ; une coordonnée absente est marquée « non repéré ». |
 | EF-CVX-23 | Le candidat doit fournir le texte de l'offre, de 200 à 20 000 caractères. (v1.30) | M | EXM-16 | T | 199 ou 20 001 caractères : réponse 400. |
 | EF-CVX-24 | Le système doit afficher, pour un CV et une offre, quatre sous-scores entiers de 0 à 100 (compétences, expérience, formation, stack technique), chacun avec une explication en français de 1 à 3 phrases, et le score global calculé selon RG-23. (v1.30) | M | EXM-16 | T | Diagnostic IA simulé : quatre sous-scores et leurs explications affichés ; score global conforme à RG-23 ; sous-score hors de 0 à 100 : réponse rejetée (EF-IA-03). |
 | EF-CVX-25 | Le système doit produire un CV adapté à l'offre à partir du CV importé, du texte de l'offre et du diagnostic. (v1.30) | M | EXM-16 | T | — |
@@ -630,7 +631,7 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | BES-40 | — (organisation) | ENF-MAI-08, ENF-MAI-01, ENF-MAI-02, ENF-SEC-10 |
 | BES-41 | EXM-13 | EF-AUT-13, EF-SEO-01, ENF-PERF-07 |
 | BES-42 | EXM-15 | EF-EXE-06 |
-| BES-43 | EXM-16 | EF-CVX-21 à 34, RG-21, RG-22, RG-23, ENF-RGP-06, 07, 08, ENF-SEC-22, ENF-PERF-08 |
+| BES-43 | EXM-16 | EF-CVX-21 à 35, RG-21, RG-22, RG-23, ENF-RGP-06, 07, 08, ENF-SEC-22, ENF-PERF-08 |
 | BES-35 | EXM-01 | EF-CFG-05, EF-CFG-02 (retirée de l'écran) |
 
 La traçabilité fine exigence → tâche → test est tenue à jour dans `docs/TRACABILITE.md`.
