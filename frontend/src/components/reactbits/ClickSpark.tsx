@@ -73,19 +73,24 @@ export function ClickSpark({
     [sparkColor, sparkRadius, sparkSize],
   );
 
+  // One frame of the sparks, which schedules the next one itself while sparks remain: the loop never refers to a
+  // callback declared after it (rule react-hooks/immutability).
   const draw = useCallback(
     (timestamp: number) => {
-      const canvas = canvasRef.current;
-      const context = canvas?.getContext('2d');
-      if (!canvas || !context) return;
-      context.clearRect(0, 0, canvas.width, canvas.height);
-      sparksRef.current = sparksRef.current.filter((spark) => {
-        const elapsed = timestamp - spark.startTime;
-        if (elapsed >= duration) return false;
-        drawSpark(context, spark, easeOut(elapsed / duration));
-        return true;
-      });
-      frameRef.current = sparksRef.current.length > 0 ? requestAnimationFrame(draw) : null;
+      const frame = (time: number) => {
+        const canvas = canvasRef.current;
+        const context = canvas?.getContext('2d');
+        if (!canvas || !context) return;
+        context.clearRect(0, 0, canvas.width, canvas.height);
+        sparksRef.current = sparksRef.current.filter((spark) => {
+          const elapsed = time - spark.startTime;
+          if (elapsed >= duration) return false;
+          drawSpark(context, spark, easeOut(elapsed / duration));
+          return true;
+        });
+        frameRef.current = sparksRef.current.length > 0 ? requestAnimationFrame(frame) : null;
+      };
+      frame(timestamp);
     },
     [drawSpark, duration],
   );
