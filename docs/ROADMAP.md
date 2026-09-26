@@ -382,6 +382,10 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
 
 ## Lot 5 — CV et réponses
 
+> **Refonte du 26/09/2026 (BES-43, cahier v1.30).** L'Atelier CV part désormais du CV que le candidat importe, et
+> non plus d'un profil enregistré rendu dans son modèle Word. T-503, T-504 et T-506 sont abandonnées au profit de
+> T-510 à T-514 ; le code de T-501, T-502 et T-507 est retiré par T-515. T-505 (réponse de motivation) est conservée.
+
 - [x] **T-501 Profil de référence** — schéma zod, stockage en base par utilisateur (Q-16), API.
   *Exigences* : EF-CVX-01, 02 (cibles avec types de contrat acceptés, RG-09).
   *Livré* : `modules/cv/` — `CandidateProfileSchema` (identité, zone de recherche, disponibilités, cibles avec
@@ -405,14 +409,17 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
   ne pas ajouter de dépendance de test.
   *Reste à faire* : la comparaison visuelle avec le modèle Word du candidat (exemplaire fourni au Business Owner)
   et le téléchargement (EF-CVX-11) qui arrive avec T-504 et T-506.
-- [ ] **T-503 Conversion PDF** — LibreOffice sans shell (`execFile`), délai 60 s, contrôle 1 page A4.
+- [-] ~~**T-503 Conversion PDF**~~ — *abandonnée en v1.30 (BES-43) : le CV se télécharge en Word (EF-CVX-31).*
+  LibreOffice sans shell (`execFile`), délai 60 s, contrôle 1 page A4.
   *Exigences* : EF-CVX-07, ENF-SEC-13.
-- [ ] **T-504 CV adapté** — tâche IA, contrôle de fidélité RG-12, historique des versions, téléchargement.
+- [-] ~~**T-504 CV adapté**~~ — *abandonnée en v1.30 (BES-43) : remplacée par T-511 à T-513.*
+  Tâche IA, contrôle de fidélité RG-12, historique des versions, téléchargement.
   *Exigences* : EF-CVX-04, 05, 09, 10, 11, 15, 16, 17 (RG-12 renforcée).
   *Fini quand* : test avec entreprise inventée rejetée.
 - [ ] **T-505 Réponse de motivation** — tâche IA, contrôle 80–140 mots.
   *Exigences* : EF-CVX-12.
-- [~] **T-506 Écran Atelier CV** — génération, téléchargement, réponse de motivation modifiable.
+- [-] ~~**T-506 Écran Atelier CV**~~ — *abandonnée en v1.30 (BES-43) : remplacée par T-514 ; l'écran du profil est
+  retiré par T-515.* Génération, téléchargement, réponse de motivation modifiable.
   *Exigences* : EF-CVX-13.
   *Livré (23/09/2026, partie profil)* : écran `/atelier-cv` — consultation du profil de référence section par
   section (EF-CVX-01) et modification complète (EF-CVX-02 : identité, recherche, cibles avec leurs types de contrat
@@ -442,6 +449,50 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
   (EF-CVX-01), là où un champ obligatoire l'aurait rendu introuvable, le document étant reparsé à chaque lecture.
   Le niveau est un champ du profil, distinct de la liste des diplômes de `cvSource.education` qu'il résume.
   Une année de certification qui n'est pas un entier reste absente plutôt que fausse.
+
+### Atelier CV — adaptation d'un CV importé à une offre (BES-43, cahier v1.30)
+
+Une étape par tâche, chacune sur sa branche et sa PR. L'atelier reste derrière `ENABLED_FEATURES=cv` (ENF-MAI-07) :
+sur `main`, il affiche « En préparation » tant que le Business Owner ne l'active pas. Aucune donnée du CV ni de
+l'offre n'est écrite en base, sur disque ou dans les journaux (ENF-RGP-06).
+
+- [ ] **T-510 Import et lecture du CV** — réception du fichier (5 Mo, refus avant lecture), type identifié par son
+  contenu, extraction du texte PDF et DOCX en mémoire, refus d'un CV illisible, repérage et retrait des coordonnées
+  (nom, e-mail, téléphone, adresse, liens) gardées à part pour le rendu.
+  *Exigences* : EF-CVX-21, EF-CVX-22, ENF-SEC-22, ENF-RGP-07.
+  *Dépendances à faire approuver au début de la tâche* : lecture PDF (`unpdf`), lecture DOCX (`mammoth`), réception
+  multipart (`busboy`) — besoin, téléchargements hebdomadaires, dernière publication, mainteneurs, `npm run audit`.
+  *Fini quand* : fichier de 5 Mo + 1 octet et faux PDF refusés ; PDF scanné refusé sans appel IA ; texte extrait
+  sans l'e-mail ni le téléphone des fixtures (CV fictifs dans `tests/fixtures/cv/`).
+- [ ] **T-511 Diagnostic de compatibilité** — tâche IA « diagnostic » par le routeur (procédure `add-llm-task`) :
+  quatre sous-scores expliqués en français, score global calculé par RG-23 ; analyse menée dans la file
+  d'exécution (nouvelle tâche `cv_analysis`, compteurs seuls) ; résultat gardé en mémoire 30 min puis effacé ;
+  quota de 5 analyses par jour.
+  *Exigences* : EF-CVX-23, EF-CVX-24, EF-CVX-30, EF-CVX-32, EF-CVX-33, RG-23, ENF-RGP-06, ENF-PERF-08.
+  *Fini quand* : réponse de la route en moins d'une seconde avec un identifiant ; sous-score hors bornes rejeté ;
+  résultat introuvable (404) après 30 min ; sixième analyse du jour refusée (429) ; aucune ligne créée hors `job_runs`.
+- [ ] **T-512 CV adapté** — tâche IA « adaptation » : CV réécrit par sections, liste des modifications (section,
+  avant, après, raison), compétences de l'offre absentes du CV ; contrôle RG-21 avant toute présentation.
+  *Exigences* : EF-CVX-25, EF-CVX-26, EF-CVX-27, EF-CVX-29, RG-21.
+  *Fini quand* : réponse simulée citant une entreprise, un diplôme ou un chiffre absents du CV rejetée puis
+  confiée à nouveau ; compétence absente listée et non ajoutée.
+- [ ] **T-513 Rendu Word lisible par les ATS** — fichier .docx d'une colonne (RG-22) depuis le CV adapté,
+  coordonnées rétablies, compétences cochées ajoutées sans nouveau score, téléchargement.
+  *Exigences* : EF-CVX-28, EF-CVX-31, RG-22.
+  *Fini quand* : test de structure du .docx (aucun `w:tbl`, `w:drawing`, `w:txbxContent`, en-tête ni pied de page) ;
+  titres de RG-22 dans l'ordre ; compétences cochées présentes.
+- [ ] **T-514 Écran Atelier CV** — parcours en quatre étapes : CV, offre, analyse suivie en direct, résultat
+  (score et sous-scores expliqués, points faibles, compétences manquantes à cocher, modifications avant/après,
+  téléchargement).
+  *Exigences* : EF-CVX-24, EF-CVX-27 à EF-CVX-31 (affichage), ENF-UTI-01 à 04.
+  *Fini quand* : parcours complet au clavier, 360 px et 1440 px, erreurs en français, rien de conservé au
+  rechargement de la page.
+- [ ] **T-515 Retrait de l'ancien atelier** — code du profil de référence et du modèle Word (T-501, T-502, T-507),
+  LibreOffice retiré de l'image, migration de suppression de `candidate_profiles` et `cv_versions`, politique de
+  confidentialité complétée.
+  *Exigences* : ENF-RGP-08 ; remplacement de EF-CVX-01, 02, 04 à 11, 14 à 20, RG-11, RG-12, RG-15, RG-18.
+  *Fini quand* : plus aucune route `/api/profile` ; migration appliquée sur la base de test ; page Confidentialité
+  décrivant l'Atelier CV.
 
 ## Lot 6 — Tableau de bord
 
