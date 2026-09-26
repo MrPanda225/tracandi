@@ -457,12 +457,13 @@ sur `main`, il affiche « En préparation » tant que le Business Owner ne l'act
 l'offre n'est écrite en base, sur disque ou dans les journaux (ENF-RGP-06).
 
 - [ ] **T-510 Import et lecture du CV** — réception du fichier (5 Mo, refus avant lecture), type identifié par son
-  contenu, extraction du texte PDF et DOCX en mémoire, refus d'un CV illisible, repérage et retrait des coordonnées
+  contenu (PDF uniquement), extraction du texte en mémoire, refus d'un CV illisible, repérage et retrait des coordonnées
   (nom, e-mail, téléphone, adresse, liens) gardées à part pour le rendu.
   *Exigences* : EF-CVX-21, EF-CVX-22, ENF-SEC-22, ENF-RGP-07.
-  *Dépendances à faire approuver au début de la tâche* : lecture PDF (`unpdf`), lecture DOCX (`mammoth`), réception
-  multipart (`busboy`) — besoin, téléchargements hebdomadaires, dernière publication, mainteneurs, `npm run audit`.
-  *Fini quand* : fichier de 5 Mo + 1 octet et faux PDF refusés ; PDF scanné refusé sans appel IA ; texte extrait
+  *Dépendance* : lecture PDF (`unpdf`) — justification (téléchargements, publication, mainteneurs, `npm run audit`)
+  dans la PR. Le fichier arrive en base64 dans une requête JSON : aucune réception multipart, la garde JSON
+  d'ENF-SEC-12 reste sans exception.
+  *Fini quand* : fichier de 5 Mo + 1 octet, DOCX et faux PDF refusés ; PDF scanné refusé sans appel IA ; texte extrait
   sans l'e-mail ni le téléphone des fixtures (CV fictifs dans `tests/fixtures/cv/`).
 - [ ] **T-511 Diagnostic de compatibilité** — tâche IA « diagnostic » par le routeur (procédure `add-llm-task`) :
   quatre sous-scores expliqués en français, score global calculé par RG-23 ; analyse menée dans la file
