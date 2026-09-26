@@ -1,4 +1,5 @@
 import type { Database } from '../db/client.js';
+import { createSlots } from '../lib/async.js';
 import type { Clock } from '../lib/clock.js';
 import type { Logger } from '../lib/logger.js';
 import * as repository from './repository.js';
@@ -108,6 +109,8 @@ interface QueueDeps {
   db: Database;
   clock: Clock;
   logger: Logger;
+  /** EF-EXE-06: treatments run at once on the whole server; 1 when absent. */
+  maxConcurrentRuns?: number;
 }
 
 /**
@@ -155,15 +158,40 @@ const executeRun = async (
 };
 
 /**
+ * Where the executions wait: one lane per candidate keeps its order (EF-EXE-02), and slots shared by all the lanes
+ * bound what runs at once on the whole server (EF-EXE-06).
+ */
+const createLanes = (slotCount: number) => {
+  const lanes = new Map<number, Promise<void>>();
+  const slots = createSlots(slotCount);
+  return {
+    add(userId: number, task: () => Promise<void>): void {
+      const previous = lanes.get(userId) ?? Promise.resolve();
+      // EF-EXE-02: each execution waits for the previous one of the same candidate, and none is dropped. The lane
+      // holds the promise that is stored, so the last one of a candidate clears its own entry.
+      const chained: Promise<void> = previous
+        .then(() => slots.run(task))
+        .finally(() => {
+          if (lanes.get(userId) === chained) lanes.delete(userId);
+        });
+      lanes.set(userId, chained);
+    },
+    async drain(): Promise<void> {
+      while (lanes.size > 0) await Promise.all([...lanes.values()]);
+    },
+  };
+};
+
+/**
  * Queue of the long treatments (EXM-15). A request is journaled at once in `job_runs`, then the treatments of one
- * candidate run one after the other: the API never waits for one (ENF-PERF-06), and the interface follows the
- * state it publishes (EF-EXE-03, EF-EXE-04).
- * @req EF-EXE-01, EF-EXE-02, EF-EXE-03, EF-EXE-04, EF-EXE-05, EF-GML-18, ENF-FIA-01, ENF-PERF-06
+ * candidate run one after the other, and at most `maxConcurrentRuns` of them run at once on the whole server
+ * (EF-EXE-06): the API never waits for one (ENF-PERF-06), and the interface follows the state it publishes
+ * (EF-EXE-03, EF-EXE-04).
+ * @req EF-EXE-01, EF-EXE-02, EF-EXE-03, EF-EXE-04, EF-EXE-05, EF-EXE-06, EF-GML-18, ENF-FIA-01, ENF-PERF-06
  */
 export const createJobQueue = (deps: QueueDeps): JobQueue => {
   const { db, clock, logger } = deps;
-  // One chain of promises per candidate, so two of them never wait for each other.
-  const chains = new Map<number, Promise<void>>();
+  const lanes = createLanes(deps.maxConcurrentRuns ?? 1);
   const followers = createFollowerRegistry();
 
   const queue = async (work: QueuedWork): Promise<number> => {
@@ -182,15 +210,7 @@ export const createJobQueue = (deps: QueueDeps): JobQueue => {
       counters: {},
       error: null,
     });
-    const previous = chains.get(work.userId) ?? Promise.resolve();
-    // EF-EXE-02: each execution waits for the previous one of the same candidate, and none is dropped. The chain
-    // holds the promise that is stored, so the last one of a candidate clears its own entry.
-    const chained: Promise<void> = previous
-      .then(() => executeRun({ ...deps, followers }, runId, work))
-      .finally(() => {
-        if (chains.get(work.userId) === chained) chains.delete(work.userId);
-      });
-    chains.set(work.userId, chained);
+    lanes.add(work.userId, () => executeRun({ ...deps, followers }, runId, work));
     return runId;
   };
 
@@ -226,8 +246,6 @@ export const createJobQueue = (deps: QueueDeps): JobQueue => {
       if (closed > 0) logger.warn('executions closed after a restart', { closed });
     },
 
-    async drain() {
-      while (chains.size > 0) await Promise.all([...chains.values()]);
-    },
+    drain: () => lanes.drain(),
   };
 };

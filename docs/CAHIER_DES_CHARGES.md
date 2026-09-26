@@ -29,6 +29,7 @@
 | 1.26 | 24/09/2026 | Sahiré YAPI (Business Owner) | À valider — hébergement en ligne : interface sur Vercel, qui relaie `/api` vers l'API hébergée sur Northflank ; base sur Neon (BES-39, Q-18 tranchée, C-05 et §5.2 révisés, ENF-SEC-01 révisée, ENF-SEC-21) |
 | 1.27 | 24/09/2026 | Sahiré YAPI (Business Owner) | À valider — intégration continue : chaque PR et chaque poussée sur `dev` et `main` exécutent types, lint, tests unitaires et d'intégration, couverture, audit et construction de l'image de l'API (BES-40, ENF-MAI-08) |
 | 1.28 | 25/09/2026 | Sahiré YAPI (Business Owner) | À valider — performances et référencement des pages publiques : texte principal visible sans attendre d'animation, état de session sans erreur, titres et descriptions par page, `robots.txt`, `llms.txt`, icône et aperçu de partage (BES-41, EF-AUT-13, EF-SEO-01, ENF-PERF-07) |
+| 1.29 | 25/09/2026 | Sahiré YAPI (Business Owner) | À valider — la file d'exécution borne aussi le nombre de traitements longs menés en même temps sur tout le serveur, pour ne jamais dépasser les ressources de l'hébergement (BES-42, EF-EXE-06) |
 
 > Document de référence pour le développement. Toute évolution de périmètre passe par une mise à jour
 > de ce fichier **avant** le code. Chaque exigence porte un identifiant stable, repris dans
@@ -145,6 +146,7 @@ des candidatures, la veille des offres et la production de CV adaptés.
 | BES-39 | « Prépare le front pour un déploiement sur Vercel et le back pour un déploiement sur Northflank. » (24/09/2026) |
 | BES-40 | « Rajoute aussi la pipeline CI/CD qui va exécuter tous les tests unitaires et d'intégration. » (24/09/2026) |
 | BES-41 | « Optimise aussi les performances et le SEO. » (25/09/2026, relevé Lighthouse à l'appui : description absente, `robots.txt` invalide, affichage lent) |
+| BES-42 | « En production, je ne dois pas avoir ce genre d'erreur ; je t'ai dit d'utiliser un système de queue pour la synchronisation, ça peut prendre du temps, pour éviter de surcharger le tout. » (25/09/2026, après un arrêt de l'API par manque de mémoire sur l'hébergement) |
 | BES-35 | « On va retaper la section Réglages en gardant que ce qui est utile à savoir pour l'utilisateur : déjà retire-moi le fournisseur d'IA, et optimise la section boîte mail en suivant les principes ux-design et ui-design. » (24/09/2026) |
 | BES-23 | « Applique un système de queue pour mes traitements trop longs et même des websockets, avec une architecture asynchrone. » (23/09/2026) |
 
@@ -362,6 +364,7 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | EF-EXE-03 | Le candidat doit pouvoir consulter l'état et l'avancement d'une exécution : en attente, en cours, terminée ou en échec, avec ses compteurs. | M | EXM-15 | T | — |
 | EF-EXE-04 | Le système doit pousser l'avancement vers l'interface sans que celle-ci ait à redemander, et la reprise du flux après coupure ne doit rien perdre. | S | EXM-15 | T | Le flux émet un événement à chaque changement d'état ; une reconnexion retrouve l'état courant. |
 | EF-EXE-05 | Le système doit reprendre ou marquer en échec toute exécution restée « en cours » après un arrêt du serveur. | S | ENF-FIA-01 | T | Une exécution « en cours » au démarrage est close en échec, jamais laissée telle quelle. |
+| EF-EXE-06 | Le système doit mener au plus N traitements longs à la fois, tous candidats confondus (N fixé par la configuration, 1 par défaut) ; les autres attendent leur tour dans l'ordre de leur demande, sans être perdus, et l'ordre des traitements d'un même candidat (EF-EXE-02) est conservé. (v1.29, BES-42) | M | EXM-15 | T | Avec N = 1, les traitements de deux candidats ne se chevauchent jamais et s'enchaînent dans l'ordre de leur demande ; avec N = 2, ils peuvent se chevaucher. |
 
 
 ### 6.11 Informations légales (LEG)
@@ -601,6 +604,7 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | BES-39 | — (choix de réalisation, C-05) | ENF-SEC-01, ENF-SEC-21 |
 | BES-40 | — (organisation) | ENF-MAI-08, ENF-MAI-01, ENF-MAI-02, ENF-SEC-10 |
 | BES-41 | EXM-13 | EF-AUT-13, EF-SEO-01, ENF-PERF-07 |
+| BES-42 | EXM-15 | EF-EXE-06 |
 | BES-35 | EXM-01 | EF-CFG-05, EF-CFG-02 (retirée de l'écran) |
 
 La traçabilité fine exigence → tâche → test est tenue à jour dans `docs/TRACABILITE.md`.

@@ -13,6 +13,8 @@ const DEFAULT_GMAIL_CRON = '*/30 * * * *';
 const DEFAULT_WATCH_CRON = '0 7,13,19 * * *';
 const DEFAULT_PORT = 4000;
 const MAX_PROXY_HOPS = 5;
+// EF-EXE-06: beyond this, a single small container could not hold the treatments anyway.
+const MAX_JOB_SLOTS = 5;
 const MAX_PORT = 65_535;
 
 const isHttpOrigin = (value: string): boolean => {
@@ -97,6 +99,8 @@ const EnvSchema = z.object({
    * rather than the proxy they share (ENF-SEC-19). 0 in local use: the header is ignored, nobody can forge it.
    */
   TRUST_PROXY: z.coerce.number().int().min(0).max(MAX_PROXY_HOPS).default(0),
+  // EF-EXE-06: long treatments run at once on the whole server; 1 keeps a small container within its memory.
+  MAX_CONCURRENT_JOBS: z.coerce.number().int().min(1).max(MAX_JOB_SLOTS).default(1),
   // ENF-MAI-07: comma-separated optional features (watch, cv); none when absent, an unknown name stops the server.
   ENABLED_FEATURES: z
     .string()
@@ -160,6 +164,8 @@ export interface Config {
   features: EnabledFeatures;
   /** BES-39, ENF-SEC-19: proxies in front of the API whose X-Forwarded-For is trusted; 0 trusts none. */
   trustProxyHops: number;
+  /** EF-EXE-06: long treatments run at once, all candidates together. */
+  maxConcurrentJobs: number;
 }
 
 /** Time zone of the cron expressions and schedule of each job. */
@@ -248,5 +254,6 @@ export const loadConfig = (env: Record<string, string | undefined>): Config => {
     scraper: { contact: result.data.SCRAPER_CONTACT_EMAIL },
     features: result.data.ENABLED_FEATURES,
     trustProxyHops: result.data.TRUST_PROXY,
+    maxConcurrentJobs: result.data.MAX_CONCURRENT_JOBS,
   };
 };

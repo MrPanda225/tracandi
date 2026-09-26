@@ -97,7 +97,12 @@ const llmRouter = createLlmRouter({
   logger,
 });
 
-const jobQueue = createJobQueue({ db: database.db, clock: systemClock, logger });
+const jobQueue = createJobQueue({
+  db: database.db,
+  clock: systemClock,
+  logger,
+  maxConcurrentRuns: config.maxConcurrentJobs,
+});
 
 const messageFetcher = createMessageFetcher({
   db: database.db,
