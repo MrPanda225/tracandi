@@ -57,6 +57,9 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: npm run typecheck
       - run: npm run lint
+      # OCR de l'Atelier CV (EF-CVX-22) : les mêmes outils que l'image de l'API ; `time` mesure leur mémoire.
+      - name: Outils d'OCR (poppler, tesseract)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends poppler-utils tesseract-ocr tesseract-ocr-fra tesseract-ocr-eng time
       # Unitaires et intégration ensemble, seuil de couverture de 80 % (ENF-MAI-01).
       - run: npm run test:coverage
       - name: Audit des dépendances (ENF-SEC-10)
