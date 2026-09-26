@@ -482,7 +482,7 @@ l'offre n'est écrite en base, sur disque ou dans les journaux (ENF-RGP-06).
   arrive avec l'analyse (T-511), qui l'enchaîne au diagnostic. L'OCR réel et sa mémoire ne sont vérifiés qu'en CI
   (`tests/integration/cv-ocr.test.ts`) : Tesseract n'est pas installé sur le poste de développement.
 
-- [~] **T-511 Diagnostic de compatibilité** — tâche IA « diagnostic » par le routeur (procédure `add-llm-task`) :
+- [x] **T-511 Diagnostic de compatibilité** — tâche IA « diagnostic » par le routeur (procédure `add-llm-task`) :
   quatre sous-scores expliqués en français, score global calculé par RG-23 ; analyse menée dans la file
   d'exécution (nouvelle tâche `cv_analysis`, compteurs seuls) ; résultat gardé en mémoire 30 min puis effacé ;
   quota de 5 analyses par jour.
@@ -495,7 +495,15 @@ l'offre n'est écrite en base, sur disque ou dans les journaux (ENF-RGP-06).
   202 avec l'identifiant ; lecture et OCR dans la file ; résultat gardé en mémoire (`createAnalysisResults`, effacé
   au bout de 30 min même sans nouvelle demande) et rendu par `GET /api/cv-workshop/analyses/:id` (404 pour un autre
   compte, avant la fin ou après l'effacement). La file transmet désormais son identifiant au traitement.
-  *Reste* : tâche IA de diagnostic (sous-scores, RG-23), texte de l'offre (EF-CVX-23), points faibles, quota.
+  *Livré, partie 2 (26/09/2026)* : tâche IA `diagnose_cv` (prompt `llm/prompts/diagnoseCv.ts`, CV sans coordonnées
+  et offre encadrés, bornés à 12 000 et 8 000 caractères ; route Groq 1, 2, 3, Gemini, Claude, RG-13 complétée ;
+  migration 0015), schéma `DiagnosisAnswerSchema` (sous-scores entiers 0–100, explications de 1 à 3 phrases, 20
+  compétences manquantes au plus), `buildDiagnosis` (score global RG-23 calculé par le code en centièmes exacts ;
+  points faibles sous 50 ; compétence dite manquante mais citée par le CV écartée, doublons retirés), texte de
+  l'offre de 200 à 20 000 caractères, quota de 5 analyses par jour de Paris (échecs non comptés, index
+  `ix_job_runs_user_job_started`), étapes publiées (`cv_steps_done`). Écran : formulaire CV puis offre, avancement
+  en deux étapes, score et verdict en mots, quatre jauges `<meter>` expliquées, « À renforcer », compétences
+  manquantes, « Ce que l'IA a reçu » replié ; textes réécrits sur un ton naturel et chaleureux (ux-design, ui-design).
 
 - [ ] **T-512 CV adapté** — tâche IA « adaptation » : CV réécrit par sections, liste des modifications (section,
   avant, après, raison), compétences de l'offre absentes du CV ; contrôle RG-21 avant toute présentation.
