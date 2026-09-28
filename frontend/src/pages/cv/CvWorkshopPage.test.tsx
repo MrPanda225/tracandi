@@ -70,7 +70,8 @@ const mockApi = (analysis: unknown = ANALYSIS) => {
     if (url === '/api/cv-workshop/analyses') return Promise.resolve(json(202, { runId: RUN_ID }));
     if (url === `/api/cv-workshop/analyses/${String(RUN_ID)}/docx`) {
       return Promise.resolve(
-        new Response(new Blob(['PK docx']), {
+        // A text body: Node's Response does not take a jsdom Blob.
+        new Response('PK docx', {
           status: 200,
           headers: { 'Content-Disposition': 'attachment; filename="cv-adapte.docx"' },
         }),
