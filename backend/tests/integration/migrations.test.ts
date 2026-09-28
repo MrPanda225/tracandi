@@ -108,6 +108,7 @@ describe('migrations', () => {
         'PUT /profile',
         'POST /cv-workshop/analyses',
         'GET /cv-workshop/analyses/{id}',
+        'POST /cv-workshop/analyses/{id}/docx',
         'GET /jobs/{id}',
         'GET /jobs/stream',
         'DELETE /gmail/connection',
