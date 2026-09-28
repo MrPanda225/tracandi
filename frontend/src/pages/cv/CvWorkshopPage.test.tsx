@@ -270,7 +270,8 @@ describe('CvWorkshopPage — the result', () => {
 
   it('[EF-CVX-31] [EF-CVX-28] downloads the Word file with the ticked skills', async () => {
     const saved: string[] = [];
-    vi.stubGlobal('URL', { ...URL, createObjectURL: () => 'blob:cv', revokeObjectURL: () => undefined });
+    // jsdom has no object URLs: the real URL keeps its constructor, only the two missing functions are added.
+    vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: () => 'blob:cv', revokeObjectURL: () => undefined }));
     const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
       saved.push(this.download);
     });
@@ -279,7 +280,10 @@ describe('CvWorkshopPage — the result', () => {
 
     await user.click(screen.getByRole('button', { name: 'Télécharger mon CV (Word)' }));
 
-    await waitFor(() => expect(saved).toEqual(['cv-adapte.docx']));
+    await waitFor(() => {
+      expect(screen.queryByRole('alert')).toBeNull();
+      expect(saved).toEqual(['cv-adapte.docx']);
+    });
     const fetchMock = vi.mocked(fetch);
     const init = fetchMock.mock.calls.find(([url]) => url === `/api/cv-workshop/analyses/${String(RUN_ID)}/docx`)?.[1];
     expect(JSON.parse(String(init?.body))).toEqual({ addedSkills: ['dbt'] });
