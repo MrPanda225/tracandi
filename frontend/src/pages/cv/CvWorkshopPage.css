@@ -306,6 +306,169 @@
   font-size: 0.875rem;
 }
 
+.cv-skills-fieldset {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.cv-skills-fieldset legend {
+  margin-bottom: 0.75rem;
+  padding: 0;
+}
+
+/* Toute l'étiquette coche la case, et fait au moins 44 px de haut (WCAG 2.5.5). */
+.cv-skills__choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 44px;
+  padding-inline: 0.85rem;
+  cursor: pointer;
+  font-size: 0.9375rem;
+}
+
+.cv-skills__choice:has(input:checked) {
+  border-color: var(--status-interview);
+  background: var(--status-interview-soft);
+}
+
+.cv-skills__choice input {
+  width: 1.1rem;
+  height: 1.1rem;
+  accent-color: var(--status-interview);
+}
+
+/* ---------- CV adapté (EF-CVX-25, EF-CVX-31) ---------- */
+
+.cv-preview {
+  display: grid;
+  gap: 0.35rem;
+  max-height: 34rem;
+  padding: 1.25rem 1.4rem;
+  overflow: auto;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  background: var(--color-canvas);
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+
+.cv-preview p {
+  margin: 0;
+}
+
+.cv-preview ul {
+  margin: 0.2rem 0 0;
+  padding-left: 1.2rem;
+}
+
+.cv-preview__headline {
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+}
+
+.cv-preview__section {
+  margin: 0.8rem 0 0.1rem;
+  padding-bottom: 0.2rem;
+  border-bottom: 1px solid var(--color-line);
+  font-family: var(--font-body);
+  font-size: 0.9375rem;
+  font-weight: 700;
+}
+
+.cv-preview__entry {
+  margin-top: 0.4rem;
+}
+
+.cv-preview__entry-title {
+  font-weight: 650;
+}
+
+.cv-preview__dates {
+  color: var(--color-mauve-deep);
+  font-size: 0.875rem;
+}
+
+.cv-download {
+  display: grid;
+  justify-items: start;
+  gap: 0.5rem;
+}
+
+/* ---------- Ce qui a changé (EF-CVX-29) ---------- */
+
+.cv-changes {
+  display: grid;
+  gap: 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cv-change {
+  display: grid;
+  gap: 0.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--color-line);
+}
+
+.cv-change:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.cv-change__section {
+  margin: 0;
+  color: var(--color-mauve-deep);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.cv-change__texts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 0.6rem;
+  margin: 0;
+}
+
+.cv-change__texts > div {
+  padding: 0.6rem 0.8rem;
+  border-radius: var(--radius-sm);
+}
+
+.cv-change__before {
+  background: var(--color-mist-soft);
+}
+
+.cv-change__after {
+  background: var(--status-interview-soft);
+}
+
+.cv-change__texts dt {
+  margin-bottom: 0.2rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.cv-change__texts dd {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.cv-change__reason {
+  margin: 0;
+  color: var(--color-mauve-deep);
+  font-size: 0.9375rem;
+}
+
 /* ---------- Ce que l'IA a reçu (EF-CVX-35) ---------- */
 
 .cv-received__summary {
@@ -377,5 +540,10 @@
   .cv-score {
     grid-template-columns: minmax(0, 1fr);
     gap: 0.5rem;
+  }
+
+  /* Au doigt, un défilement dans le défilement gêne : l'aperçu s'affiche en entier. */
+  .cv-preview {
+    max-height: none;
   }
 }

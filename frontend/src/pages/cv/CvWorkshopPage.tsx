@@ -1,5 +1,5 @@
 import { type FormEvent, useId, useState } from 'react';
-import { CV_MAX_BYTES, OFFER_MAX_LENGTH, OFFER_MIN_LENGTH, type CvAnalysis } from '../../api/cvWorkshop';
+import { CV_MAX_BYTES, OFFER_MAX_LENGTH, OFFER_MIN_LENGTH } from '../../api/cvWorkshop';
 import { Flash } from '../../components/Flash';
 import { PageHeader } from '../../components/PageHeader';
 import { DiagnosisResult } from './DiagnosisResult';
@@ -25,7 +25,7 @@ const describeOfferRefusal = (offer: string): string | null => {
   return null;
 };
 
-const STEPS: readonly string[] = ['On lit votre CV…', 'On le compare à l’offre…'];
+const STEPS: readonly string[] = ['On lit votre CV…', 'On le compare à l’offre…', 'On l’adapte à l’offre…'];
 
 /** EF-CVX-32: where the analysis stands, in words (ENF-UTI-03). */
 function Progress({ step }: { step: AnalysisStep }) {
@@ -41,7 +41,7 @@ function Progress({ step }: { step: AnalysisStep }) {
           </li>
         ))}
       </ol>
-      <p className="form-field__hint">Comptez moins d’une minute, un peu plus pour un scan.</p>
+      <p className="form-field__hint">Comptez une minute environ, un peu plus pour un scan.</p>
     </div>
   );
 }
@@ -168,15 +168,15 @@ export function CvWorkshopPage() {
     reset();
   };
 
-  const analysis: CvAnalysis | null = state.status === 'done' ? state.analysis : null;
+  const done = state.status === 'done' ? state : null;
   return (
     <>
       <PageHeader title="Atelier CV">
         <p>Déposez votre CV, collez une offre : on vous dit ce qui colle et ce qui manque.</p>
       </PageHeader>
       <div className="cv-workshop">
-        {analysis ? (
-          <DiagnosisResult analysis={analysis} onAnotherOffer={handleAnotherOffer} />
+        {done ? (
+          <DiagnosisResult runId={done.runId} analysis={done.analysis} onAnotherOffer={handleAnotherOffer} />
         ) : (
           <>
             <AnalysisForm

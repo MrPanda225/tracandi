@@ -1,5 +1,6 @@
-import { useId } from 'react';
+import { useId, useState } from 'react';
 import type { CvAnalysis, CvContacts, Dimension } from '../../api/cvWorkshop';
+import { AdaptedCvCard, Changes, SkillsToAdd } from './AdaptedCv';
 
 // Heaviest first (RG-23): the order in which the candidate should read them.
 const DIMENSION_ORDER: readonly Dimension[] = ['skills', 'experience', 'techStack', 'education'];
@@ -93,34 +94,6 @@ function Dimensions({ analysis }: { analysis: CvAnalysis }) {
   );
 }
 
-/** EF-CVX-27: what the offer asks for and the CV does not say. */
-function MissingSkills({ skills }: { skills: string[] }) {
-  const titleId = useId();
-  return (
-    <section className="cv-card" aria-labelledby={titleId}>
-      <h2 id={titleId} className="cv-card__title">
-        Ce que l’offre demande et que votre CV ne dit pas
-      </h2>
-      {skills.length > 0 ? (
-        <>
-          <ul className="cv-skills">
-            {skills.map((skill) => (
-              <li key={skill} className="cv-skills__item">
-                {skill}
-              </li>
-            ))}
-          </ul>
-          <p className="cv-card__lede">
-            Vous en maîtrisez certaines ? Elles méritent une place dans votre CV, à condition d’être vraies.
-          </p>
-        </>
-      ) : (
-        <p className="cv-card__lede">Rien d’important ne manque. Bravo !</p>
-      )}
-    </section>
-  );
-}
-
 /** EF-CVX-35, ENF-RGP-07: what the AI received, folded away — there for whoever wants to check. */
 function WhatTheAiReceived({ analysis }: { analysis: CvAnalysis }) {
   const { text, contacts, ocrPageCount } = analysis.reading;
@@ -156,16 +129,31 @@ function WhatTheAiReceived({ analysis }: { analysis: CvAnalysis }) {
   );
 }
 
-/** The result of an analysis: score, detail, missing skills, what the AI received, and what comes next. */
-export function DiagnosisResult({ analysis, onAnotherOffer }: { analysis: CvAnalysis; onAnotherOffer: () => void }) {
+/**
+ * The result of an analysis: the score and its detail, the missing skills to tick, the adapted CV to download, what
+ * changed and why, what the AI received, and what comes next. The score never moves with the ticked skills
+ * (EF-CVX-28): it measures the imported CV.
+ */
+export function DiagnosisResult({
+  runId,
+  analysis,
+  onAnotherOffer,
+}: {
+  runId: number;
+  analysis: CvAnalysis;
+  onAnotherOffer: () => void;
+}) {
+  const [ticked, setTicked] = useState<string[]>([]);
   return (
     <>
       <ScoreCard score={analysis.diagnosis.overallScore} />
       <Dimensions analysis={analysis} />
-      <MissingSkills skills={analysis.diagnosis.missingSkills} />
+      <SkillsToAdd skills={analysis.diagnosis.missingSkills} ticked={ticked} onTickedChange={setTicked} />
+      <AdaptedCvCard cv={analysis.adapted.cv} runId={runId} ticked={ticked} />
+      <Changes changes={analysis.adapted.changes} />
       <WhatTheAiReceived analysis={analysis} />
       <div className="cv-workshop__end">
-        <button type="button" className="btn" onClick={onAnotherOffer}>
+        <button type="button" className="btn btn--quiet" onClick={onAnotherOffer}>
           Analyser une autre offre
         </button>
         <p className="cv-workshop__note">Rien n’est gardé : ce résultat s’efface dans 30 minutes.</p>
