@@ -94,7 +94,11 @@ function Dimensions({ analysis }: { analysis: CvAnalysis }) {
                 value={score}
                 aria-label={`${DIMENSION_LABELS[dimension]} : ${String(score)} sur 100`}
               />
-              <p className="cv-dimension__explanation">{explanation}</p>
+              {/* ENF-UTI-07: the reason, on demand — the score and the bar already say the essential. */}
+              <details className="cv-why">
+                <summary className="cv-why__summary">Pourquoi ?</summary>
+                <p className="cv-dimension__explanation">{explanation}</p>
+              </details>
             </li>
           );
         })}
@@ -107,10 +111,10 @@ function Dimensions({ analysis }: { analysis: CvAnalysis }) {
 function WhatTheAiReceived({ analysis }: { analysis: CvAnalysis }) {
   const { text, contacts, ocrPageCount } = analysis.reading;
   return (
-    <details className="cv-card cv-received">
-      <summary className="cv-received__summary">
-        <span className="cv-received__label">Ce que l’IA a reçu</span>
-        <span className="cv-received__hint">Votre CV, sans vos coordonnées</span>
+    <details className="cv-card cv-fold cv-received">
+      <summary className="cv-fold__summary">
+        <span className="cv-fold__label">Ce que l’IA a reçu</span>
+        <span className="cv-fold__hint">Votre CV, sans vos coordonnées</span>
       </summary>
       {ocrPageCount > 0 && (
         <p className="cv-card__lede">
@@ -156,8 +160,8 @@ export function DiagnosisResult({
   return (
     <div className="cv-result">
       <ScoreCard score={analysis.diagnosis.overallScore} />
-      <Dimensions analysis={analysis} />
       <SkillsToAdd skills={analysis.diagnosis.missingSkills} ticked={ticked} onTickedChange={setTicked} />
+      <Dimensions analysis={analysis} />
       <AdaptedCvCard cv={analysis.adapted.cv} contacts={analysis.reading.contacts} runId={runId} ticked={ticked} />
       <Changes changes={analysis.adapted.changes} />
       <WhatTheAiReceived analysis={analysis} />
