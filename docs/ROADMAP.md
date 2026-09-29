@@ -550,6 +550,20 @@ l'offre n'est écrite en base, sur disque ou dans les journaux (ENF-RGP-06).
   « Votre CV, adapté à cette offre » — aperçu qui reprend aussitôt les compétences cochées, puis téléchargement
   Word (une seule action principale à l'écran) ; « Ce qui a changé, et pourquoi » — avant, après, raison ; aperçu
   déplié en entier sur téléphone. Vérifié à 1440 px et 390 px sur une API simulée (données fictives).
+- [ ] **T-516 CV d'une page A4** — *demande du Business Owner du 30/09/2026 (cahier v1.31, BES-44).* Consigne
+  de la tâche `tailor_cv` bornée à une page ; contrôle côté serveur de la place occupée, qui rejette une réponse
+  trop longue comme une infidélité (le routeur passe au fournisseur suivant) ; rendu Word qui resserre espacements
+  puis taille du texte, jusqu'à 10 pt et 1,5 cm de marges, pour loger les compétences cochées ; LibreOffice installé
+  dans la CI seulement, pour compter les pages du fichier (l'image de l'API reste sans LibreOffice).
+  *Exigences* : RG-24, EF-CVX-36, EF-CVX-37.
+  *Fini quand* : le CV fictif long (12 expériences de 8 réalisations, 40 compétences, 3 cochées) donne un fichier
+  d'une page qui cite les 12 expériences ; réponse trop longue rejetée puis redemandée.
+- [ ] **T-517 Atelier CV allégé** — *demande du Business Owner du 30/09/2026 (cahier v1.31, BES-44).* Texte d'aide
+  réduit avant l'analyse ; explications des sous-scores, modifications et texte lu repliés ; score, CV adapté et
+  téléchargement visibles d'emblée ; aperçu en page A4 à la police et aux marges du fichier.
+  *Exigences* : ENF-UTI-05, ENF-UTI-06, ENF-UTI-07, EF-CVX-38 ; EF-CVX-24 et EF-CVX-29 (précisées).
+  *Fini quand* : 40 mots d'aide au plus sur l'écran vide ; démonstration à 1440 × 900 et 390 px.
+
 - [ ] **T-515 Retrait de l'ancien atelier** — code du profil de référence et du modèle Word (T-501, T-502, T-507),
   LibreOffice retiré de l'image, migration de suppression de `candidate_profiles` et `cv_versions`, politique de
   confidentialité complétée.
