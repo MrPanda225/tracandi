@@ -344,53 +344,127 @@
 
 /* ---------- CV adapté (EF-CVX-25, EF-CVX-31) ---------- */
 
-.cv-preview {
+/* L'aperçu se lit comme une feuille de CV ; le fichier Word garde sa colonne unique pour les ATS (RG-22). */
+.cv-sheet {
+  --cv-margin: 8.5rem;
   display: grid;
-  gap: 0.35rem;
-  max-height: 34rem;
-  padding: 1.25rem 1.4rem;
-  overflow: auto;
+  gap: 1.1rem;
+  padding: 2rem 2.25rem 2.25rem;
   border: 1px solid var(--color-line);
   border-radius: var(--radius-sm);
-  background: var(--color-canvas);
-  font-size: 0.9375rem;
+  background: var(--color-canvas-raised);
+  box-shadow: var(--shadow-soft);
+  color: var(--color-ink-deep);
+  font-family: var(--font-body);
+  font-size: 0.875rem;
   line-height: 1.5;
 }
 
-.cv-preview p {
+.cv-sheet p {
   margin: 0;
 }
 
-.cv-preview ul {
-  margin: 0.2rem 0 0;
-  padding-left: 1.2rem;
+.cv-sheet ul {
+  display: grid;
+  gap: 0.2rem;
+  margin: 0.35rem 0 0;
+  padding-left: 1.1rem;
 }
 
-.cv-preview__headline {
-  font-family: var(--font-display);
-  font-size: 1.2rem;
+.cv-sheet li::marker {
+  color: var(--color-accent);
 }
 
-.cv-preview__section {
-  margin: 0.8rem 0 0.1rem;
-  padding-bottom: 0.2rem;
-  border-bottom: 1px solid var(--color-line);
-  font-family: var(--font-body);
-  font-size: 0.9375rem;
-  font-weight: 700;
+.cv-sheet__header {
+  display: grid;
+  gap: 0.2rem;
+  text-align: center;
 }
 
-.cv-preview__entry {
-  margin-top: 0.4rem;
+.cv-sheet__name {
+  font-size: 1.4rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
 }
 
-.cv-preview__entry-title {
-  font-weight: 650;
+.cv-sheet__headline {
+  font-weight: 600;
 }
 
-.cv-preview__dates {
+.cv-sheet__reach {
   color: var(--color-mauve-deep);
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
+  overflow-wrap: anywhere;
+}
+
+.cv-sheet__section {
+  display: grid;
+  gap: 0.75rem;
+  padding-top: 0.6rem;
+  border-top: 2px solid var(--color-ink-deep);
+}
+
+.cv-sheet__title {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.cv-sheet__entry {
+  display: grid;
+  grid-template-columns: var(--cv-margin) minmax(0, 1fr);
+  gap: 1.25rem;
+}
+
+.cv-sheet__dates,
+.cv-sheet__place {
+  color: var(--color-mauve-deep);
+  font-size: 0.8125rem;
+  line-height: 1.7;
+}
+
+.cv-sheet__entry-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.1rem 1rem;
+}
+
+.cv-sheet__role {
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.cv-sheet__organization {
+  font-weight: 750;
+}
+
+.cv-sheet__rows {
+  display: grid;
+  gap: 0.3rem;
+  margin: 0;
+}
+
+.cv-sheet__row {
+  display: grid;
+  grid-template-columns: var(--cv-margin) minmax(0, 1fr);
+  gap: 1.25rem;
+}
+
+.cv-sheet__row dt {
+  font-size: 0.75rem;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  line-height: 1.75;
+  text-transform: uppercase;
+}
+
+.cv-sheet__row dd {
+  margin: 0;
 }
 
 .cv-download {
@@ -542,8 +616,14 @@
     gap: 0.5rem;
   }
 
-  /* Au doigt, un défilement dans le défilement gêne : l'aperçu s'affiche en entier. */
-  .cv-preview {
-    max-height: none;
+  /* Sur téléphone, la marge des dates passe au-dessus de chaque entrée. */
+  .cv-sheet {
+    padding: 1.25rem 1rem 1.5rem;
+  }
+
+  .cv-sheet__entry,
+  .cv-sheet__row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.1rem;
   }
 }

@@ -249,6 +249,19 @@ describe('CvWorkshopPage — the result', () => {
     expect(preview).toHaveTextContent('SQL, Python, Power BI');
   });
 
+  it('[EF-CVX-25] lays the adapted CV out as a sheet: contact details on top, grouped skills side by side', async () => {
+    const cv = { ...ANALYSIS.adapted.cv, skills: ['Langages : SQL, Python', 'Power BI'], languages: ['Anglais : courant'] };
+    await showResult({ ...ANALYSIS, adapted: { ...ANALYSIS.adapted, cv } });
+
+    const preview = screen.getByRole('article', { name: 'Aperçu de votre CV adapté' });
+    expect(within(preview).getByText(/Camille Durand,/)).toHaveTextContent('Camille Durand, Data Analyst');
+    expect(preview).toHaveTextContent('06 12 34 56 78 · camille.durand@example.com');
+    expect(within(preview).getByRole('heading', { name: 'Expériences professionnelles' })).toBeInTheDocument();
+    expect(within(preview).getByText('Langages').closest('div')).toHaveTextContent('LangagesSQL, Python');
+    expect(within(preview).getByText('Anglais').closest('div')).toHaveTextContent('Anglaiscourant');
+    expect(preview).toHaveTextContent('Power BI');
+  });
+
   it('[EF-CVX-29] shows each change: before, after and why', async () => {
     await showResult();
 

@@ -149,7 +149,7 @@ export function DiagnosisResult({
       <ScoreCard score={analysis.diagnosis.overallScore} />
       <Dimensions analysis={analysis} />
       <SkillsToAdd skills={analysis.diagnosis.missingSkills} ticked={ticked} onTickedChange={setTicked} />
-      <AdaptedCvCard cv={analysis.adapted.cv} runId={runId} ticked={ticked} />
+      <AdaptedCvCard cv={analysis.adapted.cv} contacts={analysis.reading.contacts} runId={runId} ticked={ticked} />
       <Changes changes={analysis.adapted.changes} />
       <WhatTheAiReceived analysis={analysis} />
       <div className="cv-workshop__end">
