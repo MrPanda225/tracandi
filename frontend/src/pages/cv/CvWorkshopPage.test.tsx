@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -133,6 +133,17 @@ describe('CvWorkshopPage — the form', () => {
     expect(screen.getByLabelText('1. Votre CV')).toHaveAccessibleDescription(/Ce fichier n’est pas un PDF/);
     expect(screen.getByRole('button', { name: 'Analyser' })).toBeDisabled();
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('[EF-CVX-21] takes a CV dropped on its zone, and names it with its size', async () => {
+    mockApi();
+    renderPage();
+    const zone = screen.getByText('Glissez votre CV ici').closest('label') as HTMLElement;
+
+    fireEvent.drop(zone, { dataTransfer: { files: [pdfFile()] } });
+
+    expect(screen.getByText('cv.pdf')).toBeInTheDocument();
+    expect(zone).toHaveTextContent(/\d+ Ko · Changer de fichier/);
   });
 
   it('[EF-CVX-21] says a CV of more than 5 MB is too heavy, and sends nothing', async () => {
@@ -327,7 +338,8 @@ describe('CvWorkshopPage — the result', () => {
 
     await user.click(screen.getByRole('button', { name: 'Analyser une autre offre' }));
 
-    expect(screen.getByText('Votre CV : cv.pdf. Choisissez-en un autre si besoin.')).toBeInTheDocument();
+    expect(screen.getByText('cv.pdf')).toBeInTheDocument();
+    expect(screen.getByText('Changer de fichier')).toBeInTheDocument();
     expect(screen.getByLabelText('2. L’offre qui vous intéresse')).toHaveValue('');
   });
 });

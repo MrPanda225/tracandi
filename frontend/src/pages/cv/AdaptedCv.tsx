@@ -231,7 +231,10 @@ function DownloadAction({ runId, ticked }: { runId: number; ticked: readonly str
   );
 }
 
-/** EF-CVX-25, EF-CVX-31: the adapted CV and the way to take it away. */
+/** Anchor of the adapted CV, reached from the score on a phone. */
+export const ADAPTED_CV_ID = 'cv-adapte';
+
+/** EF-CVX-25, EF-CVX-31: the adapted CV and, first, the way to take it away — the action the journey leads to. */
 export function AdaptedCvCard({
   cv,
   contacts,
@@ -245,13 +248,13 @@ export function AdaptedCvCard({
 }) {
   const titleId = useId();
   return (
-    <section className="cv-card" aria-labelledby={titleId}>
+    <section id={ADAPTED_CV_ID} className="cv-card cv-card--cv" aria-labelledby={titleId}>
       <h2 id={titleId} className="cv-card__title">
         Votre CV, adapté à cette offre
       </h2>
       <p className="cv-card__lede">Rien n’a été inventé : tout vient de votre CV, dit avec les mots de l’offre.</p>
-      <CvPreview cv={cv} contacts={contacts} ticked={ticked} />
       <DownloadAction runId={runId} ticked={ticked} />
+      <CvPreview cv={cv} contacts={contacts} ticked={ticked} />
     </section>
   );
 }

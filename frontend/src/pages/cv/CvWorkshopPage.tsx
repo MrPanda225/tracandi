@@ -1,4 +1,4 @@
-import { type FormEvent, useId, useState } from 'react';
+import { type DragEvent, type FormEvent, useId, useState } from 'react';
 import { CV_MAX_BYTES, OFFER_MAX_LENGTH, OFFER_MIN_LENGTH } from '../../api/cvWorkshop';
 import { Flash } from '../../components/Flash';
 import { PageHeader } from '../../components/PageHeader';
@@ -24,6 +24,88 @@ const describeOfferRefusal = (offer: string): string | null => {
   if (length > OFFER_MAX_LENGTH) return 'L’offre dépasse 20 000 caractères : gardez l’essentiel de l’annonce.';
   return null;
 };
+
+const sizeFormat = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 1 });
+const BYTES_PER_KB = 1024;
+const BYTES_PER_MB = 1024 * 1024;
+
+/** « 245 Ko », « 1,2 Mo »: the size the way a file explorer says it. */
+const describeSize = (bytes: number): string =>
+  bytes >= BYTES_PER_MB
+    ? `${sizeFormat.format(bytes / BYTES_PER_MB)} Mo`
+    : `${String(Math.max(1, Math.round(bytes / BYTES_PER_KB)))} Ko`;
+
+/**
+ * EF-CVX-21: the CV, dropped or chosen, in French words rather than the browser's own button. The native field stays
+ * inside, visually hidden: keyboard, screen readers and the file picker work as usual (WCAG 2.1.1).
+ */
+function CvFileZone({
+  file,
+  isDisabled,
+  refusal,
+  labelId,
+  hintId,
+  errorId,
+  onFileChange,
+}: {
+  file: File | null;
+  isDisabled: boolean;
+  refusal: string | null;
+  labelId: string;
+  hintId: string;
+  errorId: string;
+  onFileChange: (file: File | null) => void;
+}) {
+  const [isDragging, setIsDragging] = useState(false);
+  const handleDrop = (event: DragEvent<HTMLLabelElement>) => {
+    event.preventDefault();
+    setIsDragging(false);
+    const dropped = event.dataTransfer.files[0];
+    if (!isDisabled && dropped) onFileChange(dropped);
+  };
+  return (
+    <label
+      className="cv-drop"
+      data-dragging={isDragging || undefined}
+      onDragOver={(event) => {
+        event.preventDefault();
+        if (!isDisabled) setIsDragging(true);
+      }}
+      onDragLeave={() => setIsDragging(false)}
+      onDrop={handleDrop}
+    >
+      <input
+        className="visually-hidden"
+        type="file"
+        accept={`${PDF_TYPE},.pdf`}
+        aria-labelledby={labelId}
+        aria-describedby={refusal ? `${hintId} ${errorId}` : hintId}
+        aria-invalid={refusal !== null}
+        disabled={isDisabled}
+        onChange={(event) => onFileChange(event.target.files?.[0] ?? null)}
+      />
+      <svg className="cv-drop__icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+        <path d="M14 3v5h5M9 13h6M9 17h4" />
+      </svg>
+      {file ? (
+        <span className="cv-drop__text">
+          <span className="cv-drop__name">{file.name}</span>
+          <span className="cv-drop__meta">
+            {describeSize(file.size)} · <span className="cv-drop__link">Changer de fichier</span>
+          </span>
+        </span>
+      ) : (
+        <span className="cv-drop__text">
+          <span className="cv-drop__name">Glissez votre CV ici</span>
+          <span className="cv-drop__meta">
+            ou <span className="cv-drop__link">choisissez un fichier</span>
+          </span>
+        </span>
+      )}
+    </label>
+  );
+}
 
 const STEPS: readonly string[] = ['On lit votre CV…', 'On le compare à l’offre…', 'On l’adapte à l’offre…'];
 
@@ -64,15 +146,13 @@ function AnalysisForm({
   onOfferChange: (offer: string) => void;
   onSubmit: () => void;
 }) {
-  const fileId = useId();
+  const fileLabelId = useId();
   const fileHintId = useId();
   const fileErrorId = useId();
   const offerId = useId();
   const offerHintId = useId();
   const offerErrorId = useId();
   const [hasTriedOffer, setHasTriedOffer] = useState(false);
-  // The field shows the file it was given; a CV kept from the previous analysis is named under an empty field.
-  const [hasPickedHere, setHasPickedHere] = useState(false);
   const fileRefusal = file ? describeFileRefusal(file) : null;
   const offerRefusal = hasTriedOffer ? describeOfferRefusal(offer) : null;
 
@@ -86,28 +166,21 @@ function AnalysisForm({
   return (
     <form className="cv-card" onSubmit={handleSubmit} noValidate aria-label="Votre CV face à une offre">
       <div className="form-field">
-        <label htmlFor={fileId} className="form-field__label">
+        <p id={fileLabelId} className="form-field__label">
           1. Votre CV
-        </label>
+        </p>
         <p id={fileHintId} className="form-field__hint">
           En PDF, 5 Mo au plus. Un scan marche aussi, c’est juste un peu plus long.
         </p>
-        <input
-          id={fileId}
-          className="control"
-          type="file"
-          accept={`${PDF_TYPE},.pdf`}
-          aria-describedby={fileRefusal ? `${fileHintId} ${fileErrorId}` : fileHintId}
-          aria-invalid={fileRefusal !== null}
-          disabled={isRunning}
-          onChange={(event) => {
-            setHasPickedHere(true);
-            onFileChange(event.target.files?.[0] ?? null);
-          }}
+        <CvFileZone
+          file={file}
+          isDisabled={isRunning}
+          refusal={fileRefusal}
+          labelId={fileLabelId}
+          hintId={fileHintId}
+          errorId={fileErrorId}
+          onFileChange={onFileChange}
         />
-        {file && !fileRefusal && !hasPickedHere && (
-          <p className="form-field__hint">Votre CV : {file.name}. Choisissez-en un autre si besoin.</p>
-        )}
         {fileRefusal && (
           <p id={fileErrorId} className="form-field__error">
             {fileRefusal}
@@ -174,7 +247,7 @@ export function CvWorkshopPage() {
       <PageHeader title="Atelier CV">
         <p>Déposez votre CV, collez une offre : on vous dit ce qui colle et ce qui manque.</p>
       </PageHeader>
-      <div className="cv-workshop">
+      <div className={done ? 'cv-workshop cv-workshop--result' : 'cv-workshop'}>
         {done ? (
           <DiagnosisResult runId={done.runId} analysis={done.analysis} onAnotherOffer={handleAnotherOffer} />
         ) : (

@@ -1,6 +1,6 @@
-import { useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import type { CvAnalysis, CvContacts, Dimension } from '../../api/cvWorkshop';
-import { AdaptedCvCard, Changes, SkillsToAdd } from './AdaptedCv';
+import { ADAPTED_CV_ID, AdaptedCvCard, Changes, SkillsToAdd } from './AdaptedCv';
 
 // Heaviest first (RG-23): the order in which the candidate should read them.
 const DIMENSION_ORDER: readonly Dimension[] = ['skills', 'experience', 'techStack', 'education'];
@@ -34,12 +34,17 @@ const CONTACT_ROWS: { label: string; valuesOf: (contacts: CvContacts) => string[
   { label: 'Liens', valuesOf: (contacts) => contacts.links },
 ];
 
-/** EF-CVX-24, RG-23: the peak of the journey — one number, one verdict. */
+/**
+ * EF-CVX-24, RG-23: the peak of the journey — one number, one verdict. It takes the focus when the result replaces
+ * the form, so that neither the eye nor a screen reader is left at the bottom of the page (WCAG 2.4.3).
+ */
 function ScoreCard({ score }: { score: number }) {
   const titleId = useId();
+  const sectionRef = useRef<HTMLElement>(null);
   const verdict = verdictOf(score);
+  useEffect(() => sectionRef.current?.focus(), []);
   return (
-    <section className="cv-card cv-score" aria-labelledby={titleId}>
+    <section ref={sectionRef} className="cv-card cv-score" aria-labelledby={titleId} tabIndex={-1}>
       <h2 id={titleId} className="visually-hidden">
         Votre score
       </h2>
@@ -50,6 +55,10 @@ function ScoreCard({ score }: { score: number }) {
       <div>
         <p className="cv-score__verdict">{verdict.title}</p>
         <p className="cv-card__lede">{verdict.text}</p>
+        {/* On a phone the adapted CV is far below: one tap to reach it. */}
+        <a className="cv-score__jump" href={`#${ADAPTED_CV_ID}`}>
+          Voir mon CV adapté
+        </a>
       </div>
     </section>
   );
@@ -145,7 +154,7 @@ export function DiagnosisResult({
 }) {
   const [ticked, setTicked] = useState<string[]>([]);
   return (
-    <>
+    <div className="cv-result">
       <ScoreCard score={analysis.diagnosis.overallScore} />
       <Dimensions analysis={analysis} />
       <SkillsToAdd skills={analysis.diagnosis.missingSkills} ticked={ticked} onTickedChange={setTicked} />
@@ -158,6 +167,6 @@ export function DiagnosisResult({
         </button>
         <p className="cv-workshop__note">Rien n’est gardé : ce résultat s’efface dans 30 minutes.</p>
       </div>
-    </>
+    </div>
   );
 }
