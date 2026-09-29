@@ -73,7 +73,8 @@ export interface TaskResult<T> {
 export interface LlmRouter {
   /**
    * Runs an AI task on the providers of its route, in order, until one answers JSON valid against the schema.
-   * @throws LlmUnavailableError (502) when every configured provider failed, timed out or answered outside the schema.
+   * @throws LlmUnavailableError (502) when every configured provider failed, timed out or answered outside the schema;
+   * its `answerRejected` says whether one of them did answer, outside the schema.
    * @req EF-IA-01, EF-IA-02, EF-IA-03, EF-IA-04, EF-IA-06
    */
   runTask: <T>(task: LlmTaskName, input: RunTaskInput<T>) => Promise<TaskResult<T>>;
@@ -268,6 +269,7 @@ export const createLlmRouter = ({
   return {
     async runTask(task, input) {
       const route = TASK_ROUTES[task].filter((name) => providers[name] !== undefined);
+      let answerRejected = false;
       for (const [index, name] of route.entries()) {
         const provider = providers[name];
         if (!provider) continue;
@@ -278,8 +280,9 @@ export const createLlmRouter = ({
           hasFallback: index < route.length - 1,
         });
         if (result.outcome === 'success') return { data: result.data, provider: name };
+        answerRejected ||= result.outcome === 'invalid_output';
       }
-      throw new LlmUnavailableError();
+      throw new LlmUnavailableError(answerRejected);
     },
   };
 };

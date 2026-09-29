@@ -32,7 +32,7 @@ const immediateQueue = (alreadyToday = 0) => {
 
 /**
  * A router whose provider answers the fixture of each task, parsed by the schema of the task as the real router does:
- * an answer the schema rejects ends in LlmUnavailableError, as when every provider failed.
+ * an answer the schema rejects ends in LlmUnavailableError, as when every provider answered outside the schema.
  */
 const scriptedRouter = (answers: Record<string, unknown> = { diagnose_cv: ANSWER, tailor_cv: TAILORED }) => {
   const inputs: (RunTaskInput<unknown> & { task: string })[] = [];
@@ -40,7 +40,7 @@ const scriptedRouter = (answers: Record<string, unknown> = { diagnose_cv: ANSWER
     runTask: <T>(task: string, input: RunTaskInput<T>) => {
       inputs.push({ ...(input as RunTaskInput<unknown>), task });
       const parsed = input.schema.safeParse(answers[task]);
-      if (!parsed.success) return Promise.reject(new LlmUnavailableError());
+      if (!parsed.success) return Promise.reject(new LlmUnavailableError(true));
       return Promise.resolve({ data: parsed.data, provider: 'groq_1' as const });
     },
   } as LlmRouter;
@@ -123,6 +123,22 @@ describe('createCvWorkshopService', () => {
     await expect(service.startAnalysis(7, request())).rejects.toMatchObject({
       statusCode: 502,
       message: 'On n’a pas réussi à adapter votre CV sans rien inventer. Réessayez dans un instant.',
+    });
+    expect(results.size()).toBe(0);
+  });
+
+  it('[EF-IA-04] [EF-CVX-26] says the AI is out of reach, not that it invented, when no provider answered', async () => {
+    const router = {
+      runTask: (task: string, input: RunTaskInput<unknown>) =>
+        task === 'tailor_cv'
+          ? Promise.reject(new LlmUnavailableError())
+          : Promise.resolve({ data: input.schema.parse(ANSWER), provider: 'groq_1' as const }),
+    } as unknown as LlmRouter;
+    const { service, results } = serviceWith({ router });
+
+    await expect(service.startAnalysis(7, request())).rejects.toMatchObject({
+      statusCode: 502,
+      message: 'Aucun service d’IA n’a pu traiter la demande. Réessayez dans quelques minutes.',
     });
     expect(results.size()).toBe(0);
   });

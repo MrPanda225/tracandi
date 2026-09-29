@@ -17,12 +17,16 @@ const SYSTEM = [
     '<diagnosis>.',
   'Règles absolues :',
   '- Recopie à l’identique les noms d’entreprises et d’établissements, les intitulés de poste, les diplômes, les lieux ' +
-    'et les dates, tels qu’ils sont écrits dans le CV.',
+    'et les dates, tels qu’ils sont écrits dans le CV : l’intitulé d’un poste ne se réécrit jamais, même pour ' +
+    'l’offre.',
+  '- Écris chaque compétence, outil, certification, langue et centre d’intérêt avec les mots du CV, sans les ' +
+    'traduire ni les renommer, un seul par élément de liste.',
   '- N’ajoute aucune expérience, aucun diplôme, aucune certification, aucun chiffre, aucune compétence, aucun outil, ' +
     'aucune langue et aucun centre d’intérêt absents du CV. Une compétence que l’offre demande et que le CV ne cite ' +
     'pas reste absente.',
   'Tu peux : reformuler une réalisation avec le vocabulaire de l’offre quand le CV décrit bien la même chose, ' +
-    'réordonner, choisir les réalisations les plus utiles pour ce poste, raccourcir, réécrire le titre et le profil.',
+    'réordonner, choisir les réalisations les plus utiles pour ce poste, raccourcir, réécrire l’accroche ' +
+    '(headline, le titre en tête du CV) et le profil.',
   'Écris en français, avec des phrases courtes qui commencent par un verbe d’action. Garde chaque expérience et chaque ' +
     'formation du CV, dans l’ordre du plus récent au plus ancien.',
   'Dans changes, liste chaque modification : section (le titre de la rubrique), before (le texte du CV), after (le ' +

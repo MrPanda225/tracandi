@@ -61,6 +61,13 @@ describe('tailoredAnswerSchemaFor (RG-21)', () => {
     expect(rejectedPaths(withCv({ interests: ['Parapente'] }))).toEqual(['cv.interests.0']);
   });
 
+  it('[RG-21] checks each skill of a grouped line, whatever the punctuation around them', () => {
+    // The CV says « COMPETENCES » then « SQL, Python, Power BI »: the model regroups them under a heading.
+    expect(rejectedPaths(withCv({ skills: ['Compétences : Python, SQL', 'Power BI / SQL', 'SQL · Python'] }))).toEqual([]);
+    expect(rejectedPaths(withCv({ skills: ['Compétences : Python, dbt'] }))).toEqual(['cv.skills.0']);
+    expect(rejectedPaths(withCv({ skills: ['Outils : Power BI'] }))).toEqual(['cv.skills.0']);
+  });
+
   it('[RG-21] accepts a language the CV cites, its level reworded, and rejects one it does not', () => {
     expect(rejectedPaths(withCv({ languages: ['Anglais : niveau professionnel'] }))).toEqual([]);
     expect(rejectedPaths(withCv({ languages: ['Espagnol : courant'] }))).toEqual(['cv.languages.0']);
@@ -73,8 +80,11 @@ describe('tailoredAnswerSchemaFor (RG-21)', () => {
 
   it('[EF-CVX-29] requires each change to give its section, before, after and reason', () => {
     const change = { section: 'Profil', before: 'Ancien', after: 'Nouveau', reason: 'Pour l’offre.' };
+    // A change of the profile quotes it whole: up to the length a profile may have.
+    const wholeProfile = 'p'.repeat(1_200);
 
     expect(schema.safeParse({ ...FAITHFUL, changes: [change] }).success).toBe(true);
+    expect(schema.safeParse({ ...FAITHFUL, changes: [{ ...change, before: wholeProfile, after: wholeProfile }] }).success).toBe(true);
     expect(schema.safeParse({ ...FAITHFUL, changes: [{ ...change, reason: '' }] }).success).toBe(false);
     expect(schema.safeParse({ ...FAITHFUL, changes: Array.from({ length: 31 }, () => change) }).success).toBe(false);
   });

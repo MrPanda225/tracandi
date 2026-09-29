@@ -3,7 +3,8 @@ import { type AdaptedCv, AdaptedCvSchema } from './adaptedCv.js';
 import { cites, foldText, numbersIn } from './text.js';
 
 const SECTION_MAX_LENGTH = 80;
-const TEXT_MAX_LENGTH = 600;
+// A change of the profile quotes it whole, before and after: as long as a profile may be (adaptedCv.ts).
+const TEXT_MAX_LENGTH = 1_200;
 const REASON_MAX_LENGTH = 300;
 /** EF-CVX-29: changes listed at most, enough for a two-page CV. */
 const MAX_CHANGES = 30;
@@ -27,11 +28,18 @@ type FieldPath = (string | number)[];
 const figure = (digits: string): string => digits.replace(/^0+(?=\d)/u, '');
 // « Anglais : courant », « Anglais (C1) »: the language is what comes before the level.
 const languageOf = (item: string): string => item.split(/[:(,\-–—]/u)[0]?.trim() ?? item;
+// « Langages : Python, SQL », « Power BI / SQL »: a line may group several skills under a heading, each one checked.
+// A dash splits only between spaces, so that « scikit-learn » stays whole.
+const partsOf = (item: string): string[] =>
+  item
+    .split(/[,;/|•·:()]|\s[-–—]\s/u)
+    .map((part) => part.trim())
+    .filter((part) => part !== '');
 
 /**
  * RG-21: the fields of an adapted CV that say something the imported CV does not. Companies, schools, job titles,
  * degrees, places and dates must be cited as they are; skills, tools, certifications, languages and interests must be
- * cited; any figure written anywhere must be one of the CV's. Wording is free: a rephrased achievement passes when it
+ * cited, each one of a grouped line (and its heading) on its own; any figure written anywhere must be one of the CV's. Wording is free: a rephrased achievement passes when it
  * adds no figure. Paths only — never the values, which are the candidate's (ENF-SEC-08).
  * @req RG-21, EF-CVX-26
  */
@@ -65,7 +73,9 @@ const unfaithfulPaths = (cv: AdaptedCv, sourceText: string): FieldPath[] => {
     addsNoFigure(entry.detail, [...at, 'detail']);
   });
   for (const key of ['skills', 'certifications', 'interests'] as const) {
-    cv[key].forEach((item, index) => mustCite(item, [key, index]));
+    cv[key].forEach((item, index) => {
+      if (!partsOf(item).every((part) => cites(source, part))) paths.push([key, index]);
+    });
   }
   cv.languages.forEach((item, index) => mustCite(languageOf(item), ['languages', index]));
   return paths;

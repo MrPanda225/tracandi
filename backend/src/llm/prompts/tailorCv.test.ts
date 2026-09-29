@@ -21,6 +21,8 @@ describe('buildTailorCvPrompt', () => {
     const { system, prompt } = buildTailorCvPrompt(INPUT);
 
     expect(system).toMatch(/Recopie à l’identique/);
+    expect(system).toMatch(/l’intitulé d’un poste ne se réécrit jamais/);
+    expect(system).toMatch(/avec les mots du CV, sans les traduire ni les renommer, un seul par élément/);
     expect(system).toMatch(/N’ajoute aucune expérience, aucun diplôme, aucune certification, aucun chiffre/);
     expect(prompt).toContain('Compétences absentes du CV, à ne pas ajouter : dbt');
   });

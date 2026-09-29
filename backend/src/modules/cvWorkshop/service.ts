@@ -67,7 +67,10 @@ interface ServiceDeps {
   analysesPerDay: number;
 }
 
-/** EF-CVX-25, EF-CVX-26: the adapted CV, or a plain failure when no provider stayed faithful to the CV (RG-21). */
+/**
+ * EF-CVX-25, EF-CVX-26: the adapted CV, or a plain failure when no provider stayed faithful to the CV (RG-21). When
+ * no provider answered at all (quota, overload), the failure says so instead (EF-IA-04).
+ */
 const tailorCv = async (
   router: LlmRouter,
   {
@@ -92,7 +95,7 @@ const tailorCv = async (
     });
     return data;
   } catch (error) {
-    if (error instanceof LlmUnavailableError) throw new HttpError(502, UNFAITHFUL);
+    if (error instanceof LlmUnavailableError && error.answerRejected) throw new HttpError(502, UNFAITHFUL);
     throw error;
   }
 };
