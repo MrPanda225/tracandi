@@ -29,6 +29,9 @@ const SYSTEM = [
     '(headline, le titre en tête du CV) et le profil.',
   'Écris en français, avec des phrases courtes qui commencent par un verbe d’action. Garde chaque expérience et chaque ' +
     'formation du CV, dans l’ordre du plus récent au plus ancien.',
+  'Le CV entier doit tenir sur une seule page A4 : 450 mots au plus. Garde 2 à 4 réalisations d’une ligne pour les ' +
+    'expériences les plus utiles à l’offre, 0 ou 1 pour les autres, et un profil de 3 phrases au plus ; une expérience ' +
+    'sans réalisation garde son intitulé, son entreprise et ses dates.',
   'Dans changes, liste chaque modification : section (le titre de la rubrique), before (le texte du CV), after (le ' +
     'nouveau texte) et reason (une phrase qui dit pourquoi ce changement sert cette offre). 30 au plus.',
   'Réponds uniquement par un objet JSON de la forme {"cv":{"headline":"…","profile":"…","experiences":[{"title":"…",' +
@@ -42,7 +45,7 @@ const SYSTEM = [
  * Prompt of the `tailor_cv` task. The CV, the offer and the diagnostic (itself written by a model) are framed and
  * declared untrusted (ENF-SEC-06). Faithfulness is asked for here and checked by the code (RG-21): the answer must
  * meet `tailoredAnswerSchemaFor` (modules/cvWorkshop).
- * @req EF-CVX-25, EF-CVX-29, RG-21, ENF-SEC-06, ENF-COU-01
+ * @req EF-CVX-25, EF-CVX-29, EF-CVX-37, RG-21, RG-24, ENF-SEC-06, ENF-COU-01
  */
 export const buildTailorCvPrompt = ({ cvText, offerText, diagnosis }: CvToTailor): { system: string; prompt: string } => ({
   system: SYSTEM,

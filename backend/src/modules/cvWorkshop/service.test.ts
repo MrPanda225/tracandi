@@ -122,7 +122,23 @@ describe('createCvWorkshopService', () => {
 
     await expect(service.startAnalysis(7, request())).rejects.toMatchObject({
       statusCode: 502,
-      message: 'On n’a pas réussi à adapter votre CV sans rien inventer. Réessayez dans un instant.',
+      message: 'On n’a pas réussi à adapter votre CV fidèlement et sur une page. Réessayez dans un instant.',
+    });
+    expect(results.size()).toBe(0);
+  });
+
+  it('[EF-CVX-37] [RG-24] never shows an adapted CV longer than one A4 page, faithful as it may be', async () => {
+    const [experience] = TAILORED.cv.experiences as { bullets: string[] }[];
+    const tooLong = {
+      ...TAILORED,
+      cv: { ...TAILORED.cv, experiences: Array.from({ length: 12 }, () => ({ ...experience, bullets: Array.from({ length: 8 }, () => experience?.bullets[0]) })) },
+    };
+    const { router } = scriptedRouter({ diagnose_cv: ANSWER, tailor_cv: tooLong });
+    const { service, results } = serviceWith({ router });
+
+    await expect(service.startAnalysis(7, request())).rejects.toMatchObject({
+      statusCode: 502,
+      message: 'On n’a pas réussi à adapter votre CV fidèlement et sur une page. Réessayez dans un instant.',
     });
     expect(results.size()).toBe(0);
   });

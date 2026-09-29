@@ -27,6 +27,13 @@ describe('buildTailorCvPrompt', () => {
     expect(prompt).toContain('Compétences absentes du CV, à ne pas ajouter : dbt');
   });
 
+  it('[RG-24] asks for a CV that holds on one A4 page, each experience kept', () => {
+    const { system } = buildTailorCvPrompt(INPUT);
+
+    expect(system).toMatch(/tenir sur une seule page A4 : 450 mots au plus/);
+    expect(system).toMatch(/une expérience sans réalisation garde son intitulé, son entreprise et ses dates/);
+  });
+
   it('[EF-CVX-29] asks for each change with its section, before, after and reason', () => {
     const { system } = buildTailorCvPrompt(INPUT);
 

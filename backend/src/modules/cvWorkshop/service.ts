@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import type { JobQueue, RunCounters } from '../../jobs/queue.js';
 import type { Clock } from '../../lib/clock.js';
 import { HttpError, LlmUnavailableError, NotFoundError } from '../../lib/errors.js';
@@ -7,7 +8,9 @@ import type { LlmRouter } from '../../llm/router.js';
 import { renderAtsDocx } from './atsDocx.js';
 import { buildDiagnosis, DIMENSIONS, type Diagnosis, DiagnosisAnswerSchema } from './diagnosis.js';
 import { type TailoredAnswer, tailoredAnswerSchemaFor } from './fidelity.js';
+import type { CvContacts } from './contacts.js';
 import type { PdfOcr } from './ocr.js';
+import { fitsOnOnePage } from './onePage.js';
 import { startOfParisDay } from './quota.js';
 import { type ReadCv, readCv } from './reading.js';
 import type { AnalysisResults } from './results.js';
@@ -33,8 +36,8 @@ const STEP_READ = 1;
 const STEP_DIAGNOSED = 2;
 const STEP_ADAPTED = 3;
 
-/** EF-CVX-26: said when no provider wrote an adapted CV that invents nothing. */
-const UNFAITHFUL = 'On n’a pas réussi à adapter votre CV sans rien inventer. Réessayez dans un instant.';
+/** EF-CVX-26, EF-CVX-37: said when no provider wrote an adapted CV that invents nothing and holds on one page. */
+const UNFAITHFUL = 'On n’a pas réussi à adapter votre CV fidèlement et sur une page. Réessayez dans un instant.';
 
 /** Use cases of the CV workshop (EF-CVX-21 to 35). */
 export interface CvWorkshopService {
@@ -68,17 +71,31 @@ interface ServiceDeps {
 }
 
 /**
- * EF-CVX-25, EF-CVX-26: the adapted CV, or a plain failure when no provider stayed faithful to the CV (RG-21). When
- * no provider answered at all (quota, overload), the failure says so instead (EF-IA-04).
+ * EF-CVX-37, RG-24: what an adapted CV must meet — faithful to the imported CV (RG-21) and on one A4 page with its
+ * contact details and every missing skill the candidate may still tick (EF-CVX-28). A longer one is rejected like an
+ * unfaithful one, so the router asks the next provider (EF-IA-02).
+ */
+const tailoredSchemaFor = ({ cvText, contacts, diagnosis }: { cvText: string; contacts: CvContacts; diagnosis: Diagnosis }) =>
+  tailoredAnswerSchemaFor(cvText).superRefine((answer, context) => {
+    if (!fitsOnOnePage({ cv: answer.cv, contacts, addedSkills: diagnosis.missingSkills })) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['cv'], message: 'Longer than one A4 page (RG-24)' });
+    }
+  });
+
+/**
+ * EF-CVX-25, EF-CVX-26, EF-CVX-37: the adapted CV, or a plain failure when no provider wrote one faithful to the CV
+ * (RG-21) and holding on one page (RG-24). When no provider answered at all (quota, overload), the failure says so
+ * instead (EF-IA-04).
  */
 const tailorCv = async (
   router: LlmRouter,
   {
     userId,
     cvText,
+    contacts,
     offerText,
     diagnosis,
-  }: { userId: number; cvText: string; offerText: string; diagnosis: Diagnosis },
+  }: { userId: number; cvText: string; contacts: CvContacts; offerText: string; diagnosis: Diagnosis },
 ): Promise<TailoredAnswer> => {
   try {
     const { data } = await router.runTask('tailor_cv', {
@@ -91,7 +108,7 @@ const tailorCv = async (
           missingSkills: diagnosis.missingSkills,
         },
       }),
-      schema: tailoredAnswerSchemaFor(cvText),
+      schema: tailoredSchemaFor({ cvText, contacts, diagnosis }),
     });
     return data;
   } catch (error) {
@@ -134,7 +151,13 @@ const analyse =
     });
     const diagnosis = buildDiagnosis(data, reading.text);
     report({ cv_steps_done: STEP_DIAGNOSED, cv_pages_ocr: reading.ocrPageCount });
-    const adapted = await tailorCv(router, { userId, cvText: reading.text, offerText: offer, diagnosis });
+    const adapted = await tailorCv(router, {
+      userId,
+      cvText: reading.text,
+      contacts: reading.contacts,
+      offerText: offer,
+      diagnosis,
+    });
     results.save(userId, runId, { reading, diagnosis, adapted });
     return { cv_steps_done: STEP_ADAPTED, cv_pages_ocr: reading.ocrPageCount };
   };
