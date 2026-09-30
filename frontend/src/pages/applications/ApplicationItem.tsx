@@ -226,7 +226,7 @@ export function ApplicationItem({
           ) : (
             <span className="application__title">{application.jobTitle}</span>
           )}
-          {application.notes && (
+          {application.notes && !isOpen && (
             <span className="application__note">
               {application.notes.length > NOTE_PREVIEW_LENGTH
                 ? `${application.notes.slice(0, NOTE_PREVIEW_LENGTH).trimEnd()}…`
@@ -246,10 +246,13 @@ export function ApplicationItem({
       <div id={detailId} className="application__detail" hidden={!isOpen}>
         {isOpen && (
           <>
-            <StatusChanger application={application} onUpdated={onUpdated} />
+            {/* The offer, then its messages, then what can be done: read first, act last. */}
             <OfferDetails application={application} onUpdated={onUpdated} />
             <Chronology applicationId={application.id} />
-            <DeleteAction application={application} onDeleted={onDeleted} />
+            <div className="application__actions">
+              <StatusChanger application={application} onUpdated={onUpdated} />
+              <DeleteAction application={application} onDeleted={onDeleted} />
+            </div>
           </>
         )}
       </div>

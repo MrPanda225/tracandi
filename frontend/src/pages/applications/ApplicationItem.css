@@ -161,13 +161,39 @@
   font-size: 0.8125rem;
 }
 
+/* A section title of an opened application: « L'offre », « Messages ». */
+.detail-title {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  margin: 0 0 0.5rem;
+  font-family: var(--font-body);
+  font-size: 0.9375rem;
+  font-weight: 700;
+}
+
+.detail-title__count {
+  color: var(--color-mauve-deep);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* What can be done, at the bottom: the status on the left, the deletion apart on the right. */
+.application__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.75rem 1.5rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--color-line);
+}
+
 /* EF-CAN-09 : la suppression, à part et en dernier, confirmée avant d'agir. */
 .application__delete {
   display: grid;
   gap: 0.5rem;
   justify-items: start;
-  padding-top: 0.75rem;
-  border-top: 1px solid var(--color-line);
 }
 
 .application__delete-text {
