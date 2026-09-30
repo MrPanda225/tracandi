@@ -78,6 +78,12 @@ export const siteAdapter = pgEnum('site_adapter', [
   'france_travail',
   // EF-VEI-34 (v1.33): work-study offers, same rule.
   'la_bonne_alternance',
+  // EF-VEI-08 (v1.33): five more career site software.
+  'talentsoft',
+  'teamtailor',
+  'personio',
+  'workable',
+  'ashby',
 ]);
 export const offerStatus = pgEnum('offer_status', ['new', 'saved', 'dismissed', 'applied']);
 // RG-13 (v1.8): one value per route entry. The three Groq entries are numbered slots, not model families: the

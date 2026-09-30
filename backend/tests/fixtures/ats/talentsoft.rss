@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss xmlns:a10="http://www.w3.org/2005/Atom" version="2.0">
+  <channel>
+    <title>Export RSS des offres - Seulement les offres à la une : Non</title>
+    <link>https://exemple-career.talent-soft.com/handlers/offerRss.ashx?LCID=1036</link>
+    <description />
+    <language>fr-FR</language>
+    <item>
+      <link>https://exemple-career.talent-soft.com/Pages/Offre/detailoffre.aspx?idOffre=999&amp;idOrigine=502&amp;LCID=1036&amp;offerReference=REF-999</link>
+      <category>Informatique/Données</category>
+      <category>CDI</category>
+      <category>Nanterre</category>
+      <title>REF-999 - Analyste de données H/F</title>
+      <description>&lt;b&gt;Domaine et métier : &lt;/b&gt;Informatique&lt;br /&gt;Vous produisez les indicateurs de pilotage.</description>
+      <pubDate>Wed, 30 Sep 2026 15:06:21 Z</pubDate>
+    </item>
+    <item>
+      <link>https://exemple-career.talent-soft.com/Pages/Offre/detailoffre.aspx?idOffre=1001&amp;idOrigine=502&amp;LCID=1036</link>
+      <category>Ressources humaines</category>
+      <category>Emploi ouvert aux contractuels</category>
+      <category>12 avenue Fictive 75008 Paris</category>
+      <title>Chargé de recrutement</title>
+      <description>Accompagnement des managers.</description>
+      <pubDate>Tue, 29 Sep 2026 08:00:00 Z</pubDate>
+    </item>
+  </channel>
+</rss>
