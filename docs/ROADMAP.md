@@ -340,6 +340,49 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
   *Reste à faire* : reconnaître l'ATS à l'empreinte laissée dans la page pour basculer sur son API (levier C de
   l'étude du 24/09/2026).
 
+### Veille élargie et gratuite (BES-46, cahier v1.33)
+
+*Demande du Business Owner du 01/10/2026*, après l'étude des sources du 30/09/2026 : services payants écartés, API
+officielles gratuites d'abord, logiciels de recrutement retrouvés depuis les entreprises des candidatures, rendu
+JavaScript reporté (Q-21). Ordre : les critères d'abord (ils nourrissent les requêtes et la notation), puis l'écran
+qui montre les offres, puis les sources, enfin l'économie de collecte.
+
+- [ ] **T-410 Critères de recherche** — table `watch_criteria` (document par candidat, validé par zod), `GET/PUT
+  /api/watch/criteria`, recherche de commune (`GET /api/watch/places?q=`, service public du découpage administratif),
+  notation RG-09 sur les critères, profil de référence en secours ; écran « Vos critères » sur la page Sites.
+  *Exigences* : EF-VEI-29, EF-VEI-30, EF-VEI-31, RG-09 (v1.33), ENF-RGP-11, ENF-COL-05.
+  *Fini quand* : critères enregistrés et relus ; rayon hors bornes refusé ; commune simulée retrouvée ; prompt de
+  notation portant les cibles des critères ; veille refusée sans critères ni profil.
+- [ ] **T-406 (étape 2) API et écran Offres** — `GET /api/offers` (score minimum, contrat, état, entreprise des
+  candidatures), `PATCH /api/offers/{id}`, « J'ai postulé » ; écran Offres.
+  *Exigences* : EF-VEI-16 à 20, 22, EF-VEI-35 (affichage).
+- [ ] **T-411 Client des API officielles et source France Travail** — client commun (délai, taille, débit par API,
+  sans robots.txt, ENF-COL-05), jeton OAuth en mémoire, identifiants en configuration (ENF-SEC-23), source unique
+  par candidat (`user_id` sur `watched_sites`, entreprise facultative), employeur enregistré sur l'offre, partenaires
+  exclus, contacts jamais lus ; guide de création des accès.
+  *Exigences* : EF-VEI-08, EF-VEI-32, EF-VEI-33, EF-VEI-37, ENF-COL-05, ENF-SEC-23, ENF-RGP-09, ENF-RGP-11.
+  *Fini quand* : API simulée — requête aux paramètres des critères, offres enregistrées sans contact, offre
+  « Indeed » écartée, identifiants absents signalés sur la seule source.
+- [ ] **T-412 La bonne alternance et SIREN des entreprises** — source La bonne alternance ; SIREN retrouvé par l'API
+  Recherche d'entreprises (sans dirigeants) ; offre signalée « Vous y avez postulé ».
+  *Exigences* : EF-VEI-34, EF-VEI-35, EF-VEI-36, ENF-RGP-09, ENF-RGP-11.
+  *Fini quand* : API simulées — offres en alternance enregistrées ; homonymes sans SIREN ; offre de « CAPGEMINI »
+  signalée pour une candidature chez « Capgemini ».
+- [ ] **T-413 Cinq logiciels de recrutement** — adaptateurs Cegid Talentsoft (RSS), Teamtailor (RSS), Personio (XML),
+  Workable et Ashby (JSON), lus sans dépendance nouvelle (`cheerio` en mode XML) ; migration de `site_adapter`.
+  *Exigences* : EF-VEI-08, RG-08 (v1.33), ENF-MAI-03, ENF-FIA-02.
+  *Fini quand* : un test par adaptateur sur fixture fictive fidèle au format réel ; identifiant invalide refusé.
+- [ ] **T-414 Recherche des pages carrières** — exécution `source_discovery` en file : accueil du site, un rebond,
+  empreintes RG-27, vérification par une consultation ; propositions « vérifiée » ou « à confirmer » à l'écran.
+  *Exigences* : EF-VEI-38, EF-VEI-39, EF-VEI-40, RG-19 (v1.33), RG-27, ENF-COL-01 à 04.
+  *Fini quand* : accueil liant un board Ashby → proposition Ashby vérifiée ; aucune source ajoutée d'office.
+- [ ] **T-415 Collecte économe et minimisation** — empreinte de la liste d'offres, consultation planifiée espacée
+  des sources inchangées ; coordonnées retirées du texte des offres ; purge quotidienne des offres de plus de
+  60 jours ; politique de confidentialité complétée.
+  *Exigences* : EF-VEI-41, EF-VEI-42, ENF-RGP-09, ENF-RGP-10, ENF-RGP-05 (v1.33).
+  *Fini quand* : source identique 3 fois écartée de la passe planifiée et lue par « Consulter maintenant » ;
+  e-mail et téléphone absents d'une offre enregistrée ; offre écartée de 61 jours supprimée, offre gardée conservée.
+
 - [ ] **T-405 Récapitulatif e-mail** — envoi via Gmail des offres de score ≥ S.
   *Exigences* : EF-VEI-15.
 - [~] **T-406 Écrans Sites et Offres** — ajout/suspension/retrait, liste triée, filtre score, garder/écarter,
