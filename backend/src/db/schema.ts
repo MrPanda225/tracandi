@@ -91,17 +91,17 @@ export const llmTask = pgEnum('llm_task', [
 ]);
 export const llmOutcome = pgEnum('llm_outcome', ['success', 'error', 'timeout', 'invalid_output']);
 // EF-CVX-32 (v1.30): an analysis of the CV workshop runs in the queue like the other long treatments.
-export const jobName = pgEnum('job_name', ['gmail_sync', 'gmail_reclassify', 'scraper', 'backup', 'cv_analysis']);
+export const jobName = pgEnum('job_name', [
+  'gmail_sync',
+  'gmail_reclassify',
+  'scraper',
+  'backup',
+  'cv_analysis',
+]);
 export const triggerType = pgEnum('trigger_type', ['schedule', 'manual']);
 // EF-EXE-01 à 03 : une exécution attend son tour (`queued`) avant de tourner, de réussir, d'échouer ou d'être
 // écartée parce qu'une autre du même travail était déjà en file.
-export const runOutcome = pgEnum('run_outcome', [
-  'queued',
-  'running',
-  'success',
-  'failure',
-  'skipped',
-]);
+export const runOutcome = pgEnum('run_outcome', ['queued', 'running', 'success', 'failure', 'skipped']);
 export const runCounter = pgEnum('run_counter', [
   'messages_read',
   'messages_retained',
@@ -167,6 +167,19 @@ export const appSettings = pgTable(
  * against `CandidateProfileSchema` before every write and after every read.
  */
 export const candidateProfiles = pgTable('candidate_profiles', {
+  userId: integer()
+    .primaryKey()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  document: jsonb().notNull(),
+  updatedAt: instant().notNull().defaultNow(),
+});
+
+/**
+ * EF-VEI-29 (v1.33): the search criteria of a candidate, one document per user — targets, commune, radius, remote
+ * work, ROME codes. They drive the requests to the official sources and the scoring of every offer (RG-09); the
+ * application validates the document against `WatchCriteriaSchema` before every write and after every read.
+ */
+export const watchCriteria = pgTable('watch_criteria', {
   userId: integer()
     .primaryKey()
     .references(() => users.id, { onDelete: 'cascade' }),
@@ -256,9 +269,7 @@ export const dismissedSourceSuggestions = pgTable(
       .references(() => companies.id, { onDelete: 'cascade' }),
     dismissedAt: createdAt(),
   },
-  (t) => [
-    primaryKey({ name: 'pk_dismissed_source_suggestions', columns: [t.userId, t.companyId] }),
-  ],
+  (t) => [primaryKey({ name: 'pk_dismissed_source_suggestions', columns: [t.userId, t.companyId] })],
 );
 
 export const jobOffers = pgTable(
@@ -415,7 +426,9 @@ export const emails = pgTable(
     // EF-GML-20: the received messages of one category, to read them again
     index('ix_emails_user_category').on(t.userId, t.category),
     // RG-20: the messages still without a contact address, read again to find one (EF-GML-20)
-    index('ix_emails_user_without_contact').on(t.userId).where(sql`${t.contactAddress} is null`),
+    index('ix_emails_user_without_contact')
+      .on(t.userId)
+      .where(sql`${t.contactAddress} is null`),
   ],
 );
 

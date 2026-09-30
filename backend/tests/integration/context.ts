@@ -36,9 +36,12 @@ import { createGmailSync, type GmailSync } from '../../src/modules/emails/sync.j
 import { createSettingsModule } from '../../src/modules/settings/routes.js';
 import { createStatsModule } from '../../src/modules/stats/routes.js';
 import { createStatsService } from '../../src/modules/stats/service.js';
+import { createCriteriaModule } from '../../src/modules/criteria/routes.js';
+import { createCriteriaService } from '../../src/modules/criteria/service.js';
 import { createSitesModule } from '../../src/modules/sites/routes.js';
 import { createWatchService, type WatchService } from '../../src/modules/sites/service.js';
 import type { AdapterDeps } from '../../src/scraper/adapters/types.js';
+import type { Place, PlaceFinder } from '../../src/scraper/official/geo.js';
 import { testDatabaseUrl } from './test-database.js';
 
 export const FRONTEND_ORIGIN = 'http://127.0.0.1:5173';
@@ -113,6 +116,17 @@ const unreachableAi: Partial<Record<ProviderName, LlmProvider>> = {
 const unreachableCollector: AdapterDeps['fetch'] = () =>
   Promise.reject(new Error('No career site must be reached in this test'));
 
+/** The public service of the communes, simulated: it knows Nanterre and nothing else. */
+export const NANTERRE: Place = {
+  code: '92050',
+  name: 'Nanterre',
+  departmentCode: '92',
+  latitude: 48.8924,
+  longitude: 2.2071,
+};
+const knownPlaces: PlaceFinder = (query) =>
+  Promise.resolve(query.trim().toLowerCase().startsWith('nant') ? [NANTERRE] : []);
+
 /** Doubles of the external services; every one is unreachable unless a test gives its own. */
 export interface ExternalServices {
   google?: GoogleOAuth;
@@ -120,6 +134,8 @@ export interface ExternalServices {
   aiProviders?: Partial<Record<ProviderName, LlmProvider>>;
   /** The responsible collector of the watch (T-401), simulated: no request ever leaves a test. */
   collect?: AdapterDeps['fetch'];
+  /** EF-VEI-30: the public service of the communes, simulated. */
+  places?: PlaceFinder;
   /** ENF-MAI-07: the optional features of this deployment; every one by default. */
   features?: EnabledFeatures;
   /** BES-39: proxies in front of the API (Vercel, Northflank); none by default. */
@@ -134,6 +150,7 @@ export const createTestContext = (
     openMailbox = unreachableMailbox,
     aiProviders = unreachableAi,
     collect = unreachableCollector,
+    places = knownPlaces,
     features = new Set(OPTIONAL_FEATURES),
     trustProxyHops = 0,
   }: ExternalServices = {},
@@ -156,7 +173,11 @@ export const createTestContext = (
     clock: clock.now,
     logger,
   });
-  const llmRouter = createLlmRouter({ providers: aiProviders, journal: createLlmJournal(database.db), logger });
+  const llmRouter = createLlmRouter({
+    providers: aiProviders,
+    journal: createLlmJournal(database.db),
+    logger,
+  });
   const fetcher = createMessageFetcher({ db: database.db, openMailbox, encryptionKey, clock: clock.now });
   const sync = createGmailSync({
     db: database.db,
@@ -166,9 +187,11 @@ export const createTestContext = (
     clock: clock.now,
     logger,
   });
+  const criteria = createCriteriaService({ db: database.db, clock: clock.now, places, logger });
   const watch = createWatchService({
     db: database.db,
     clock: clock.now,
+    criteria,
     profiles: createProfileService({ db: database.db, clock: clock.now }),
     router: llmRouter,
     queue,
@@ -189,7 +212,13 @@ export const createTestContext = (
       ...createGmailModules({
         service: gmailService,
         sync,
-        followUps: createFollowUpDrafts({ db: database.db, fetcher, router: llmRouter, clock: clock.now, logger }),
+        followUps: createFollowUpDrafts({
+          db: database.db,
+          fetcher,
+          router: llmRouter,
+          clock: clock.now,
+          logger,
+        }),
         frontendOrigin: FRONTEND_ORIGIN,
       }),
       createJobsModule(queue),
@@ -209,7 +238,7 @@ export const createTestContext = (
         ),
       ),
       createSettingsModule({ aiAssignments: describeAssignments(aiProviders), features }),
-      ...onlyIf(features, 'watch', createSitesModule(watch)),
+      ...onlyIf(features, 'watch', createSitesModule(watch), createCriteriaModule(criteria)),
     ],
   });
   return { app, database, clock, encryptionKey, gmailSync: sync, queue, watch };
@@ -271,4 +300,3 @@ export const giveContact = async (
   if (!row) throw new Error('contact message not stored');
   return row.id;
 };
-

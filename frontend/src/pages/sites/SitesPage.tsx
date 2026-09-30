@@ -18,6 +18,7 @@ import { Flash } from '../../components/Flash';
 import { PageHeader } from '../../components/PageHeader';
 import { Skeleton } from '../../components/Skeleton';
 import { formatDateTime } from '../../lib/format';
+import { CriteriaCard } from './CriteriaCard';
 import { NewSourceForm } from './NewSourceForm';
 import { Suggestions, type WatchAllFailure } from './Suggestions';
 import './SitesPage.css';
@@ -210,7 +211,9 @@ export function SitesPage() {
         failures.push({ companyName: suggestion.companyName, reason: messageOf(failure) });
       }
     }
-    setNotice(added === 0 ? null : `${String(added)} source${added > 1 ? 's' : ''} ajoutée${added > 1 ? 's' : ''}.`);
+    setNotice(
+      added === 0 ? null : `${String(added)} source${added > 1 ? 's' : ''} ajoutée${added > 1 ? 's' : ''}.`,
+    );
     await load();
     return failures;
   };
@@ -231,13 +234,15 @@ export function SitesPage() {
     <>
       <PageHeader title="Sites surveillés" eyebrow="Veille des offres">
         <p>
-          Les entreprises dont Tracandi lit le site carrières. Chaque source active est consultée à 7 h, 13 h et
-          19 h ; les offres repérées sont notées selon vos cibles.
+          Les entreprises dont Tracandi lit le site carrières. Chaque source active est consultée à 7 h, 13 h
+          et 19 h ; les offres repérées sont notées selon ce que vous recherchez.
         </p>
       </PageHeader>
 
       {error !== null && <Flash>{error}</Flash>}
       {notice !== null && <Flash tone="success">{notice}</Flash>}
+
+      <CriteriaCard />
 
       <div className="sites-actions">
         <button

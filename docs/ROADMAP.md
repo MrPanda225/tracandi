@@ -347,12 +347,20 @@ officielles gratuites d'abord, logiciels de recrutement retrouvés depuis les en
 JavaScript reporté (Q-21). Ordre : les critères d'abord (ils nourrissent les requêtes et la notation), puis l'écran
 qui montre les offres, puis les sources, enfin l'économie de collecte.
 
-- [ ] **T-410 Critères de recherche** — table `watch_criteria` (document par candidat, validé par zod), `GET/PUT
+- [x] **T-410 Critères de recherche** — table `watch_criteria` (document par candidat, validé par zod), `GET/PUT
   /api/watch/criteria`, recherche de commune (`GET /api/watch/places?q=`, service public du découpage administratif),
   notation RG-09 sur les critères, profil de référence en secours ; écran « Vos critères » sur la page Sites.
   *Exigences* : EF-VEI-29, EF-VEI-30, EF-VEI-31, RG-09 (v1.33), ENF-RGP-11, ENF-COL-05.
   *Fini quand* : critères enregistrés et relus ; rayon hors bornes refusé ; commune simulée retrouvée ; prompt de
   notation portant les cibles des critères ; veille refusée sans critères ni profil.
+  *Livré* : `modules/criteria/` (schéma, dépôt, service, routes ; migration 0016 `watch_criteria`), client des API
+  officielles `scraper/official/client.ts` (débit par API, 15 s, 3 Mo, un nouvel essai après un 429, sans robots.txt),
+  `scraper/official/geo.ts` (geo.api.gouv.fr, 5 requêtes par seconde retenues sur 50), passe de veille notée sur
+  les critères puis, à défaut, sur le profil ; critères inclus dans l'export des données (EF-AUT-12) ; carte « Ce
+  que vous recherchez » en tête de l'écran Sites (résumé, formulaire à la demande, commune choisie parmi celles du
+  service public, codes ROME repliés).
+  *Choix assumés* : un mot-clé en double, quelle que soit sa casse, est gardé une fois ; un document enregistré
+  devenu invalide est traité comme absent (journalisé), jamais transmis aux sources.
 - [ ] **T-406 (étape 2) API et écran Offres** — `GET /api/offers` (score minimum, contrat, état, entreprise des
   candidatures), `PATCH /api/offers/{id}`, « J'ai postulé » ; écran Offres.
   *Exigences* : EF-VEI-16 à 20, 22, EF-VEI-35 (affichage).

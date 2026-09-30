@@ -49,6 +49,7 @@ const withSources = (...items: unknown[]): Record<string, Route> => ({
   'GET /sites/types': () => json(200, { items: TYPES }),
   'GET /sites': () => json(200, { items }),
   'GET /sites/suggestions': () => json(200, { items: [] }),
+  'GET /watch/criteria': () => json(200, { criteria: null }),
 });
 
 const SUGGESTION = {
