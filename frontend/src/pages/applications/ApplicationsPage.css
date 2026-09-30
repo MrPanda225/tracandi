@@ -138,7 +138,7 @@
 @container shell-main (min-width: 60rem) {
   .applications-columns {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 11rem 6rem 13rem 13.5rem 1rem;
+    grid-template-columns: minmax(0, 1fr) 10rem 6rem 9rem 12.5rem 1rem;
     gap: 1rem;
     padding: 0.4rem 0.9rem 0.6rem;
     border-bottom: 1px solid var(--color-line);

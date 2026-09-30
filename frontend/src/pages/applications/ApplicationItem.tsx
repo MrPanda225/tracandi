@@ -236,8 +236,9 @@ export function ApplicationItem({
         </span>
         <Facts application={application} isDated={isDated} />
         <span className="application__tags">
-          {application.isFollowUpDue && <span className="application__badge">À relancer</span>}
+          {/* The status first: always at the same place, top right on a phone, at the head of its column. */}
           <StatusTag status={application.status} />
+          {application.isFollowUpDue && <span className="application__badge">À relancer</span>}
         </span>
         <span className="application__chevron" aria-hidden="true" />
       </button>

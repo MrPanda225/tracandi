@@ -3,11 +3,15 @@
   background: var(--color-canvas);
 }
 
+/* Narrow: the title and, top right, the status; the facts and the chevron below (the status never moves). */
 .application__summary {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.25rem 0.75rem;
+  display: grid;
+  grid-template-areas:
+    'main tags'
+    'facts chevron';
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 0.35rem 0.75rem;
   width: 100%;
   min-height: 3.25rem;
   padding: 0.6rem 0.9rem;
@@ -53,14 +57,13 @@
   overflow-wrap: anywhere;
 }
 
-/* Narrow: the title on its own row, then the facts on one line, then the tags. */
 .application__main {
-  flex-basis: 100%;
+  grid-area: main;
 }
 
 .application__facts {
   display: flex;
-  flex: 1 1 100%;
+  grid-area: facts;
   flex-wrap: wrap;
   gap: 0 0.5rem;
   color: var(--color-mauve-deep);
@@ -95,60 +98,12 @@
   white-space: nowrap;
 }
 
-/*
- * Wide: one row per application, the facts in columns of the same width on every row (Gestalt: alignment), so a
- * long list is read down a column; the status stays within reach of the title instead of at the far end of the screen.
- */
-@container shell-main (min-width: 60rem) {
-  .application__summary {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 11rem 6rem 13rem 13.5rem 1rem;
-    gap: 1rem;
-  }
-
-  .application__facts {
-    display: contents;
-  }
-
-  .application__fact {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .application__fact:empty {
-    display: block;
-  }
-
-  .application__fact:not(:empty) ~ .application__fact:not(:empty)::before {
-    content: none;
-  }
-
-  .application__tags {
-    justify-content: flex-end;
-  }
-
-  /* Said by the name of the column above; kept for screen readers, which read each line on its own. */
-  .application__fact-label {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-  }
-}
-
-.application__tags {
-    justify-content: flex-end;
-  }
-}
-
 .application__tags {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.4rem;
+  grid-area: tags;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.3rem;
 }
 
 /* Kairos: the relaunch cue uses the accent, distinct from the status colours. */
@@ -163,9 +118,12 @@
 }
 
 .application__chevron {
+  grid-area: chevron;
+  align-self: end;
+  justify-self: end;
   width: 0.55rem;
   height: 0.55rem;
-  margin-left: auto;
+  margin-bottom: 0.35rem;
   border-right: 2px solid var(--color-mauve-deep);
   border-bottom: 2px solid var(--color-mauve-deep);
   transform: rotate(45deg) translateY(-2px);
@@ -220,4 +178,61 @@
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
+}
+
+/*
+ * Wide: one row per application, the facts in columns of the same width on every row (Gestalt: alignment), so a
+ * long list is read down a column; the status stays within reach of the title instead of at the far end of the screen.
+ */
+@container shell-main (min-width: 60rem) {
+  .application__summary {
+    grid-template-areas: none;
+    grid-template-columns: minmax(0, 1fr) 10rem 6rem 9rem 12.5rem 1rem;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .application__main,
+  .application__tags,
+  .application__chevron {
+    grid-area: auto;
+  }
+
+  .application__tags {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .application__chevron {
+    align-self: center;
+    margin-bottom: 0;
+  }
+
+  .application__facts {
+    display: contents;
+  }
+
+  .application__fact {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .application__fact:empty {
+    display: block;
+  }
+
+  .application__fact:not(:empty) ~ .application__fact:not(:empty)::before {
+    content: none;
+  }
+
+  /* Said by the name of the column above; kept for screen readers, which read each line on its own. */
+  .application__fact-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
 }
