@@ -230,6 +230,28 @@ describe('ApplicationsPage', () => {
     expect(screen.queryByRole('region', { name: 'Atelier Nova' })).toBeNull();
   });
 
+  it('[EF-CAN-20] puts the applications under the heading of their day, the date no longer on every line', async () => {
+    const early = application({ id: 5, company: { id: 4, name: 'Zénith' }, jobTitle: 'Chargé BI', appliedAt: '2026-08-30T09:00:00.000Z' });
+    mockApi({ 'GET /applications': () => listOf([NOVA_DEV, NOVA_DATA, early]) });
+    renderPage();
+    await screen.findAllByText('Atelier Nova');
+
+    const headings = screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent);
+    expect(headings).toEqual(['Mardi 1 septembre2', 'Dimanche 30 août1']);
+    // Said once in the heading, the day stays in the name read out for each application.
+    expect(screen.getByRole('button', { name: /Chargé BI/ })).toHaveAccessibleName(/candidature du 30 août 2026/);
+  });
+
+  it('[EF-CAN-20] tells nothing it does not know: no « Non précisé » contract, no « Candidature » as a title', async () => {
+    const vague = application({ id: 6, company: { id: 5, name: 'CGI' }, jobTitle: 'Candidature', contractType: 'non_precise' });
+    mockApi({ 'GET /applications': () => listOf([vague]) });
+    renderPage();
+
+    const line = await screen.findByRole('button', { name: /CGI/ });
+    expect(line).toHaveTextContent('Poste non précisé');
+    expect(line).not.toHaveTextContent('Non précisé ·');
+  });
+
   it('[EF-CAN-20] asks the API for the order chosen', async () => {
     const calls = mockApi({ 'GET /applications': () => listOf(ALL) });
     renderPage();

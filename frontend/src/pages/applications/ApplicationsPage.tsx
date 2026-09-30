@@ -193,19 +193,85 @@ function EmptyState({ hasFilters }: { hasFilters: boolean }) {
   );
 }
 
-/** EF-CAN-20: in any other order than by company, one flat list, each application naming its company. */
-function FlatList({ list }: { list: ApplicationList }) {
+const dayKeyOf = (iso: string): string => new Date(iso).toLocaleDateString('fr-CA');
+const DAY_MS = 24 * 60 * 60 * 1000;
+const weekdayFormat = new Intl.DateTimeFormat('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+const weekdayYearFormat = new Intl.DateTimeFormat('fr-FR', {
+  weekday: 'long',
+  day: 'numeric',
+  month: 'long',
+  year: 'numeric',
+});
+
+/** « Aujourd’hui », « Hier », « lundi 28 septembre » — the year only when it is not this one. */
+const dayLabelOf = (iso: string, now: Date): string => {
+  const key = dayKeyOf(iso);
+  if (key === dayKeyOf(now.toISOString())) return 'Aujourd’hui';
+  if (key === dayKeyOf(new Date(now.getTime() - DAY_MS).toISOString())) return 'Hier';
+  const date = new Date(iso);
+  const label = (date.getFullYear() === now.getFullYear() ? weekdayFormat : weekdayYearFormat).format(date);
+  return label.charAt(0).toUpperCase() + label.slice(1);
+};
+
+interface Section {
+  key: string;
+  label: string;
+  applications: Application[];
+}
+
+/**
+ * Wurman's time axis: sorted by a date, the applications of a day go under the heading of that day, instead of the
+ * same date written on every line; sorted by status, under the heading of the status. Consecutive only, as the API
+ * sorts them.
+ */
+const sectionsOf = (
+  applications: readonly Application[],
+  orderBy: ApplicationOrder,
+  now: Date,
+): Section[] => {
+  const sectionOf = (application: Application): { key: string; label: string } => {
+    if (orderBy === 'status') return { key: application.status, label: STATUS_LABELS[application.status] };
+    const iso = orderBy === 'activity' ? application.lastActivityAt : application.appliedAt;
+    return { key: dayKeyOf(iso), label: dayLabelOf(iso, now) };
+  };
+  const sections: Section[] = [];
+  for (const application of applications) {
+    const { key, label } = sectionOf(application);
+    const last = sections.at(-1);
+    if (last?.key === key) last.applications.push(application);
+    else sections.push({ key, label, applications: [application] });
+  }
+  return sections;
+};
+
+/**
+ * EF-CAN-20: in any other order than by company, the applications under headings of day or status, each application
+ * naming its company.
+ */
+function SectionedList({ list, orderBy }: { list: ApplicationList; orderBy: ApplicationOrder }) {
+  const isByApplicationDay = orderBy === 'recent' || orderBy === 'oldest';
+  // One list for every section: an application whose date changes moves under another heading without being
+  // rebuilt, so its opened detail stays open.
   return (
     <ul className="company-group company-group__list applications-list--flat">
-      {list.items.map((application) => (
-        <ApplicationItem
-          key={application.id}
-          application={application}
-          showsCompany
-          onUpdated={list.replaceItem}
-          onDeleted={list.removeItem}
-        />
-      ))}
+      {sectionsOf(list.items, orderBy, new Date()).flatMap((section) => [
+        <li key={`section-${section.key}`} className="applications-section">
+          <h2 className="applications-section__title">
+            {section.label}
+            <span className="applications-section__count">{section.applications.length}</span>
+          </h2>
+        </li>,
+        ...section.applications.map((application) => (
+          <ApplicationItem
+            key={application.id}
+            application={application}
+            showsCompany
+            isDated={isByApplicationDay}
+            onUpdated={list.replaceItem}
+            onDeleted={list.removeItem}
+          />
+        )),
+      ])}
     </ul>
   );
 }
@@ -226,10 +292,14 @@ function MoreButton({ list }: { list: ApplicationList }) {
   );
 }
 
-function ApplicationsList({ list, isGrouped }: { list: ApplicationList; isGrouped: boolean }) {
+function ApplicationsList({ list, orderBy }: { list: ApplicationList; orderBy: ApplicationOrder }) {
   return (
     <div className="applications-list" aria-busy={list.isLoading}>
-      {isGrouped ? <CompanyGroups list={list} /> : <FlatList list={list} />}
+      {orderBy === 'company' ? (
+        <CompanyGroups list={list} />
+      ) : (
+        <SectionedList list={list} orderBy={orderBy} />
+      )}
       <MoreButton list={list} />
     </div>
   );
@@ -346,7 +416,7 @@ export function ApplicationsPage() {
       {list.error && <Flash>{list.error}</Flash>}
       {!list.hasLoaded && !list.error && <ListSkeleton />}
       {list.hasLoaded && list.items.length === 0 && <EmptyState hasFilters={hasFilters} />}
-      {list.items.length > 0 && <ApplicationsList list={list} isGrouped={filters.orderBy === 'company'} />}
+      {list.items.length > 0 && <ApplicationsList list={list} orderBy={filters.orderBy} />}
     </>
   );
 }

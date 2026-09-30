@@ -19,8 +19,9 @@
   transition: background var(--duration-fast) ease;
 }
 
-.application__summary:hover {
-  background: var(--color-mist-soft);
+.application__summary:hover,
+.application__summary[aria-expanded='true'] {
+  background: var(--color-accent-soft);
 }
 
 .application__main {
@@ -33,10 +34,18 @@
 
 .application__company {
   color: var(--color-accent-strong);
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
   font-weight: 700;
-  letter-spacing: 0.02em;
+  /* The names come as the messages write them (« KEONI CONSULTING », « Gamme solutions »): one case for all. */
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   overflow-wrap: anywhere;
+}
+
+.application__title.application__title--unnamed {
+  color: var(--color-mauve-deep);
+  font-style: italic;
+  font-weight: 500;
 }
 
 .application__title {
