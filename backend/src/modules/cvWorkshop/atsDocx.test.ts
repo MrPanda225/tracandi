@@ -3,6 +3,7 @@ import { readParagraphs, readZip } from '../../../tests/fixtures/docx/readDocx.j
 import type { AdaptedCv } from './adaptedCv.js';
 import { ATS_SECTION_TITLES, renderAtsDocx } from './atsDocx.js';
 import type { CvContacts } from './contacts.js';
+import { longCv, TICKED_SKILLS } from '../../../tests/fixtures/cv/longCv.js';
 
 const CONTACTS: CvContacts = {
   name: 'Camille Durand',
@@ -88,12 +89,25 @@ describe('renderAtsDocx', () => {
 
     expect(paragraphs).toEqual(
       expect.arrayContaining([
-        'Data Analyst — Atelier Nova, Lyon',
-        '09/2024 – 08/2026',
+        'Data Analyst — Atelier Nova, Lyon | 09/2024 – 08/2026',
         'Tableaux de bord Power BI pour 12 équipes commerciales.',
-        'Master Informatique — Université de Lyon',
+        'Master Informatique — Université de Lyon | 2024',
       ]),
     );
+  });
+
+  it('[EF-CVX-36] [RG-24] sets a long CV tighter, never below 10 pt and 1.5 cm margins', async () => {
+    const comfortable = readZip(await render()).get('word/document.xml') ?? '';
+    const tight = readZip(await render({ cv: longCv(1), addedSkills: TICKED_SKILLS })).get('word/document.xml') ?? '';
+    const margin = (xml: string) => Number(/<w:pgMar [^>]*w:left="(\d+)"/.exec(xml)?.[1]);
+    const sizes = (xml: string) => [...xml.matchAll(/<w:sz w:val="(\d+)"/g)].map((match) => Number(match[1]));
+
+    expect(margin(comfortable)).toBe(1134);
+    expect(Math.min(...sizes(comfortable))).toBe(22);
+    expect(margin(tight)).toBeGreaterThanOrEqual(851);
+    expect(margin(tight)).toBeLessThan(1134);
+    expect(Math.min(...sizes(tight))).toBeGreaterThanOrEqual(20);
+    expect(readParagraphs(await render({ cv: longCv(1) })).filter((line) => line.startsWith('Data Analyst — '))).toHaveLength(12);
   });
 
   it('[EF-CVX-28] adds the skills the candidate ticked, once, whatever their case', async () => {

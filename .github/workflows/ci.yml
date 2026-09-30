@@ -58,8 +58,9 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       # OCR de l'Atelier CV (EF-CVX-22) : les mêmes outils que l'image de l'API ; `time` mesure leur mémoire.
-      - name: Outils d'OCR (poppler, tesseract)
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends poppler-utils tesseract-ocr tesseract-ocr-fra tesseract-ocr-eng time
+      # LibreOffice et Carlito (jumelle métrique de Calibri) : seulement pour compter les pages du CV (RG-24).
+      - name: Outils système (poppler, tesseract, LibreOffice)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends poppler-utils tesseract-ocr tesseract-ocr-fra tesseract-ocr-eng time libreoffice-writer fonts-crosextra-carlito
       # Unitaires et intégration ensemble, seuil de couverture de 80 % (ENF-MAI-01).
       - run: npm run test:coverage
       - name: Audit des dépendances (ENF-SEC-10)
