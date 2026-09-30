@@ -3,14 +3,18 @@
   background: var(--color-canvas);
 }
 
+/* Narrow: the title and, top right, the status; the facts and the chevron below (the status never moves). */
 .application__summary {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem 1rem;
+  display: grid;
+  grid-template-areas:
+    'main tags'
+    'facts chevron';
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 0.35rem 0.75rem;
   width: 100%;
   min-height: 3.25rem;
-  padding: 0.75rem 0.9rem;
+  padding: 0.6rem 0.9rem;
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;
@@ -53,16 +57,53 @@
   overflow-wrap: anywhere;
 }
 
-.application__meta {
+.application__main {
+  grid-area: main;
+}
+
+.application__facts {
+  display: flex;
+  grid-area: facts;
+  flex-wrap: wrap;
+  gap: 0 0.5rem;
   color: var(--color-mauve-deep);
   font-size: 0.8125rem;
 }
 
+.application__fact:empty {
+  display: none;
+}
+
+/* A middle dot between two facts that say something, never before the first one. */
+.application__fact:not(:empty) ~ .application__fact:not(:empty)::before {
+  content: '·';
+  margin-right: 0.5rem;
+}
+
+/* The freshness of the news on a line of its own: a dot never opens a line. */
+.application__fact--activity {
+  flex-basis: 100%;
+}
+
+.application__fact:not(:empty) ~ .application__fact--activity:not(:empty)::before {
+  content: none;
+}
+
+.application__note {
+  overflow: hidden;
+  color: var(--color-mauve-deep);
+  font-size: 0.8125rem;
+  font-style: italic;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .application__tags {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.4rem;
+  grid-area: tags;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.3rem;
 }
 
 /* Kairos: the relaunch cue uses the accent, distinct from the status colours. */
@@ -77,9 +118,12 @@
 }
 
 .application__chevron {
+  grid-area: chevron;
+  align-self: end;
+  justify-self: end;
   width: 0.55rem;
   height: 0.55rem;
-  margin-left: auto;
+  margin-bottom: 0.35rem;
   border-right: 2px solid var(--color-mauve-deep);
   border-bottom: 2px solid var(--color-mauve-deep);
   transform: rotate(45deg) translateY(-2px);
@@ -117,13 +161,39 @@
   font-size: 0.8125rem;
 }
 
+/* A section title of an opened application: « L'offre », « Messages ». */
+.detail-title {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  margin: 0 0 0.5rem;
+  font-family: var(--font-body);
+  font-size: 0.9375rem;
+  font-weight: 700;
+}
+
+.detail-title__count {
+  color: var(--color-mauve-deep);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* What can be done, at the bottom: the status on the left, the deletion apart on the right. */
+.application__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.75rem 1.5rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--color-line);
+}
+
 /* EF-CAN-09 : la suppression, à part et en dernier, confirmée avant d'agir. */
 .application__delete {
   display: grid;
   gap: 0.5rem;
   justify-items: start;
-  padding-top: 0.75rem;
-  border-top: 1px solid var(--color-line);
 }
 
 .application__delete-text {
@@ -134,4 +204,61 @@
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
+}
+
+/*
+ * Wide: one row per application, the facts in columns of the same width on every row (Gestalt: alignment), so a
+ * long list is read down a column; the status stays within reach of the title instead of at the far end of the screen.
+ */
+@container shell-main (min-width: 60rem) {
+  .application__summary {
+    grid-template-areas: none;
+    grid-template-columns: minmax(0, 1fr) 10rem 6rem 9rem 12.5rem 1rem;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .application__main,
+  .application__tags,
+  .application__chevron {
+    grid-area: auto;
+  }
+
+  .application__tags {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .application__chevron {
+    align-self: center;
+    margin-bottom: 0;
+  }
+
+  .application__facts {
+    display: contents;
+  }
+
+  .application__fact {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .application__fact:empty {
+    display: block;
+  }
+
+  .application__fact:not(:empty) ~ .application__fact:not(:empty)::before {
+    content: none;
+  }
+
+  /* Said by the name of the column above; kept for screen readers, which read each line on its own. */
+  .application__fact-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
 }

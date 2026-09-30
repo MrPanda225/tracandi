@@ -78,7 +78,8 @@
   /* Pinned to the card's bottom edge, whether or not a caption is present, so every card in the row
      keeps the same rhythm (label → value → footer) rather than trailing empty space. */
   margin: auto 0 0;
-  color: var(--color-mist);
+  /* WCAG 1.4.3: the mist gives 2.5:1 on white; the deep mauve 6.4:1. */
+  color: var(--color-mauve-deep);
   font-size: 0.8125rem;
   line-height: 1.4;
 }

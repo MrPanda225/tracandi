@@ -24,7 +24,7 @@ import { DateField, TextAreaField } from './fields';
 import './OfferDetails.css';
 
 // Longer descriptions are folded to a few lines until the user asks for the whole text.
-const FOLDED_LENGTH = 600;
+const FOLDED_LENGTH = 280;
 
 type FieldName = 'appliedOn' | 'offerDescription' | 'notes';
 type FieldErrors = Partial<Record<FieldName, string>>;
@@ -180,7 +180,7 @@ function OfferForm({ detail, onSaved, onCancel }: OfferFormProps) {
 
 function Description({ text }: { text: string | null }) {
   const [isUnfolded, setIsUnfolded] = useState(false);
-  if (!text) return <p className="offer-details__empty">Aucune description enregistrée.</p>;
+  if (!text) return <p className="offer-details__empty">Pas encore de texte d’offre : « Modifier » pour l’ajouter.</p>;
   const isLong = text.length > FOLDED_LENGTH;
   return (
     <>
@@ -193,7 +193,7 @@ function Description({ text }: { text: string | null }) {
           className="offer-details__toggle"
           onClick={() => setIsUnfolded((open) => !open)}
         >
-          {isUnfolded ? 'Réduire la description' : 'Afficher toute la description'}
+          {isUnfolded ? 'Réduire' : 'Lire toute l’offre'}
         </button>
       )}
     </>
@@ -251,8 +251,8 @@ export function OfferDetails({ application, onUpdated }: OfferDetailsProps) {
   return (
     <section className="offer-details" aria-labelledby={titleId}>
       <div className="offer-details__header">
-        <h3 id={titleId} className="offer-details__title">
-          Offre
+        <h3 id={titleId} className="detail-title">
+          L’offre
         </h3>
         {!isEditing && (
           <button
@@ -271,7 +271,12 @@ export function OfferDetails({ application, onUpdated }: OfferDetailsProps) {
         <>
           <p className="offer-details__date">Candidature du {formatDate(state.detail.appliedAt)}</p>
           <Description text={state.detail.offerDescription} />
-          {state.detail.notes && <p className="offer-details__notes">Notes : {state.detail.notes}</p>}
+          {state.detail.notes && (
+            <div className="offer-details__notes">
+              <p className="offer-details__notes-title">Vos notes</p>
+              <p className="offer-details__notes-text">{state.detail.notes}</p>
+            </div>
+          )}
         </>
       )}
     </section>

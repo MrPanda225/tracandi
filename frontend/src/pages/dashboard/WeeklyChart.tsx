@@ -224,6 +224,8 @@ export function WeeklyChart({ weekly, isAnimated }: WeeklyChartProps) {
           <div className="weekly-chart__plot" aria-hidden="true">
             <ResponsiveContainer width="100%" height={240}>
               <BarChart
+                // Hidden from screen readers, which read the table below: no keyboard stop inside it either.
+                accessibilityLayer={false}
                 data={data}
                 barGap={3}
                 barCategoryGap="24%"

@@ -252,6 +252,24 @@ describe('ApplicationsPage', () => {
     expect(line).not.toHaveTextContent('Non précisé ·');
   });
 
+  it('[EF-CAN-08] [EF-CAN-20] shows how fresh the last activity is, and the start of the notes', async () => {
+    const hoursAgo = (hours: number) => new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
+    const noted = application({
+      id: 7,
+      company: { id: 6, name: 'Orion' },
+      jobTitle: 'Data Engineer',
+      appliedAt: hoursAgo(50),
+      lastActivityAt: hoursAgo(3),
+      notes: 'Entretien RH prévu, penser à relire la fiche de poste et les valeurs de l’entreprise avant de rappeler',
+    });
+    mockApi({ 'GET /applications': () => listOf([noted]) });
+    renderPage();
+
+    const line = await screen.findByRole('button', { name: /Orion/ });
+    expect(line).toHaveTextContent('dernière activité il y a 3 heures');
+    expect(line).toHaveTextContent(/Entretien RH prévu, penser à relire.*…/);
+  });
+
   it('[EF-CAN-20] asks the API for the order chosen', async () => {
     const calls = mockApi({ 'GET /applications': () => listOf(ALL) });
     renderPage();
@@ -643,7 +661,7 @@ describe('ApplicationsPage — offer description and application date (T-104)', 
     expect(await screen.findByText(/Pipelines de données sous Airflow\./)).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /Data analyst/ }));
-    expect(await screen.findByText('Aucune description enregistrée.')).toBeInTheDocument();
+    expect(await screen.findByText('Pas encore de texte d’offre : « Modifier » pour l’ajouter.')).toBeInTheDocument();
   });
 
   it('[EF-CAN-15] [EF-CAN-16] changes the description and the date from the detail', async () => {
@@ -703,7 +721,7 @@ describe('ApplicationsPage — offer description and application date (T-104)', 
     await user.type(within(form).getByLabelText('Notes'), 'Relancer après le salon');
     await user.click(within(form).getByRole('button', { name: 'Enregistrer' }));
 
-    expect(await screen.findByText('Notes : Relancer après le salon')).toBeInTheDocument();
+    expect(await screen.findByText('Relancer après le salon')).toBeInTheDocument();
     expect(calls.find((call) => call.method === 'PATCH')?.body).toEqual({
       contractType: 'alternance',
       notes: 'Relancer après le salon',
@@ -775,7 +793,7 @@ describe('ApplicationsPage — offer description and application date (T-104)', 
     await user.clear(within(form).getByLabelText('Description de l’offre'));
     await user.click(within(form).getByRole('button', { name: 'Enregistrer' }));
 
-    expect(await screen.findByText('Aucune description enregistrée.')).toBeInTheDocument();
+    expect(await screen.findByText('Pas encore de texte d’offre : « Modifier » pour l’ajouter.')).toBeInTheDocument();
     expect(calls.find((call) => call.method === 'PATCH')?.body).toEqual({ offerDescription: null });
   });
 
