@@ -3,7 +3,7 @@ import { and, eq } from 'drizzle-orm';
 import type { gmail_v1 } from 'googleapis/build/src/apis/gmail/index.js';
 import request from 'supertest';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
-import { applications, companies, users } from '../../src/db/schema.js';
+import { applications, companies, emails, users } from '../../src/db/schema.js';
 import { encryptSecret } from '../../src/lib/crypto.js';
 import type { LlmProvider, LlmRequest } from '../../src/llm/types.js';
 import { createGmailMailbox } from '../../src/modules/emails/mailbox.js';
@@ -119,6 +119,25 @@ describe('POST /api/applications/:id/follow-up-draft (EF-CAN-17)', () => {
     expect(prompt).toContain('Signature : Alex Martin');
     // Nothing of a message is handed to the AI: its excerpt stays out.
     expect(prompt).not.toContain('Part-Dieu');
+  });
+
+  it('[RG-20] passes over a no-reply address stored before the rule was refined, for the previous contact', async () => {
+    await setUp([SENT_APPLICATION, MCDONALDS_ACKNOWLEDGEMENT]);
+    const id = await applicationOf("McDonald's");
+    // Contacts as the rule of before stored them: the latest, the acknowledgement, from a « jobs-noreply » address it
+    // let through; the earlier one, the application sent, to the recruiter.
+    const setContact = (gmailMessageId: string | null | undefined, contactAddress: string) =>
+      database.db
+        .update(emails)
+        .set({ contactAddress })
+        .where(and(eq(emails.applicationId, id), eq(emails.gmailMessageId, gmailMessageId ?? '')));
+    await setContact(MCDONALDS_ACKNOWLEDGEMENT.id, 'jobs-noreply@mcdonalds.example');
+    await setContact(SENT_APPLICATION.id, 'christophe.recruteur@mcdonalds.example');
+
+    const response = await draftFor(id);
+
+    expect(response.status).toBe(201);
+    expect((response.body as { to: string }).to).toBe('christophe.recruteur@mcdonalds.example');
   });
 
   it('[RG-20] [EF-CAN-17] refuses when nobody can be written to', async () => {

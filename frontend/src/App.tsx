@@ -11,15 +11,13 @@ import { UpcomingPage } from './pages/UpcomingPage';
 import { CookieNotice } from './components/CookieNotice';
 import { ScreenLoading } from './components/ScreenLoading';
 import { FeaturesProvider, RequireFeature } from './features/FeaturesContext';
-import { loadAuthPage, loadLandingPage, loadLegalPages } from './routeChunks';
+import { loadAuthPage, loadDashboardPage, loadLandingPage, loadLegalPages } from './routeChunks';
 
-// ENF-PERF-01: these two screens carry what weighs on the first load — the charts of the dashboard, and the fonts,
-// animations and decor of the login page. They are fetched when their route is opened, not before.
+// ENF-PERF-01: these two screens carry what weighs on the first load — the dashboard (its chart apart), and the
+// fonts, animations and decor of the login page. They are fetched when their route is opened, or preloaded at entry.
 const AuthPage = lazy(async () => ({ default: (await loadAuthPage()).AuthPage }));
-const DashboardPage = lazy(async () => ({
-  default: (await import('./pages/dashboard/DashboardPage')).DashboardPage,
-}));
-// Le formulaire du profil ne sert qu'à l'Atelier CV : il voyage avec son écran (ENF-PERF-01).
+const DashboardPage = lazy(async () => ({ default: (await loadDashboardPage()).DashboardPage }));
+// L'Atelier CV et son suivi d'analyse voyagent avec leur écran (ENF-PERF-01).
 const CvWorkshopPage = lazy(async () => ({
   default: (await import('./pages/cv/CvWorkshopPage')).CvWorkshopPage,
 }));

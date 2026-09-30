@@ -4,16 +4,7 @@ import { deleteMyAccount, downloadMyData } from '../../api/account';
 import { messageOf } from '../../api/client';
 import { useAuth } from '../../auth/AuthContext';
 import { Flash } from '../../components/Flash';
-
-/** Saves a file the API gave, as the browser would a download. */
-const saveFile = ({ blob, fileName }: { blob: Blob; fileName: string }) => {
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = fileName;
-  link.click();
-  URL.revokeObjectURL(url);
-};
+import { saveFile } from '../../lib/browser';
 
 /** EF-AUT-12: every datum held on the user, in one file. */
 function ExportAction() {

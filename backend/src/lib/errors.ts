@@ -48,7 +48,11 @@ export class ValidationError extends HttpError {
  * @req EF-IA-04
  */
 export class LlmUnavailableError extends HttpError {
-  constructor() {
+  /**
+   * @param answerRejected at least one provider did answer, but outside the schema of the task — as opposed to every
+   * provider being out of reach (quota, overload, credit). A task may then say why its answers were refused.
+   */
+  constructor(readonly answerRejected = false) {
     super(502, 'Aucun service d’IA n’a pu traiter la demande. Réessayez dans quelques minutes.');
   }
 }

@@ -34,10 +34,16 @@ const useApplicationsCache = (): ApplicationsCache => {
 };
 
 /** Filters of the last list of the session, to open the screen as the user left it. */
-export const useLastApplicationFilters = (): ApplicationFilters | undefined => useApplicationsCache()[0]?.filters;
+export const useLastApplicationFilters = (): ApplicationFilters | undefined =>
+  useApplicationsCache()[0]?.filters;
 
 const sameFilters = (a: ApplicationFilters, b: ApplicationFilters): boolean =>
-  a.status === b.status && a.contractType === b.contractType && a.q === b.q;
+  a.status === b.status &&
+  a.contractType === b.contractType &&
+  a.q === b.q &&
+  a.orderBy === b.orderBy &&
+  a.appliedFrom === b.appliedFrom &&
+  a.appliedTo === b.appliedTo;
 
 function useDebounced<T>(value: T, delayMs: number): T {
   const [debounced, setDebounced] = useState(value);
@@ -62,6 +68,8 @@ export interface ApplicationList extends ListState {
   loadMore: () => Promise<void>;
   /** Replaces one application in place, after a change made from the list (EF-CAN-07). */
   replaceItem: (application: Application) => void;
+  /** Takes one application out of the list, after its deletion (EF-CAN-09). */
+  removeItem: (id: number) => void;
   /** Requests the first page again, after a creation (EF-CAN-06). */
   reload: () => void;
 }
@@ -74,10 +82,17 @@ export interface ApplicationList extends ListState {
 export function useApplications(filters: ApplicationFilters): ApplicationList {
   const [cached, setCached] = useApplicationsCache();
   const search = useDebounced(filters.q?.trim() ?? '', SEARCH_DELAY_MS);
-  const { status, contractType } = filters;
+  const { status, contractType, orderBy, appliedFrom, appliedTo } = filters;
   const [reloadCount, setReloadCount] = useState(0);
   const generation = useRef(0);
-  const activeFilters: ApplicationFilters = { status, contractType, q: search || undefined };
+  const activeFilters: ApplicationFilters = {
+    status,
+    contractType,
+    q: search || undefined,
+    orderBy,
+    appliedFrom,
+    appliedTo,
+  };
   const [state, setState] = useState<ListState>(() => {
     const isCached = cached !== null && sameFilters(cached.filters, activeFilters);
     return {
@@ -92,7 +107,14 @@ export function useApplications(filters: ApplicationFilters): ApplicationList {
 
   useEffect(() => {
     const controller = new AbortController();
-    const requested: ApplicationFilters = { status, contractType, q: search || undefined };
+    const requested: ApplicationFilters = {
+      status,
+      contractType,
+      q: search || undefined,
+      orderBy,
+      appliedFrom,
+      appliedTo,
+    };
     generation.current += 1;
     setState((current) => ({ ...current, isLoading: true, error: null }));
     fetchApplications(requested, { limit: PAGE_SIZE, offset: 0 }, controller.signal)
@@ -105,7 +127,7 @@ export function useApplications(filters: ApplicationFilters): ApplicationList {
         setState((current) => ({ ...current, isLoading: false, error: messageOf(error) }));
       });
     return () => controller.abort();
-  }, [status, contractType, search, reloadCount, setCached]);
+  }, [status, contractType, search, orderBy, appliedFrom, appliedTo, reloadCount, setCached]);
 
   const loadMore = async () => {
     const requestedFor = generation.current;
@@ -128,7 +150,14 @@ export function useApplications(filters: ApplicationFilters): ApplicationList {
     setState((current) => ({ ...current, items }));
   };
 
+  const removeItem = (id: number) => {
+    const items = state.items.filter((item) => item.id !== id);
+    const total = state.total - (items.length < state.items.length ? 1 : 0);
+    setCached({ filters: activeFilters, items, total });
+    setState((current) => ({ ...current, items, total }));
+  };
+
   const reload = useCallback(() => setReloadCount((count) => count + 1), []);
 
-  return { ...state, loadMore, replaceItem, reload };
+  return { ...state, loadMore, replaceItem, removeItem, reload };
 }

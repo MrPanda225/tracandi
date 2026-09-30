@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { ROUTER_FUTURE } from '../../lib/router';
@@ -79,19 +79,31 @@ describe('AppShell', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Tableau de bord' })).toBeInTheDocument();
   });
 
-  it('[ENF-MAI-07] keeps the six screens in the navigation when no optional feature runs', async () => {
+  it('[ENF-MAI-07] keeps the six screens in the navigation when no optional feature runs, the closed ones said « bientôt »', async () => {
     renderSignedIn('/', () => json(200, { features: [] }));
     await screen.findByRole('heading', { name: 'Tableau de bord' });
 
     const navigation = within(screen.getByRole('navigation', { name: 'Navigation principale' }));
-    expect(navigation.getAllByRole('link').map((link) => link.getAttribute('aria-label'))).toEqual([
-      'Tableau de bord (Accueil)',
-      'Candidatures (Suivi)',
-      'Offres',
-      'Sites surveillés',
-      'Atelier CV',
-      'Réglages',
-    ]);
+    await waitFor(() =>
+      expect(navigation.getAllByRole('link').map((link) => link.getAttribute('aria-label'))).toEqual([
+        'Tableau de bord (Accueil)',
+        'Candidatures (Suivi)',
+        'Offres, bientôt',
+        'Sites surveillés, bientôt',
+        'Atelier CV, bientôt',
+        'Réglages',
+      ]),
+    );
+    expect(navigation.getAllByText('Bientôt')).toHaveLength(3);
+  });
+
+  it('[ENF-MAI-07] announces nothing « bientôt » once every optional feature runs', async () => {
+    renderSignedIn('/', () => json(200, { features: ['watch', 'cv'] }));
+    await screen.findByRole('heading', { name: 'Tableau de bord' });
+
+    const navigation = within(screen.getByRole('navigation', { name: 'Navigation principale' }));
+    await waitFor(() => expect(navigation.getByRole('link', { name: 'Offres' })).toBeInTheDocument());
+    expect(navigation.queryByText('Bientôt')).toBeNull();
   });
 
   it('[ENF-MAI-07] shows a disabled screen as in preparation, without loading its content', async () => {
@@ -141,7 +153,8 @@ describe('AppShell', () => {
     renderSignedIn('/reglages');
 
     await screen.findByRole('heading', { level: 1, name: 'Réglages' });
-    expect(document.title).toBe('Réglages — Tracandi');
+    // The page names itself in an effect, which may run just after its heading is painted.
+    await waitFor(() => expect(document.title).toBe('Réglages — Tracandi'));
   });
 
   it('[ENF-PERF-07] shows a screen of the core without waiting for the list of optional features', async () => {
@@ -165,12 +178,12 @@ describe('AppShell', () => {
     await user.click(screen.getByRole('button', { name: 'Se déconnecter' }));
 
     expect(
-      await screen.findByRole('heading', { level: 1, name: 'Vos candidatures, suivies toutes seules.' }),
+      await screen.findByRole('heading', { level: 1, name: /^Postulez\.\sOn\ss’occupe\sdu\ssuivi\.$/ }),
     ).toBeInTheDocument();
   });
 
   it("[EF-AUT-06] never shows the previous session's applications to the next account", async () => {
-    const FIRST_PAGE = '/applications?limit=100&offset=0';
+    const FIRST_PAGE = '/applications?sort=applied_at&order=desc&limit=100&offset=0';
     let answerApplications: Handler = () =>
       json(200, {
         items: [
@@ -203,7 +216,7 @@ describe('AppShell', () => {
       </MemoryRouter>,
     );
     const user = userEvent.setup();
-    await screen.findByRole('region', { name: 'Atelier Nova' });
+    await screen.findAllByText('Atelier Nova');
 
     await user.click(screen.getByRole('button', { name: 'Se déconnecter' }));
     await screen.findByRole('heading', { name: 'Bon retour.' });
@@ -214,7 +227,7 @@ describe('AppShell', () => {
     await user.click(await screen.findByRole('link', { name: /Candidatures/ }));
 
     expect(await screen.findByText('Chargement des candidatures…')).toBeInTheDocument();
-    expect(screen.queryByRole('region', { name: 'Atelier Nova' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Atelier Nova')).not.toBeInTheDocument();
   });
 
   it("[EF-AUT-06] never shows the previous session's figures to the next account", async () => {
@@ -284,5 +297,24 @@ describe('AppShell', () => {
     await screen.findByRole('heading', { name: 'Tableau de bord' });
 
     expect(screen.queryByRole('link', { name: 'Reconnecter Gmail' })).not.toBeInTheDocument();
+  });
+
+  it('[ENF-PERF-07] shows the login page while the session is still being checked', async () => {
+    let answerSession: (response: Response) => void = () => undefined;
+    const session = new Promise<Response>((resolve) => (answerSession = resolve));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) => (url.endsWith('/auth/session') ? session : Promise.resolve(json(404, {})))),
+    );
+    render(
+      <MemoryRouter initialEntries={['/connexion']} future={ROUTER_FUTURE}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole('heading', { name: 'Bon retour.' })).toBeInTheDocument();
+
+    answerSession(json(200, { account: ACCOUNT }));
+    expect(await screen.findByRole('heading', { level: 1, name: 'Tableau de bord' })).toBeInTheDocument();
   });
 });

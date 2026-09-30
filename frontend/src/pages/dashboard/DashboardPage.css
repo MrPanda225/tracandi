@@ -47,3 +47,8 @@
   color: var(--status-interview);
   font-size: 0.875rem;
 }
+
+/* The place of the weekly chart while its library loads: its height, so that nothing below it jumps (CLS). */
+.dashboard__chart-placeholder {
+  min-height: 24rem;
+}

@@ -92,6 +92,7 @@ Skills de référence : `.claude/skills/` (`clean-code`, `security`, `requiremen
 | T-401 | `robots-parser` |
 | T-403 | `cheerio` |
 | T-502 | `docx` |
+| T-510 | `unpdf` (lecture du texte des CV PDF, accord du Business Owner du 26/09/2026) — installé ; paquets système `tesseract-ocr`, `-fra`, `-eng` dans l'image et la CI |
 | T-006 (frontend) | `animejs` (animations), `@fontsource-variable/fraunces`, `@fontsource-variable/manrope` (polices auto-hébergées) — installés |
 | T-003+ (frontend) | `recharts` (T-602 uniquement) — installé |
 | T-007 (frontend) | `motion` (animations de la page de présentation, accord du Business Owner du 24/09/2026) — installé |

@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -33,7 +33,8 @@ describe('legal pages (EF-LEG-01)', () => {
     renderAt(path);
     await screen.findByRole('heading', { level: 1 });
 
-    expect(document.title).toBe(title);
+    // The page names itself in an effect, which may run just after its heading is painted.
+    await waitFor(() => expect(document.title).toBe(title));
     expect(document.head.querySelector<HTMLMetaElement>('meta[name="description"]')?.content).toMatch(/Tracandi/);
   });
 

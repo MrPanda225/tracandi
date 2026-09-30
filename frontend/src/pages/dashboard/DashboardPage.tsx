@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import type { Dashboard } from '../../api/stats';
 import { Flash } from '../../components/Flash';
 import { PageHeader } from '../../components/PageHeader';
@@ -9,7 +9,10 @@ import { DashboardSkeleton } from './DashboardSkeleton';
 import { FollowUpList } from './FollowUpList';
 import { KpiCards } from './KpiCards';
 import { useDashboard } from './useDashboard';
-import { WeeklyChart } from './WeeklyChart';
+
+// ENF-PERF-01: the chart library is the heaviest part of the screen; the figures, the follow-ups and the breakdowns
+// show without waiting for it, the chart arriving in a box that already holds its place.
+const WeeklyChart = lazy(async () => ({ default: (await import('./WeeklyChart')).WeeklyChart }));
 import './DashboardPage.css';
 
 // Neutral bars for channel and contract type: no status meaning to convey there (ui-design: colour only when
@@ -54,17 +57,20 @@ function DashboardFigures({ dashboard, isRefreshing, isChartAnimated }: Dashboar
     <div className="dashboard" aria-busy={isRefreshing}>
       <KpiCards totals={dashboard.totals} offers={dashboard.offers} />
 
-      <div className="dashboard__panel">
-        {/* Replaying the drawing on every return would make known figures look like they are loading. */}
-        <WeeklyChart weekly={dashboard.weekly} isAnimated={isChartAnimated} />
-      </div>
-
+      {/* What calls for an action comes before what informs (Fogg: the trigger where the eye lands first). */}
       <div className="dashboard__panel">
         <FollowUpList
           total={dashboard.followUps.total}
           items={dashboard.followUps.items}
           followUpDays={dashboard.followUpDays}
         />
+      </div>
+
+      <div className="dashboard__panel">
+        {/* Replaying the drawing on every return would make known figures look like they are loading. */}
+        <Suspense fallback={<div className="dashboard__chart-placeholder" aria-hidden="true" />}>
+          <WeeklyChart weekly={dashboard.weekly} isAnimated={isChartAnimated} />
+        </Suspense>
       </div>
 
       {/* Grouped together (Five Hat Racks: same "category" axis) so this trio only ever splits into

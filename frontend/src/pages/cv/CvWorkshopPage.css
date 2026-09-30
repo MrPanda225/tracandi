@@ -1,126 +1,775 @@
-/* Atelier CV : profil de référence (EF-CVX-01, EF-CVX-02). */
-.profile {
+/* Atelier CV (EF-CVX-21 à 35) : une colonne de cartes, comme les Réglages. */
+.cv-workshop {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 1.5rem;
-}
-
-.profile__block {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 0.35rem;
-}
-
-.profile__block h2 {
-  font-size: 1rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--color-ink-soft);
-  margin: 0 0 0.25rem;
-}
-
-.profile__name {
-  font-weight: 600;
-  margin: 0;
-}
-
-.profile__meta {
-  color: var(--color-ink-soft);
-  margin: 0;
-}
-
-.profile__list,
-.profile__bullets {
-  display: grid;
-  gap: 0.6rem;
-  margin: 0;
-  padding-left: 1.1rem;
-}
-
-.profile__bullets {
-  gap: 0.2rem;
-  margin-top: 0.3rem;
-}
-
-.profile__actions,
-.profile-form__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  margin-bottom: 1rem;
-}
-
-.profile__absent,
-.profile__loading {
-  display: grid;
-  gap: 0.75rem;
-  max-width: 40rem;
-}
-
-.profile__rejected {
-  display: grid;
-  gap: 0.3rem;
-  margin: 0 0 1rem;
-  padding-left: 1.1rem;
-  color: var(--color-danger, #8a1f1f);
-}
-
-.profile-form {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 1.25rem;
+  gap: clamp(1rem, 0.8rem + 0.8vw, 1.5rem);
+  justify-items: start;
   max-width: 48rem;
 }
 
-.profile-form__group {
+/* Le résultat prend la largeur : l'analyse à gauche, le CV adapté à droite, sous les yeux pendant la lecture. */
+.cv-workshop--result {
+  max-width: 84rem;
+  container-type: inline-size;
+}
+
+.cv-result {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
+  gap: clamp(1rem, 0.8rem + 0.8vw, 1.5rem);
+  width: 100%;
+}
+
+@container (min-width: 60rem) {
+  .cv-result {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+    align-items: start;
+  }
+
+  .cv-result > * {
+    grid-column: 1;
+  }
+
+  /* Le CV reste visible pendant qu'on coche une compétence ou lit une modification (cause et effet côte à côte). */
+  .cv-result > .cv-card--cv {
+    position: sticky;
+    top: 1rem;
+    grid-column: 2;
+    grid-row: 1 / span 8;
+    max-height: calc(100dvh - 2rem);
+    overflow: auto;
+  }
+
+  .cv-result .cv-score__jump {
+    display: none;
+  }
+}
+
+.cv-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.9rem;
+  width: 100%;
+  padding: clamp(1.1rem, 0.9rem + 0.8vw, 1.5rem);
+  border-radius: var(--radius-md);
+  background: var(--color-canvas-raised);
+  box-shadow: var(--shadow-soft);
+}
+
+.cv-card .flash {
+  margin: 0;
+}
+
+.cv-card__title {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.cv-card__lede {
+  margin: 0;
+  color: var(--color-mauve-deep);
+}
+
+.cv-contacts {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+}
+
+.cv-contacts__row {
+  display: grid;
+  grid-template-columns: 7rem minmax(0, 1fr);
   gap: 0.75rem;
+}
+
+.cv-contacts__row dt {
+  color: var(--color-mauve-deep);
+  font-weight: 650;
+}
+
+.cv-contacts__row dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.cv-contacts__none {
+  color: var(--color-mauve-deep);
+  font-style: italic;
+}
+
+/* Le texte lu, en entier : il défile dans sa carte plutôt que d'allonger la page sans fin. */
+.cv-text {
+  max-height: 28rem;
+  margin: 0;
+  padding: 0.9rem 1rem;
+  overflow: auto;
   border: 1px solid var(--color-line);
-  border-radius: 0.5rem;
-  padding: 1rem;
+  border-radius: var(--radius-sm);
+  background: var(--color-canvas);
+  font: inherit;
+  font-size: 0.875rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
-.profile-form__entry {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 0.75rem;
-  padding-bottom: 1rem;
-  border-bottom: 1px dashed var(--color-line);
+.cv-text:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
 }
 
-.profile-form__checks {
+.cv-workshop__note {
+  margin: 0;
+  color: var(--color-mauve-deep);
+  font-size: 0.875rem;
+}
+
+/* La fin du parcours : l'action suivante, puis la promesse tenue sur les données (Peak-End). */
+.cv-workshop__end {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.75rem;
+  align-items: center;
+  gap: 0.75rem 1.25rem;
 }
 
-/* Une période : les deux sélecteurs de mois côte à côte dès qu'il y a la place, l'un sous l'autre sinon. */
-.period-field {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 0.75rem;
+/* ---------- Formulaire ---------- */
+
+/* Le nom du champ fichier est un paragraphe (la zone de dépôt est son libellé) : sans marge, comme un libellé. */
+p.form-field__label {
+  margin: 0;
 }
 
-@container shell-main (min-width: 34rem) {
-  .period-field {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .period-field__current {
-    grid-column: 1 / -1;
-  }
-}
-
-.period-field__current {
+/* Zone de dépôt du CV : cible large, en français, le champ natif caché dedans (EF-CVX-21). */
+.cv-drop {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.9rem;
+  min-height: 5.5rem;
+  padding: 1rem 1.25rem;
+  border: 1.5px dashed var(--color-mist);
+  border-radius: var(--radius-sm);
+  background: var(--color-canvas);
+  cursor: pointer;
+  transition:
+    border-color var(--duration-fast) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out);
+}
+
+.cv-drop:hover,
+.cv-drop[data-dragging] {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+
+.cv-drop:has(input:focus-visible) {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.cv-drop:has(input[aria-invalid='true']) {
+  border-color: var(--color-danger);
+}
+
+.cv-drop:has(input:disabled) {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.cv-drop__icon {
+  width: 2rem;
+  height: 2rem;
+  flex: none;
+  fill: none;
+  stroke: var(--color-accent);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.cv-drop__text {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.cv-drop__name {
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+.cv-drop__meta {
+  color: var(--color-mauve-deep);
   font-size: 0.875rem;
 }
 
-.profile-form__legend {
+.cv-drop__link {
+  color: var(--color-accent);
+  font-weight: 650;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+.cv-offer {
+  min-height: 10rem;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.cv-offer__count {
+  justify-self: end;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Avancement (EF-CVX-32) ---------- */
+
+.cv-progress {
+  display: grid;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 1rem 1.25rem;
+  border-radius: var(--radius-md);
+  background: var(--color-canvas-raised);
+  box-shadow: var(--shadow-soft);
+}
+
+.cv-progress__steps {
+  display: grid;
+  gap: 0.5rem;
   margin: 0;
-  color: var(--color-ink-soft);
+  padding: 0;
+  list-style: none;
+}
+
+.cv-progress__step {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  color: var(--color-mauve-deep);
+}
+
+.cv-progress__step[aria-current='step'] {
+  color: var(--color-ink);
+  font-weight: 650;
+}
+
+.cv-progress__marker {
+  display: grid;
+  place-items: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  flex: none;
+  border-radius: 50%;
+  background: var(--color-mist-soft);
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+.cv-progress__step[aria-current='step'] .cv-progress__marker {
+  background: var(--color-accent);
+  color: var(--color-canvas);
+}
+
+/* ---------- Score (EF-CVX-24, RG-23) ---------- */
+
+.cv-score {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 1.25rem;
+}
+
+.cv-score__value {
+  display: flex;
+  align-items: baseline;
+  gap: 0.15rem;
+  margin: 0;
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+}
+
+.cv-score__number {
+  color: var(--color-ink);
+  font-size: clamp(3rem, 2.4rem + 2.5vw, 4.25rem);
+  font-weight: 600;
+  line-height: 1;
+}
+
+.cv-score__scale {
+  color: var(--color-mauve-deep);
+  font-size: 1.1rem;
+}
+
+.cv-score:focus {
+  outline: none;
+}
+
+.cv-score__jump {
+  display: inline-block;
+  margin-top: 0.5rem;
+  color: var(--color-accent);
+  font-weight: 650;
+  text-underline-offset: 0.15em;
+}
+
+.cv-score__verdict {
+  margin: 0 0 0.2rem;
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+}
+
+/* ---------- Dimensions (EF-CVX-24, EF-CVX-30) ---------- */
+
+.cv-dimensions {
+  display: grid;
+  gap: 1.1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cv-dimension {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.cv-dimension__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.6rem;
+}
+
+.cv-dimension__label {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.cv-dimension__weak {
+  padding: 0.1rem 0.55rem;
+  border-radius: 999px;
+  background: var(--status-waiting-soft);
+  color: var(--status-waiting);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.cv-dimension__score {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+}
+
+/* Jauge native, accessible ; couleurs des statuts, lisibles sur leur piste (WCAG 1.4.11). */
+.cv-dimension__meter {
+  width: 100%;
+  height: 0.6rem;
+  appearance: none;
+  border: none;
+  border-radius: 999px;
+  background: var(--color-mist-soft);
+}
+
+.cv-dimension__meter::-webkit-meter-bar {
+  height: 0.6rem;
+  border: none;
+  border-radius: 999px;
+  background: var(--color-mist-soft);
+}
+
+.cv-dimension__meter::-webkit-meter-optimum-value {
+  border-radius: 999px;
+  background: var(--status-interview);
+}
+
+.cv-dimension__meter::-webkit-meter-suboptimum-value {
+  border-radius: 999px;
+  background: var(--status-waiting);
+}
+
+.cv-dimension__meter::-webkit-meter-even-less-good-value {
+  border-radius: 999px;
+  background: var(--status-rejected);
+}
+
+.cv-dimension__meter:-moz-meter-optimum::-moz-meter-bar {
+  border-radius: 999px;
+  background: var(--status-interview);
+}
+
+.cv-dimension__meter:-moz-meter-sub-optimum::-moz-meter-bar {
+  border-radius: 999px;
+  background: var(--status-waiting);
+}
+
+.cv-dimension__meter:-moz-meter-sub-sub-optimum::-moz-meter-bar {
+  border-radius: 999px;
+  background: var(--status-rejected);
+}
+
+.cv-dimension__explanation {
+  margin: 0;
+  line-height: 1.55;
+}
+
+/* ---------- Compétences manquantes (EF-CVX-27) ---------- */
+
+.cv-skills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cv-skills__item {
+  padding: 0.3rem 0.75rem;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  background: var(--color-canvas);
   font-size: 0.875rem;
+}
+
+.cv-skills-fieldset {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.cv-skills-fieldset legend {
+  margin-bottom: 0.75rem;
+  padding: 0;
+}
+
+/* Toute l'étiquette coche la case, et fait au moins 44 px de haut (WCAG 2.5.5). */
+.cv-skills__choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 44px;
+  padding-inline: 0.85rem;
+  cursor: pointer;
+  font-size: 0.9375rem;
+}
+
+.cv-skills__choice:has(input:checked) {
+  border-color: var(--status-interview);
+  background: var(--status-interview-soft);
+}
+
+.cv-skills__choice input {
+  width: 1.1rem;
+  height: 1.1rem;
+  accent-color: var(--status-interview);
+}
+
+/* ---------- CV adapté (EF-CVX-25, EF-CVX-31) ---------- */
+
+/*
+ * L'aperçu est une page A4 (EF-CVX-38), dans la police du Word : tout y est dimensionné d'après la largeur de la page
+ * (unités cqw et em), comme sur le papier ; le fichier garde sa colonne unique pour les ATS (RG-22).
+ */
+.cv-page {
+  container-type: inline-size;
+  width: 100%;
+}
+
+.cv-sheet {
+  --cv-margin: 8.4em;
+  display: grid;
+  align-content: start;
+  gap: 1.1em;
+  aspect-ratio: 210 / 297;
+  /* Marges de 1,75 cm sur 21 cm, comme le fichier à son réglage intermédiaire (RG-24). */
+  padding: 8.33cqw;
+  border: 1px solid var(--color-line);
+  border-radius: 2px;
+  background: var(--color-canvas-raised);
+  box-shadow: var(--shadow-soft);
+  color: var(--color-ink-deep);
+  font-family: Calibri, Carlito, 'Segoe UI', Arial, Helvetica, sans-serif;
+  /* 10,5 pt sur une page de 595 pt de large, réduit par le script si le contenu déborde de la page. */
+  font-size: calc(var(--cv-scale, 1) * 1.765cqw);
+  line-height: 1.35;
+}
+
+.cv-sheet p {
+  margin: 0;
+}
+
+.cv-sheet ul {
+  display: grid;
+  gap: 0.15em;
+  margin: 0.3em 0 0;
+  padding-left: 1.1em;
+}
+
+.cv-sheet li::marker {
+  color: var(--color-accent);
+}
+
+.cv-sheet__header {
+  display: grid;
+  gap: 0.15em;
+  text-align: center;
+}
+
+.cv-sheet__name {
+  font-size: 1.5em;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+.cv-sheet__headline {
+  font-weight: 600;
+}
+
+.cv-sheet__reach {
+  color: var(--color-mauve-deep);
+  font-size: 0.87em;
+  overflow-wrap: anywhere;
+}
+
+.cv-sheet__section {
+  display: grid;
+  gap: 0.6em;
+  padding-top: 0.5em;
+  border-top: 2px solid var(--color-ink-deep);
+}
+
+.cv-sheet__title {
+  margin: 0;
+  font-family: inherit;
+  font-size: 0.8em;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.cv-sheet__entry {
+  display: grid;
+  grid-template-columns: var(--cv-margin) minmax(0, 1fr);
+  gap: 1.2em;
+}
+
+.cv-sheet__dates,
+.cv-sheet__place {
+  color: var(--color-mauve-deep);
+  font-size: 0.87em;
+  line-height: 1.6;
+}
+
+.cv-sheet__entry-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.1em 1em;
+}
+
+.cv-sheet__role {
+  font-size: 1.07em;
+  font-weight: 500;
+}
+
+.cv-sheet__organization {
+  font-weight: 750;
+}
+
+.cv-sheet__rows {
+  display: grid;
+  gap: 0.25em;
+  margin: 0;
+}
+
+.cv-sheet__row {
+  display: grid;
+  grid-template-columns: var(--cv-margin) minmax(0, 1fr);
+  gap: 1.2em;
+}
+
+.cv-sheet__row dt {
+  font-size: 0.8em;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  line-height: 1.7;
+  text-transform: uppercase;
+}
+
+.cv-sheet__row dd {
+  margin: 0;
+}
+
+/* ENF-UTI-07 : la raison d'un sous-score, sur demande. */
+.cv-why__summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--color-accent);
+  font-size: 0.9375rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.cv-why__summary:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.cv-download {
+  display: grid;
+  justify-items: start;
+  gap: 0.5rem;
+}
+
+/* ---------- Ce qui a changé (EF-CVX-29) ---------- */
+
+.cv-changes {
+  display: grid;
+  gap: 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cv-change {
+  display: grid;
+  gap: 0.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--color-line);
+}
+
+.cv-change:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.cv-change__section {
+  margin: 0;
+  color: var(--color-mauve-deep);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.cv-change__texts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 0.6rem;
+  margin: 0;
+}
+
+.cv-change__texts > div {
+  padding: 0.6rem 0.8rem;
+  border-radius: var(--radius-sm);
+}
+
+.cv-change__before {
+  background: var(--color-mist-soft);
+}
+
+.cv-change__after {
+  background: var(--status-interview-soft);
+}
+
+.cv-change__texts dt {
+  margin-bottom: 0.2rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.cv-change__texts dd {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.cv-change__reason {
+  margin: 0;
+  color: var(--color-mauve-deep);
+  font-size: 0.9375rem;
+}
+
+/* ---------- Ce que l'IA a reçu (EF-CVX-35) ---------- */
+
+.cv-fold__summary {
+  position: relative;
+  display: grid;
+  gap: 0.1rem;
+  min-height: 44px;
+  padding-left: 1.6rem;
+  cursor: pointer;
+  list-style: none;
+}
+
+.cv-fold__summary::-webkit-details-marker {
+  display: none;
+}
+
+/* Chevron de divulgation : il annonce que le bloc s'ouvre, et pivote une fois ouvert (WCAG 3.2.4). */
+.cv-fold__summary::before {
+  content: '';
+  position: absolute;
+  top: 0.45rem;
+  left: 0.2rem;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+
+.cv-fold[open] > .cv-fold__summary::before {
+  transform: rotate(45deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cv-fold__summary::before {
+    transition: none;
+  }
+}
+
+.cv-fold__label {
+  font-weight: 650;
+}
+
+.cv-fold__hint {
+  color: var(--color-mauve-deep);
+  font-size: 0.875rem;
+}
+
+.cv-fold__summary:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.cv-received__title {
+  margin: 0.5rem 0 0;
+  font-family: var(--font-body);
+  font-size: 0.9375rem;
+  font-weight: 700;
+}
+
+@media (max-width: 30rem) {
+  .cv-contacts__row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.1rem;
+  }
+
+  .cv-score {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.5rem;
+  }
+
+
 }

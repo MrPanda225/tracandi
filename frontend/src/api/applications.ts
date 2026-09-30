@@ -25,7 +25,8 @@ export interface ApplicationDetail extends Application {
   offerDescription: string | null;
 }
 
-export type EmailCategory = 'sent_application' | 'acknowledged' | 'interview' | 'offer' | 'rejected' | 'job_alert';
+export type EmailCategory =
+  'sent_application' | 'acknowledged' | 'interview' | 'offer' | 'rejected' | 'job_alert';
 
 /** One message of an application's chronology (schema `Email` in /api/docs). */
 export interface ApplicationEmail {
@@ -40,11 +41,28 @@ export interface ApplicationEmail {
   gmailUrl: string;
 }
 
+/** EF-CAN-20: the orders offered on screen, each one a sort and a direction of the API. */
+export const APPLICATION_ORDERS = {
+  recent: { sort: 'applied_at', order: 'desc', label: 'Plus récentes d’abord' },
+  oldest: { sort: 'applied_at', order: 'asc', label: 'Plus anciennes d’abord' },
+  activity: { sort: 'last_activity', order: 'desc', label: 'Dernière activité' },
+  status: { sort: 'status', order: 'desc', label: 'Statut' },
+  company: { sort: 'company', order: 'asc', label: 'Entreprise (A → Z)' },
+} as const;
+export type ApplicationOrder = keyof typeof APPLICATION_ORDERS;
+/** EF-CAN-20: the most recent application first, unless the candidate chose otherwise. */
+export const DEFAULT_ORDER: ApplicationOrder = 'recent';
+
 export interface ApplicationFilters {
   status?: ApplicationStatus;
   contractType?: ContractType;
   /** EF-CAN-03: company name or job title. */
   q?: string;
+  /** EF-CAN-20 */
+  orderBy?: ApplicationOrder;
+  /** EF-CAN-24: Paris days « YYYY-MM-DD », both included. */
+  appliedFrom?: string;
+  appliedTo?: string;
 }
 
 export interface ApplicationPage {
@@ -63,9 +81,14 @@ export interface NewApplication {
   offerDescription?: string;
 }
 
-/** Fields changed from the list (EF-CAN-07, 15, 16); `null` clears the description. */
+/** EF-CAN-08: same bound as the API. */
+export const NOTES_MAX_LENGTH = 2000;
+
+/** Fields changed from the list (EF-CAN-07, 08, 13, 15, 16); `null` clears the description or the notes. */
 export interface ApplicationChanges {
   status?: ApplicationStatus;
+  contractType?: ContractType;
+  notes?: string | null;
   appliedAt?: string;
   offerDescription?: string | null;
 }
@@ -78,13 +101,20 @@ const queryString = (values: Record<string, string | number | undefined>): strin
   return params.toString();
 };
 
-/** EF-CAN-01, 02, 03, 14: one page of the user's applications, grouped by company by the API's sort order. */
+const queryOf = (
+  { orderBy = DEFAULT_ORDER, ...filters }: ApplicationFilters,
+  page: { limit: number; offset: number },
+) => {
+  const { sort, order } = APPLICATION_ORDERS[orderBy];
+  return { ...filters, sort, order, ...page };
+};
+
+/** EF-CAN-01, 02, 03, 14, 20, 24: one page of the user's applications, in the order chosen. */
 export const fetchApplications = (
   filters: ApplicationFilters,
   page: { limit: number; offset: number },
   signal?: AbortSignal,
-) =>
-  request<ApplicationPage>(`/applications?${queryString({ ...filters, ...page })}`, { signal });
+) => request<ApplicationPage>(`/applications?${queryString(queryOf(filters, page))}`, { signal });
 
 /** One application with its offer description, and its follow-up flag recomputed (RG-06). */
 export const fetchApplication = (id: number, signal?: AbortSignal) =>
@@ -102,6 +132,10 @@ export const createApplication = (application: NewApplication) =>
 export const updateApplication = (id: number, changes: ApplicationChanges) =>
   request<undefined>(`/applications/${id}`, { method: 'PATCH', body: changes });
 
+/** EF-CAN-09: deletes the application; its messages stay stored, detached from it. */
+export const deleteApplication = (id: number) =>
+  request<undefined>(`/applications/${id}`, { method: 'DELETE' });
+
 /** EF-CAN-17: a follow-up saved as a Gmail draft (schema `FollowUpDraft` in /api/docs); nothing is sent. */
 export interface FollowUpDraft {
   draftUrl: string;
@@ -112,4 +146,3 @@ export interface FollowUpDraft {
 /** EF-CAN-17: has the follow-up of an application written and saved as a draft in its Gmail thread. */
 export const prepareFollowUpDraft = (id: number) =>
   request<FollowUpDraft>(`/applications/${id}/follow-up-draft`, { method: 'POST' });
-

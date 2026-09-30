@@ -68,6 +68,21 @@ const AppliedAtSchema = z
 export const IdParamsSchema = z.object({ id: z.coerce.number().int().positive().openapi({ example: 1 }) });
 
 /** EF-CAN-02, EF-CAN-03, EF-CAN-14 */
+/** EF-CAN-20: the orders the list can be read in. */
+export const APPLICATION_SORTS = ['applied_at', 'last_activity', 'status', 'company'] as const;
+export type ApplicationSort = (typeof APPLICATION_SORTS)[number];
+
+/** EF-CAN-24: a calendar day, « YYYY-MM-DD », that exists. */
+const DaySchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/u, 'Date attendue au format AAAA-MM-JJ')
+  .refine(
+    (day) =>
+      !Number.isNaN(Date.parse(`${day}T12:00:00.000Z`)) &&
+      new Date(`${day}T12:00:00.000Z`).toISOString().startsWith(day),
+    'Date inexistante',
+  );
+
 export const ListApplicationsQuerySchema = z
   .object({
     status: ApplicationStatusSchema.optional(),
@@ -75,6 +90,17 @@ export const ListApplicationsQuerySchema = z
     q: z.string().trim().max(SEARCH_MAX_LENGTH).optional().openapi({
       description: "Recherche dans le nom de l'entreprise ou l'intitulé (EF-CAN-03)",
       example: 'mcdo',
+    }),
+    sort: z.enum(APPLICATION_SORTS).default('applied_at').openapi({
+      description:
+        'Tri (EF-CAN-20) : date de candidature par défaut ; « company » regroupe par entreprise (EF-CAN-01)',
+    }),
+    order: z.enum(['asc', 'desc']).default('desc'),
+    appliedFrom: DaySchema.optional().openapi({
+      description: 'Candidatures de ce jour de Paris ou après (EF-CAN-24)',
+    }),
+    appliedTo: DaySchema.optional().openapi({
+      description: 'Candidatures de ce jour de Paris ou avant (EF-CAN-24)',
     }),
     limit: z.coerce.number().int().min(1).max(LIST_MAX_LIMIT).default(LIST_DEFAULT_LIMIT),
     offset: z.coerce.number().int().min(0).default(0),

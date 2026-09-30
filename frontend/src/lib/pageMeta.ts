@@ -17,8 +17,19 @@ const descriptionElement = (): HTMLMetaElement => {
 };
 
 /**
+ * The canonical address of a public page: its own address, without query nor fragment, on whatever domain serves it —
+ * so that « /connexion?mode=inscription » and « /connexion » count as one page for search engines.
+ */
+const addCanonicalLink = (): HTMLLinkElement => {
+  const link = document.createElement('link');
+  link.rel = 'canonical';
+  link.href = `${window.location.origin}${window.location.pathname}`;
+  return document.head.appendChild(link);
+};
+
+/**
  * Gives the page its title and description while it is shown, and puts back those it found when it goes, so that the
- * next page never inherits them.
+ * next page never inherits them. A page with a description is public: it also names its canonical address.
  * @req EF-SEO-01
  */
 export function usePageMeta({ title, description }: PageMeta): void {
@@ -27,9 +38,11 @@ export function usePageMeta({ title, description }: PageMeta): void {
     const previous = { title: document.title, description: element.content };
     document.title = title;
     if (description !== undefined) element.content = description;
+    const canonical = description === undefined ? null : addCanonicalLink();
     return () => {
       document.title = previous.title;
       element.content = previous.description;
+      canonical?.remove();
     };
   }, [title, description]);
 }

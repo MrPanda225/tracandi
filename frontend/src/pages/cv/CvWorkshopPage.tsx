@@ -1,172 +1,272 @@
-import { useEffect, useState } from 'react';
-import { ApiError, isAbortError, messageOf } from '../../api/client';
-import {
-  type CandidateProfile,
-  CONTRACT_LABELS,
-  emptyProfile,
-  fetchProfile,
-  saveProfile,
-} from '../../api/profile';
+import { type DragEvent, type FormEvent, useId, useState } from 'react';
+import { CV_MAX_BYTES, OFFER_MAX_LENGTH, OFFER_MIN_LENGTH } from '../../api/cvWorkshop';
 import { Flash } from '../../components/Flash';
 import { PageHeader } from '../../components/PageHeader';
-import { Skeleton } from '../../components/Skeleton';
-import { CvPreview } from './CvPreview';
-import { ProfileForm } from './ProfileForm';
+import { DiagnosisResult } from './DiagnosisResult';
+import { type AnalysisStep, useCvAnalysis } from './useCvAnalysis';
 import './CvWorkshopPage.css';
 
-type LoadState =
-  | { status: 'loading' }
-  | { status: 'error'; message: string }
-  | { status: 'absent' }
-  | { status: 'ready'; profile: CandidateProfile };
+const PDF_TYPE = 'application/pdf';
+const numberFormat = new Intl.NumberFormat('fr-FR');
 
-const NOT_FOUND = 404;
+/** EF-CVX-21: checked here to answer at once; the API checks the content again (ENF-SEC-22). */
+const describeFileRefusal = (file: File): string | null => {
+  const isPdf = file.type === PDF_TYPE || file.name.toLowerCase().endsWith('.pdf');
+  if (!isPdf) return 'Ce fichier n’est pas un PDF. Exportez votre CV en PDF, puis réessayez.';
+  if (file.size > CV_MAX_BYTES) return 'Votre CV dépasse 5 Mo : essayez une version plus légère.';
+  return null;
+};
+
+/** EF-CVX-23: same bounds and words as the API. */
+const describeOfferRefusal = (offer: string): string | null => {
+  const length = offer.trim().length;
+  if (length < OFFER_MIN_LENGTH) return 'L’offre semble incomplète : collez le texte entier de l’annonce.';
+  if (length > OFFER_MAX_LENGTH) return 'L’offre dépasse 20 000 caractères : gardez l’essentiel de l’annonce.';
+  return null;
+};
+
+const sizeFormat = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 1 });
+const BYTES_PER_KB = 1024;
+const BYTES_PER_MB = 1024 * 1024;
+
+/** « 245 Ko », « 1,2 Mo »: the size the way a file explorer says it. */
+const describeSize = (bytes: number): string =>
+  bytes >= BYTES_PER_MB
+    ? `${sizeFormat.format(bytes / BYTES_PER_MB)} Mo`
+    : `${String(Math.max(1, Math.round(bytes / BYTES_PER_KB)))} Ko`;
 
 /**
- * EF-CVX-01 : ce que le profil porte et que le CV n'affiche pas — la zone de recherche et les cibles, qui
- * servent à noter les offres (RG-09). Tout le reste se lit sur l'aperçu du CV, tel qu'il sera envoyé.
+ * EF-CVX-21: the CV, dropped or chosen, in French words rather than the browser's own button. The native field stays
+ * inside, visually hidden: keyboard, screen readers and the file picker work as usual (WCAG 2.1.1).
  */
-function WatchSettings({ profile }: { profile: CandidateProfile }) {
+function CvFileZone({
+  file,
+  isDisabled,
+  refusal,
+  labelId,
+  hintId,
+  errorId,
+  onFileChange,
+}: {
+  file: File | null;
+  isDisabled: boolean;
+  refusal: string | null;
+  labelId: string;
+  hintId: string;
+  errorId: string;
+  onFileChange: (file: File | null) => void;
+}) {
+  const [isDragging, setIsDragging] = useState(false);
+  const handleDrop = (event: DragEvent<HTMLLabelElement>) => {
+    event.preventDefault();
+    setIsDragging(false);
+    const dropped = event.dataTransfer.files[0];
+    if (!isDisabled && dropped) onFileChange(dropped);
+  };
   return (
-    <div className="profile">
-      <section className="profile__block" aria-labelledby="profil-recherche">
-        <h2 id="profil-recherche">Ce que vous cherchez</h2>
-        <p className="profile__meta">Zone de recherche : {profile.location.searchArea}</p>
-        <ul className="profile__list">
-          {profile.targets.map((target) => (
-            <li key={target.label}>
-              <strong>{target.label}</strong>{' '}
-              <span className="profile__meta">
-                {target.contractTypes.map((type) => CONTRACT_LABELS[type]).join(', ')}
-              </span>
-              <p className="profile__meta">{target.keywords.join(', ')}</p>
-            </li>
-          ))}
-        </ul>
-      </section>
+    <label
+      className="cv-drop"
+      data-dragging={isDragging || undefined}
+      onDragOver={(event) => {
+        event.preventDefault();
+        if (!isDisabled) setIsDragging(true);
+      }}
+      onDragLeave={() => setIsDragging(false)}
+      onDrop={handleDrop}
+    >
+      <input
+        className="visually-hidden"
+        type="file"
+        accept={`${PDF_TYPE},.pdf`}
+        aria-labelledby={labelId}
+        aria-describedby={refusal ? `${hintId} ${errorId}` : hintId}
+        aria-invalid={refusal !== null}
+        disabled={isDisabled}
+        onChange={(event) => onFileChange(event.target.files?.[0] ?? null)}
+      />
+      <svg className="cv-drop__icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+        <path d="M14 3v5h5M9 13h6M9 17h4" />
+      </svg>
+      {file ? (
+        <span className="cv-drop__text">
+          <span className="cv-drop__name">{file.name}</span>
+          <span className="cv-drop__meta">
+            {describeSize(file.size)} · <span className="cv-drop__link">Changer de fichier</span>
+          </span>
+        </span>
+      ) : (
+        <span className="cv-drop__text">
+          <span className="cv-drop__name">Glissez votre CV ici</span>
+          <span className="cv-drop__meta">
+            ou <span className="cv-drop__link">choisissez un fichier</span>
+          </span>
+        </span>
+      )}
+    </label>
+  );
+}
+
+const STEPS: readonly string[] = ['On lit votre CV…', 'On le compare à l’offre…', 'On l’adapte à l’offre…'];
+
+/** EF-CVX-32: where the analysis stands, in words (ENF-UTI-03). */
+function Progress({ step }: { step: AnalysisStep }) {
+  return (
+    <div className="cv-progress" role="status" aria-live="polite">
+      <ol className="cv-progress__steps">
+        {STEPS.map((label, index) => (
+          <li key={label} className="cv-progress__step" aria-current={index === step ? 'step' : undefined}>
+            <span className="cv-progress__marker" aria-hidden="true">
+              {index < step ? '✓' : String(index + 1)}
+            </span>
+            {index < step ? <span>{label.replace('…', '')} : c’est fait.</span> : <span>{label}</span>}
+          </li>
+        ))}
+      </ol>
+      <p className="form-field__hint">Environ une minute.</p>
     </div>
   );
 }
 
-/**
- * Atelier CV : le profil de référence du candidat, source unique des CV générés (RG-12) et des cibles qui notent
- * les offres (RG-09). Consultation (EF-CVX-01) et modification (EF-CVX-02) ; la génération d'un CV adapté arrive
- * avec T-504.
- */
-/**
- * Les chemins que le formulaire sait montrer lui-même. Ce qui tombe hors de cette liste — un refus portant sur
- * l'objet entier, par exemple — reste affiché en haut, plutôt que d'être perdu.
- */
-const SHOWN_PATHS =
-  /^body\.(identity\.|location\.|availability$|studyLevel|targets\.\d+\.|cvSource\.(defaultTitle|defaultSubtitle|profile|interests)$|cvSource\.(experiences|education|skills|certifications)\.\d+\.)/;
+/** The form: the CV, then the offer, in the order the candidate thinks of them. */
+function AnalysisForm({
+  file,
+  offer,
+  isRunning,
+  failure,
+  onFileChange,
+  onOfferChange,
+  onSubmit,
+}: {
+  file: File | null;
+  offer: string;
+  isRunning: boolean;
+  failure: string | null;
+  onFileChange: (file: File | null) => void;
+  onOfferChange: (offer: string) => void;
+  onSubmit: () => void;
+}) {
+  const fileLabelId = useId();
+  const fileHintId = useId();
+  const fileErrorId = useId();
+  const offerId = useId();
+  const offerHintId = useId();
+  const offerErrorId = useId();
+  const [hasTriedOffer, setHasTriedOffer] = useState(false);
+  const fileRefusal = file ? describeFileRefusal(file) : null;
+  const offerRefusal = hasTriedOffer ? describeOfferRefusal(offer) : null;
 
-export function CvWorkshopPage() {
-  const [state, setState] = useState<LoadState>({ status: 'loading' });
-  const [draft, setDraft] = useState<CandidateProfile | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
-  const [notice, setNotice] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
-  const [rejected, setRejected] = useState<readonly { path: string; message: string }[]>([]);
-
-  const load = (signal?: AbortSignal) =>
-    fetchProfile(signal)
-      .then((profile) => setState({ status: 'ready', profile }))
-      .catch((error: unknown) => {
-        if (isAbortError(error)) return;
-        // EF-CVX-01 : 404 tant qu'aucun profil n'est enregistré ; ce n'est pas une panne.
-        if (error instanceof ApiError && error.status === NOT_FOUND) setState({ status: 'absent' });
-        else setState({ status: 'error', message: messageOf(error) });
-      });
-
-  useEffect(() => {
-    const controller = new AbortController();
-    void load(controller.signal);
-    return () => controller.abort();
-  }, []);
-
-  // ENF-SEC-04 : chaque refus est rendu par le champ qu'il nomme ; le formulaire le lit par son chemin.
-  const fieldErrors = Object.fromEntries(rejected.map((issue) => [issue.path, issue.message]));
-  const unclaimed = rejected.filter((issue) => !SHOWN_PATHS.test(issue.path));
-
-  const handleSave = async (profile: CandidateProfile) => {
-    setIsSaving(true);
-    setRejected([]);
-    try {
-      await saveProfile(profile);
-      setDraft(null);
-      setNotice({ tone: 'success', text: 'Profil enregistré.' });
-      await load();
-    } catch (failure) {
-      setNotice({ tone: 'error', text: messageOf(failure) });
-      if (failure instanceof ApiError) setRejected(failure.details);
-    } finally {
-      setIsSaving(false);
-    }
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setHasTriedOffer(true);
+    if (!file || fileRefusal || describeOfferRefusal(offer)) return;
+    onSubmit();
   };
 
   return (
-    <>
-      <PageHeader title="Atelier CV" eyebrow="Profil de référence">
-        <p>
-          Tout CV généré est écrit à partir de ce profil, et de lui seul : rien n’y est inventé. Les cibles
-          servent aussi à noter les offres repérées.
+    <form className="cv-card" onSubmit={handleSubmit} noValidate aria-label="Votre CV face à une offre">
+      <div className="form-field">
+        <p id={fileLabelId} className="form-field__label">
+          1. Votre CV
         </p>
-      </PageHeader>
-
-      {notice && <Flash tone={notice.tone}>{notice.text}</Flash>}
-      {/* Les refus qu'aucun champ du formulaire ne montre : le reste s'affiche sous le champ concerné. */}
-      {unclaimed.length > 0 && (
-        <ul className="profile__rejected" aria-label="Champs refusés">
-          {unclaimed.map((issue) => (
-            <li key={issue.path}>
-              <code>{issue.path}</code> — {issue.message}
-            </li>
-          ))}
-        </ul>
-      )}
-
-      {state.status === 'loading' && (
-        <div role="status" aria-live="polite" className="profile__loading">
-          <span className="visually-hidden">Chargement du profil de référence…</span>
-          <Skeleton width="40%" height="1.4rem" />
-          <Skeleton width="70%" height="1rem" />
-          <Skeleton width="60%" height="1rem" />
-        </div>
-      )}
-      {state.status === 'error' && <Flash>{state.message}</Flash>}
-
-      {state.status === 'absent' && draft === null && (
-        <div className="profile__absent" role="note">
-          <p>Aucun profil de référence n’est enregistré. Sans lui, aucun CV ne peut être écrit.</p>
-          <button type="button" className="btn" onClick={() => setDraft(emptyProfile())}>
-            Créer mon profil
-          </button>
-        </div>
-      )}
-
-      {state.status === 'ready' && draft === null && (
-        <>
-          <div className="profile__actions">
-            <button type="button" className="btn" onClick={() => setDraft(state.profile)}>
-              Modifier le profil
-            </button>
-          </div>
-          <CvPreview profile={state.profile} />
-          <WatchSettings profile={state.profile} />
-        </>
-      )}
-
-      {draft !== null && (
-        <ProfileForm
-          profile={draft}
-          isSaving={isSaving}
-          errors={fieldErrors}
-          onSave={(profile) => void handleSave(profile)}
-          onCancel={() => {
-            setDraft(null);
-            setRejected([]);
-          }}
+        <p id={fileHintId} className="form-field__hint">
+          PDF de 5 Mo au plus, scan accepté.
+        </p>
+        <CvFileZone
+          file={file}
+          isDisabled={isRunning}
+          refusal={fileRefusal}
+          labelId={fileLabelId}
+          hintId={fileHintId}
+          errorId={fileErrorId}
+          onFileChange={onFileChange}
         />
-      )}
+        {fileRefusal && (
+          <p id={fileErrorId} className="form-field__error">
+            {fileRefusal}
+          </p>
+        )}
+      </div>
+
+      <div className="form-field">
+        <label htmlFor={offerId} className="form-field__label">
+          2. L’offre qui vous intéresse
+        </label>
+        <p id={offerHintId} className="form-field__hint">
+          L’annonce entière : missions, profil, outils.
+        </p>
+        <textarea
+          id={offerId}
+          className="control cv-offer"
+          rows={8}
+          value={offer}
+          aria-describedby={offerRefusal ? `${offerHintId} ${offerErrorId}` : offerHintId}
+          aria-invalid={offerRefusal !== null}
+          disabled={isRunning}
+          onChange={(event) => onOfferChange(event.target.value)}
+          onBlur={() => offer.trim() !== '' && setHasTriedOffer(true)}
+        />
+        <p className="form-field__hint cv-offer__count">
+          {numberFormat.format(offer.trim().length)} / {numberFormat.format(OFFER_MAX_LENGTH)} caractères
+        </p>
+        {offerRefusal && (
+          <p id={offerErrorId} className="form-field__error">
+            {offerRefusal}
+          </p>
+        )}
+      </div>
+
+      {failure && <Flash>{failure}</Flash>}
+      <div>
+        <button type="submit" className="btn" disabled={!file || fileRefusal !== null || isRunning}>
+          {isRunning ? 'Analyse en cours…' : 'Analyser'}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+/**
+ * Atelier CV (EF-CVX-21 to 35): the candidate gives a PDF CV and the text of an offer; the API reads the CV in the
+ * queue — scanned pages by OCR on the server — and diagnoses it against the offer. The result shows the overall
+ * score, the four sub-scores explained, what to strengthen, and what the AI received. Nothing is stored (ENF-RGP-06).
+ */
+export function CvWorkshopPage() {
+  const [file, setFile] = useState<File | null>(null);
+  const [offer, setOffer] = useState('');
+  const { state, analyse, reset } = useCvAnalysis();
+
+  const handleAnotherOffer = () => {
+    setOffer('');
+    reset();
+  };
+
+  const done = state.status === 'done' ? state : null;
+  return (
+    <>
+      <PageHeader title="Atelier CV">
+        <p>Votre CV face à une offre : un score, et un CV adapté d’une page.</p>
+      </PageHeader>
+      <div className={done ? 'cv-workshop cv-workshop--result' : 'cv-workshop'}>
+        {done ? (
+          <DiagnosisResult runId={done.runId} analysis={done.analysis} onAnotherOffer={handleAnotherOffer} />
+        ) : (
+          <>
+            <AnalysisForm
+              file={file}
+              offer={offer}
+              isRunning={state.status === 'running'}
+              failure={state.status === 'failed' ? state.message : null}
+              onFileChange={setFile}
+              onOfferChange={setOffer}
+              onSubmit={() => {
+                if (file) void analyse(file, offer.trim());
+              }}
+            />
+            {state.status === 'running' && <Progress step={state.step} />}
+          </>
+        )}
+      </div>
     </>
   );
 }

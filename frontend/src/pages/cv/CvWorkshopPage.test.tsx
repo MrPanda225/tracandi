@@ -1,334 +1,411 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ROUTER_FUTURE } from '../../lib/router';
+import { openStreams } from '../../test/setup';
 import { CvWorkshopPage } from './CvWorkshopPage';
 
-const PROFILE = {
-  identity: {
-    name: 'Alex MARTIN',
-    city: 'Villeurbanne',
-    phone: '06 00 00 00 00',
-    email: 'alex.martin@example.com',
-    extra: 'Permis B',
+const json = (status: number, body: unknown) =>
+  new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
+
+const RUN_ID = 5;
+const OFFER = 'Data Analyst en CDI à Lyon. Vous maîtrisez SQL, Python, dbt et Airflow. '.repeat(4);
+const explained = (score: number, explanation: string) => ({ score, explanation });
+const ANALYSIS = {
+  reading: {
+    text: 'Data Analyst - Atelier Nova\nTableaux de bord Power BI pour 12 equipes commerciales.',
+    contacts: {
+      name: 'Camille Durand',
+      emails: ['camille.durand@example.com'],
+      phones: ['06 12 34 56 78'],
+      address: null,
+      links: [],
+    },
+    ocrPageCount: 0,
   },
-  location: { searchArea: 'Lyon ou télétravail' },
-  availability: 'CDI : immédiatement',
-  studyLevel: { level: 'bac_5', isInProgress: true },
-  targets: [{ label: 'Data analyst', contractTypes: ['cdi', 'alternance'], keywords: ['data', 'sql'] }],
-  cvSource: {
-    defaultTitle: 'Data Analyst',
-    defaultSubtitle: 'CDI ou alternance',
-    profile: 'Étudiant en Master MIAGE.',
-    experiences: [
+  diagnosis: {
+    overallScore: 70,
+    dimensions: {
+      skills: explained(80, 'Vous maîtrisez SQL et Python, deux piliers de l’offre.'),
+      experience: explained(60, 'Deux ans de tableaux de bord chez Atelier Nova, c’est un vrai atout.'),
+      education: explained(90, 'Votre master correspond exactement au niveau demandé.'),
+      techStack: explained(40, 'Airflow et dbt n’apparaissent pas dans votre CV.'),
+    },
+    weakDimensions: ['techStack'],
+    missingSkills: ['dbt', 'Airflow'],
+  },
+  adapted: {
+    cv: {
+      headline: 'Data Analyst',
+      profile: 'Data analyst tournée vers les tableaux de bord et SQL.',
+      experiences: [
+        {
+          title: 'Data Analyst',
+          organization: 'Atelier Nova',
+          place: null,
+          dates: '09/2024 – 08/2026',
+          bullets: ['Conception de tableaux de bord Power BI pour 12 équipes commerciales.'],
+        },
+      ],
+      education: [
+        {
+          degree: 'Master Informatique',
+          school: 'Université de Lyon',
+          place: null,
+          dates: '2024',
+          detail: null,
+        },
+      ],
+      skills: ['SQL', 'Python', 'Power BI'],
+      certifications: [],
+      languages: [],
+      interests: [],
+    },
+    changes: [
       {
-        dates: 'Oct. 2024 – Avril 2026',
-        company: 'Boulangerie Exemple',
-        place: 'Rennes',
-        role: 'Équipier polyvalent',
-        duration: '1 an et 6 mois',
-        bullets: ['Tenue de caisse.', 'Rotation des stocks.'],
+        section: 'Expériences professionnelles',
+        before: 'Tableaux de bord Power BI pour 12 equipes commerciales.',
+        after: 'Conception de tableaux de bord Power BI pour 12 équipes commerciales.',
+        reason: 'L’offre parle de conception de tableaux de bord : le verbe d’action le met en avant.',
       },
     ],
-    education: [
-      { dates: '2024 – 2026', school: 'Université de Rennes', place: null, degree: 'Master MIAGE', detail: null },
-    ],
-    skills: [{ label: 'Outils', value: 'SQL, Python' }],
-    certifications: [{ name: 'Tableau Desktop Specialist', issuer: 'Tableau', year: 2025 }],
-    interests: ['Basketball'],
   },
 };
 
-const json = (status: number, body?: unknown) =>
-  new Response(body === undefined ? null : JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
+const mockApi = (analysis: unknown = ANALYSIS) => {
+  const fetchMock = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>((url) => {
+    if (url === '/api/cv-workshop/analyses') return Promise.resolve(json(202, { runId: RUN_ID }));
+    if (url === `/api/cv-workshop/analyses/${String(RUN_ID)}/docx`) {
+      return Promise.resolve(
+        // A text body: Node's Response does not take a jsdom Blob.
+        new Response('PK docx', {
+          status: 200,
+          headers: { 'Content-Disposition': 'attachment; filename="cv-adapte.docx"' },
+        }),
+      );
+    }
+    if (url === `/api/cv-workshop/analyses/${String(RUN_ID)}`) return Promise.resolve(json(200, analysis));
+    return Promise.resolve(json(200, { id: RUN_ID, job: 'cv_analysis', outcome: 'running', counters: {} }));
   });
-
-type Route = () => Response | Promise<Response>;
-
-const mockApi = (routes: Record<string, Route>) => {
-  const sent: unknown[] = [];
-  vi.stubGlobal(
-    'fetch',
-    vi.fn((input: string, init?: RequestInit) => {
-      const key = `${init?.method ?? 'GET'} ${input.replace(/^\/api/, '')}`;
-      if (init?.body !== undefined) sent.push(JSON.parse(String(init.body)));
-      const route = routes[key];
-      return Promise.resolve(route ? route() : json(404, { error: 'Ressource introuvable' }));
-    }),
-  );
-  return sent;
+  vi.stubGlobal('fetch', fetchMock);
+  return fetchMock;
 };
 
 const renderPage = () =>
   render(
-    <MemoryRouter initialEntries={['/atelier-cv']} future={ROUTER_FUTURE}>
+    <MemoryRouter future={ROUTER_FUTURE}>
       <CvWorkshopPage />
     </MemoryRouter>,
   );
+
+const pdfFile = (content = '%PDF-1.4 cv fictif') =>
+  new File([content], 'cv.pdf', { type: 'application/pdf' });
+
+/** Publishes a state of the run on the stream of executions, as the API does (EF-EXE-04). */
+const publish = (outcome: 'running' | 'success' | 'failure', extra: object = {}) =>
+  act(() => {
+    for (const stream of openStreams) {
+      stream.emit('run', {
+        id: RUN_ID,
+        job: 'cv_analysis',
+        trigger: 'manual',
+        outcome,
+        counters: {},
+        error: null,
+        ...extra,
+      });
+    }
+  });
+
+const fillForm = async ({ file = pdfFile(), offer = OFFER } = {}) => {
+  const user = userEvent.setup({ applyAccept: false });
+  await user.upload(screen.getByLabelText('1. Votre CV'), file);
+  if (offer) {
+    await user.click(screen.getByLabelText('2. L’offre qui vous intéresse'));
+    await user.paste(offer);
+  }
+  return user;
+};
+
+/** Fills the form, sends it, and waits for the API to have received it. */
+const analyse = async (fetchMock: ReturnType<typeof mockApi>) => {
+  const user = await fillForm();
+  await user.click(screen.getByRole('button', { name: 'Analyser' }));
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/cv-workshop/analyses', expect.anything()));
+  return user;
+};
 
 afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe('CvWorkshopPage', () => {
-  it('[EF-CVX-01] [RG-11] shows the profile as the CV it will become, in one page', async () => {
-    mockApi({ 'GET /profile': () => json(200, PROFILE) });
+describe('CvWorkshopPage — the form', () => {
+  it('[ENF-UTI-05] says no more than 40 words of help before the analysis', () => {
+    mockApi();
+    const { container } = renderPage();
+    // Field names (« 1. Votre CV ») and what sits in a label or a button say what to do: they are not help text.
+    const helpTexts = [...container.querySelectorAll('p')].filter(
+      (paragraph) => !paragraph.closest('label, button') && !/^\d\./.test(paragraph.textContent ?? ''),
+    );
 
-    renderPage();
-
-    const cv = within(await screen.findByRole('region', { name: 'Aperçu du CV' }));
-    // RG-11: contacts on the left of the header, availability on the right.
-    expect(cv.getByText('Alex MARTIN')).toBeInTheDocument();
-    expect(cv.getByText('Villeurbanne')).toBeInTheDocument();
-    expect(cv.getByText('CDI : immédiatement')).toBeInTheDocument();
-    // RG-11: title and subtitle, then the usual French sections (RG-15).
-    expect(cv.getByText('Data Analyst')).toBeInTheDocument();
-    expect(cv.getByText('CDI ou alternance')).toBeInTheDocument();
-    for (const section of ['PROFIL', 'EXPÉRIENCES PROFESSIONNELLES', 'FORMATION', 'COMPÉTENCES']) {
-      expect(cv.getByText(section)).toBeInTheDocument();
-    }
-    expect(cv.getByText('Équipier polyvalent')).toBeInTheDocument();
-    expect(cv.getByText('Rotation des stocks.')).toBeInTheDocument();
-    expect(cv.getByText('Master MIAGE')).toBeInTheDocument();
-    expect(cv.getByText('Basketball')).toBeInTheDocument();
+    const words = helpTexts.flatMap((paragraph) =>
+      (paragraph.textContent ?? '').split(/\s+/).filter((word) => /[\p{L}\d]/u.test(word)),
+    );
+    expect(words.length).toBeLessThanOrEqual(40);
   });
 
-  it('[EF-CVX-01] [RG-09] keeps visible what the profile holds and the CV does not show', async () => {
-    mockApi({ 'GET /profile': () => json(200, PROFILE) });
-
+  it('[EF-CVX-21] says under the field that a file is not a PDF, and sends nothing', async () => {
+    const fetchMock = mockApi();
     renderPage();
 
-    // The targets and the search area score the offers; they have no place on a CV.
-    expect(await screen.findByRole('heading', { name: 'Ce que vous cherchez' })).toBeInTheDocument();
-    expect(screen.getByText(/Lyon ou télétravail/)).toBeInTheDocument();
-    expect(screen.getByText('Data analyst')).toBeInTheDocument();
-    expect(screen.getByText('CDI, Alternance')).toBeInTheDocument();
-    const cv = within(screen.getByRole('region', { name: 'Aperçu du CV' }));
-    expect(cv.queryByText('CDI, Alternance')).not.toBeInTheDocument();
+    await fillForm({ file: new File(['docx'], 'cv.docx', { type: 'application/msword' }), offer: '' });
+
+    expect(screen.getByLabelText('1. Votre CV')).toHaveAccessibleDescription(/Ce fichier n’est pas un PDF/);
+    expect(screen.getByRole('button', { name: 'Analyser' })).toBeDisabled();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('[EF-CVX-01] invites the candidate to create a profile when none is saved', async () => {
-    mockApi({ 'GET /profile': () => json(404, { error: 'Aucun profil de référence enregistré' }) });
+  it('[EF-CVX-21] takes a CV dropped on its zone, and names it with its size', async () => {
+    mockApi();
+    renderPage();
+    const zone = screen.getByText('Glissez votre CV ici').closest('label') as HTMLElement;
 
+    fireEvent.drop(zone, { dataTransfer: { files: [pdfFile()] } });
+
+    expect(screen.getByText('cv.pdf')).toBeInTheDocument();
+    expect(zone).toHaveTextContent(/\d+ Ko · Changer de fichier/);
+  });
+
+  it('[EF-CVX-21] says a CV of more than 5 MB is too heavy, and sends nothing', async () => {
+    const fetchMock = mockApi();
     renderPage();
 
-    expect(await screen.findByText(/Aucun profil de référence n’est enregistré/)).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Créer mon profil' }));
-    expect(screen.getByRole('button', { name: 'Enregistrer le profil' })).toBeInTheDocument();
+    await fillForm({ file: pdfFile('x'.repeat(5 * 1024 * 1024 + 1)), offer: '' });
+
+    expect(screen.getByText('Votre CV dépasse 5 Mo : essayez une version plus légère.')).toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('[EF-CVX-02] saves what the candidate changed, and shows the profile again', async () => {
-    let saved = false;
-    const sent = mockApi({
-      'GET /profile': () => json(200, saved ? { ...PROFILE, availability: 'Disponible en mai' } : PROFILE),
-      'PUT /profile': () => {
-        saved = true;
-        return new Response(null, { status: 204 });
-      },
+  it('[EF-CVX-23] asks for the whole offer when it is too short, under its field', async () => {
+    const fetchMock = mockApi();
+    renderPage();
+    const user = await fillForm({ offer: 'Data Analyst, SQL.' });
+
+    await user.click(screen.getByRole('button', { name: 'Analyser' }));
+
+    expect(screen.getByLabelText('2. L’offre qui vous intéresse')).toHaveAccessibleDescription(
+      /L’offre semble incomplète : collez le texte entier de l’annonce\./,
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('CvWorkshopPage — the analysis', () => {
+  it('[EF-CVX-32] sends the PDF in base64 with the offer, then tells where the analysis stands', async () => {
+    const fetchMock = mockApi();
+    renderPage();
+
+    await analyse(fetchMock);
+
+    const init = fetchMock.mock.calls.find(([url]) => url === '/api/cv-workshop/analyses')?.[1];
+    expect(JSON.parse(String(init?.body))).toEqual({ file: btoa('%PDF-1.4 cv fictif'), offer: OFFER.trim() });
+    expect(screen.getByRole('button', { name: 'Analyse en cours…' })).toBeDisabled();
+    expect(screen.getByRole('status')).toHaveTextContent('On lit votre CV…');
+
+    await publish('running', { counters: { cv_steps_done: 1 } });
+
+    expect(screen.getByRole('status')).toHaveTextContent('On lit votre CV : c’est fait.');
+    expect(screen.getByRole('status')).toHaveTextContent('On le compare à l’offre…');
+
+    await publish('running', { counters: { cv_steps_done: 2 } });
+
+    expect(screen.getByRole('status')).toHaveTextContent('On le compare à l’offre : c’est fait.');
+    expect(screen.getByRole('status')).toHaveTextContent('On l’adapte à l’offre…');
+  });
+
+  it('[EF-CVX-34] shows why the analysis failed, and lets the candidate try again', async () => {
+    const fetchMock = mockApi();
+    renderPage();
+    await analyse(fetchMock);
+
+    await publish('failure', { error: 'Ce PDF est protégé par un mot de passe.' });
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('protégé par un mot de passe');
+    expect(screen.getByRole('button', { name: 'Analyser' })).toBeEnabled();
+  });
+});
+
+describe('CvWorkshopPage — the result', () => {
+  const showResult = async (analysis: unknown = ANALYSIS) => {
+    const fetchMock = mockApi(analysis);
+    renderPage();
+    const user = await analyse(fetchMock);
+    await publish('success');
+    await screen.findByRole('region', { name: 'Votre score' });
+    return user;
+  };
+
+  it('[EF-CVX-24] [RG-23] shows the overall score with a verdict in words', async () => {
+    await showResult();
+
+    const score = screen.getByRole('region', { name: 'Votre score' });
+    expect(score).toHaveTextContent('70/100');
+    expect(score).toHaveTextContent('Correspondance partielle');
+  });
+
+  it('[EF-CVX-24] [EF-CVX-30] details the four dimensions, their reasons, and names the weak one', async () => {
+    await showResult();
+
+    const detail = screen.getByRole('region', { name: 'Dans le détail' });
+    expect(
+      within(detail)
+        .getAllByRole('heading', { level: 3 })
+        .map((heading) => heading.textContent),
+    ).toEqual(['Compétences', 'Expérience', 'Outils et technologies', 'Formation']);
+    expect(
+      within(detail).getByRole('meter', { name: 'Outils et technologies : 40 sur 100' }),
+    ).toBeInTheDocument();
+    expect(within(detail).getByText('Airflow et dbt n’apparaissent pas dans votre CV.')).toBeInTheDocument();
+    expect(within(detail).getAllByText('À renforcer')).toHaveLength(1);
+  });
+
+  it('[EF-CVX-27] lists what the offer asks for and the CV does not say, each to tick', async () => {
+    await showResult();
+
+    const missing = screen.getByRole('region', { name: 'Ce que l’offre demande et que votre CV ne dit pas' });
+    expect(
+      within(missing)
+        .getAllByRole('checkbox')
+        .map((box) => box.closest('label')?.textContent),
+    ).toEqual(['dbt', 'Airflow']);
+    expect(within(missing).queryAllByRole('checkbox', { checked: true })).toHaveLength(0);
+  });
+
+  it('[EF-CVX-25] shows the adapted CV, said to invent nothing', async () => {
+    await showResult();
+
+    const adapted = screen.getByRole('region', { name: 'Votre CV, adapté à cette offre' });
+    expect(adapted).toHaveTextContent('Rien n’a été inventé');
+    const preview = within(adapted).getByRole('article', { name: 'Aperçu de votre CV adapté' });
+    expect(preview).toHaveTextContent('Data Analyst — Atelier Nova');
+    expect(preview).toHaveTextContent(
+      'Conception de tableaux de bord Power BI pour 12 équipes commerciales.',
+    );
+    expect(preview).toHaveTextContent('SQL, Python, Power BI');
+  });
+
+  it('[EF-CVX-25] lays the adapted CV out as a sheet: contact details on top, grouped skills side by side', async () => {
+    const cv = {
+      ...ANALYSIS.adapted.cv,
+      skills: ['Langages : SQL, Python', 'Power BI'],
+      languages: ['Anglais : courant'],
+    };
+    await showResult({ ...ANALYSIS, adapted: { ...ANALYSIS.adapted, cv } });
+
+    const preview = screen.getByRole('article', { name: 'Aperçu de votre CV adapté' });
+    expect(within(preview).getByText(/Camille Durand,/)).toHaveTextContent('Camille Durand, Data Analyst');
+    expect(preview).toHaveTextContent('06 12 34 56 78 · camille.durand@example.com');
+    expect(
+      within(preview).getByRole('heading', { name: 'Expériences professionnelles' }),
+    ).toBeInTheDocument();
+    expect(within(preview).getByText('Langages').closest('div')).toHaveTextContent('LangagesSQL, Python');
+    expect(within(preview).getByText('Anglais').closest('div')).toHaveTextContent('Anglaiscourant');
+    expect(preview).toHaveTextContent('Power BI');
+  });
+
+  it('[EF-CVX-29] [ENF-UTI-07] folds the changes, and shows each one opened: before, after and why', async () => {
+    const user = await showResult();
+    const reason = screen.getByText(/le verbe d’action le met en avant/);
+    expect(reason).not.toBeVisible();
+
+    await user.click(screen.getByText('Ce qui a changé, et pourquoi'));
+
+    const changes = within(reason.closest('details') as HTMLElement);
+    expect(changes.getByText('1 modification')).toBeVisible();
+    expect(changes.getByText('Tableaux de bord Power BI pour 12 equipes commerciales.')).toBeVisible();
+    expect(
+      changes.getByText('Conception de tableaux de bord Power BI pour 12 équipes commerciales.'),
+    ).toBeVisible();
+    expect(reason).toBeVisible();
+  });
+
+  it('[ENF-UTI-07] [EF-CVX-24] folds the reason of each sub-score, opened in one click', async () => {
+    const user = await showResult();
+    const detail = within(screen.getByRole('region', { name: 'Dans le détail' }));
+    const reason = detail.getByText('Airflow et dbt n’apparaissent pas dans votre CV.');
+    expect(reason).not.toBeVisible();
+
+    await user.click(detail.getAllByText('Pourquoi ?')[2] as HTMLElement);
+
+    expect(reason).toBeVisible();
+  });
+
+  it('[EF-CVX-28] adds a ticked skill to the preview, and the score does not move', async () => {
+    const user = await showResult();
+
+    await user.click(screen.getByRole('checkbox', { name: 'Airflow' }));
+
+    expect(screen.getByRole('article', { name: 'Aperçu de votre CV adapté' })).toHaveTextContent(
+      'SQL, Python, Power BI, Airflow',
+    );
+    expect(screen.getByRole('region', { name: 'Votre score' })).toHaveTextContent('70/100');
+  });
+
+  it('[EF-CVX-31] [EF-CVX-28] downloads the Word file with the ticked skills', async () => {
+    const saved: string[] = [];
+    // jsdom has no object URLs: the real URL keeps its constructor, only the two missing functions are added.
+    vi.stubGlobal(
+      'URL',
+      Object.assign(URL, { createObjectURL: () => 'blob:cv', revokeObjectURL: () => undefined }),
+    );
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+      this: HTMLAnchorElement,
+    ) {
+      saved.push(this.download);
     });
-    renderPage();
-    const user = userEvent.setup();
+    const user = await showResult();
+    await user.click(screen.getByRole('checkbox', { name: 'dbt' }));
 
-    await user.click(await screen.findByRole('button', { name: 'Modifier le profil' }));
-    const availability = screen.getByLabelText('Disponibilités');
-    await user.clear(availability);
-    await user.type(availability, 'Disponible en mai');
-    await user.click(screen.getByRole('button', { name: 'Enregistrer le profil' }));
-
-    expect(await screen.findByRole('status')).toHaveTextContent('Profil enregistré.');
-    expect(sent[0]).toMatchObject({ availability: 'Disponible en mai' });
-    const cv = within(await screen.findByRole('region', { name: 'Aperçu du CV' }));
-    expect(cv.getByText('Disponible en mai')).toBeInTheDocument();
-  });
-
-  it('[EF-CVX-02] [ENF-SEC-04] shows what the API refused on the field itself, and keeps the form open', async () => {
-    mockApi({
-      'GET /profile': () => json(200, PROFILE),
-      'PUT /profile': () =>
-        json(400, {
-          error: 'Données invalides',
-          details: [{ path: 'body.identity.email', message: 'Adresse e-mail invalide' }],
-        }),
-    });
-    renderPage();
-    const user = userEvent.setup();
-
-    await user.click(await screen.findByRole('button', { name: 'Modifier le profil' }));
-    await user.click(screen.getByRole('button', { name: 'Enregistrer le profil' }));
-
-    expect(await screen.findByRole('alert')).toHaveTextContent('Données invalides');
-    const email = screen.getByLabelText('Adresse e-mail');
-    expect(email).toHaveAttribute('aria-invalid', 'true');
-    // The message is tied to the field, so a screen reader announces it with it (WCAG 3.3.1).
-    expect(email).toHaveAccessibleDescription('Adresse e-mail invalide');
-    // No list at the top any more: the refusal is shown where it happened.
-    expect(screen.queryByLabelText('Champs refusés')).not.toBeInTheDocument();
-    // Nothing is lost: the form is still there with what was typed.
-    expect(screen.getByRole('button', { name: 'Enregistrer le profil' })).toBeInTheDocument();
-  });
-
-  it('[ENF-SEC-04] keeps at the top a refusal no field of the form can show', async () => {
-    mockApi({
-      'GET /profile': () => json(200, PROFILE),
-      'PUT /profile': () =>
-        json(400, { error: 'Données invalides', details: [{ path: 'body', message: 'Champ inconnu' }] }),
-    });
-    renderPage();
-    const user = userEvent.setup();
-
-    await user.click(await screen.findByRole('button', { name: 'Modifier le profil' }));
-    await user.click(screen.getByRole('button', { name: 'Enregistrer le profil' }));
-
-    expect(await screen.findByLabelText('Champs refusés')).toHaveTextContent('Champ inconnu');
-  });
-
-  it('[EF-CVX-02] marks every field the profile requires, and leaves the optional ones alone', async () => {
-    mockApi({ 'GET /profile': () => json(200, PROFILE) });
-    renderPage();
-    const user = userEvent.setup();
-
-    await user.click(await screen.findByRole('button', { name: 'Modifier le profil' }));
-
-    expect(screen.getByLabelText('Nom')).toBeRequired();
-    expect(screen.getByLabelText('Disponibilités')).toBeRequired();
-    expect(screen.getByLabelText('Complément')).not.toBeRequired();
-    expect(screen.getByText('Les champs marqués d’un astérisque sont obligatoires.')).toBeInTheDocument();
-  });
-
-  it('[EF-CVX-02] [ENF-UTI-02] lets the candidate pick a period instead of typing it', async () => {
-    const sent = mockApi({
-      'GET /profile': () => json(200, PROFILE),
-      'PUT /profile': () => new Response(null, { status: 204 }),
-    });
-    renderPage();
-    const user = userEvent.setup();
-
-    await user.click(await screen.findByRole('button', { name: 'Modifier le profil' }));
-    const experiences = screen.getByRole('group', { name: 'Expériences professionnelles' });
-    const start = within(experiences).getByLabelText('Période — début');
-    // « Oct. 2024 – Avril 2026 » of the profile is read back into the two pickers.
-    expect(start).toHaveAttribute('type', 'month');
-    expect(start).toHaveValue('2024-10');
-    expect(within(experiences).getByLabelText('Période — fin')).toHaveValue('2026-04');
-
-    await user.click(within(experiences).getByLabelText('En cours aujourd’hui'));
-    await user.click(screen.getByRole('button', { name: 'Enregistrer le profil' }));
-
-    expect(sent[0]).toMatchObject({
-      cvSource: { experiences: [{ dates: '10/2024 – aujourd’hui' }] },
-    });
-  });
-
-  it('[EF-CVX-02] adds and removes a repeated entry', async () => {
-    mockApi({ 'GET /profile': () => json(200, PROFILE) });
-    renderPage();
-    const user = userEvent.setup();
-
-    await user.click(await screen.findByRole('button', { name: 'Modifier le profil' }));
-    const skills = screen.getByRole('group', { name: 'Compétences' });
-    await user.click(within(skills).getByRole('button', { name: 'Ajouter une compétence' }));
-
-    expect(within(skills).getAllByLabelText('Intitulé')).toHaveLength(2);
-    await user.click(within(skills).getAllByRole('button', { name: 'Retirer' })[0] as HTMLElement);
-    expect(within(skills).getAllByLabelText('Intitulé')).toHaveLength(1);
-  });
-
-  it('[EF-CVX-18] [RG-18] shows the level of study, and says it is under way', async () => {
-    mockApi({ 'GET /profile': () => json(200, PROFILE) });
-
-    renderPage();
-
-    const cv = within(await screen.findByRole('region', { name: 'Aperçu du CV' }));
-    // RG-18: written under the degrees it sums up, as the document writes it.
-    expect(cv.getByText(/Bac\+5 \(master, diplôme d’ingénieur\)/)).toBeInTheDocument();
-    expect(cv.getByText(/\(en cours\)/)).toBeInTheDocument();
-  });
-
-  it('[EF-CVX-18] shows no level at all when the profile states none', async () => {
-    mockApi({
-      'GET /profile': () => json(200, { ...PROFILE, studyLevel: { level: null, isInProgress: false } }),
-    });
-
-    renderPage();
-
-    await screen.findByText('Alex MARTIN');
-    expect(screen.queryByText(/Niveau d’études/)).not.toBeInTheDocument();
-  });
-
-  it('[EF-CVX-19] shows the certifications with their issuer and their year', async () => {
-    mockApi({ 'GET /profile': () => json(200, PROFILE) });
-
-    renderPage();
-
-    const cv = within(await screen.findByRole('region', { name: 'Aperçu du CV' }));
-    expect(cv.getByText('CERTIFICATIONS')).toBeInTheDocument();
-    expect(cv.getByText('Tableau Desktop Specialist')).toBeInTheDocument();
-    expect(cv.getByText('2025')).toBeInTheDocument();
-  });
-
-  it('[EF-CVX-19] opens no section when the candidate holds no certification', async () => {
-    mockApi({ 'GET /profile': () => json(200, { ...PROFILE, cvSource: { ...PROFILE.cvSource, certifications: [] } }) });
-
-    renderPage();
-
-    await screen.findByText('Alex MARTIN');
-    expect(screen.queryByText('CERTIFICATIONS')).not.toBeInTheDocument();
-  });
-
-  it('[EF-CVX-18] [EF-CVX-19] records a level and a certification, and sends them to the API', async () => {
-    const sent = mockApi({
-      'GET /profile': () =>
-        json(200, {
-          ...PROFILE,
-          studyLevel: { level: null, isInProgress: false },
-          cvSource: { ...PROFILE.cvSource, certifications: [] },
-        }),
-      'PUT /profile': () => new Response(null, { status: 204 }),
-    });
-    renderPage();
-    const user = userEvent.setup();
-
-    await user.click(await screen.findByRole('button', { name: 'Modifier le profil' }));
-    await user.selectOptions(screen.getByLabelText('Niveau le plus élevé'), 'bac_3');
-    await user.click(screen.getByLabelText('Ce diplôme est en cours'));
-
-    const certifications = screen.getByRole('group', { name: 'Certifications' });
-    await user.click(within(certifications).getByRole('button', { name: 'Ajouter une certification' }));
-    await user.type(within(certifications).getByLabelText('Intitulé'), 'TOEIC');
-    await user.type(within(certifications).getByLabelText('Année'), '2024');
-    await user.click(screen.getByRole('button', { name: 'Enregistrer le profil' }));
-
-    expect(sent[0]).toMatchObject({
-      studyLevel: { level: 'bac_3', isInProgress: true },
-      cvSource: { certifications: [{ name: 'TOEIC', issuer: null, year: 2024 }] },
-    });
-  });
-
-  it('[EF-CVX-19] lets the candidate remove every certification, unlike the required groups', async () => {
-    mockApi({ 'GET /profile': () => json(200, PROFILE) });
-    renderPage();
-    const user = userEvent.setup();
-
-    await user.click(await screen.findByRole('button', { name: 'Modifier le profil' }));
-    const certifications = screen.getByRole('group', { name: 'Certifications' });
-    await user.click(within(certifications).getByRole('button', { name: 'Retirer' }));
-
-    expect(within(certifications).queryByLabelText('Intitulé')).not.toBeInTheDocument();
-    // A group the profile requires keeps its last entry: the button stays disabled there.
-    const skills = screen.getByRole('group', { name: 'Compétences' });
-    expect(within(skills).getByRole('button', { name: 'Retirer' })).toBeDisabled();
-  });
-
-  it('[ENF-UTI-03] shows a readable message when the profile cannot be read', async () => {
-    mockApi({ 'GET /profile': () => json(500, { error: 'Erreur interne du serveur' }) });
-
-    renderPage();
+    await user.click(screen.getByRole('button', { name: 'Télécharger mon CV (Word)' }));
 
     await waitFor(() => {
-      expect(screen.getByRole('alert')).toHaveTextContent('Erreur interne du serveur');
+      expect(screen.queryByRole('alert')).toBeNull();
+      expect(saved).toEqual(['cv-adapte.docx']);
     });
+    const fetchMock = vi.mocked(fetch);
+    const init = fetchMock.mock.calls.find(
+      ([url]) => url === `/api/cv-workshop/analyses/${String(RUN_ID)}/docx`,
+    )?.[1];
+    expect(JSON.parse(String(init?.body))).toEqual({ addedSkills: ['dbt'] });
+    click.mockRestore();
+  });
+
+  it('[EF-CVX-27] says so warmly when nothing important is missing', async () => {
+    await showResult({ ...ANALYSIS, diagnosis: { ...ANALYSIS.diagnosis, missingSkills: [] } });
+
+    expect(screen.getByText('Rien d’important ne manque. Bravo !')).toBeInTheDocument();
+  });
+
+  it('[EF-CVX-35] [ENF-RGP-07] keeps folded what the AI received, and the contact details kept aside', async () => {
+    const user = await showResult();
+
+    await user.click(screen.getByText('Ce que l’IA a reçu'));
+
+    const received = within(screen.getByText('Ce que l’IA a reçu').closest('details') as HTMLElement);
+    expect(received.getByText(/Tableaux de bord Power BI/)).toBeVisible();
+    expect(received.getByText('camille.durand@example.com')).toBeVisible();
+    expect(received.getAllByText('non repéré')).toHaveLength(2);
+  });
+
+  it('[ENF-RGP-06] offers another offer, keeping the CV, and recalls that nothing is kept', async () => {
+    const user = await showResult();
+    expect(screen.getByText('Rien n’est gardé : ce résultat s’efface dans 30 minutes.')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Analyser une autre offre' }));
+
+    expect(screen.getByText('cv.pdf')).toBeInTheDocument();
+    expect(screen.getByText('Changer de fichier')).toBeInTheDocument();
+    expect(screen.getByLabelText('2. L’offre qui vous intéresse')).toHaveValue('');
   });
 });

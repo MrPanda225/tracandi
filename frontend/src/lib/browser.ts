@@ -23,3 +23,13 @@ export const openPendingTab = (): PendingTab => {
     close: () => tab?.close(),
   };
 };
+
+/** Saves a file the API gave, as the browser does a download (EF-AUT-12, EF-CVX-31). */
+export const saveFile = ({ blob, fileName }: { blob: Blob; fileName: string }): void => {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName;
+  link.click();
+  URL.revokeObjectURL(url);
+};

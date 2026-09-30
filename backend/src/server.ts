@@ -17,6 +17,10 @@ import { createApplicationsModule } from './modules/applications/routes.js';
 import { createJobsModule } from './modules/jobs/routes.js';
 import { createProfileModule } from './modules/cv/routes.js';
 import { createProfileService } from './modules/cv/service.js';
+import { createPdfOcr } from './modules/cvWorkshop/ocr.js';
+import { createAnalysisResults } from './modules/cvWorkshop/results.js';
+import { createCvWorkshopModule } from './modules/cvWorkshop/routes.js';
+import { type CvAnalysis, createCvWorkshopService } from './modules/cvWorkshop/service.js';
 import { createApplicationsService } from './modules/applications/service.js';
 import { OWASP_SCRYPT_PARAMS } from './modules/auth/password.js';
 import { createAuthModules } from './modules/auth/routes.js';
@@ -97,7 +101,12 @@ const llmRouter = createLlmRouter({
   logger,
 });
 
-const jobQueue = createJobQueue({ db: database.db, clock: systemClock, logger });
+const jobQueue = createJobQueue({
+  db: database.db,
+  clock: systemClock,
+  logger,
+  maxConcurrentRuns: config.maxConcurrentJobs,
+});
 
 const messageFetcher = createMessageFetcher({
   db: database.db,
@@ -173,6 +182,16 @@ const app = createApp({
       config.features,
       'cv',
       createProfileModule(createProfileService({ db: database.db, clock: systemClock })),
+      createCvWorkshopModule(
+        createCvWorkshopService({
+          queue: jobQueue,
+          ocr: createPdfOcr(),
+          router: llmRouter,
+          results: createAnalysisResults<CvAnalysis>(),
+          clock: systemClock,
+          analysesPerDay: config.cvAnalysesPerDay,
+        }),
+      ),
     ),
     createSettingsModule({ aiAssignments: describeAssignments(config.llm), features: config.features }),
     ...onlyIf(config.features, 'watch', createSitesModule(watchService)),

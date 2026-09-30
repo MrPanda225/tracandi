@@ -3,6 +3,7 @@ import indexHtml from '../../index.html?raw';
 import favicon from '../../public/favicon.svg?raw';
 import llmsTxt from '../../public/llms.txt?raw';
 import robotsTxt from '../../public/robots.txt?raw';
+import sitemapXml from '../../public/sitemap.xml?raw';
 
 const page = new DOMParser().parseFromString(indexHtml, 'text/html');
 const metaContent = (selector: string) => page.head.querySelector<HTMLMetaElement>(selector)?.content;
@@ -40,7 +41,20 @@ describe('public files (EF-SEO-01)', () => {
 
   it('[EF-SEO-01] keeps robots.txt to known directives only, for every crawler', () => {
     expect(directives[0]).toEqual(['user-agent', '*']);
-    for (const [field] of directives) expect(['user-agent', 'allow', 'disallow']).toContain(field);
+    for (const [field] of directives) expect(['user-agent', 'allow', 'disallow', 'sitemap']).toContain(field);
+  });
+
+  it('[EF-SEO-01] points crawlers to a sitemap that lists the public pages and nothing of the application', () => {
+    const sitemap = directives.find(([field]) => field === 'sitemap')?.[1] ?? '';
+    const listed = [...sitemapXml.matchAll(/<loc>([^<]+)<\/loc>/g)].map(
+      ([, url]) => new URL(url ?? '').pathname,
+    );
+
+    expect(sitemap).toMatch(/^https:\/\/.+\/sitemap\.xml$/);
+    expect(listed).toEqual(['/', '/connexion', '/mentions-legales', '/confidentialite', '/cookies']);
+    for (const screen of APPLICATION_SCREENS) expect(listed).not.toContain(screen);
+    for (const url of sitemapXml.matchAll(/<loc>([^<]+)<\/loc>/g))
+      expect(url[1]?.startsWith(new URL(sitemap).origin)).toBe(true);
   });
 
   it('[EF-SEO-01] opens the public pages to crawlers and closes the application and its API', () => {
