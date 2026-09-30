@@ -589,9 +589,9 @@ describe('ApplicationsPage — offer description and application date (T-104)', 
     await screen.findByRole('region', { name: 'Atelier Nova' });
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: /Développeur/ }));
-    await user.click(await screen.findByRole('button', { name: 'Modifier l’offre et la date' }));
+    await user.click(await screen.findByRole('button', { name: 'Modifier la candidature' }));
 
-    const form = screen.getByRole('form', { name: 'Offre et date de candidature' });
+    const form = screen.getByRole('form', { name: 'Détails de la candidature' });
     const description = within(form).getByLabelText('Description de l’offre');
     expect(description).toHaveValue(OFFER_TEXT);
     await user.clear(description);
@@ -609,6 +609,79 @@ describe('ApplicationsPage — offer description and application date (T-104)', 
     );
   });
 
+  it('[EF-CAN-13] [EF-CAN-08] changes the contract type and writes notes', async () => {
+    let detail: ApplicationDetail = { ...NOVA_DEV_DETAIL };
+    const calls = mockApi({
+      'GET /applications': () => listOf(ALL),
+      'GET /applications/1': () => json(200, detail),
+      'GET /applications/1/emails': () => json(200, []),
+      'PATCH /applications/1': (_url, body) => {
+        detail = { ...detail, ...(body as Partial<ApplicationDetail>) };
+        return new Response(null, { status: 204 });
+      },
+    });
+    renderPage();
+    await screen.findByRole('region', { name: 'Atelier Nova' });
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /Développeur/ }));
+    await user.click(await screen.findByRole('button', { name: 'Modifier la candidature' }));
+
+    const form = screen.getByRole('form', { name: 'Détails de la candidature' });
+    await user.selectOptions(within(form).getByLabelText('Type de contrat'), 'alternance');
+    await user.type(within(form).getByLabelText('Notes'), 'Relancer après le salon');
+    await user.click(within(form).getByRole('button', { name: 'Enregistrer' }));
+
+    expect(await screen.findByText('Notes : Relancer après le salon')).toBeInTheDocument();
+    expect(calls.find((call) => call.method === 'PATCH')?.body).toEqual({
+      contractType: 'alternance',
+      notes: 'Relancer après le salon',
+    });
+  });
+
+  it('[EF-CAN-09] deletes an application once confirmed, and takes it out of the list', async () => {
+    const calls = mockApi({
+      'GET /applications': () => listOf(ALL),
+      'GET /applications/1': () => json(200, NOVA_DEV_DETAIL),
+      'GET /applications/1/emails': () => json(200, []),
+      'DELETE /applications/1': () => new Response(null, { status: 204 }),
+    });
+    renderPage();
+    await screen.findByRole('region', { name: 'Atelier Nova' });
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /Développeur/ }));
+
+    await user.click(await screen.findByRole('button', { name: 'Supprimer la candidature' }));
+    const confirmation = screen.getByRole('group', { name: 'Confirmer la suppression' });
+    expect(confirmation).toHaveTextContent('Les messages restent dans Gmail.');
+    expect(calls.some((call) => call.method === 'DELETE')).toBe(false);
+    await user.click(within(confirmation).getByRole('button', { name: 'Supprimer définitivement' }));
+
+    await waitFor(() => expect(screen.queryByRole('button', { name: /Développeur/ })).toBeNull());
+    expect(calls.filter((call) => call.method === 'DELETE')).toHaveLength(1);
+  });
+
+  it('[EF-CAN-09] keeps the application when the deletion is cancelled', async () => {
+    const calls = mockApi({
+      'GET /applications': () => listOf(ALL),
+      'GET /applications/1': () => json(200, NOVA_DEV_DETAIL),
+      'GET /applications/1/emails': () => json(200, []),
+    });
+    renderPage();
+    await screen.findByRole('region', { name: 'Atelier Nova' });
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /Développeur/ }));
+
+    await user.click(await screen.findByRole('button', { name: 'Supprimer la candidature' }));
+    await user.click(
+      within(screen.getByRole('group', { name: 'Confirmer la suppression' })).getByRole('button', {
+        name: 'Annuler',
+      }),
+    );
+
+    expect(screen.getByRole('button', { name: /Développeur/ })).toBeInTheDocument();
+    expect(calls.some((call) => call.method === 'DELETE')).toBe(false);
+  });
+
   it('[EF-CAN-15] clears the description of the offer', async () => {
     let detail: ApplicationDetail = { ...NOVA_DEV_DETAIL, offerDescription: OFFER_TEXT };
     const calls = mockApi({
@@ -624,9 +697,9 @@ describe('ApplicationsPage — offer description and application date (T-104)', 
     await screen.findByRole('region', { name: 'Atelier Nova' });
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: /Développeur/ }));
-    await user.click(await screen.findByRole('button', { name: 'Modifier l’offre et la date' }));
+    await user.click(await screen.findByRole('button', { name: 'Modifier la candidature' }));
 
-    const form = screen.getByRole('form', { name: 'Offre et date de candidature' });
+    const form = screen.getByRole('form', { name: 'Détails de la candidature' });
     await user.clear(within(form).getByLabelText('Description de l’offre'));
     await user.click(within(form).getByRole('button', { name: 'Enregistrer' }));
 

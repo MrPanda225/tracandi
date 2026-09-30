@@ -290,19 +290,6 @@
   opacity: 0.6;
 }
 
-/* EF-GML-02: the destructive action reads as such, in words and colour, never as the primary one (HIG). */
-.btn--quiet-danger {
-  color: var(--status-rejected);
-}
-
-.btn--danger {
-  background: var(--status-rejected);
-  color: var(--color-canvas-raised);
-}
-
-.btn--danger:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--status-rejected) 88%, var(--color-ink));
-}
 
 .my-data__password {
   max-width: 20rem;

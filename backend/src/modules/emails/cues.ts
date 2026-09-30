@@ -16,8 +16,10 @@ const REJECTION_CUES: readonly string[] = [
   'ne pas retenir votre candidature',
   'ne pas retenir votre profil',
   'retenu un autre candidat',
-  'un autre candidat',
-  'une autre candidature',
+  'choisi un autre candidat',
+  'retenu une autre candidature',
+  'privilegie une autre candidature',
+  'privilegie un autre profil',
   // Pas de suite
   'ne donnons pas suite',
   'ne donnerons pas suite',
@@ -37,7 +39,8 @@ const REJECTION_CUES: readonly string[] = [
   'au regret de',
   'au regret de vous informer',
   'sommes au regret',
-  'nous regrettons',
+  'nous regrettons de vous informer',
+  'nous regrettons de ne pas',
   'reponse negative',
   'reponse defavorable',
   'issue defavorable',
@@ -68,14 +71,14 @@ const REJECTION_CUES: readonly string[] = [
   'was unsuccessful',
   'were unsuccessful',
   'not be progressing',
-  'another candidate',
-  'other candidates',
+  'with another candidate',
+  'selected another candidate',
+  'with other candidates',
   'has been filled',
-  'no longer available',
+  'position is no longer available',
+  'role is no longer available',
   'not the right fit',
   'not a fit for this role',
-  'keep your resume on file',
-  'keep your cv on file',
 ];
 
 /**
@@ -93,6 +96,8 @@ const NEGATED_REJECTION_CUES: readonly string[] = [
 /** Words that deny what follows them, within `NEGATION_WINDOW` characters. */
 const NEGATIONS = ['ne', 'n', 'pas', 'sans', 'aucun', 'aucune', 'impossible', 'regret', 'refus', 'not'];
 const NEGATION_WINDOW = 60;
+/** « pas encore », « not yet »: a delay, not a refusal — the answer is still to come. */
+const NOT_YET = ['pas encore', 'not yet'];
 
 /**
  * RG-17: wordings of an acknowledgement. They are weaker than every refusal wording: a refusal usually opens with
@@ -149,8 +154,12 @@ const CONDITIONS = [
   'au cas ou',
   'dans le cas ou',
   'a defaut',
+  // Future only: « lorsque », « quand » open refusals told in the past (« lorsque nous avons étudié… »).
+  'en cas de',
+  'des que',
   'if',
   'unless',
+  'in case',
 ];
 
 // Sentences are cut before normalizing, which drops the punctuation that ends them.
@@ -169,9 +178,11 @@ const isPrecededBy = (sentence: string, at: number, words: readonly string[]): b
   return words.some((word) => before.includes(` ${word} `));
 };
 
-/** True when one of the words that deny a phrase stands within the window before it. */
-const isDenied = (sentence: string, at: number): boolean =>
-  isPrecededBy(sentence.slice(Math.max(0, at - NEGATION_WINDOW)), Math.min(at, NEGATION_WINDOW), NEGATIONS);
+/** True when one of the words that deny a phrase stands within the window before it, and does not say « not yet ». */
+const isDenied = (sentence: string, at: number): boolean => {
+  const window = sentence.slice(Math.max(0, at - NEGATION_WINDOW), at);
+  return isPrecededBy(window, window.length, NEGATIONS) && !isPrecededBy(window, window.length, NOT_YET);
+};
 
 /** The positions of `cue` in the sentence that assert it: none follows a condition (RG-17 v1.18). */
 const assertedAt = (sentence: string, cue: string): number[] => {

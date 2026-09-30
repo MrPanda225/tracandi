@@ -37,6 +37,11 @@ describe('hasRejectionCue', () => {
     ['anglais — unsuccessful', 'Your application was unsuccessful on this occasion.'],
     ['anglais — another candidate', 'We have decided to proceed with another candidate.'],
     ['anglais — filled', 'The position has been filled, thank you for your interest.'],
+    ['autre candidature privilégiée', 'Nous avons privilégié une autre candidature pour ce poste.'],
+    ['regrets de ne pas', 'Nous regrettons de ne pas pouvoir poursuivre avec vous.'],
+    ['anglais — other candidates', 'We have decided to move forward with other candidates.'],
+    ['refus au passé', 'Lorsque nous avons étudié votre dossier, nous avons décidé de ne pas donner suite.'],
+    ['anglais — position closed', 'The position is no longer available, thank you for your interest.'],
   ])('[RG-17] recognises a refusal by its wording (%s)', (_case, snippet) => {
     expect(hasRejectionCue({ subject: null, snippet })).toBe(true);
   });
@@ -54,6 +59,17 @@ describe('hasRejectionCue', () => {
     ],
     ['alerte emploi', 'Cinq nouvelles offres correspondent à votre recherche de data analyst à Lyon.'],
     ['anglais — positif', 'We are moving forward with your application and would like to meet you.'],
+    // Wordings reported in production (30/09/2026) that refuse nothing.
+    ['condition « en cas de »', 'Nous ne manquerons pas de revenir vers vous en cas de suite favorable.'],
+    ['condition « dès que »', 'Nous ne tarderons pas à revenir vers vous dès que nous serons en mesure de donner une réponse.'],
+    ['« pas encore »', 'Nous ne sommes pas encore en mesure de donner une réponse, merci de votre patience.'],
+    ['anglais — « not yet »', 'We are not yet moving forward with your application: the review is ongoing.'],
+    ['autre candidature possible', 'Vous pouvez aussi déposer une autre candidature sur notre site carrières.'],
+    ['autre candidat à recommander', 'Connaissez-vous un autre candidat ? Parrainez-le.'],
+    ['comparaison aux autres', 'See how you compare to other candidates for this role.'],
+    ['lien expiré', 'This link is no longer available, please sign in again.'],
+    ['regret du délai', 'Nous regrettons le délai de réponse et étudions votre candidature.'],
+    ['CV gardé pendant l’étude', 'Thank you for applying, we will keep your CV on file while we review it.'],
   ])('[RG-17] leaves a message without any refusal wording alone (%s)', (_case, snippet) => {
     expect(hasRejectionCue({ subject: null, snippet })).toBe(false);
   });

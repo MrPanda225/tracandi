@@ -184,14 +184,20 @@ export const companyOfCorrespondent = (
 };
 
 /**
- * RG-20 : la partie locale d'une adresse qui n'accepte pas de réponse. Séparateurs et casse ignorés :
- * « No-Reply », « noreply », « do_not_reply », « ne.pas.repondre ».
+ * RG-20 : la partie locale d'une adresse qui n'accepte pas de réponse, où qu'elle y figure — « jobs-noreply »,
+ * « invitations.noreply » autant que « no-reply ». Séparateurs et casse ignorés : « No-Reply », « do_not_reply »,
+ * « ne.pas.repondre ». « notification » et « bounce » ne comptent qu'en mot entier, jamais au milieu d'un nom.
  */
-const NO_REPLY_LOCAL_PART = /^(?:no-?reply|ne-?pas-?repondre|do-?not-?reply|notifications?|mailer-?daemon|bounces?)(?:[-.+]|$)/;
+const NO_REPLY_ANYWHERE = /no-?reply|ne-?pas-?repondre|do-?not-?reply|mailer-?daemon/;
+const NO_REPLY_WORD = /(?:^|-)(?:notifications?|bounces?)(?:-|$)/;
 
-const isNoReplyAddress = (address: string): boolean => {
-  const local = address.slice(0, address.lastIndexOf('@')).toLowerCase().replace(/[_.]/g, '-');
-  return NO_REPLY_LOCAL_PART.test(local);
+/**
+ * RG-20 : vrai quand l'adresse n'accepte pas de réponse.
+ * @req RG-20
+ */
+export const isNoReplyAddress = (address: string): boolean => {
+  const local = address.slice(0, address.lastIndexOf('@')).toLowerCase().replace(/[_.+]/g, '-');
+  return NO_REPLY_ANYWHERE.test(local) || NO_REPLY_WORD.test(local);
 };
 
 /**
