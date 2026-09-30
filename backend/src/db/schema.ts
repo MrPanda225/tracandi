@@ -76,6 +76,8 @@ export const siteAdapter = pgEnum('site_adapter', [
   'generic',
   // EF-VEI-32 (v1.33): one source per candidate, queried with their search criteria.
   'france_travail',
+  // EF-VEI-34 (v1.33): work-study offers, same rule.
+  'la_bonne_alternance',
 ]);
 export const offerStatus = pgEnum('offer_status', ['new', 'saved', 'dismissed', 'applied']);
 // RG-13 (v1.8): one value per route entry. The three Groq entries are numbered slots, not model families: the
@@ -201,6 +203,10 @@ export const companies = pgTable(
     name: varchar({ length: 160 }).notNull(),
     // RG-14 normalized key, computed by the application.
     nameKey: varchar({ length: 160 }).notNull(),
+    // EF-VEI-36 (v1.33): SIREN found by the API Recherche d'entreprises, when a single active company matched.
+    siren: varchar({ length: 9 }),
+    // When the SIREN was last looked for, found or not: a company is not asked about again at every pass.
+    sirenCheckedAt: instant(),
     createdAt: createdAt(),
   },
   (t) => [
@@ -298,6 +304,8 @@ export const jobOffers = pgTable(
     externalId: varchar({ length: 255 }).notNull(),
     // The employer the source names (EF-VEI-32); null when it is the company of the source itself.
     companyName: varchar({ length: 160 }),
+    // EF-VEI-35: SIREN of that employer, when the source gives its SIRET.
+    companySiren: varchar({ length: 9 }),
     title: varchar({ length: 300 }).notNull(),
     location: varchar({ length: 200 }),
     contractType: contractType().notNull().default('non_precise'),

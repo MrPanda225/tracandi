@@ -20,6 +20,7 @@ const OFFER = {
   status: 'new',
   source: { adapter: 'greenhouse', label: 'Greenhouse' },
   applicationId: null,
+  isFromAppliedCompany: false,
 };
 
 const json = (status: number, body?: unknown) =>
@@ -67,6 +68,25 @@ describe('OffersPage', () => {
     expect(within(offers).getByText(/Atelier Aurore · Nanterre · CDI · publiée le/u)).toBeInTheDocument();
     expect(within(offers).getByText('Poste de data analyst en CDI dans votre zone.')).toBeInTheDocument();
     expect(within(offers).getByText('84')).toBeInTheDocument();
+  });
+
+  it('[EF-VEI-35] says when the employer is a company the candidate applied to', async () => {
+    mockApi({
+      'GET /offers': () =>
+        json(200, {
+          items: [
+            { ...OFFER, isFromAppliedCompany: true },
+            { ...OFFER, id: 8, title: 'Data engineer', source: { adapter: 'france_travail', label: 'France Travail' } },
+          ],
+          total: 2,
+        }),
+    });
+
+    renderPage();
+
+    expect(await screen.findAllByText('Vous y avez déjà postulé')).toHaveLength(1);
+    // EF-VEI-32: an offer of an official source names its source.
+    expect(screen.getByText(/source : France Travail/u)).toBeInTheDocument();
   });
 
   it('[EF-VEI-17] [EF-VEI-22] asks the API for the score and contract chosen', async () => {

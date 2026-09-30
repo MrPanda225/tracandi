@@ -42,8 +42,10 @@ import { createOffersService } from './modules/offers/service.js';
 import { createCriteriaService } from './modules/criteria/service.js';
 import { createSitesModule } from './modules/sites/routes.js';
 import { createOfficialClient } from './scraper/official/client.js';
+import { createSirenFinder } from './scraper/official/companySearch.js';
 import { createFranceTravailApi } from './scraper/official/franceTravail.js';
 import { createPlaceFinder } from './scraper/official/geo.js';
+import { createLaBonneAlternanceApi } from './scraper/official/laBonneAlternance.js';
 import { createWatchService } from './modules/sites/service.js';
 import { createPoliteFetch } from './scraper/http.js';
 import { createStatsModule } from './modules/stats/routes.js';
@@ -160,6 +162,9 @@ const officialApis = {
   franceTravail: config.officialSources.franceTravail
     ? createFranceTravailApi({ request: officialRequest, credentials: config.officialSources.franceTravail })
     : null,
+  laBonneAlternance: config.officialSources.laBonneAlternance
+    ? createLaBonneAlternanceApi({ request: officialRequest, apiKey: config.officialSources.laBonneAlternance.apiKey })
+    : null,
 };
 
 const watchService = createWatchService({
@@ -171,6 +176,8 @@ const watchService = createWatchService({
   queue: jobQueue,
   collect,
   officialApis,
+  // EF-VEI-36: free and without account, always available.
+  findSiren: createSirenFinder(officialRequest),
   logger,
 });
 

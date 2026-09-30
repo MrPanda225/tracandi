@@ -27,7 +27,7 @@ const VIEWS: readonly { id: OfferView; label: string }[] = [
 ];
 
 const MIN_SCORES = [40, 60, 80] as const;
-const OFFICIAL_SOURCES: ReadonlySet<SourceAdapterId> = new Set(['france_travail']);
+const OFFICIAL_SOURCES: ReadonlySet<SourceAdapterId> = new Set(['france_travail', 'la_bonne_alternance']);
 // « Non précisé », « Autre » : filtrer sur eux ne sert à rien, le filtre propose les contrats recherchés (RG-09).
 const FILTERABLE_CONTRACTS = CONTRACT_TYPES.filter(
   (contract) => contract !== 'non_precise' && contract !== 'autre',
@@ -104,6 +104,7 @@ function OfferCard({ offer, onChanged }: { offer: Offer; onChanged: (offer: Offe
             <span className="visually-hidden"> (ouvre le site de l’offre)</span>
           </a>
           <p className="offer__facts">{factsOf(offer)}</p>
+          {offer.isFromAppliedCompany && <p className="offer__applied-company">Vous y avez déjà postulé</p>}
         </div>
         <p className={`offer__score offer__score--${tone}`}>
           <span className="visually-hidden">Pertinence : </span>

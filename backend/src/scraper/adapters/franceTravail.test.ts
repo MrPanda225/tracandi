@@ -27,7 +27,7 @@ const depsWith = (
   overrides: Partial<NonNullable<AdapterDeps['official']>> = {},
 ) => ({
   fetch: () => Promise.reject(new Error('no career site is read for an official source')),
-  official: { criteria: CRITERIA, since: null, now: NOW, franceTravail: api, ...overrides },
+  official: { criteria: CRITERIA, since: null, now: NOW, franceTravail: api, laBonneAlternance: null, ...overrides },
 });
 
 const answering = (results: unknown[]) => {
@@ -104,6 +104,7 @@ describe('France Travail source (EF-VEI-32, EF-VEI-33)', () => {
         'Salaire : Annuel de 38000,00 Euros sur 12 mois',
       postedAt: new Date('2026-09-28T09:12:03.000Z'),
       employerName: 'EXEMPLE CONSEIL SAS',
+      employerSiren: null,
     });
     expect(offers.find((offer) => offer.externalId === '199ABCD')).toMatchObject({
       contractType: 'alternance',

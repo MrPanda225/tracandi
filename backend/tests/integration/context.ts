@@ -45,6 +45,8 @@ import { createWatchService, type WatchService } from '../../src/modules/sites/s
 import type { AdapterDeps } from '../../src/scraper/adapters/types.js';
 import type { FranceTravailApi } from '../../src/scraper/official/franceTravail.js';
 import type { Place, PlaceFinder } from '../../src/scraper/official/geo.js';
+import type { LaBonneAlternanceApi } from '../../src/scraper/official/laBonneAlternance.js';
+import type { SirenFinder } from '../../src/scraper/official/companySearch.js';
 import { testDatabaseUrl } from './test-database.js';
 
 export const FRONTEND_ORIGIN = 'http://127.0.0.1:5173';
@@ -130,6 +132,15 @@ export const NANTERRE: Place = {
 const knownPlaces: PlaceFinder = (query) =>
   Promise.resolve(query.trim().toLowerCase().startsWith('nant') ? [NANTERRE] : []);
 
+/** The official APIs a test may simulate (EF-VEI-32, EF-VEI-34, EF-VEI-36). */
+interface OfficialDoubles {
+  franceTravail: FranceTravailApi | null;
+  laBonneAlternance: LaBonneAlternanceApi | null;
+  findSiren: SirenFinder | null;
+}
+
+const NO_OFFICIAL_API: OfficialDoubles = { franceTravail: null, laBonneAlternance: null, findSiren: null };
+
 /** Doubles of the external services; every one is unreachable unless a test gives its own. */
 export interface ExternalServices {
   google?: GoogleOAuth;
@@ -139,8 +150,11 @@ export interface ExternalServices {
   collect?: AdapterDeps['fetch'];
   /** EF-VEI-30: the public service of the communes, simulated. */
   places?: PlaceFinder;
-  /** EF-VEI-32: the France Travail API, simulated; absent means « not configured » (EF-VEI-37). */
-  franceTravail?: FranceTravailApi | null;
+  /**
+   * EF-VEI-32, EF-VEI-34, EF-VEI-36: the official APIs, simulated. One left out is « not configured » (EF-VEI-37);
+   * without SIREN search, the watch does without it.
+   */
+  official?: Partial<OfficialDoubles>;
   /** ENF-MAI-07: the optional features of this deployment; every one by default. */
   features?: EnabledFeatures;
   /** BES-39: proxies in front of the API (Vercel, Northflank); none by default. */
@@ -156,7 +170,7 @@ export const createTestContext = (
     aiProviders = unreachableAi,
     collect = unreachableCollector,
     places = knownPlaces,
-    franceTravail = null,
+    official = {},
     features = new Set(OPTIONAL_FEATURES),
     trustProxyHops = 0,
   }: ExternalServices = {},
@@ -193,6 +207,7 @@ export const createTestContext = (
     clock: clock.now,
     logger,
   });
+  const officialDoubles = { ...NO_OFFICIAL_API, ...official };
   const criteria = createCriteriaService({ db: database.db, clock: clock.now, places, logger });
   const watch = createWatchService({
     db: database.db,
@@ -202,7 +217,11 @@ export const createTestContext = (
     router: llmRouter,
     queue,
     collect,
-    officialApis: { franceTravail },
+    officialApis: {
+      franceTravail: officialDoubles.franceTravail,
+      laBonneAlternance: officialDoubles.laBonneAlternance,
+    },
+    findSiren: officialDoubles.findSiren,
     logger,
   });
   const app = createApp({

@@ -52,7 +52,10 @@ const scoringAi: LlmProvider = {
 
 const send = (method: 'post' | 'put', path: string, body: unknown) => {
   const test = method === 'post' ? request(context.app).post(path) : request(context.app).put(path);
-  return test.set('Cookie', alice).set('Content-Type', 'application/json').send(body as object);
+  return test
+    .set('Cookie', alice)
+    .set('Content-Type', 'application/json')
+    .send(body as object);
 };
 
 const runAndWait = async () => {
@@ -98,7 +101,7 @@ describe('France Travail source (EF-VEI-32, EF-VEI-33, EF-VEI-37)', () => {
 
   it('[EF-VEI-32] [EF-VEI-33] [ENF-RGP-09] stores the offers with their employer, never a contact, never an Indeed offer', async () => {
     const search = vi.fn<FranceTravailApi['search']>(() => Promise.resolve(FIXTURE.resultats));
-    await withServices({ franceTravail: { search } });
+    await withServices({ official: { franceTravail: { search } } });
     await send('put', '/api/watch/criteria', CRITERIA).expect(200);
     await send('post', '/api/sites', OFFICIAL_SOURCE).expect(201);
 
@@ -131,7 +134,7 @@ describe('France Travail source (EF-VEI-32, EF-VEI-33, EF-VEI-37)', () => {
         contentType: 'application/json',
         body: JSON.stringify({ jobs: [] }),
       });
-    await withServices({ collect, franceTravail: null });
+    await withServices({ collect });
     await send('put', '/api/watch/criteria', CRITERIA).expect(200);
     await send('post', '/api/sites', OFFICIAL_SOURCE).expect(201);
     await send('post', '/api/sites', {

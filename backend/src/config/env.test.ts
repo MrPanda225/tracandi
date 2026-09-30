@@ -45,7 +45,7 @@ describe('loadConfig', () => {
       // ENF-COL-03: no contact address by default, so nothing is collected until one is given.
       scraper: { contact: null },
       // EF-VEI-37: no official source is configured unless its credentials are given.
-      officialSources: { franceTravail: null },
+      officialSources: { franceTravail: null, laBonneAlternance: null },
       // ENF-MAI-07: an optional feature is off until the configuration names it.
       features: new Set(),
       // BES-39: no proxy in front of the API unless the deployment says so.
@@ -77,6 +77,12 @@ describe('loadConfig', () => {
         .officialSources.franceTravail,
     ).toEqual({ clientId: 'client', clientSecret: 'secret' });
     expect(() => loadConfig({ ...VALID_ENV, FRANCE_TRAVAIL_CLIENT_ID: 'client' })).toThrow(/FRANCE_TRAVAIL/);
+  });
+
+  it('[EF-VEI-37] [ENF-SEC-23] reads the key of La bonne alternance when it is given', () => {
+    expect(loadConfig({ ...VALID_ENV, LBA_API_KEY: 'cle' }).officialSources.laBonneAlternance).toEqual({
+      apiKey: 'cle',
+    });
   });
 
   it('[EF-EXE-06] reads how many long treatments may run at once, and refuses anything else', () => {

@@ -5,6 +5,7 @@ import type { LlmTaskName } from '../../llm/types.js';
 import type { WatchCriteria } from '../../modules/criteria/schemas.js';
 import type { CollectedPage, RequestOptions } from '../http.js';
 import type { FranceTravailApi } from '../official/franceTravail.js';
+import type { LaBonneAlternanceApi } from '../official/laBonneAlternance.js';
 
 /** One of the source types of the data model (`site_adapter`). */
 export type SiteAdapterId = (typeof siteAdapter.enumValues)[number];
@@ -52,6 +53,12 @@ export const NormalizedOfferSchema = z.object({
    * the company's own.
    */
   employerName: z.string().max(EMPLOYER_NAME_MAX_LENGTH).nullable().optional(),
+  /** EF-VEI-35: SIREN of that employer, when the source gives its SIRET. */
+  employerSiren: z
+    .string()
+    .regex(/^\d{9}$/u)
+    .nullable()
+    .optional(),
 });
 
 export type NormalizedOffer = z.infer<typeof NormalizedOfferSchema>;
@@ -78,6 +85,7 @@ export interface OfficialSourceDeps {
   since: Date | null;
   now: Date;
   franceTravail: FranceTravailApi | null;
+  laBonneAlternance: LaBonneAlternanceApi | null;
 }
 
 /**
@@ -101,6 +109,11 @@ export interface SourceAdapter {
    * criteria and has no company of its own; one per candidate.
    */
   readonly isOfficial?: true;
+  /**
+   * EF-VEI-34: why these criteria cannot feed this source, or null when they can. Asked before the source is added,
+   * so that the candidate is told at once rather than at the next check.
+   */
+  readonly refusalFor?: (criteria: WatchCriteria | null) => string | null;
   /** Name shown to the candidate when choosing a type of source. */
   readonly label: string;
   /** What the candidate must type, in French (EF-VEI-01). */
@@ -170,6 +183,12 @@ export const toNormalizedOffer = (value: unknown, label: string): NormalizedOffe
 export const clamp = (value: string | null | undefined, maxLength: number): string | null => {
   const trimmed = value?.trim() ?? '';
   return trimmed === '' ? null : trimmed.slice(0, maxLength);
+};
+
+/** EF-VEI-35: the SIREN of a SIRET (its first nine digits), or null when the value is not a SIRET. */
+export const sirenOf = (siret: string | null | undefined): string | null => {
+  const digits = (siret ?? '').replace(/\s/gu, '');
+  return /^\d{14}$/u.test(digits) ? digits.slice(0, 9) : null;
 };
 
 /** The date an ATS gives, or null when it gives none or gives something that is not one. */

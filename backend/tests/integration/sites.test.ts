@@ -247,6 +247,7 @@ describe('watched sources (EF-VEI-01 to EF-VEI-05)', () => {
       'workday',
       'generic',
       'france_travail',
+      'la_bonne_alternance',
     ]);
     // The screen shows the name and the hint as they are: it never holds the list itself.
     expect(items.every((type) => type.label !== '' && type.identifierHint !== '')).toBe(true);

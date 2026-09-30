@@ -9,13 +9,16 @@ import type { Logger } from '../../lib/logger.js';
 import type { LlmRouter } from '../../llm/router.js';
 import { adapterFor } from '../../scraper/adapters/index.js';
 import type { AdapterDeps } from '../../scraper/adapters/types.js';
+import type { SirenFinder } from '../../scraper/official/companySearch.js';
 import type { FranceTravailApi } from '../../scraper/official/franceTravail.js';
+import type { LaBonneAlternanceApi } from '../../scraper/official/laBonneAlternance.js';
 import { ensureCompany } from '../applications/service.js';
 import type { ScoringProfile } from '../../llm/prompts/scoreOffers.js';
 import type { ProfileService } from '../cv/service.js';
 import type { WatchCriteria } from '../criteria/schemas.js';
 import { type CriteriaService, scoringProfileOf } from '../criteria/service.js';
 import { createWatchPass } from './pass.js';
+import { createSirenResolver } from './sirens.js';
 import { createSuggestionReader } from './suggestions.js';
 import * as repository from './repository.js';
 import type { SourceRow } from './repository.js';
@@ -26,6 +29,7 @@ const ALREADY_WATCHED = 'Cette source est déjà surveillée pour cette entrepri
 const NO_CRITERIA =
   'Renseignez vos critères de recherche avant de lancer la veille : vos cibles servent à noter les offres.';
 const CONFLICT = 409;
+const BAD_REQUEST = 400;
 /** EF-VEI-15: default threshold S, used while the candidate has no settings row. */
 const DEFAULT_THRESHOLD = 60;
 
@@ -64,8 +68,10 @@ export interface WatchServiceDeps {
   queue: JobQueue;
   /** The responsible collector of T-401, shared by every adapter (rules/scraping.md). */
   collect: AdapterDeps['fetch'];
+  /** EF-VEI-36: the search of a company's SIREN; null to do without it. */
+  findSiren: SirenFinder | null;
   /** EF-VEI-32, EF-VEI-37: the clients of the official APIs; null when the server has no credentials for one. */
-  officialApis: { franceTravail: FranceTravailApi | null };
+  officialApis: { franceTravail: FranceTravailApi | null; laBonneAlternance: LaBonneAlternanceApi | null };
   logger: Logger;
 }
 
@@ -92,7 +98,7 @@ const viewOf = (row: SourceRow): SourceView => ({
 });
 
 /** EF-VEI-01 to EF-VEI-05: the sources themselves, apart from the pass that reads them. */
-const createSourceCatalogue = (db: Database) => {
+const createSourceCatalogue = (db: Database, deps: { criteria: CriteriaService }) => {
   const readOwned = async (userId: number, id: number): Promise<SourceRow> => {
     const row = await repository.findSource(db, userId, id);
     if (!row) throw new NotFoundError(SOURCE_NOT_FOUND);
@@ -112,6 +118,9 @@ const createSourceCatalogue = (db: Database) => {
           ? null
           : await ensureCompany(db, { userId, name: body.companyName });
       const identifier = adapter.identifierSchema.parse(body.identifier);
+      // EF-VEI-34: a source the criteria cannot feed is refused now, not at its first check.
+      const refusal = adapter.refusalFor?.(await deps.criteria.read(userId)) ?? null;
+      if (refusal !== null) throw new HttpError(BAD_REQUEST, refusal);
       try {
         const id = await repository.insertSource(db, {
           userId,
@@ -145,9 +154,12 @@ const createSourceCatalogue = (db: Database) => {
  */
 export const createWatchService = (deps: WatchServiceDeps): WatchService => {
   const { db, criteria, profiles, queue, logger } = deps;
-  const catalogue = createSourceCatalogue(db);
+  const catalogue = createSourceCatalogue(db, { criteria });
   const pass = createWatchPass(deps);
   const suggestions = createSuggestionReader(db);
+  const sirens = deps.findSiren
+    ? createSirenResolver({ db, clock: deps.clock, findSiren: deps.findSiren, logger })
+    : null;
 
   const thresholdOf = async (userId: number): Promise<number> => {
     const [row] = await db
@@ -178,6 +190,7 @@ export const createWatchService = (deps: WatchServiceDeps): WatchService => {
     const sources = await repository.listActiveSources(db, userId);
     if (sources.length === 0) return EMPTY_REPORT(threshold);
     const saved = await criteria.read(userId);
+    await sirens?.resolve(userId);
     return pass.run({ userId, scoring: await scoringOf(userId, saved), criteria: saved, sources, threshold });
   };
 

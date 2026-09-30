@@ -8,6 +8,8 @@ jamais (ENF-SEC-23).
 | Source | Compte | Variables | Ce que la source reçoit |
 |---|---|---|---|
 | France Travail (Offres d'emploi v2) | francetravail.io | `FRANCE_TRAVAIL_CLIENT_ID`, `FRANCE_TRAVAIL_CLIENT_SECRET` | Vos critères : métiers, codes ROME, commune et rayon, contrats |
+| La bonne alternance (API Apprentissage) | api.apprentissage.beta.gouv.fr | `LBA_API_KEY` | Vos codes ROME, les coordonnées de votre commune et le rayon |
+| Recherche d'entreprises (SIREN) | aucun | aucune | Le nom des entreprises de vos candidatures |
 | Découpage administratif (communes) | aucun | aucune | Le nom de commune que vous tapez |
 
 Aucune donnée d'identité ni de contact ne quitte le serveur (ENF-RGP-11), et les coordonnées des recruteurs ne sont
@@ -50,3 +52,48 @@ v2 » n'est pas ajoutée à l'application.
 - Chaque offre renvoie à sa page sur francetravail.fr et nomme sa source, comme le demande la licence de réutilisation.
 
 **Révoquer.** Supprimez l'application dans francetravail.io, puis videz les deux variables.
+
+## La bonne alternance
+
+À faire seulement si l'une de vos cibles accepte l'**alternance** : cette source ne publie que des offres en
+apprentissage ou en professionnalisation.
+
+1. Créez un compte sur <https://api.apprentissage.beta.gouv.fr>. Une adresse e-mail suffit : le site envoie un lien de
+   connexion.
+2. Dans votre espace (« Mon compte », rubrique du jeton d'accès), générez un **jeton d'API** et copiez-le. Les
+   conditions d'utilisation interdisent de le divulguer, de revendre les données ou de les transmettre à des tiers :
+   Tracandi ne fait ni l'un ni l'autre (usage personnel).
+3. Renseignez-le dans `.env` (ou dans les variables secrètes de Northflank) :
+   ```
+   LBA_API_KEY=<jeton>
+   ```
+4. Redémarrez l'API.
+5. Dans Tracandi, vérifiez que **Ce que vous recherchez** contient :
+   - une cible qui accepte l'alternance ;
+   - au moins un **code ROME**, par exemple M1419 (data analyst) ou M1811 (data engineer).
+
+   Cliquez ensuite sur **Activer La bonne alternance**.
+
+**Vérifier.** Si l'activation est refusée, le message dit ce qui manque dans vos critères. Si la source indique « Clé La
+bonne alternance non configurée », la variable n'a pas été lue au démarrage. Si elle indique « a refusé la clé
+d'accès », le jeton est faux ou a été révoqué.
+
+**Ce que fait Tracandi.**
+- Il fait une seule recherche par consultation : vos codes ROME, autour de votre commune, dans votre rayon (200 km au
+  plus).
+- Il fait au plus un appel toutes les deux secondes, soit la moitié du débit publié.
+- Il ne garde que les offres ouvertes, sans jamais le téléphone du recruteur.
+- Il écarte les offres relayées pour Indeed, LinkedIn ou WTTJ.
+- Il conserve le SIREN de l'employeur, pour signaler les entreprises où vous avez déjà postulé.
+
+## Recherche d'entreprises (SIREN)
+
+Rien à faire : l'API est publique et sans compte.
+
+- À chaque passe, Tracandi cherche le SIREN de dix entreprises de vos candidatures au plus. Il ne le retient que si
+  une seule entreprise active porte ce nom (EF-VEI-36).
+- Les dirigeants ne sont jamais demandés (`minimal=true`).
+- Une entreprise non trouvée est recherchée de nouveau un mois plus tard.
+
+Ce SIREN permet d'afficher « Vous y avez déjà postulé » sur une offre publiée sous un autre nom que celui de votre
+candidature.

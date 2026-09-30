@@ -23,6 +23,8 @@ export interface Offer {
   status: OfferStatus;
   source: { adapter: SourceAdapterId; label: string };
   applicationId: number | null;
+  /** EF-VEI-35 : l'employeur est une entreprise de vos candidatures (même SIREN, ou même nom, RG-26). */
+  isFromAppliedCompany: boolean;
 }
 
 export interface OfferQuery {

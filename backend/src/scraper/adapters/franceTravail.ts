@@ -12,6 +12,7 @@ import {
   type OfferContractType,
   type OfficialSourceDeps,
   type SourceAdapter,
+  sirenOf,
   SourceFetchError,
   TITLE_MAX_LENGTH,
 } from './types.js';
@@ -43,7 +44,7 @@ const ResultSchema = z.object({
   description: z.string().nullish(),
   dateCreation: z.string().nullish(),
   lieuTravail: z.object({ libelle: z.string().nullish() }).nullish(),
-  entreprise: z.object({ nom: z.string().nullish() }).nullish(),
+  entreprise: z.object({ nom: z.string().nullish(), siret: z.string().nullish() }).nullish(),
   typeContrat: z.string().nullish(),
   natureContrat: z.string().nullish(),
   alternance: z.boolean().nullish(),
@@ -142,6 +143,7 @@ const toOffer = (raw: unknown): NormalizedOffer | null => {
     description: descriptionOf(result),
     postedAt: dateOf(result.dateCreation),
     employerName: clamp(result.entreprise?.nom, EMPLOYER_NAME_MAX_LENGTH),
+    employerSiren: sirenOf(result.entreprise?.siret),
   });
   return offer.success ? offer.data : null;
 };

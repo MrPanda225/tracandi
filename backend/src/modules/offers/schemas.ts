@@ -45,6 +45,8 @@ export const OfferViewSchema = z
     source: z.object({ adapter: z.enum(siteAdapter.enumValues), label: z.string() }),
     /** EF-VEI-20: the application created when the candidate declared having applied. */
     applicationId: z.number().int().nullable(),
+    /** EF-VEI-35: the employer is a company of the candidate's applications (same SIREN, or same RG-26 key). */
+    isFromAppliedCompany: z.boolean(),
   })
   .openapi('Offer');
 
