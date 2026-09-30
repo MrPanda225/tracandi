@@ -121,4 +121,11 @@ describe('buildClassifyEmailsPrompt — telling a refusal from an acknowledgemen
     expect(system).toContain('"rejected"');
     expect(system).toContain('reste "acknowledged"');
   });
+
+  it('[RG-17] keeps an acknowledgement that warns of a silent refusal to come an acknowledgement', () => {
+    const { system } = buildClassifyEmailsPrompt(MESSAGES);
+
+    expect(system).toMatch(/à défaut de nouvelles sous un délai la candidature pourra être considérée/);
+    expect(system).toMatch(/reste "acknowledged" : rien n’est encore décidé/);
+  });
 });
