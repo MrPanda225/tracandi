@@ -224,3 +224,9 @@ Commande de contrôle : `/project:check-req EF-CAN-07`.
 | EF-CVX-28, EF-CVX-31 | T-513 | `service.test.ts` et `cv-workshop.test.ts` (Word téléchargé, coordonnées remises, compétence cochée ajoutée ; compétence non listée : 400 ; 404 autre compte ; 400 corps ; 401) ; `CvWorkshopPage.test.tsx` (case cochée reprise dans l'aperçu, score inchangé ; téléchargement avec les compétences cochées) ; `atsDocx.test.ts` | couverte |
 | RG-24, EF-CVX-36, EF-CVX-37 | T-516 | `backend/src/modules/cvWorkshop/onePage.test.ts` (CV court en 11 pt et 2 cm ; jamais sous 10 pt et 1,5 cm ; 12 expériences de 8 réalisations refusées ; compétences à cocher comptées) ; `atsDocx.test.ts` (CV long resserré, 12 expériences citées) ; `service.test.ts` (CV fidèle mais trop long rejeté, rien de gardé) ; `src/llm/prompts/tailorCv.test.ts` (consigne d'une page) ; `tests/integration/cv-one-page.test.ts` (LibreOffice : CV fictif long et 3 compétences cochées sur 1 page en Carlito ; CV le plus plein accepté à chaque réglage sur 1 page) | couverte |
 | EF-CVX-38, ENF-UTI-05, ENF-UTI-06, ENF-UTI-07 | T-517 | `frontend/src/pages/cv/CvWorkshopPage.test.tsx` (40 mots d'aide au plus avant l'analyse ; explication d'un sous-score repliée puis ouverte en un clic ; modifications repliées puis ouvertes) ; EF-CVX-38 et ENF-UTI-06 : démonstration par captures à 1440 × 900 et 390 px | couverte |
+| RG-03 (v1.32), RG-25, RG-26, EF-CAN-18 | T-901 | — | à faire |
+| EF-CAN-19, EF-CAN-21 | T-902 | — | à faire |
+| EF-CAN-23 | T-903 | — | à faire |
+| RG-01, RG-02, RG-04, RG-05, RG-07 (v1.32) | T-904 | — | à faire |
+| EF-CAN-01 (v1.32), EF-CAN-20, EF-CAN-22, EF-CAN-24 | T-905 | — | à faire |
+| RG-20 (v1.32) | T-906 | — | à faire |
