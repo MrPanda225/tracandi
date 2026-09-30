@@ -44,7 +44,7 @@ describe('LandingPage', () => {
     renderAt('/');
 
     expect(
-      await screen.findByRole('heading', { level: 1, name: 'Vos candidatures, suivies toutes seules.' }),
+      await screen.findByRole('heading', { level: 1, name: /^Postulez\.\sOn\ss’occupe\sdu\ssuivi\.$/ }),
     ).toBeInTheDocument();
     const header = screen.getByRole('banner');
     expect(within(header).getByRole('link', { name: 'Se connecter' })).toHaveAttribute('href', '/connexion');
@@ -52,7 +52,7 @@ describe('LandingPage', () => {
       'href',
       '/connexion?mode=inscription',
     );
-    for (const section of ['Comment ça marche', 'Ce que Tracandi fait pour vous', 'Vos données restent les vôtres']) {
+    for (const section of ['Comment ça marche', 'Ce qui change pour vous', 'Vos données restent les vôtres']) {
       expect(screen.getByRole('heading', { level: 2, name: section })).toBeInTheDocument();
     }
   });
@@ -112,9 +112,9 @@ describe('LandingPage', () => {
     allowMotion();
     renderAt('/');
 
-    const hero = await screen.findByRole('region', { name: 'Vos candidatures, suivies toutes seules.' });
-    expect(within(hero).getByText(/Tracandi lit vos e-mails de candidature/)).toBeVisible();
-    expect(within(hero).getByRole('link', { name: 'Créer un compte' })).toBeVisible();
+    const hero = await screen.findByRole('region', { name: /^Postulez\.\sOn\ss’occupe\sdu\ssuivi\.$/ });
+    expect(within(hero).getByText(/Tracandi range chaque réponse de vos candidatures/)).toBeVisible();
+    expect(within(hero).getByRole('link', { name: 'Créer mon compte' })).toBeVisible();
     expect(within(hero).getByRole('link', { name: 'J’ai déjà un compte' })).toBeVisible();
   });
 

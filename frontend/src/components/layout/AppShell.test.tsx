@@ -178,7 +178,7 @@ describe('AppShell', () => {
     await user.click(screen.getByRole('button', { name: 'Se déconnecter' }));
 
     expect(
-      await screen.findByRole('heading', { level: 1, name: 'Vos candidatures, suivies toutes seules.' }),
+      await screen.findByRole('heading', { level: 1, name: /^Postulez\.\sOn\ss’occupe\sdu\ssuivi\.$/ }),
     ).toBeInTheDocument();
   });
 
