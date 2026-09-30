@@ -38,25 +38,41 @@ const UNINFORMATIVE_CONTRACTS: ReadonlySet<Application['contractType']> = new Se
 // RG-03: the title given to an application whose messages named no position.
 const UNNAMED_TITLE = 'Candidature';
 
+const HOUR_MS = 60 * 60 * 1000;
+const DAY_MS = 24 * HOUR_MS;
+const relativeFormat = new Intl.RelativeTimeFormat('fr', { numeric: 'auto' });
+// Beyond a month, a date says more than « il y a 7 semaines ».
+const RELATIVE_DAYS_MAX = 30;
+const NOTE_PREVIEW_LENGTH = 90;
+
+/** « il y a 3 heures », « hier », « il y a 5 jours », then the date: how fresh the last news is, at a glance. */
+const freshnessOf = (iso: string, now: Date): string => {
+  const elapsed = now.getTime() - new Date(iso).getTime();
+  if (elapsed < DAY_MS) return relativeFormat.format(-Math.max(1, Math.round(elapsed / HOUR_MS)), 'hour');
+  const days = Math.round(elapsed / DAY_MS);
+  return days <= RELATIVE_DAYS_MAX ? relativeFormat.format(-days, 'day') : `le ${formatDate(iso)}`;
+};
+
 /**
- * « CDI · via Free-Work · candidature du 3 sept. 2026 », plus the last activity when it happened another day. Under a
- * heading that already gives the day, the date of application is left to screen readers only.
+ * What is worth knowing at a glance, one column each on a wide screen: the channel, the contract when known, the
+ * date of application (left to screen readers under the heading of its day) and how fresh the last activity is.
  */
-function Summary({ application, isDated }: { application: Application; isDated: boolean }) {
+function Facts({ application, isDated }: { application: Application; isDated: boolean }) {
   const applied = formatDate(application.appliedAt);
-  const lastActivity = formatDate(application.lastActivityAt);
-  const visible = [
-    ...(UNINFORMATIVE_CONTRACTS.has(application.contractType)
-      ? []
-      : [CONTRACT_LABELS[application.contractType]]),
-    application.platform ? `via ${application.platform}` : 'Envoi direct',
-    ...(isDated ? [] : [`candidature du ${applied}`]),
-    ...(lastActivity === applied ? [] : [`dernière activité le ${lastActivity}`]),
-  ].join(' · ');
+  const contract = UNINFORMATIVE_CONTRACTS.has(application.contractType)
+    ? null
+    : CONTRACT_LABELS[application.contractType];
   return (
-    <span className="application__meta">
-      {visible}
-      {isDated && <span className="visually-hidden"> · candidature du {applied}</span>}
+    <span className="application__facts">
+      <span className="application__fact application__fact--channel">
+        {application.platform ? `via ${application.platform}` : 'Envoi direct'}
+      </span>
+      <span className="application__fact application__fact--contract">{contract}</span>
+      <span className="application__fact application__fact--activity">
+        <span className={isDated ? 'visually-hidden' : undefined}>candidature du {applied}</span>
+        {isDated ? '' : ' · '}
+        dernière activité {freshnessOf(application.lastActivityAt, new Date())}
+      </span>
     </span>
   );
 }
@@ -209,8 +225,15 @@ export function ApplicationItem({
           ) : (
             <span className="application__title">{application.jobTitle}</span>
           )}
-          <Summary application={application} isDated={isDated} />
+          {application.notes && (
+            <span className="application__note">
+              {application.notes.length > NOTE_PREVIEW_LENGTH
+                ? `${application.notes.slice(0, NOTE_PREVIEW_LENGTH).trimEnd()}…`
+                : application.notes}
+            </span>
+          )}
         </span>
+        <Facts application={application} isDated={isDated} />
         <span className="application__tags">
           {application.isFollowUpDue && <span className="application__badge">À relancer</span>}
           <StatusTag status={application.status} />
