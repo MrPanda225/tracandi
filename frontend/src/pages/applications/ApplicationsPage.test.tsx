@@ -252,7 +252,7 @@ describe('ApplicationsPage', () => {
     expect(line).not.toHaveTextContent('Non précisé ·');
   });
 
-  it('[EF-CAN-08] [EF-CAN-20] shows how fresh the last activity is, and the start of the notes', async () => {
+  it('[EF-CAN-08] [EF-CAN-20] shows the start of the notes under the title', async () => {
     const hoursAgo = (hours: number) => new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
     const noted = application({
       id: 7,
@@ -266,7 +266,6 @@ describe('ApplicationsPage', () => {
     renderPage();
 
     const line = await screen.findByRole('button', { name: /Orion/ });
-    expect(line).toHaveTextContent('dernière nouvelle il y a 3 heures');
     expect(line).toHaveTextContent(/Entretien RH prévu, penser à relire.*…/);
   });
 

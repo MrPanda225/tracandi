@@ -259,7 +259,6 @@ function SectionedList({ list, orderBy }: { list: ApplicationList; orderBy: Appl
         <span>Candidature</span>
         <span>Canal</span>
         <span>Contrat</span>
-        <span>Dernière nouvelle</span>
         <span>Statut</span>
       </li>
       {sectionsOf(list.items, orderBy, new Date()).flatMap((section) => [

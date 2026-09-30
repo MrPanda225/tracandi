@@ -80,13 +80,9 @@
   margin-right: 0.5rem;
 }
 
-/* The freshness of the news on a line of its own: a dot never opens a line. */
-.application__fact--activity {
-  flex-basis: 100%;
-}
-
-.application__fact:not(:empty) ~ .application__fact--activity:not(:empty)::before {
-  content: none;
+.application__applied {
+  color: var(--color-mauve-deep);
+  font-size: 0.8125rem;
 }
 
 .application__note {
@@ -213,7 +209,7 @@
 @container shell-main (min-width: 60rem) {
   .application__summary {
     grid-template-areas: none;
-    grid-template-columns: minmax(0, 1fr) 10rem 6rem 9rem 12.5rem 1rem;
+    grid-template-columns: minmax(0, 1fr) 11rem 7rem 12.5rem 1rem;
     align-items: center;
     gap: 1rem;
   }
@@ -250,15 +246,5 @@
 
   .application__fact:not(:empty) ~ .application__fact:not(:empty)::before {
     content: none;
-  }
-
-  /* Said by the name of the column above; kept for screen readers, which read each line on its own. */
-  .application__fact-label {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
   }
 }
