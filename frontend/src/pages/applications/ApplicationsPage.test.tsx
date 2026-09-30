@@ -266,7 +266,7 @@ describe('ApplicationsPage', () => {
     renderPage();
 
     const line = await screen.findByRole('button', { name: /Orion/ });
-    expect(line).toHaveTextContent('dernière activité il y a 3 heures');
+    expect(line).toHaveTextContent('dernière nouvelle il y a 3 heures');
     expect(line).toHaveTextContent(/Entretien RH prévu, penser à relire.*…/);
   });
 
