@@ -172,31 +172,73 @@ describe('POST /api/applications', () => {
 
 describe('GET /api/applications', () => {
   beforeEach(async () => {
+    // Applied on three Paris days: Zara the 1st, McDonald's the 15th at 23:30 in Paris, Axa the 20th.
     await createApplication(alice, {
       companyName: 'Zara',
       jobTitle: 'Vendeur',
       status: 'rejected',
       contractType: 'job_etudiant',
+      appliedAt: '2026-09-01T08:00:00.000Z',
     });
     await createApplication(alice, {
       companyName: "McDonald's",
       jobTitle: 'Équipier',
       contractType: 'job_etudiant',
+      appliedAt: '2026-09-15T21:30:00.000Z',
     });
     await createApplication(alice, {
       companyName: 'Axa',
       jobTitle: 'Alternant Data Engineer',
       contractType: 'alternance',
+      appliedAt: '2026-09-20T08:00:00.000Z',
     });
     await createApplication(bob, { companyName: 'Bob Corp', jobTitle: 'Secret', contractType: 'cdi' });
   });
 
-  it('[EF-CAN-01] groups applications by company in alphabetical order', async () => {
-    const response = await api(alice).get('/api/applications');
+  const companiesOf = (response: { body: { items: { company: { name: string } }[] } }) =>
+    response.body.items.map((item) => item.company.name);
 
-    expect((response.body.items as { company: { name: string } }[]).map((item) => item.company.name)).toEqual(
-      ['Axa', "McDonald's", 'Zara'],
-    );
+  it('[EF-CAN-20] lists the most recent application first by default', async () => {
+    expect(companiesOf(await api(alice).get('/api/applications'))).toEqual(['Axa', "McDonald's", 'Zara']);
+    expect(companiesOf(await api(alice).get('/api/applications?sort=applied_at&order=asc'))).toEqual([
+      'Zara',
+      "McDonald's",
+      'Axa',
+    ]);
+  });
+
+  it('[EF-CAN-01] [EF-CAN-20] groups applications by company in alphabetical order when sorted by company', async () => {
+    expect(companiesOf(await api(alice).get('/api/applications?sort=company&order=asc'))).toEqual([
+      'Axa',
+      "McDonald's",
+      'Zara',
+    ]);
+    expect(companiesOf(await api(alice).get('/api/applications?sort=company&order=desc'))).toEqual([
+      'Zara',
+      "McDonald's",
+      'Axa',
+    ]);
+  });
+
+  it('[EF-CAN-20] sorts by status, in the order of their rank (RG-04)', async () => {
+    expect(companiesOf(await api(alice).get('/api/applications?sort=status&order=desc'))[0]).toBe('Zara');
+  });
+
+  it('[EF-CAN-24] filters by application period, whole Paris days, the last one included', async () => {
+    // 23:30 in Paris on the 15th is still the 15th, though already the 15th at 21:30 in UTC.
+    const period = await api(alice).get('/api/applications?appliedFrom=2026-09-15&appliedTo=2026-09-20');
+    expect(companiesOf(period)).toEqual(['Axa', "McDonald's"]);
+    expect(period.body).toMatchObject({ total: 2 });
+
+    expect(companiesOf(await api(alice).get('/api/applications?appliedTo=2026-09-15'))).toEqual(["McDonald's", 'Zara']);
+    expect(companiesOf(await api(alice).get('/api/applications?appliedFrom=2026-09-16'))).toEqual(['Axa']);
+  });
+
+  it('[EF-CAN-24] [ENF-SEC-04] rejects a day that does not exist, or a period that ends before it starts', async () => {
+    expect((await api(alice).get('/api/applications?appliedFrom=2026-02-30')).status).toBe(400);
+    expect((await api(alice).get('/api/applications?appliedFrom=15/09/2026')).status).toBe(400);
+    expect((await api(alice).get('/api/applications?appliedFrom=2026-09-20&appliedTo=2026-09-15')).status).toBe(400);
+    expect((await api(alice).get('/api/applications?sort=salary')).status).toBe(400);
   });
 
   it('[EF-CAN-02] filters by status', async () => {

@@ -38,7 +38,12 @@ export const useLastApplicationFilters = (): ApplicationFilters | undefined =>
   useApplicationsCache()[0]?.filters;
 
 const sameFilters = (a: ApplicationFilters, b: ApplicationFilters): boolean =>
-  a.status === b.status && a.contractType === b.contractType && a.q === b.q;
+  a.status === b.status &&
+  a.contractType === b.contractType &&
+  a.q === b.q &&
+  a.orderBy === b.orderBy &&
+  a.appliedFrom === b.appliedFrom &&
+  a.appliedTo === b.appliedTo;
 
 function useDebounced<T>(value: T, delayMs: number): T {
   const [debounced, setDebounced] = useState(value);
@@ -77,10 +82,17 @@ export interface ApplicationList extends ListState {
 export function useApplications(filters: ApplicationFilters): ApplicationList {
   const [cached, setCached] = useApplicationsCache();
   const search = useDebounced(filters.q?.trim() ?? '', SEARCH_DELAY_MS);
-  const { status, contractType } = filters;
+  const { status, contractType, orderBy, appliedFrom, appliedTo } = filters;
   const [reloadCount, setReloadCount] = useState(0);
   const generation = useRef(0);
-  const activeFilters: ApplicationFilters = { status, contractType, q: search || undefined };
+  const activeFilters: ApplicationFilters = {
+    status,
+    contractType,
+    q: search || undefined,
+    orderBy,
+    appliedFrom,
+    appliedTo,
+  };
   const [state, setState] = useState<ListState>(() => {
     const isCached = cached !== null && sameFilters(cached.filters, activeFilters);
     return {
@@ -95,7 +107,14 @@ export function useApplications(filters: ApplicationFilters): ApplicationList {
 
   useEffect(() => {
     const controller = new AbortController();
-    const requested: ApplicationFilters = { status, contractType, q: search || undefined };
+    const requested: ApplicationFilters = {
+      status,
+      contractType,
+      q: search || undefined,
+      orderBy,
+      appliedFrom,
+      appliedTo,
+    };
     generation.current += 1;
     setState((current) => ({ ...current, isLoading: true, error: null }));
     fetchApplications(requested, { limit: PAGE_SIZE, offset: 0 }, controller.signal)
@@ -108,7 +127,7 @@ export function useApplications(filters: ApplicationFilters): ApplicationList {
         setState((current) => ({ ...current, isLoading: false, error: messageOf(error) }));
       });
     return () => controller.abort();
-  }, [status, contractType, search, reloadCount, setCached]);
+  }, [status, contractType, search, orderBy, appliedFrom, appliedTo, reloadCount, setCached]);
 
   const loadMore = async () => {
     const requestedFor = generation.current;

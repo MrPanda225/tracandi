@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, exists, ilike, inArray, isNotNull, or, type SQL, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, exists, gte, ilike, inArray, isNotNull, lt, or, type SQL, sql } from 'drizzle-orm';
 import type { Database } from '../../db/client.js';
 import {
   applicationStatusHistory,
@@ -9,6 +9,7 @@ import {
   platforms,
 } from '../../db/schema.js';
 import type { ApplicationStatus, EmailCategory } from './rules.js';
+import { parisDayBounds } from '../../lib/parisTime.js';
 import type { ListApplicationsQuery } from './schemas.js';
 
 type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0];
@@ -72,6 +73,9 @@ const listConditions = (userId: number, query: ListApplicationsQuery, searchKey:
     ownedBy(userId),
     query.status ? eq(applications.status, query.status) : undefined,
     query.contractType ? eq(applications.contractType, query.contractType) : undefined,
+    // EF-CAN-24: whole Paris days, the last one included.
+    query.appliedFrom ? gte(applications.appliedAt, parisDayBounds(query.appliedFrom).start) : undefined,
+    query.appliedTo ? lt(applications.appliedAt, parisDayBounds(query.appliedTo).end) : undefined,
     // Q-05: the key contains only [a-z0-9 ], so it cannot inject LIKE wildcards; served by the trigram indexes.
     searchKey
       ? or(ilike(companies.nameKey, `%${searchKey}%`), ilike(applications.jobTitleKey, `%${searchKey}%`))
@@ -79,9 +83,28 @@ const listConditions = (userId: number, query: ListApplicationsQuery, searchKey:
   );
 
 /**
- * Lists the user's applications matching the filters, grouped by company in alphabetical order (EF-CAN-01),
- * most recent activity first inside a company, with the total count before pagination.
- * @req EF-CAN-01, EF-CAN-02, EF-CAN-03, EF-CAN-14, EF-AUT-06
+ * EF-CAN-20: the order of the list. Statuses sort in the order of their enumeration, which is that of their rank
+ * (RG-04); by company, the applications of a company stay together, most recent activity first (EF-CAN-01). The id
+ * breaks ties, so that pages never overlap.
+ */
+const orderOf = ({ sort, order }: Pick<ListApplicationsQuery, 'sort' | 'order'>): SQL[] => {
+  const direction = order === 'asc' ? asc : desc;
+  switch (sort) {
+    case 'company':
+      return [direction(companies.nameKey), desc(applications.lastActivityAt), asc(applications.id)];
+    case 'status':
+      return [direction(applications.status), desc(applications.lastActivityAt), asc(applications.id)];
+    case 'last_activity':
+      return [direction(applications.lastActivityAt), direction(applications.id)];
+    default:
+      return [direction(applications.appliedAt), direction(applications.id)];
+  }
+};
+
+/**
+ * Lists the user's applications matching the filters, in the order asked (EF-CAN-20) — by default the most recent
+ * application first — with the total count before pagination.
+ * @req EF-CAN-01, EF-CAN-02, EF-CAN-03, EF-CAN-14, EF-CAN-20, EF-CAN-24, EF-AUT-06
  */
 export const listApplications = async (
   db: Executor,
@@ -96,7 +119,7 @@ export const listApplications = async (
       .innerJoin(companies, eq(applications.companyId, companies.id))
       .leftJoin(platforms, eq(applications.platformId, platforms.id))
       .where(where)
-      .orderBy(asc(companies.nameKey), desc(applications.lastActivityAt), asc(applications.id))
+      .orderBy(...orderOf(query))
       .limit(query.limit)
       .offset(query.offset),
     db

@@ -183,7 +183,7 @@ describe('AppShell', () => {
   });
 
   it("[EF-AUT-06] never shows the previous session's applications to the next account", async () => {
-    const FIRST_PAGE = '/applications?limit=100&offset=0';
+    const FIRST_PAGE = '/applications?sort=applied_at&order=desc&limit=100&offset=0';
     let answerApplications: Handler = () =>
       json(200, {
         items: [
@@ -216,7 +216,7 @@ describe('AppShell', () => {
       </MemoryRouter>,
     );
     const user = userEvent.setup();
-    await screen.findByRole('region', { name: 'Atelier Nova' });
+    await screen.findAllByText('Atelier Nova');
 
     await user.click(screen.getByRole('button', { name: 'Se déconnecter' }));
     await screen.findByRole('heading', { name: 'Bon retour.' });
@@ -227,7 +227,7 @@ describe('AppShell', () => {
     await user.click(await screen.findByRole('link', { name: /Candidatures/ }));
 
     expect(await screen.findByText('Chargement des candidatures…')).toBeInTheDocument();
-    expect(screen.queryByRole('region', { name: 'Atelier Nova' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Atelier Nova')).not.toBeInTheDocument();
   });
 
   it("[EF-AUT-06] never shows the previous session's figures to the next account", async () => {

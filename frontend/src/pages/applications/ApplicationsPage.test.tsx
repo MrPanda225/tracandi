@@ -138,10 +138,21 @@ const pending = () => {
   return { response, answer: (value: Response) => answer(value) };
 };
 
-const companyNames = () =>
-  screen
-    .getAllByRole('region')
-    .map((region) => within(region).getByRole('heading', { level: 2 }).textContent);
+const COMPANIES = ['Atelier Nova', 'Maison Lumen', "McDonald's", 'Studio Ardent', 'Zénith'];
+
+/** The companies of the applications listed, in order, each once — grouped by company or not (EF-CAN-20). */
+const companyNames = () => {
+  const groups = screen.queryAllByRole('region');
+  if (groups.length > 0) return groups.map((group) => within(group).getByRole('heading', { level: 2 }).textContent);
+  return [
+    ...new Set(
+      screen
+        .getAllByRole('listitem')
+        .map((item) => COMPANIES.find((name) => item.textContent?.startsWith(name)))
+        .filter((name) => name !== undefined),
+    ),
+  ];
+};
 
 const itemOf = (jobTitle: RegExp) => {
   const button = screen.getByRole('button', { name: jobTitle });
@@ -181,11 +192,11 @@ describe('ApplicationsPage', () => {
       },
     });
     const { rerender } = renderPage();
-    await screen.findByRole('region', { name: 'Atelier Nova' });
+    await screen.findAllByText('Atelier Nova');
 
     leaveAndComeBack(rerender);
 
-    expect(screen.getByRole('region', { name: 'Atelier Nova' })).toBeInTheDocument();
+    expect(screen.getAllByText('Atelier Nova').length).toBeGreaterThan(0);
     expect(screen.queryByText('Chargement des candidatures…')).not.toBeInTheDocument();
 
     refresh.answer(listOf([LUMEN_UX]));
@@ -196,7 +207,7 @@ describe('ApplicationsPage', () => {
   it('[ENF-PERF-01] keeps the filters chosen before leaving the screen', async () => {
     mockApi({ 'GET /applications': filteredList });
     const { rerender } = renderPage();
-    await screen.findByRole('region', { name: 'Atelier Nova' });
+    await screen.findAllByText('Atelier Nova');
     const user = userEvent.setup();
     await user.selectOptions(screen.getByLabelText('Statut'), 'rejected');
     await waitFor(() => expect(companyNames()).toEqual(['Maison Lumen']));
@@ -207,10 +218,49 @@ describe('ApplicationsPage', () => {
     expect(companyNames()).toEqual(['Maison Lumen']);
   });
 
-  it('[EF-CAN-01] groups the applications by company, companies in alphabetical order', async () => {
+  it('[EF-CAN-20] lists the most recent application first by default, each naming its company', async () => {
+    const calls = mockApi({ 'GET /applications': () => listOf(ALL) });
+
+    renderPage();
+    await screen.findAllByText('Atelier Nova');
+
+    expect(screen.getByLabelText('Trier par')).toHaveValue('recent');
+    expect(calls[0]?.url.searchParams.get('sort')).toBe('applied_at');
+    expect(calls[0]?.url.searchParams.get('order')).toBe('desc');
+    expect(screen.queryByRole('region', { name: 'Atelier Nova' })).toBeNull();
+  });
+
+  it('[EF-CAN-20] asks the API for the order chosen', async () => {
+    const calls = mockApi({ 'GET /applications': () => listOf(ALL) });
+    renderPage();
+    await screen.findAllByText('Atelier Nova');
+    const user = userEvent.setup();
+
+    await user.selectOptions(screen.getByLabelText('Trier par'), 'activity');
+
+    await waitFor(() => expect(calls.at(-1)?.url.searchParams.get('sort')).toBe('last_activity'));
+  });
+
+  it('[EF-CAN-24] filters the applications by period of application', async () => {
+    const calls = mockApi({ 'GET /applications': () => listOf(ALL) });
+    renderPage();
+    await screen.findAllByText('Atelier Nova');
+
+    fireEvent.change(screen.getByLabelText('Candidature du'), { target: { value: '2026-09-01' } });
+    fireEvent.change(screen.getByLabelText('au'), { target: { value: '2026-09-15' } });
+
+    await waitFor(() => {
+      const last = calls.at(-1)?.url.searchParams;
+      expect([last?.get('appliedFrom'), last?.get('appliedTo')]).toEqual(['2026-09-01', '2026-09-15']);
+    });
+  });
+
+  it('[EF-CAN-01] groups the applications by company, companies in alphabetical order, when sorted by company', async () => {
     mockApi({ 'GET /applications': () => listOf(ALL) });
 
     renderPage();
+    await screen.findAllByText('Atelier Nova');
+    await userEvent.setup().selectOptions(screen.getByLabelText('Trier par'), 'company');
     const nova = await screen.findByRole('region', { name: 'Atelier Nova' });
 
     expect(companyNames()).toEqual(['Atelier Nova', 'Maison Lumen', "McDonald's"]);
@@ -228,7 +278,7 @@ describe('ApplicationsPage', () => {
   it('[EF-CAN-02] filters the applications by status', async () => {
     const calls = mockApi({ 'GET /applications': filteredList });
     renderPage();
-    await screen.findByRole('region', { name: 'Atelier Nova' });
+    await screen.findAllByText('Atelier Nova');
     const user = userEvent.setup();
 
     await user.selectOptions(screen.getByLabelText('Statut'), 'rejected');
@@ -240,7 +290,7 @@ describe('ApplicationsPage', () => {
   it('[EF-CAN-14] filters the applications by contract type', async () => {
     const calls = mockApi({ 'GET /applications': filteredList });
     renderPage();
-    await screen.findByRole('region', { name: 'Atelier Nova' });
+    await screen.findAllByText('Atelier Nova');
     const user = userEvent.setup();
 
     await user.selectOptions(screen.getByLabelText('Type de contrat'), 'alternance');
@@ -252,7 +302,7 @@ describe('ApplicationsPage', () => {
   it('[EF-CAN-03] searches the applications by company name or job title', async () => {
     const calls = mockApi({ 'GET /applications': filteredList });
     renderPage();
-    await screen.findByRole('region', { name: 'Atelier Nova' });
+    await screen.findAllByText('Atelier Nova');
     const user = userEvent.setup();
 
     await user.type(screen.getByLabelText('Rechercher'), 'mcdo');
@@ -266,7 +316,7 @@ describe('ApplicationsPage', () => {
     mockApi({ 'GET /applications': () => listOf(ALL) });
 
     renderPage();
-    await screen.findByRole('region', { name: 'Atelier Nova' });
+    await screen.findAllByText('Atelier Nova');
 
     expect(within(itemOf(/Développeur/)).getByText('À relancer')).toBeInTheDocument();
     expect(within(itemOf(/Data analyst/)).queryByText('À relancer')).not.toBeInTheDocument();
@@ -279,7 +329,7 @@ describe('ApplicationsPage', () => {
       'GET /applications/1/emails': () => json(200, EMAILS),
     });
     renderPage();
-    await screen.findByRole('region', { name: 'Atelier Nova' });
+    await screen.findAllByText('Atelier Nova');
     const user = userEvent.setup();
 
     await user.click(screen.getByRole('button', { name: /Développeur/ }));
@@ -309,7 +359,7 @@ describe('ApplicationsPage', () => {
       'GET /applications/1/emails': () => json(200, EMAILS),
     });
     renderPage();
-    await screen.findByRole('region', { name: 'Atelier Nova' });
+    await screen.findAllByText('Atelier Nova');
     const user = userEvent.setup();
 
     await user.click(screen.getByRole('button', { name: /Développeur/ }));
@@ -329,7 +379,7 @@ describe('ApplicationsPage', () => {
         json(200, [{ ...EMAILS[0], gmailUrl: 'javascript:alert(document.cookie)' }]),
     });
     renderPage();
-    await screen.findByRole('region', { name: 'Atelier Nova' });
+    await screen.findAllByText('Atelier Nova');
     const user = userEvent.setup();
 
     await user.click(screen.getByRole('button', { name: /Développeur/ }));
@@ -346,7 +396,7 @@ describe('ApplicationsPage', () => {
       'GET /applications/1': () => json(200, { ...NOVA_DEV, status: 'interview', isFollowUpDue: false }),
     });
     renderPage();
-    await screen.findByRole('region', { name: 'Atelier Nova' });
+    await screen.findAllByText('Atelier Nova');
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: /Développeur/ }));
 
@@ -366,7 +416,7 @@ describe('ApplicationsPage', () => {
       'PATCH /applications/1': () => json(404, { error: 'Candidature introuvable' }),
     });
     renderPage();
-    await screen.findByRole('region', { name: 'Atelier Nova' });
+    await screen.findAllByText('Atelier Nova');
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: /Développeur/ }));
 
@@ -392,7 +442,7 @@ describe('ApplicationsPage', () => {
       },
     });
     renderPage();
-    await screen.findByRole('region', { name: 'Atelier Nova' });
+    await screen.findAllByText('Atelier Nova');
     const user = userEvent.setup();
 
     await user.click(screen.getByRole('button', { name: 'Ajouter une candidature' }));
@@ -402,7 +452,7 @@ describe('ApplicationsPage', () => {
     await user.selectOptions(within(form).getByLabelText('Type de contrat'), 'cdd');
     await user.click(within(form).getByRole('button', { name: 'Ajouter' }));
 
-    expect(await screen.findByRole('region', { name: 'Studio Ardent' })).toBeInTheDocument();
+    expect(await screen.findByText('Studio Ardent')).toBeInTheDocument();
     expect(screen.getByRole('status')).toHaveTextContent('Candidature ajoutée : UX chez Studio Ardent.');
     expect(screen.queryByRole('form', { name: 'Nouvelle candidature' })).not.toBeInTheDocument();
     expect(calls.find((call) => call.method === 'POST')?.body).toEqual({
@@ -416,7 +466,7 @@ describe('ApplicationsPage', () => {
   it('[EF-CAN-06] moves the keyboard focus into the form, and back to its button when it closes', async () => {
     mockApi({ 'GET /applications': () => listOf(ALL) });
     renderPage();
-    await screen.findByRole('region', { name: 'Atelier Nova' });
+    await screen.findAllByText('Atelier Nova');
     const user = userEvent.setup();
     const openButton = screen.getByRole('button', { name: 'Ajouter une candidature' });
 
@@ -436,7 +486,7 @@ describe('ApplicationsPage', () => {
         json(409, { error: 'Une candidature existe déjà pour cette entreprise et cet intitulé' }),
     });
     renderPage();
-    await screen.findByRole('region', { name: 'Atelier Nova' });
+    await screen.findAllByText('Atelier Nova');
     const user = userEvent.setup();
 
     await user.click(screen.getByRole('button', { name: 'Ajouter une candidature' }));
@@ -459,12 +509,12 @@ describe('ApplicationsPage', () => {
         url.searchParams.get('offset') === '100' ? listOf([lastOne], 101) : listOf(firstPage, 101),
     });
     renderPage();
-    await screen.findByRole('region', { name: 'Atelier Nova' });
+    await screen.findAllByText('Atelier Nova');
     const user = userEvent.setup();
 
     await user.click(screen.getByRole('button', { name: /Afficher plus/ }));
 
-    expect(await screen.findByRole('region', { name: 'Zénith' })).toBeInTheDocument();
+    expect(await screen.findByText('Zénith')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Afficher plus/ })).not.toBeInTheDocument();
     expect(calls.at(-1)?.url.searchParams.get('offset')).toBe('100');
   });
@@ -482,7 +532,7 @@ describe('ApplicationsPage — offer description and application date (T-104)', 
 
   const openCreationForm = async () => {
     renderPage();
-    await screen.findByRole('region', { name: 'Atelier Nova' });
+    await screen.findAllByText('Atelier Nova');
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'Ajouter une candidature' }));
     const form = screen.getByRole('form', { name: 'Nouvelle candidature' });
@@ -564,7 +614,7 @@ describe('ApplicationsPage — offer description and application date (T-104)', 
       'GET /applications/2/emails': () => json(200, []),
     });
     renderPage();
-    await screen.findByRole('region', { name: 'Atelier Nova' });
+    await screen.findAllByText('Atelier Nova');
     const user = userEvent.setup();
 
     await user.click(screen.getByRole('button', { name: /Développeur/ }));
@@ -586,7 +636,7 @@ describe('ApplicationsPage — offer description and application date (T-104)', 
       },
     });
     renderPage();
-    await screen.findByRole('region', { name: 'Atelier Nova' });
+    await screen.findAllByText('Atelier Nova');
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: /Développeur/ }));
     await user.click(await screen.findByRole('button', { name: 'Modifier la candidature' }));
@@ -621,7 +671,7 @@ describe('ApplicationsPage — offer description and application date (T-104)', 
       },
     });
     renderPage();
-    await screen.findByRole('region', { name: 'Atelier Nova' });
+    await screen.findAllByText('Atelier Nova');
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: /Développeur/ }));
     await user.click(await screen.findByRole('button', { name: 'Modifier la candidature' }));
@@ -646,7 +696,7 @@ describe('ApplicationsPage — offer description and application date (T-104)', 
       'DELETE /applications/1': () => new Response(null, { status: 204 }),
     });
     renderPage();
-    await screen.findByRole('region', { name: 'Atelier Nova' });
+    await screen.findAllByText('Atelier Nova');
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: /Développeur/ }));
 
@@ -667,7 +717,7 @@ describe('ApplicationsPage — offer description and application date (T-104)', 
       'GET /applications/1/emails': () => json(200, []),
     });
     renderPage();
-    await screen.findByRole('region', { name: 'Atelier Nova' });
+    await screen.findAllByText('Atelier Nova');
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: /Développeur/ }));
 
@@ -694,7 +744,7 @@ describe('ApplicationsPage — offer description and application date (T-104)', 
       },
     });
     renderPage();
-    await screen.findByRole('region', { name: 'Atelier Nova' });
+    await screen.findAllByText('Atelier Nova');
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: /Développeur/ }));
     await user.click(await screen.findByRole('button', { name: 'Modifier la candidature' }));
