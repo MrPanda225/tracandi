@@ -205,6 +205,21 @@
   font-weight: 700;
 }
 
+/* ENF-MAI-07: a screen announced but not open yet — quieter, and said so in words, not by colour alone. */
+.shell__item--upcoming .shell__link:not([aria-current='page']) {
+  opacity: 0.72;
+}
+
+.shell__soon {
+  margin-left: auto;
+  padding: 0.1rem 0.5rem;
+  border: 1px solid rgb(250 248 250 / 0.28);
+  border-radius: 999px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
 /* ---------- Below 900 px: the frame of a mobile application ---------- */
 
 @media (max-width: 900px) {
@@ -286,6 +301,11 @@
 
   .shell__nav > li {
     min-width: 0;
+  }
+
+  /* MD3: five destinations at most in a bottom bar; the screens still in preparation stay in the side panel only. */
+  .shell__nav > li.shell__item--upcoming {
+    display: none;
   }
 
   .shell__link {

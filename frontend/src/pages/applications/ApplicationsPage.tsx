@@ -142,7 +142,10 @@ function CompanyGroups({ list }: { list: ApplicationList }) {
               <h2 id={headingId} className="company-group__name">
                 {group.company.name}
               </h2>
-              <span className="company-group__count">{plural(group.applications.length, 'candidature')}</span>
+              {/* Counted only when there is more than one: « 1 candidature » under every company was noise. */}
+              {group.applications.length > 1 && (
+                <span className="company-group__count">{plural(group.applications.length, 'candidature')}</span>
+              )}
             </div>
             <ul className="company-group__list">
               {group.applications.map((application) => (

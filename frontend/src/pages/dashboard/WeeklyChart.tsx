@@ -227,7 +227,8 @@ export function WeeklyChart({ weekly, isAnimated }: WeeklyChartProps) {
                 data={data}
                 barGap={3}
                 barCategoryGap="24%"
-                margin={{ top: 22, right: 4, bottom: 0, left: 4 }}
+                // Room for the date of the first and last weeks, centred on their bar: on a phone they overflowed.
+                margin={{ top: 22, right: 18, bottom: 0, left: 18 }}
               >
                 <XAxis
                   dataKey="tick"
