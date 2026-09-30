@@ -1,5 +1,10 @@
 import { useId, useState } from 'react';
-import { type Application, fetchApplication, updateApplication } from '../../api/applications';
+import {
+  type Application,
+  deleteApplication,
+  fetchApplication,
+  updateApplication,
+} from '../../api/applications';
 import { messageOf } from '../../api/client';
 import type { ApplicationStatus } from '../../api/stats';
 import { Flash } from '../../components/Flash';
@@ -18,6 +23,10 @@ import './ApplicationItem.css';
 interface ApplicationItemProps {
   application: Application;
   onUpdated: (application: Application) => void;
+}
+
+interface DeletableItemProps extends ApplicationItemProps {
+  onDeleted: (id: number) => void;
 }
 
 /** « CDI · Envoi direct · candidature du 3 sept. 2026 », plus the last activity when it happened another day. */
@@ -86,10 +95,76 @@ function StatusChanger({ application, onUpdated }: ApplicationItemProps) {
 }
 
 /**
- * One application of a company group: summary (title, contract, channel, last activity, status, « à relancer »
- * badge — EF-CAN-12) that opens its detail: status change (EF-CAN-07) and chronology (EF-CAN-04, 05).
+ * EF-CAN-09: deletes the application after a confirmation that says what stays — its messages remain in Gmail.
+ * The destructive button never reads as the main action (HIG).
  */
-export function ApplicationItem({ application, onUpdated }: ApplicationItemProps) {
+function DeleteAction({
+  application,
+  onDeleted,
+}: {
+  application: Application;
+  onDeleted: (id: number) => void;
+}) {
+  const [isConfirming, setIsConfirming] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleDelete = async () => {
+    setIsDeleting(true);
+    setError(null);
+    try {
+      await deleteApplication(application.id);
+      onDeleted(application.id);
+    } catch (failure) {
+      setError(messageOf(failure));
+      setIsDeleting(false);
+    }
+  };
+
+  if (!isConfirming) {
+    return (
+      <div className="application__delete">
+        <button
+          type="button"
+          className="btn btn--quiet btn--small btn--quiet-danger"
+          onClick={() => setIsConfirming(true)}
+        >
+          Supprimer la candidature
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div className="application__delete" role="group" aria-label="Confirmer la suppression">
+      <p className="application__delete-text">
+        Supprimer « {application.jobTitle} » chez {application.company.name} ? Les messages restent dans
+        Gmail.
+      </p>
+      {error && <Flash>{error}</Flash>}
+      <div className="application__delete-buttons">
+        <button type="button" className="btn btn--quiet btn--small" onClick={() => setIsConfirming(false)}>
+          Annuler
+        </button>
+        <button
+          type="button"
+          className="btn btn--danger btn--small"
+          disabled={isDeleting}
+          aria-busy={isDeleting}
+          onClick={() => void handleDelete()}
+        >
+          {isDeleting ? 'Suppression…' : 'Supprimer définitivement'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * One application of a company group: summary (title, contract, channel, last activity, status, « à relancer »
+ * badge — EF-CAN-12) that opens its detail: status change (EF-CAN-07), details, chronology (EF-CAN-04, 05) and
+ * deletion (EF-CAN-09).
+ */
+export function ApplicationItem({ application, onUpdated, onDeleted }: DeletableItemProps) {
   const detailId = useId();
   const [isOpen, setIsOpen] = useState(false);
 
@@ -119,6 +194,7 @@ export function ApplicationItem({ application, onUpdated }: ApplicationItemProps
             <StatusChanger application={application} onUpdated={onUpdated} />
             <OfferDetails application={application} onUpdated={onUpdated} />
             <Chronology applicationId={application.id} />
+            <DeleteAction application={application} onDeleted={onDeleted} />
           </>
         )}
       </div>

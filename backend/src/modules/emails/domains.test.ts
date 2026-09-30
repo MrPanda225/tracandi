@@ -84,8 +84,18 @@ describe('contactAddressOf', () => {
     'notifications@teamtailor-mail.com',
     'mailer-daemon@googlemail.com',
     'NoReply.Candidats@lhh.example',
+    // Reported in production (30/09/2026): the no-reply word after a prefix.
+    'jobs-noreply@linkedin.example',
+    'invitations.noreply@talent.example',
+    'recrutement+noreply@atelier-nova.example',
+    'candidats-notification@talent.example',
   ])('[RG-20] never writes to %s, which takes no answer', (address) => {
     expect(contactAddressOf(received(address))).toBeNull();
+  });
+
+  it('[RG-20] still writes to a recruiter whose name merely contains « notification » or « bounce »', () => {
+    expect(contactAddressOf(received('notificationsmith@atelier-nova.example'))).toBe('notificationsmith@atelier-nova.example');
+    expect(contactAddressOf(received('j.bounceur@atelier-nova.example'))).toBe('j.bounceur@atelier-nova.example');
   });
 
   it('[RG-20] has no contact when the message names no address', () => {

@@ -75,3 +75,9 @@
   justify-content: flex-end;
   gap: 0.6rem;
 }
+
+.offer-details__notes {
+  margin: 0;
+  white-space: pre-wrap;
+  color: var(--color-mauve-deep);
+}

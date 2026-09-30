@@ -457,12 +457,18 @@ export interface FollowUpContext {
   status: (typeof applications.$inferSelect)['status'];
   appliedAt: Date;
   lastActivityAt: Date;
-  /** RG-20: the contact of the most recent message that carries one, and its thread; null when none does. */
-  contact: { address: string; gmailThreadId: string } | null;
+  /**
+   * RG-20: the contacts of the most recent messages that carry one, most recent first, with their thread — the
+   * service still sets aside those the rule now refuses, stored before it was refined.
+   */
+  contacts: { address: string; gmailThreadId: string }[];
 }
 
+/** Recent contacts looked at for a follow-up: enough to pass over a few automated messages. */
+const FOLLOW_UP_CONTACTS_LOOKED_AT = 20;
+
 /**
- * One application of the user with its most recent contact address (RG-20), or null when absent or owned by another
+ * One application of the user with its most recent contact addresses (RG-20), or null when absent or owned by another
  * user (EF-AUT-06). Served by `ix_emails_application_received`.
  * @req EF-CAN-17, RG-20, EF-AUT-06
  */
@@ -483,15 +489,15 @@ export const findFollowUpContext = async (
     .innerJoin(companies, eq(companies.id, applications.companyId))
     .where(and(eq(applications.id, applicationId), eq(companies.userId, userId)));
   if (!application) return null;
-  const [contact] = await db
+  const contacts = await db
     .select({ address: emails.contactAddress, gmailThreadId: emails.gmailThreadId })
     .from(emails)
     .where(and(eq(emails.applicationId, applicationId), isNotNull(emails.contactAddress)))
     .orderBy(desc(emails.receivedAt), desc(emails.id))
-    .limit(1);
+    .limit(FOLLOW_UP_CONTACTS_LOOKED_AT);
   return {
     ...application,
-    contact: contact?.address ? { address: contact.address, gmailThreadId: contact.gmailThreadId } : null,
+    contacts: contacts.flatMap(({ address, gmailThreadId }) => (address ? [{ address, gmailThreadId }] : [])),
   };
 };
 

@@ -123,8 +123,8 @@ function EmptyState({ hasFilters }: { hasFilters: boolean }) {
     <p className="applications-empty">Aucune candidature ne correspond à ces critères.</p>
   ) : (
     <p className="applications-empty">
-      Aucune candidature pour l’instant. Ajoutez-en une avec le bouton ci-dessus ; une fois Gmail connecté dans les{' '}
-      <Link to="/reglages">Réglages</Link>, elles apparaîtront d’elles-mêmes.
+      Aucune candidature pour l’instant. Ajoutez-en une avec le bouton ci-dessus ; une fois Gmail connecté
+      dans les <Link to="/reglages">Réglages</Link>, elles apparaîtront d’elles-mêmes.
     </p>
   );
 }
@@ -146,7 +146,12 @@ function CompanyGroups({ list }: { list: ApplicationList }) {
             </div>
             <ul className="company-group__list">
               {group.applications.map((application) => (
-                <ApplicationItem key={application.id} application={application} onUpdated={list.replaceItem} />
+                <ApplicationItem
+                  key={application.id}
+                  application={application}
+                  onUpdated={list.replaceItem}
+                  onDeleted={list.removeItem}
+                />
               ))}
             </ul>
           </section>

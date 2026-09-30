@@ -5,6 +5,7 @@ import { HttpError, NotFoundError } from '../../lib/errors.js';
 import type { Logger } from '../../lib/logger.js';
 import { buildWriteFollowUpPrompt } from '../../llm/prompts/writeFollowUp.js';
 import type { LlmRouter } from '../../llm/router.js';
+import { isNoReplyAddress } from './domains.js';
 import type { MessageFetcher } from './fetcher.js';
 import { isInvalidGrant } from './mailbox.js';
 import { isRateLimited } from './quota.js';
@@ -95,8 +96,10 @@ const draftUrlOf = (accountAddress: string | null, draftMessageId: string): stri
 const findFollowedUp = async (db: Database, userId: number, applicationId: number) => {
   const context = await repository.findFollowUpContext(db, userId, applicationId);
   if (!context) throw new NotFoundError('Candidature introuvable');
-  const { status, contact } = context;
+  const { status } = context;
   if (status !== 'sent' && status !== 'acknowledged') throw new NotFollowedUpError();
+  // RG-20: a no-reply address stored before the rule was refined is passed over, not written to.
+  const contact = context.contacts.find(({ address }) => !isNoReplyAddress(address));
   if (!contact) throw new NoContactError();
   return { ...context, status, contact };
 };

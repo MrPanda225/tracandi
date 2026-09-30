@@ -34,7 +34,8 @@ const useApplicationsCache = (): ApplicationsCache => {
 };
 
 /** Filters of the last list of the session, to open the screen as the user left it. */
-export const useLastApplicationFilters = (): ApplicationFilters | undefined => useApplicationsCache()[0]?.filters;
+export const useLastApplicationFilters = (): ApplicationFilters | undefined =>
+  useApplicationsCache()[0]?.filters;
 
 const sameFilters = (a: ApplicationFilters, b: ApplicationFilters): boolean =>
   a.status === b.status && a.contractType === b.contractType && a.q === b.q;
@@ -62,6 +63,8 @@ export interface ApplicationList extends ListState {
   loadMore: () => Promise<void>;
   /** Replaces one application in place, after a change made from the list (EF-CAN-07). */
   replaceItem: (application: Application) => void;
+  /** Takes one application out of the list, after its deletion (EF-CAN-09). */
+  removeItem: (id: number) => void;
   /** Requests the first page again, after a creation (EF-CAN-06). */
   reload: () => void;
 }
@@ -128,7 +131,14 @@ export function useApplications(filters: ApplicationFilters): ApplicationList {
     setState((current) => ({ ...current, items }));
   };
 
+  const removeItem = (id: number) => {
+    const items = state.items.filter((item) => item.id !== id);
+    const total = state.total - (items.length < state.items.length ? 1 : 0);
+    setCached({ filters: activeFilters, items, total });
+    setState((current) => ({ ...current, items, total }));
+  };
+
   const reload = useCallback(() => setReloadCount((count) => count + 1), []);
 
-  return { ...state, loadMore, replaceItem, reload };
+  return { ...state, loadMore, replaceItem, removeItem, reload };
 }

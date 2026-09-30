@@ -25,7 +25,8 @@ export interface ApplicationDetail extends Application {
   offerDescription: string | null;
 }
 
-export type EmailCategory = 'sent_application' | 'acknowledged' | 'interview' | 'offer' | 'rejected' | 'job_alert';
+export type EmailCategory =
+  'sent_application' | 'acknowledged' | 'interview' | 'offer' | 'rejected' | 'job_alert';
 
 /** One message of an application's chronology (schema `Email` in /api/docs). */
 export interface ApplicationEmail {
@@ -63,9 +64,14 @@ export interface NewApplication {
   offerDescription?: string;
 }
 
-/** Fields changed from the list (EF-CAN-07, 15, 16); `null` clears the description. */
+/** EF-CAN-08: same bound as the API. */
+export const NOTES_MAX_LENGTH = 2000;
+
+/** Fields changed from the list (EF-CAN-07, 08, 13, 15, 16); `null` clears the description or the notes. */
 export interface ApplicationChanges {
   status?: ApplicationStatus;
+  contractType?: ContractType;
+  notes?: string | null;
   appliedAt?: string;
   offerDescription?: string | null;
 }
@@ -83,8 +89,7 @@ export const fetchApplications = (
   filters: ApplicationFilters,
   page: { limit: number; offset: number },
   signal?: AbortSignal,
-) =>
-  request<ApplicationPage>(`/applications?${queryString({ ...filters, ...page })}`, { signal });
+) => request<ApplicationPage>(`/applications?${queryString({ ...filters, ...page })}`, { signal });
 
 /** One application with its offer description, and its follow-up flag recomputed (RG-06). */
 export const fetchApplication = (id: number, signal?: AbortSignal) =>
@@ -102,6 +107,10 @@ export const createApplication = (application: NewApplication) =>
 export const updateApplication = (id: number, changes: ApplicationChanges) =>
   request<undefined>(`/applications/${id}`, { method: 'PATCH', body: changes });
 
+/** EF-CAN-09: deletes the application; its messages stay stored, detached from it. */
+export const deleteApplication = (id: number) =>
+  request<undefined>(`/applications/${id}`, { method: 'DELETE' });
+
 /** EF-CAN-17: a follow-up saved as a Gmail draft (schema `FollowUpDraft` in /api/docs); nothing is sent. */
 export interface FollowUpDraft {
   draftUrl: string;
@@ -112,4 +121,3 @@ export interface FollowUpDraft {
 /** EF-CAN-17: has the follow-up of an application written and saved as a draft in its Gmail thread. */
 export const prepareFollowUpDraft = (id: number) =>
   request<FollowUpDraft>(`/applications/${id}/follow-up-draft`, { method: 'POST' });
-

@@ -99,7 +99,16 @@ interface TextAreaFieldProps {
   onChange: (value: string) => void;
 }
 
-export function TextAreaField({ id, label, value, maxLength, hint, error, className, onChange }: TextAreaFieldProps) {
+export function TextAreaField({
+  id,
+  label,
+  value,
+  maxLength,
+  hint,
+  error,
+  className,
+  onChange,
+}: TextAreaFieldProps) {
   return (
     <FieldFrame id={id} label={label} error={error} hint={hint} className={className}>
       <textarea
