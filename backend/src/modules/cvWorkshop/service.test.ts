@@ -4,10 +4,14 @@ import type { JobQueue, QueuedWork } from '../../jobs/queue.js';
 import { LlmUnavailableError } from '../../lib/errors.js';
 import type { LlmRouter, RunTaskInput } from '../../llm/router.js';
 import { buildTextPdf, FICTITIOUS_CV_LINES } from '../../../tests/fixtures/cv/pdf.js';
+import { readParagraphs } from '../../../tests/fixtures/docx/readDocx.js';
 import { createAnalysisResults } from './results.js';
 import { type CvAnalysis, createCvWorkshopService } from './service.js';
 
-const ANSWER: unknown = JSON.parse(readFileSync(new URL('../../../tests/fixtures/llm/diagnose_cv.json', import.meta.url), 'utf8'));
+const fixture = (name: string): unknown =>
+  JSON.parse(readFileSync(new URL(`../../../tests/fixtures/llm/${name}.json`, import.meta.url), 'utf8'));
+const ANSWER = fixture('diagnose_cv');
+const TAILORED = fixture('tailor_cv') as { cv: { experiences: object[] } };
 const OFFER = 'Data Analyst en CDI à Lyon. Vous maîtrisez SQL, Python, dbt et Airflow. '.repeat(4);
 const NOW = new Date('2026-09-26T10:00:00Z');
 
@@ -26,13 +30,18 @@ const immediateQueue = (alreadyToday = 0) => {
   return { queue, works, reports };
 };
 
-/** A router whose provider answers the fixture, parsed by the schema of the task as the real router does. */
-const scriptedRouter = (answer: unknown = ANSWER) => {
-  const inputs: RunTaskInput<unknown>[] = [];
+/**
+ * A router whose provider answers the fixture of each task, parsed by the schema of the task as the real router does:
+ * an answer the schema rejects ends in LlmUnavailableError, as when every provider answered outside the schema.
+ */
+const scriptedRouter = (answers: Record<string, unknown> = { diagnose_cv: ANSWER, tailor_cv: TAILORED }) => {
+  const inputs: (RunTaskInput<unknown> & { task: string })[] = [];
   const router: LlmRouter = {
-    runTask: <T>(_task: string, input: RunTaskInput<T>) => {
-      inputs.push(input as RunTaskInput<unknown>);
-      return Promise.resolve({ data: input.schema.parse(answer), provider: 'groq_1' as const });
+    runTask: <T>(task: string, input: RunTaskInput<T>) => {
+      inputs.push({ ...(input as RunTaskInput<unknown>), task });
+      const parsed = input.schema.safeParse(answers[task]);
+      if (!parsed.success) return Promise.reject(new LlmUnavailableError(true));
+      return Promise.resolve({ data: parsed.data, provider: 'groq_1' as const });
     },
   } as LlmRouter;
   return { router, inputs };
@@ -85,12 +94,86 @@ describe('createCvWorkshopService', () => {
     expect(inputs[0]?.prompt).not.toMatch(/camille\.durand@example\.com|06 12 34 56 78|Camille Durand/);
   });
 
-  it('[EF-CVX-32] publishes the reading as done before the diagnostic', async () => {
+  it('[EF-CVX-32] publishes the reading, then the diagnostic, as done before the adaptation', async () => {
     const { queue, reports } = immediateQueue();
 
     await serviceWith({ queue }).service.startAnalysis(7, request());
 
-    expect(reports).toEqual([{ cv_steps_done: 1, cv_pages_ocr: 0 }]);
+    expect(reports).toEqual([
+      { cv_steps_done: 1, cv_pages_ocr: 0 },
+      { cv_steps_done: 2, cv_pages_ocr: 0 },
+    ]);
+  });
+
+  it('[EF-CVX-25] [EF-CVX-29] keeps the adapted CV and each of its changes', async () => {
+    const { service } = serviceWith();
+
+    await service.startAnalysis(7, request());
+
+    const { adapted } = service.findAnalysis(7, 41);
+    expect(adapted.cv.experiences[0]?.organization).toBe('Atelier Nova');
+    expect(adapted.changes[0]).toMatchObject({ section: 'Expériences professionnelles', reason: expect.any(String) as string });
+  });
+
+  it('[EF-CVX-26] never shows an adapted CV that invents, and says so when no provider stayed faithful', async () => {
+    const invented = { ...TAILORED, cv: { ...TAILORED.cv, experiences: [{ ...TAILORED.cv.experiences[0], organization: 'Groupe Imaginaire' }] } };
+    const { router } = scriptedRouter({ diagnose_cv: ANSWER, tailor_cv: invented });
+    const { service, results } = serviceWith({ router });
+
+    await expect(service.startAnalysis(7, request())).rejects.toMatchObject({
+      statusCode: 502,
+      message: 'On n’a pas réussi à adapter votre CV sans rien inventer. Réessayez dans un instant.',
+    });
+    expect(results.size()).toBe(0);
+  });
+
+  it('[EF-IA-04] [EF-CVX-26] says the AI is out of reach, not that it invented, when no provider answered', async () => {
+    const router = {
+      runTask: (task: string, input: RunTaskInput<unknown>) =>
+        task === 'tailor_cv'
+          ? Promise.reject(new LlmUnavailableError())
+          : Promise.resolve({ data: input.schema.parse(ANSWER), provider: 'groq_1' as const }),
+    } as unknown as LlmRouter;
+    const { service, results } = serviceWith({ router });
+
+    await expect(service.startAnalysis(7, request())).rejects.toMatchObject({
+      statusCode: 502,
+      message: 'Aucun service d’IA n’a pu traiter la demande. Réessayez dans quelques minutes.',
+    });
+    expect(results.size()).toBe(0);
+  });
+
+  it('[ENF-RGP-07] [RG-21] gives the adaptation the CV without contact details, and the skills to leave out', async () => {
+    const { router, inputs } = scriptedRouter();
+
+    await serviceWith({ router }).service.startAnalysis(7, request());
+
+    const tailoring = inputs.find((input) => input.task === 'tailor_cv');
+    expect(tailoring?.prompt).toContain('Atelier Nova');
+    expect(tailoring?.prompt).not.toMatch(/camille\.durand@example\.com|06 12 34 56 78|Camille Durand/);
+    expect(tailoring?.prompt).toContain('Compétences absentes du CV, à ne pas ajouter : dbt, Airflow');
+  });
+
+  it('[EF-CVX-31] [EF-CVX-28] writes the Word file with the skills the candidate ticked, contacts put back', async () => {
+    const { service } = serviceWith();
+    await service.startAnalysis(7, request());
+
+    const paragraphs = readParagraphs(await service.renderDocx(7, 41, ['Airflow']));
+
+    expect(paragraphs[0]).toBe('Camille Durand');
+    expect(paragraphs).toContain('SQL, Python, Power BI, Airflow');
+    expect(service.findAnalysis(7, 41).diagnosis.overallScore).toBe(70);
+  });
+
+  it('[EF-CVX-28] refuses to add a skill the diagnostic did not list', async () => {
+    const { service } = serviceWith();
+    await service.startAnalysis(7, request());
+
+    await expect(service.renderDocx(7, 41, ['Kubernetes'])).rejects.toMatchObject({ statusCode: 400 });
+  });
+
+  it('[ENF-RGP-06] answers 404 for the Word file of an analysis it no longer holds', async () => {
+    await expect(serviceWith().service.renderDocx(7, 99, [])).rejects.toMatchObject({ statusCode: 404 });
   });
 
   it('[EF-CVX-33] refuses a sixth analysis today, without queueing it', async () => {

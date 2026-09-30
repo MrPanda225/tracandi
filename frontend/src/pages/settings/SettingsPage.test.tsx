@@ -8,7 +8,11 @@ import { ROUTER_FUTURE } from '../../lib/router';
 import { AuthProvider } from '../../auth/AuthContext';
 import { SettingsPage } from './SettingsPage';
 
-vi.mock('../../lib/browser', () => ({ leaveFor: vi.fn() }));
+// Only leaving for Google is simulated; the other helpers (saving a file) stay real.
+vi.mock('../../lib/browser', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../lib/browser')>()),
+  leaveFor: vi.fn(),
+}));
 
 const CONNECTED = {
   connected: true,

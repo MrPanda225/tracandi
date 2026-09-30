@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { cites, foldText } from './text.js';
 
 /** The four dimensions a CV is scored on against an offer (EF-CVX-24). */
 export const DIMENSIONS = ['skills', 'experience', 'education', 'techStack'] as const;
@@ -61,30 +62,16 @@ export const overallScore = (answer: Pick<DiagnosisAnswer, Dimension>): number =
     DIMENSIONS.reduce((sum, dimension) => sum + answer[dimension].score * WEIGHTS[dimension], 0) / WEIGHT_TOTAL,
   );
 
-const fold = (text: string): string =>
-  text
-    .normalize('NFD')
-    .replace(/\p{M}/gu, '')
-    .toLowerCase()
-    .replace(/\s+/g, ' ')
-    .trim();
-
-const escapeRegExp = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-/** Whether the text cites the skill as a whole word or phrase, whatever its case and accents. */
-const cites = (foldedText: string, skill: string): boolean =>
-  new RegExp(`(^|[^\\p{L}\\p{N}])${escapeRegExp(fold(skill))}($|[^\\p{L}\\p{N}])`, 'u').test(foldedText);
-
 /**
  * Turns the answer of the AI into the diagnostic: overall score computed (RG-23), weak dimensions (EF-CVX-30), and the
  * missing skills checked against the CV — one the AI calls missing but the CV cites is dropped, each is kept once.
  * @req EF-CVX-24, EF-CVX-27, EF-CVX-30, RG-23
  */
 export const buildDiagnosis = (answer: DiagnosisAnswer, cvText: string): Diagnosis => {
-  const foldedCv = fold(cvText);
+  const foldedCv = foldText(cvText);
   const seen = new Set<string>();
   const missingSkills = answer.missingSkills.filter((skill) => {
-    const key = fold(skill);
+    const key = foldText(skill);
     if (seen.has(key) || cites(foldedCv, skill)) return false;
     seen.add(key);
     return true;

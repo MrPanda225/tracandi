@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -35,11 +35,48 @@ const ANALYSIS = {
     weakDimensions: ['techStack'],
     missingSkills: ['dbt', 'Airflow'],
   },
+  adapted: {
+    cv: {
+      headline: 'Data Analyst',
+      profile: 'Data analyst tournée vers les tableaux de bord et SQL.',
+      experiences: [
+        {
+          title: 'Data Analyst',
+          organization: 'Atelier Nova',
+          place: null,
+          dates: '09/2024 – 08/2026',
+          bullets: ['Conception de tableaux de bord Power BI pour 12 équipes commerciales.'],
+        },
+      ],
+      education: [{ degree: 'Master Informatique', school: 'Université de Lyon', place: null, dates: '2024', detail: null }],
+      skills: ['SQL', 'Python', 'Power BI'],
+      certifications: [],
+      languages: [],
+      interests: [],
+    },
+    changes: [
+      {
+        section: 'Expériences professionnelles',
+        before: 'Tableaux de bord Power BI pour 12 equipes commerciales.',
+        after: 'Conception de tableaux de bord Power BI pour 12 équipes commerciales.',
+        reason: 'L’offre parle de conception de tableaux de bord : le verbe d’action le met en avant.',
+      },
+    ],
+  },
 };
 
 const mockApi = (analysis: unknown = ANALYSIS) => {
   const fetchMock = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>((url) => {
     if (url === '/api/cv-workshop/analyses') return Promise.resolve(json(202, { runId: RUN_ID }));
+    if (url === `/api/cv-workshop/analyses/${String(RUN_ID)}/docx`) {
+      return Promise.resolve(
+        // A text body: Node's Response does not take a jsdom Blob.
+        new Response('PK docx', {
+          status: 200,
+          headers: { 'Content-Disposition': 'attachment; filename="cv-adapte.docx"' },
+        }),
+      );
+    }
     if (url === `/api/cv-workshop/analyses/${String(RUN_ID)}`) return Promise.resolve(json(200, analysis));
     return Promise.resolve(json(200, { id: RUN_ID, job: 'cv_analysis', outcome: 'running', counters: {} }));
   });
@@ -98,6 +135,17 @@ describe('CvWorkshopPage — the form', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it('[EF-CVX-21] takes a CV dropped on its zone, and names it with its size', async () => {
+    mockApi();
+    renderPage();
+    const zone = screen.getByText('Glissez votre CV ici').closest('label') as HTMLElement;
+
+    fireEvent.drop(zone, { dataTransfer: { files: [pdfFile()] } });
+
+    expect(screen.getByText('cv.pdf')).toBeInTheDocument();
+    expect(zone).toHaveTextContent(/\d+ Ko · Changer de fichier/);
+  });
+
   it('[EF-CVX-21] says a CV of more than 5 MB is too heavy, and sends nothing', async () => {
     const fetchMock = mockApi();
     renderPage();
@@ -138,6 +186,11 @@ describe('CvWorkshopPage — the analysis', () => {
 
     expect(screen.getByRole('status')).toHaveTextContent('On lit votre CV : c’est fait.');
     expect(screen.getByRole('status')).toHaveTextContent('On le compare à l’offre…');
+
+    await publish('running', { counters: { cv_steps_done: 2 } });
+
+    expect(screen.getByRole('status')).toHaveTextContent('On le compare à l’offre : c’est fait.');
+    expect(screen.getByRole('status')).toHaveTextContent('On l’adapte à l’offre…');
   });
 
   it('[EF-CVX-34] shows why the analysis failed, and lets the candidate try again', async () => {
@@ -185,11 +238,81 @@ describe('CvWorkshopPage — the result', () => {
     expect(within(detail).getAllByText('À renforcer')).toHaveLength(1);
   });
 
-  it('[EF-CVX-27] lists what the offer asks for and the CV does not say', async () => {
+  it('[EF-CVX-27] lists what the offer asks for and the CV does not say, each to tick', async () => {
     await showResult();
 
     const missing = screen.getByRole('region', { name: 'Ce que l’offre demande et que votre CV ne dit pas' });
-    expect(within(missing).getAllByRole('listitem').map((item) => item.textContent)).toEqual(['dbt', 'Airflow']);
+    expect(within(missing).getAllByRole('checkbox').map((box) => box.closest('label')?.textContent)).toEqual([
+      'dbt',
+      'Airflow',
+    ]);
+    expect(within(missing).queryAllByRole('checkbox', { checked: true })).toHaveLength(0);
+  });
+
+  it('[EF-CVX-25] shows the adapted CV, said to invent nothing', async () => {
+    await showResult();
+
+    const adapted = screen.getByRole('region', { name: 'Votre CV, adapté à cette offre' });
+    expect(adapted).toHaveTextContent('Rien n’a été inventé');
+    const preview = within(adapted).getByRole('article', { name: 'Aperçu de votre CV adapté' });
+    expect(preview).toHaveTextContent('Data Analyst — Atelier Nova');
+    expect(preview).toHaveTextContent('Conception de tableaux de bord Power BI pour 12 équipes commerciales.');
+    expect(preview).toHaveTextContent('SQL, Python, Power BI');
+  });
+
+  it('[EF-CVX-25] lays the adapted CV out as a sheet: contact details on top, grouped skills side by side', async () => {
+    const cv = { ...ANALYSIS.adapted.cv, skills: ['Langages : SQL, Python', 'Power BI'], languages: ['Anglais : courant'] };
+    await showResult({ ...ANALYSIS, adapted: { ...ANALYSIS.adapted, cv } });
+
+    const preview = screen.getByRole('article', { name: 'Aperçu de votre CV adapté' });
+    expect(within(preview).getByText(/Camille Durand,/)).toHaveTextContent('Camille Durand, Data Analyst');
+    expect(preview).toHaveTextContent('06 12 34 56 78 · camille.durand@example.com');
+    expect(within(preview).getByRole('heading', { name: 'Expériences professionnelles' })).toBeInTheDocument();
+    expect(within(preview).getByText('Langages').closest('div')).toHaveTextContent('LangagesSQL, Python');
+    expect(within(preview).getByText('Anglais').closest('div')).toHaveTextContent('Anglaiscourant');
+    expect(preview).toHaveTextContent('Power BI');
+  });
+
+  it('[EF-CVX-29] shows each change: before, after and why', async () => {
+    await showResult();
+
+    const changes = screen.getByRole('region', { name: 'Ce qui a changé, et pourquoi' });
+    expect(within(changes).getByText('Tableaux de bord Power BI pour 12 equipes commerciales.')).toBeInTheDocument();
+    expect(within(changes).getByText('Conception de tableaux de bord Power BI pour 12 équipes commerciales.')).toBeInTheDocument();
+    expect(within(changes).getByText(/le verbe d’action le met en avant/)).toBeInTheDocument();
+  });
+
+  it('[EF-CVX-28] adds a ticked skill to the preview, and the score does not move', async () => {
+    const user = await showResult();
+
+    await user.click(screen.getByRole('checkbox', { name: 'Airflow' }));
+
+    expect(screen.getByRole('article', { name: 'Aperçu de votre CV adapté' })).toHaveTextContent(
+      'SQL, Python, Power BI, Airflow',
+    );
+    expect(screen.getByRole('region', { name: 'Votre score' })).toHaveTextContent('70/100');
+  });
+
+  it('[EF-CVX-31] [EF-CVX-28] downloads the Word file with the ticked skills', async () => {
+    const saved: string[] = [];
+    // jsdom has no object URLs: the real URL keeps its constructor, only the two missing functions are added.
+    vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: () => 'blob:cv', revokeObjectURL: () => undefined }));
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+      saved.push(this.download);
+    });
+    const user = await showResult();
+    await user.click(screen.getByRole('checkbox', { name: 'dbt' }));
+
+    await user.click(screen.getByRole('button', { name: 'Télécharger mon CV (Word)' }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole('alert')).toBeNull();
+      expect(saved).toEqual(['cv-adapte.docx']);
+    });
+    const fetchMock = vi.mocked(fetch);
+    const init = fetchMock.mock.calls.find(([url]) => url === `/api/cv-workshop/analyses/${String(RUN_ID)}/docx`)?.[1];
+    expect(JSON.parse(String(init?.body))).toEqual({ addedSkills: ['dbt'] });
+    click.mockRestore();
   });
 
   it('[EF-CVX-27] says so warmly when nothing important is missing', async () => {
@@ -203,9 +326,10 @@ describe('CvWorkshopPage — the result', () => {
 
     await user.click(screen.getByText('Ce que l’IA a reçu'));
 
-    expect(screen.getByText(/Tableaux de bord Power BI/)).toBeVisible();
-    expect(screen.getByText('camille.durand@example.com')).toBeVisible();
-    expect(screen.getAllByText('non repéré')).toHaveLength(2);
+    const received = within(screen.getByText('Ce que l’IA a reçu').closest('details') as HTMLElement);
+    expect(received.getByText(/Tableaux de bord Power BI/)).toBeVisible();
+    expect(received.getByText('camille.durand@example.com')).toBeVisible();
+    expect(received.getAllByText('non repéré')).toHaveLength(2);
   });
 
   it('[ENF-RGP-06] offers another offer, keeping the CV, and recalls that nothing is kept', async () => {
@@ -214,7 +338,8 @@ describe('CvWorkshopPage — the result', () => {
 
     await user.click(screen.getByRole('button', { name: 'Analyser une autre offre' }));
 
-    expect(screen.getByText('Votre CV : cv.pdf. Choisissez-en un autre si besoin.')).toBeInTheDocument();
+    expect(screen.getByText('cv.pdf')).toBeInTheDocument();
+    expect(screen.getByText('Changer de fichier')).toBeInTheDocument();
     expect(screen.getByLabelText('2. L’offre qui vous intéresse')).toHaveValue('');
   });
 });

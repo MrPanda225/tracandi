@@ -1,4 +1,4 @@
-import { request } from './client';
+import { ApiError, apiUrl, request, UNREACHABLE_MESSAGE } from './client';
 
 /** EF-CVX-21 : taille maximale d'un CV importé, contrôlée aussi par l'API. */
 export const CV_MAX_BYTES = 5 * 1024 * 1024;
@@ -27,9 +27,30 @@ export interface Diagnosis {
   missingSkills: string[];
 }
 
+/** Le CV adapté à l'offre, section par section, sans les coordonnées (EF-CVX-25, schéma `AdaptedCv`). */
+export interface AdaptedCv {
+  headline: string;
+  profile: string;
+  experiences: { title: string; organization: string; place: string | null; dates: string; bullets: string[] }[];
+  education: { degree: string; school: string; place: string | null; dates: string; detail: string | null }[];
+  skills: string[];
+  certifications: string[];
+  languages: string[];
+  interests: string[];
+}
+
+/** EF-CVX-29 : une modification du CV, avec sa raison. */
+export interface CvChange {
+  section: string;
+  before: string;
+  after: string;
+  reason: string;
+}
+
 /** Résultat d'une analyse (schéma `CvAnalysis` dans /api/docs). */
 export interface CvAnalysis {
   diagnosis: Diagnosis;
+  adapted: { cv: AdaptedCv; changes: CvChange[] };
   reading: {
     /** Le texte lu, tel que l'IA le recevra : sans les coordonnées. */
     text: string;
@@ -46,3 +67,34 @@ export const startCvAnalysis = (fileBase64: string, offer: string) =>
 /** Le résultat d'une analyse terminée ; 404 une fois effacé (30 minutes, ENF-RGP-06). */
 export const fetchCvAnalysis = (runId: number, signal?: AbortSignal) =>
   request<CvAnalysis>(`/cv-workshop/analyses/${String(runId)}`, { signal });
+
+/**
+ * EF-CVX-31 : le CV adapté au format Word, avec les compétences cochées (EF-CVX-28). Lu comme un fichier, puisqu'il
+ * est enregistré et non affiché.
+ */
+export const downloadAdaptedCv = async (
+  runId: number,
+  addedSkills: readonly string[],
+): Promise<{ blob: Blob; fileName: string }> => {
+  let response: Response;
+  try {
+    response = await fetch(apiUrl(`/cv-workshop/analyses/${String(runId)}/docx`), {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ addedSkills }),
+    });
+  } catch {
+    throw new ApiError(0, UNREACHABLE_MESSAGE);
+  }
+  if (!response.ok) {
+    const message =
+      response.status === 404
+        ? 'Cette analyse n’est plus disponible : relancez-la pour télécharger votre CV.'
+        : 'Le téléchargement n’a pas abouti. Réessayez dans un instant.';
+    throw new ApiError(response.status, message);
+  }
+  const disposition = response.headers.get('Content-Disposition') ?? '';
+  const fileName = /filename="([^"]+)"/.exec(disposition)?.[1] ?? 'cv-adapte.docx';
+  return { blob: await response.blob(), fileName };
+};

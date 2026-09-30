@@ -1,4 +1,9 @@
 import { z } from '../../lib/openapi.js';
+import { AdaptedCvSchema } from './adaptedCv.js';
+
+// EF-CVX-27: same bounds as the diagnostic's list.
+const MISSING_SKILLS_MAX = 20;
+const MISSING_SKILL_MAX_LENGTH = 60;
 
 /** EF-CVX-23: bounds of the text of the offer. */
 export const OFFER_MIN_LENGTH = 200;
@@ -50,7 +55,22 @@ export const CvAnalysisSchema = z
       weakDimensions: z.array(z.enum(['skills', 'experience', 'education', 'techStack'])),
       missingSkills: z.array(z.string()),
     }),
+    adapted: z.object({
+      cv: AdaptedCvSchema,
+      changes: z.array(z.object({ section: z.string(), before: z.string(), after: z.string(), reason: z.string() })),
+    }),
   })
   .openapi('CvAnalysis');
+
+/** EF-CVX-28: missing skills the candidate ticked, to add to « Compétences » in the Word file. */
+export const DocxRequestSchema = z
+  .object({
+    addedSkills: z
+      .array(z.string().trim().min(1).max(MISSING_SKILL_MAX_LENGTH))
+      .max(MISSING_SKILLS_MAX)
+      .openapi({ description: 'Compétences manquantes cochées, parmi celles du diagnostic.' }),
+  })
+  .strict()
+  .openapi('CvDocxRequest');
 
 export const StartedAnalysisSchema = z.object({ runId: z.number().int() }).openapi('CvAnalysisStarted');

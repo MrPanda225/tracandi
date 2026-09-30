@@ -510,12 +510,20 @@ l'offre n'est écrite en base, sur disque ou dans les journaux (ENF-RGP-06).
   en deux étapes, score et verdict en mots, quatre jauges `<meter>` expliquées, « À renforcer », compétences
   manquantes, « Ce que l'IA a reçu » replié ; textes réécrits sur un ton naturel et chaleureux (ux-design, ui-design).
 
-- [ ] **T-512 CV adapté** — tâche IA « adaptation » : CV réécrit par sections, liste des modifications (section,
+- [x] **T-512 CV adapté** — tâche IA « adaptation » : CV réécrit par sections, liste des modifications (section,
   avant, après, raison), compétences de l'offre absentes du CV ; contrôle RG-21 avant toute présentation.
   *Exigences* : EF-CVX-25, EF-CVX-26, EF-CVX-27, EF-CVX-29, RG-21.
   *Fini quand* : réponse simulée citant une entreprise, un diplôme ou un chiffre absents du CV rejetée puis
   confiée à nouveau ; compétence absente listée et non ajoutée.
-- [~] **T-513 Rendu Word lisible par les ATS** — fichier .docx d'une colonne (RG-22) depuis le CV adapté,
+  *Livré (28/09/2026)* : tâche IA `tailor_cv` (route d'écriture de RG-13, déjà prévue : aucune migration), prompt
+  `llm/prompts/tailorCv.ts` (CV sans coordonnées, offre et diagnostic encadrés ; recopie à l'identique exigée ;
+  compétences absentes nommées pour ne pas les ajouter) ; `fidelity.ts` — `tailoredAnswerSchemaFor(cvText)` : le
+  schéma de la réponse porte le contrôle RG-21 (entreprises, établissements, intitulés, diplômes, lieux et dates
+  cités ; compétences, certifications, langues et centres d'intérêt cités ; aucun chiffre nouveau, où qu'il soit
+  écrit), si bien qu'une réponse qui invente est rejetée comme hors schéma et confiée au fournisseur suivant
+  (EF-IA-02), puis refusée par un message clair ; chemins seuls dans les journaux, jamais les valeurs. L'analyse
+  enchaîne lecture, diagnostic et adaptation, chaque étape publiée (`cv_steps_done` 1, 2, 3).
+- [x] **T-513 Rendu Word lisible par les ATS** — fichier .docx d'une colonne (RG-22) depuis le CV adapté,
   coordonnées rétablies, compétences cochées ajoutées sans nouveau score, téléchargement.
   *Exigences* : EF-CVX-28, EF-CVX-31, RG-22.
   *Fini quand* : test de structure du .docx (aucun `w:tbl`, `w:drawing`, `w:txbxContent`, en-tête ni pied de page) ;
@@ -528,7 +536,10 @@ l'offre n'est écrite en base, sur disque ou dans les journaux (ENF-RGP-06).
   cochées ajoutées sans doublon. Aucune dépendance nouvelle (`docx` était déjà là).
   *Reste* : le téléchargement (route et bouton), dès que T-512 produit le CV adapté.
 
-- [~] **T-514 Écran Atelier CV** — parcours en quatre étapes : CV, offre, analyse suivie en direct, résultat
+  *Livré, partie 2 (28/09/2026)* : `POST /api/cv-workshop/analyses/:id/docx` (`{ addedSkills }` : seules les
+  compétences listées par le diagnostic, 400 sinon ; coordonnées remises ; score inchangé ; `cv-adapte.docx`,
+  `Cache-Control: no-store`), bouton de téléchargement.
+- [x] **T-514 Écran Atelier CV** — parcours en quatre étapes : CV, offre, analyse suivie en direct, résultat
   (score et sous-scores expliqués, points faibles, compétences manquantes à cocher, modifications avant/après,
   téléchargement).
   *Exigences* : EF-CVX-24, EF-CVX-27 à EF-CVX-31 (affichage), ENF-UTI-01 à 04.
@@ -540,6 +551,10 @@ l'offre n'est écrite en base, sur disque ou dans les journaux (ENF-RGP-06).
   d'un échec. L'écran du profil (`ProfileForm`, `CvPreview`, `api/profile`) est retiré de l'interface ; son API
   part avec T-515. *Reste* : étapes offre, analyse et résultat.
 
+  *Livré, fin (28/09/2026)* : avancement en trois étapes ; compétences manquantes à cocher (cibles de 44 px) ;
+  « Votre CV, adapté à cette offre » — aperçu qui reprend aussitôt les compétences cochées, puis téléchargement
+  Word (une seule action principale à l'écran) ; « Ce qui a changé, et pourquoi » — avant, après, raison ; aperçu
+  déplié en entier sur téléphone. Vérifié à 1440 px et 390 px sur une API simulée (données fictives).
 - [ ] **T-515 Retrait de l'ancien atelier** — code du profil de référence et du modèle Word (T-501, T-502, T-507),
   LibreOffice retiré de l'image, migration de suppression de `candidate_profiles` et `cv_versions`, politique de
   confidentialité complétée.
