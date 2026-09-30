@@ -55,7 +55,8 @@
 }
 
 .breakdown__detail {
-  color: var(--color-mist);
+  /* WCAG 1.4.3: the mist gives 2.5:1 on white; the deep mauve 6.4:1. */
+  color: var(--color-mauve-deep);
 }
 
 .breakdown__track {

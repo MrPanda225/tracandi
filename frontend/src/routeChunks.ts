@@ -3,13 +3,15 @@
 export const loadAuthPage = () => import('./pages/auth/AuthPage');
 export const loadLegalPages = () => import('./pages/legal/LegalPages');
 export const loadLandingPage = () => import('./pages/landing/LandingPage');
+export const loadDashboardPage = () => import('./pages/dashboard/DashboardPage');
 
 /**
- * Public addresses and the screen fetched for them before the session is known. At the root, a visitor is expected:
- * a signed-in user fetches the presentation once for nothing, then finds it in the cache (immutable assets).
+ * Public addresses and the screen fetched for them before the session is known. At the root, both answers are
+ * started: the presentation for a visitor, and the dashboard — light since its chart travels apart — for a signed-in
+ * user, who no longer waits for the session check to start fetching his screen.
  */
 const ENTRY_CHUNKS: Record<string, () => Promise<unknown>> = {
-  '/': loadLandingPage,
+  '/': () => Promise.all([loadLandingPage(), loadDashboardPage()]),
   '/connexion': loadAuthPage,
   '/mentions-legales': loadLegalPages,
   '/confidentialite': loadLegalPages,
