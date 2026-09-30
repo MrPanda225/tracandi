@@ -45,7 +45,7 @@ export interface ApplicationEmail {
 export const APPLICATION_ORDERS = {
   recent: { sort: 'applied_at', order: 'desc', label: 'Plus récentes d’abord' },
   oldest: { sort: 'applied_at', order: 'asc', label: 'Plus anciennes d’abord' },
-  activity: { sort: 'last_activity', order: 'desc', label: 'Dernière activité' },
+  activity: { sort: 'last_activity', order: 'desc', label: 'Dernière nouvelle' },
   status: { sort: 'status', order: 'desc', label: 'Statut' },
   company: { sort: 'company', order: 'asc', label: 'Entreprise (A → Z)' },
 } as const;
