@@ -36,14 +36,7 @@
     top: 1rem;
     grid-column: 2;
     grid-row: 1 / span 8;
-    display: flex;
-    flex-direction: column;
     max-height: calc(100dvh - 2rem);
-  }
-
-  .cv-card--cv .cv-sheet {
-    flex: 1 1 auto;
-    min-height: 0;
     overflow: auto;
   }
 
@@ -140,6 +133,11 @@
 }
 
 /* ---------- Formulaire ---------- */
+
+/* Le nom du champ fichier est un paragraphe (la zone de dépôt est son libellé) : sans marge, comme un libellé. */
+p.form-field__label {
+  margin: 0;
+}
 
 /* Zone de dépôt du CV : cible large, en français, le champ natif caché dedans (EF-CVX-21). */
 .cv-drop {
@@ -471,21 +469,32 @@
 
 /* ---------- CV adapté (EF-CVX-25, EF-CVX-31) ---------- */
 
-/* L'aperçu se lit comme une feuille de CV, dans la police du Word ; le fichier garde sa colonne unique (RG-22). */
+/*
+ * L'aperçu est une page A4 (EF-CVX-38), dans la police du Word : tout y est dimensionné d'après la largeur de la page
+ * (unités cqw et em), comme sur le papier ; le fichier garde sa colonne unique pour les ATS (RG-22).
+ */
+.cv-page {
+  container-type: inline-size;
+  width: 100%;
+}
+
 .cv-sheet {
-  --cv-margin: 8.5rem;
+  --cv-margin: 8.4em;
   display: grid;
-  gap: 1.1rem;
-  padding: 2rem 2.25rem 2.25rem;
+  align-content: start;
+  gap: 1.1em;
+  aspect-ratio: 210 / 297;
+  /* Marges de 1,75 cm sur 21 cm, comme le fichier à son réglage intermédiaire (RG-24). */
+  padding: 8.33cqw;
   border: 1px solid var(--color-line);
-  border-radius: var(--radius-sm);
+  border-radius: 2px;
   background: var(--color-canvas-raised);
   box-shadow: var(--shadow-soft);
   color: var(--color-ink-deep);
-  /* La police du fichier Word (Calibri), puis ses équivalents métriques ou usuels : un CV se lit en police standard. */
   font-family: Calibri, Carlito, 'Segoe UI', Arial, Helvetica, sans-serif;
-  font-size: 0.9375rem;
-  line-height: 1.45;
+  /* 10,5 pt sur une page de 595 pt de large, réduit par le script si le contenu déborde de la page. */
+  font-size: calc(var(--cv-scale, 1) * 1.765cqw);
+  line-height: 1.35;
 }
 
 .cv-sheet p {
@@ -494,9 +503,9 @@
 
 .cv-sheet ul {
   display: grid;
-  gap: 0.2rem;
-  margin: 0.35rem 0 0;
-  padding-left: 1.1rem;
+  gap: 0.15em;
+  margin: 0.3em 0 0;
+  padding-left: 1.1em;
 }
 
 .cv-sheet li::marker {
@@ -505,15 +514,15 @@
 
 .cv-sheet__header {
   display: grid;
-  gap: 0.2rem;
+  gap: 0.15em;
   text-align: center;
 }
 
 .cv-sheet__name {
-  font-size: 1.4rem;
+  font-size: 1.5em;
   font-weight: 800;
   letter-spacing: -0.01em;
-  line-height: 1.25;
+  line-height: 1.2;
 }
 
 .cv-sheet__headline {
@@ -522,21 +531,21 @@
 
 .cv-sheet__reach {
   color: var(--color-mauve-deep);
-  font-size: 0.8125rem;
+  font-size: 0.87em;
   overflow-wrap: anywhere;
 }
 
 .cv-sheet__section {
   display: grid;
-  gap: 0.75rem;
-  padding-top: 0.6rem;
+  gap: 0.6em;
+  padding-top: 0.5em;
   border-top: 2px solid var(--color-ink-deep);
 }
 
 .cv-sheet__title {
   margin: 0;
   font-family: inherit;
-  font-size: 0.75rem;
+  font-size: 0.8em;
   font-weight: 800;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -545,14 +554,14 @@
 .cv-sheet__entry {
   display: grid;
   grid-template-columns: var(--cv-margin) minmax(0, 1fr);
-  gap: 1.25rem;
+  gap: 1.2em;
 }
 
 .cv-sheet__dates,
 .cv-sheet__place {
   color: var(--color-mauve-deep);
-  font-size: 0.8125rem;
-  line-height: 1.7;
+  font-size: 0.87em;
+  line-height: 1.6;
 }
 
 .cv-sheet__entry-head {
@@ -560,11 +569,11 @@
   flex-wrap: wrap;
   justify-content: space-between;
   align-items: baseline;
-  gap: 0.1rem 1rem;
+  gap: 0.1em 1em;
 }
 
 .cv-sheet__role {
-  font-size: 1rem;
+  font-size: 1.07em;
   font-weight: 500;
 }
 
@@ -574,26 +583,43 @@
 
 .cv-sheet__rows {
   display: grid;
-  gap: 0.3rem;
+  gap: 0.25em;
   margin: 0;
 }
 
 .cv-sheet__row {
   display: grid;
   grid-template-columns: var(--cv-margin) minmax(0, 1fr);
-  gap: 1.25rem;
+  gap: 1.2em;
 }
 
 .cv-sheet__row dt {
-  font-size: 0.75rem;
+  font-size: 0.8em;
   font-weight: 750;
   letter-spacing: 0.06em;
-  line-height: 1.75;
+  line-height: 1.7;
   text-transform: uppercase;
 }
 
 .cv-sheet__row dd {
   margin: 0;
+}
+
+/* ENF-UTI-07 : la raison d'un sous-score, sur demande. */
+.cv-why__summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--color-accent);
+  font-size: 0.9375rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.cv-why__summary:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
 }
 
 .cv-download {
@@ -674,7 +700,7 @@
 
 /* ---------- Ce que l'IA a reçu (EF-CVX-35) ---------- */
 
-.cv-received__summary {
+.cv-fold__summary {
   position: relative;
   display: grid;
   gap: 0.1rem;
@@ -684,12 +710,12 @@
   list-style: none;
 }
 
-.cv-received__summary::-webkit-details-marker {
+.cv-fold__summary::-webkit-details-marker {
   display: none;
 }
 
 /* Chevron de divulgation : il annonce que le bloc s'ouvre, et pivote une fois ouvert (WCAG 3.2.4). */
-.cv-received__summary::before {
+.cv-fold__summary::before {
   content: '';
   position: absolute;
   top: 0.45rem;
@@ -702,26 +728,26 @@
   transition: transform var(--duration-fast) var(--ease-out);
 }
 
-.cv-received[open] > .cv-received__summary::before {
+.cv-fold[open] > .cv-fold__summary::before {
   transform: rotate(45deg);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .cv-received__summary::before {
+  .cv-fold__summary::before {
     transition: none;
   }
 }
 
-.cv-received__label {
+.cv-fold__label {
   font-weight: 650;
 }
 
-.cv-received__hint {
+.cv-fold__hint {
   color: var(--color-mauve-deep);
   font-size: 0.875rem;
 }
 
-.cv-received__summary:focus-visible {
+.cv-fold__summary:focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;
   border-radius: var(--radius-sm);
@@ -745,14 +771,5 @@
     gap: 0.5rem;
   }
 
-  /* Sur téléphone, la marge des dates passe au-dessus de chaque entrée. */
-  .cv-sheet {
-    padding: 1.25rem 1rem 1.5rem;
-  }
 
-  .cv-sheet__entry,
-  .cv-sheet__row {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 0.1rem;
-  }
 }

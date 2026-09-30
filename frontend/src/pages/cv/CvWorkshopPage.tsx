@@ -123,7 +123,7 @@ function Progress({ step }: { step: AnalysisStep }) {
           </li>
         ))}
       </ol>
-      <p className="form-field__hint">Comptez une minute environ, un peu plus pour un scan.</p>
+      <p className="form-field__hint">Environ une minute.</p>
     </div>
   );
 }
@@ -170,7 +170,7 @@ function AnalysisForm({
           1. Votre CV
         </p>
         <p id={fileHintId} className="form-field__hint">
-          En PDF, 5 Mo au plus. Un scan marche aussi, c’est juste un peu plus long.
+          PDF de 5 Mo au plus, scan accepté.
         </p>
         <CvFileZone
           file={file}
@@ -193,7 +193,7 @@ function AnalysisForm({
           2. L’offre qui vous intéresse
         </label>
         <p id={offerHintId} className="form-field__hint">
-          Collez le texte complet de l’annonce : missions, profil recherché, outils.
+          L’annonce entière : missions, profil, outils.
         </p>
         <textarea
           id={offerId}
@@ -245,7 +245,7 @@ export function CvWorkshopPage() {
   return (
     <>
       <PageHeader title="Atelier CV">
-        <p>Déposez votre CV, collez une offre : on vous dit ce qui colle et ce qui manque.</p>
+        <p>Votre CV face à une offre : un score, et un CV adapté d’une page.</p>
       </PageHeader>
       <div className={done ? 'cv-workshop cv-workshop--result' : 'cv-workshop'}>
         {done ? (

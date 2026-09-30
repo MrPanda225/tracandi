@@ -570,11 +570,16 @@ l'offre n'est écrite en base, sur disque ou dans les journaux (ENF-RGP-06).
   Réponse de `tailor_cv` rejetée si elle ne tient pas avec toutes les compétences manquantes cochées (EF-CVX-37) ;
   consigne de 450 mots au plus. `tests/integration/cv-one-page.test.ts` compte les pages avec LibreOffice et
   Carlito, installés dans la CI seulement (absents du poste de développement : vérifié par la CI).
-- [ ] **T-517 Atelier CV allégé** — *demande du Business Owner du 30/09/2026 (cahier v1.31, BES-44).* Texte d'aide
+- [x] **T-517 Atelier CV allégé** — *demande du Business Owner du 30/09/2026 (cahier v1.31, BES-44).* Texte d'aide
   réduit avant l'analyse ; explications des sous-scores, modifications et texte lu repliés ; score, CV adapté et
   téléchargement visibles d'emblée ; aperçu en page A4 à la police et aux marges du fichier.
   *Exigences* : ENF-UTI-05, ENF-UTI-06, ENF-UTI-07, EF-CVX-38 ; EF-CVX-24 et EF-CVX-29 (précisées).
   *Fini quand* : 40 mots d'aide au plus sur l'écran vide ; démonstration à 1440 × 900 et 390 px.
+  *Livré (30/09/2026)* : environ 30 mots d'aide sur l'écran vide ; « Pourquoi ? » replie l'explication de chaque
+  sous-score, « Ce qui a changé, et pourquoi » est replié avec le nombre de modifications ; les compétences à cocher
+  passent avant le détail ; aperçu en page A4 (proportions 21 × 29,7, marges de 1,75 cm, tailles rapportées à la
+  largeur de la page, texte réduit jusqu'à 80 % si la page déborde). Vérifié par captures à 1440 × 900 (score, CV et
+  téléchargement sans défiler) et à 390 px (page A4 en vignette, lisible en zoomant).
 
 - [ ] **T-515 Retrait de l'ancien atelier** — code du profil de référence et du modèle Word (T-501, T-502, T-507),
   LibreOffice retiré de l'image, migration de suppression de `candidate_profiles` et `cv_versions`, politique de
