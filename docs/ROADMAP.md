@@ -692,3 +692,27 @@ développeur l'active sur son poste (`ENABLED_FEATURES=watch,cv`) le temps d'y t
   au plus `MAX_CONCURRENT_JOBS` à la fois sur tout le serveur (1 par défaut), les autres attendent leur tour dans
   l'ordre, l'ordre de chaque candidat restant garanti. Couvre EF-EXE-06.
   *Fini quand* : avec 1 créneau, deux candidats ne synchronisent jamais en même temps ; avec 2, ils le peuvent.
+
+---
+
+## Lot 9 — Retours de la première testeuse (BES-45, cahier v1.32)
+
+- [ ] **T-901 Doublons** — rattachement par conversation Gmail (RG-03 (0)), clés d'intitulé (RG-25) et d'entreprise
+  (RG-26), fusion de deux candidatures (API et écran).
+  *Exigences* : RG-03, RG-25, RG-26, EF-CAN-18.
+  *Fini quand* : accusé de réception puis refus d'une même conversation aux intitulés différents → une candidature ;
+  « Capgemini SE » et « Capgemini France » → une entreprise ; deux doublons fusionnés.
+- [ ] **T-902 Lien, entreprise et intitulé** — colonne du lien (migration), saisie à la création et en modification,
+  entreprise et intitulé modifiables avec refus d'un doublon.
+  *Exigences* : EF-CAN-19, EF-CAN-21.
+- [ ] **T-903 Import CSV** — lecture du fichier (sans dépendance), aperçu, correspondance des colonnes, import sans doublon.
+  *Exigences* : EF-CAN-23.
+- [ ] **T-904 Statut « Test technique »** — énumérations (migration), classement, rangs, libellé Gmail, taux de réponse,
+  tableau de bord, filtre.
+  *Exigences* : RG-01, RG-02, RG-04, RG-05, RG-07 (v1.32).
+- [ ] **T-905 Tri, filtre par période et couleurs** — tri au choix, filtre du … au …, index pour ENF-PERF-04,
+  couleurs des statuts (règle `frontend.md` mise à jour).
+  *Exigences* : EF-CAN-01 (v1.32), EF-CAN-20, EF-CAN-22, EF-CAN-24.
+- [ ] **T-906 Relance vers le recruteur** — adresses des plateformes écartées du contact (RG-20 v1.32).
+  *Exigences* : RG-20.
+
