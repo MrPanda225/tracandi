@@ -317,6 +317,53 @@ export const applyReclassifiedMessage = async (
   return application.id;
 };
 
+/** EF-VEI-20: what an offer hands to the application created from it. */
+export interface OfferApplication {
+  userId: number;
+  offerId: number;
+  companyName: string;
+  jobTitle: string;
+  contractType: ApplicationRow['contractType'];
+  appliedAt: Date;
+}
+
+/**
+ * EF-VEI-19, EF-VEI-20: creates, in the caller's transaction, the application « Envoyée » of an offer the candidate
+ * applied to — at its company, with its title and its contract, linked to it.
+ * @returns the id of the application.
+ * @throws HttpError 409 when the company already has an application with this job title (RG-03).
+ * @req EF-VEI-20, RG-14
+ */
+export const createApplicationFromOffer = async (tx: Executor, offer: OfferApplication): Promise<number> => {
+  try {
+    const companyId = await repository.upsertCompany(tx, {
+      userId: offer.userId,
+      name: offer.companyName,
+      nameKey: normalizeKey(offer.companyName),
+    });
+    const id = await repository.insertApplication(tx, {
+      companyId,
+      jobTitle: offer.jobTitle,
+      jobTitleKey: normalizeKey(offer.jobTitle),
+      status: 'sent',
+      contractType: offer.contractType,
+      source: 'offer',
+      offerId: offer.offerId,
+      appliedAt: offer.appliedAt,
+      lastActivityAt: offer.appliedAt,
+    });
+    await repository.insertStatusChange(tx, {
+      applicationId: id,
+      status: 'sent',
+      changedAt: offer.appliedAt,
+      origin: 'offer',
+    });
+    return id;
+  } catch (error) {
+    return rethrowDuplicate(error);
+  }
+};
+
 /**
  * The id of the user's company bearing this name, creating it when absent (RG-14 deduplication). Entry point of
  * the applications module for the other modules, which never reach its repository (clean-code.md).
@@ -374,7 +421,9 @@ export const createApplicationsService = ({ db, clock }: ApplicationsServiceDeps
     async list(userId, query) {
       // EF-CAN-24: « YYYY-MM-DD » compares as the days it names.
       if (query.appliedFrom && query.appliedTo && query.appliedFrom > query.appliedTo) {
-        throw new ValidationError([{ path: 'query.appliedTo', message: 'La fin de la période précède son début' }]);
+        throw new ValidationError([
+          { path: 'query.appliedTo', message: 'La fin de la période précède son début' },
+        ]);
       }
       const [result, followUpDays] = await Promise.all([
         repository.listApplications(db, userId, { ...query, searchKey: normalizeKey(query.q ?? '') }),

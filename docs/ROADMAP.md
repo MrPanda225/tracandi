@@ -361,9 +361,17 @@ qui montre les offres, puis les sources, enfin l'économie de collecte.
   service public, codes ROME repliés).
   *Choix assumés* : un mot-clé en double, quelle que soit sa casse, est gardé une fois ; un document enregistré
   devenu invalide est traité comme absent (journalisé), jamais transmis aux sources.
-- [ ] **T-406 (étape 2) API et écran Offres** — `GET /api/offers` (score minimum, contrat, état, entreprise des
+- [x] **T-406 (étape 2) API et écran Offres** — `GET /api/offers` (score minimum, contrat, état, entreprise des
   candidatures), `PATCH /api/offers/{id}`, « J'ai postulé » ; écran Offres.
-  *Exigences* : EF-VEI-16 à 20, 22, EF-VEI-35 (affichage).
+  *Exigences* : EF-VEI-16 à 20, 22, EF-VEI-35 (affichage, avec T-412).
+  *Livré* : `modules/offers/` (schémas, dépôt, service, routes) : `GET /api/offers` (vues à regarder, gardées,
+  écartées, postulées ; score minimum ; contrat ; pages de 50), `GET /api/offers/{id}` (texte de l'offre),
+  `PATCH /api/offers/{id}`, `POST /api/offers/{id}/apply` (candidature « Envoyée » créée dans la même transaction,
+  `createApplicationFromOffer`) ; écran `/offres` (vues, filtres, note sur 100 lisible sans couleur, garder,
+  écarter, « J'ai postulé », texte lu à la demande, « Afficher 50 de plus »).
+  *Choix assumés* : une offre postulée ne change plus d'état (409) ; un intitulé déjà présent à l'entreprise est
+  refusé plutôt que fusionné (RG-03), l'offre restant à regarder. Le lien vers le CV utilisé (EF-VEI-20) est sans
+  objet depuis v1.30 : aucun CV n'est conservé.
 - [ ] **T-411 Client des API officielles et source France Travail** — client commun (délai, taille, débit par API,
   sans robots.txt, ENF-COL-05), jeton OAuth en mémoire, identifiants en configuration (ENF-SEC-23), source unique
   par candidat (`user_id` sur `watched_sites`, entreprise facultative), employeur enregistré sur l'offre, partenaires
@@ -393,7 +401,7 @@ qui montre les offres, puis les sources, enfin l'économie de collecte.
 
 - [ ] **T-405 Récapitulatif e-mail** — envoi via Gmail des offres de score ≥ S.
   *Exigences* : EF-VEI-15.
-- [~] **T-406 Écrans Sites et Offres** — ajout/suspension/retrait, liste triée, filtre score, garder/écarter,
+- [x] **T-406 Écrans Sites et Offres** — ajout/suspension/retrait, liste triée, filtre score, garder/écarter,
   « J'ai postulé ».
   *Exigences* : EF-VEI-01 à 05, 07, 10, 11 (écran Sites) ; EF-VEI-16 à 20, 22 (écran Offres).
   *Livré (étape 1, écran Sites)* : `pages/sites/SitesPage.tsx` et `NewSourceForm.tsx` — liste des sources avec

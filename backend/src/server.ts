@@ -37,6 +37,8 @@ import { createGmailModules } from './modules/emails/routes.js';
 import { createGmailSync } from './modules/emails/sync.js';
 import { createSettingsModule } from './modules/settings/routes.js';
 import { createCriteriaModule } from './modules/criteria/routes.js';
+import { createOffersModule } from './modules/offers/routes.js';
+import { createOffersService } from './modules/offers/service.js';
 import { createCriteriaService } from './modules/criteria/service.js';
 import { createSitesModule } from './modules/sites/routes.js';
 import { createOfficialClient } from './scraper/official/client.js';
@@ -213,6 +215,7 @@ const app = createApp({
       config.features,
       'watch',
       createSitesModule(watchService),
+      createOffersModule(createOffersService({ db: database.db, clock: systemClock })),
       createCriteriaModule(criteriaService),
     ),
   ],

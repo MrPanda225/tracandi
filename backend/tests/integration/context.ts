@@ -37,6 +37,8 @@ import { createSettingsModule } from '../../src/modules/settings/routes.js';
 import { createStatsModule } from '../../src/modules/stats/routes.js';
 import { createStatsService } from '../../src/modules/stats/service.js';
 import { createCriteriaModule } from '../../src/modules/criteria/routes.js';
+import { createOffersModule } from '../../src/modules/offers/routes.js';
+import { createOffersService } from '../../src/modules/offers/service.js';
 import { createCriteriaService } from '../../src/modules/criteria/service.js';
 import { createSitesModule } from '../../src/modules/sites/routes.js';
 import { createWatchService, type WatchService } from '../../src/modules/sites/service.js';
@@ -238,7 +240,13 @@ export const createTestContext = (
         ),
       ),
       createSettingsModule({ aiAssignments: describeAssignments(aiProviders), features }),
-      ...onlyIf(features, 'watch', createSitesModule(watch), createCriteriaModule(criteria)),
+      ...onlyIf(
+        features,
+        'watch',
+        createSitesModule(watch),
+        createOffersModule(createOffersService({ db: database.db, clock: clock.now })),
+        createCriteriaModule(criteria),
+      ),
     ],
   });
   return { app, database, clock, encryptionKey, gmailSync: sync, queue, watch };
