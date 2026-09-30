@@ -71,7 +71,8 @@ function Facts({ application, isDated }: { application: Application; isDated: bo
       <span className="application__fact application__fact--activity">
         <span className={isDated ? 'visually-hidden' : undefined}>candidature du {applied}</span>
         {isDated ? '' : ' · '}
-        dernière activité {freshnessOf(application.lastActivityAt, new Date())}
+        <span className="application__fact-label">dernière activité </span>
+        {freshnessOf(application.lastActivityAt, new Date())}
       </span>
     </span>
   );

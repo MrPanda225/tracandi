@@ -127,6 +127,16 @@
   .application__tags {
     justify-content: flex-end;
   }
+
+  /* Said by the name of the column above; kept for screen readers, which read each line on its own. */
+  .application__fact-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
 }
 
 .application__tags {

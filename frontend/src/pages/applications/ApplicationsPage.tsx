@@ -254,6 +254,14 @@ function SectionedList({ list, orderBy }: { list: ApplicationList; orderBy: Appl
   // rebuilt, so its opened detail stays open.
   return (
     <ul className="company-group company-group__list applications-list--flat">
+      {/* The names of the columns of a wide screen; each line already says them to screen readers. */}
+      <li className="applications-columns" aria-hidden="true">
+        <span>Candidature</span>
+        <span>Canal</span>
+        <span>Contrat</span>
+        <span>Dernière activité</span>
+        <span>Statut</span>
+      </li>
       {sectionsOf(list.items, orderBy, new Date()).flatMap((section) => [
         <li key={`section-${section.key}`} className="applications-section">
           <h2 className="applications-section__title">
