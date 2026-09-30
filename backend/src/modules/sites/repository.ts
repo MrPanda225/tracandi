@@ -1,4 +1,4 @@
-import { and, count, eq, inArray, notExists, sql } from 'drizzle-orm';
+import { and, count, eq, notExists, sql } from 'drizzle-orm';
 import type { Database } from '../../db/client.js';
 import {
   applications,
@@ -18,8 +18,9 @@ export type Executor = Database | Transaction;
 /** A watched source with the name of its company and how many offers it has produced. */
 export interface SourceRow {
   id: number;
-  companyId: number;
-  companyName: string;
+  /** Null for an official source (EF-VEI-32), which has no company of its own. */
+  companyId: number | null;
+  companyName: string | null;
   adapter: SiteAdapterId;
   identifier: string;
   isActive: boolean;
@@ -28,8 +29,8 @@ export interface SourceRow {
   offerCount: number;
 }
 
-// EF-AUT-06: a source belongs to the user owning its company.
-const ownedBy = (userId: number) => eq(companies.userId, userId);
+// EF-AUT-06: a source carries its owner (v1.33), official sources included.
+const ownedBy = (userId: number) => eq(watchedSites.userId, userId);
 
 /**
  * ENF-PERF-04: counted by a correlated subquery rather than a join, which the planner serves from
@@ -53,17 +54,16 @@ const sourceColumns = {
 };
 
 const selectSources = (db: Executor) =>
-  db
-    .select(sourceColumns)
-    .from(watchedSites)
-    .innerJoin(companies, eq(companies.id, watchedSites.companyId));
+  db.select(sourceColumns).from(watchedSites).leftJoin(companies, eq(companies.id, watchedSites.companyId));
 
 /**
  * The user's watched sources, company first then identifier, with their offer count.
  * @req EF-VEI-01, EF-AUT-06
  */
 export const listSources = async (db: Executor, userId: number): Promise<SourceRow[]> =>
-  selectSources(db).where(ownedBy(userId)).orderBy(companies.name, watchedSites.identifier);
+  selectSources(db)
+    .where(ownedBy(userId))
+    .orderBy(sql`${companies.name} nulls first`, watchedSites.identifier);
 
 /** One source of the user, or undefined when it is another user's or does not exist (EF-AUT-06). */
 export const findSource = async (db: Executor, userId: number, id: number): Promise<SourceRow | undefined> =>
@@ -78,9 +78,8 @@ export const listActiveSources = async (db: Executor, userId: number): Promise<S
 /** Every user whose watch has at least one active source, for the scheduled pass (EF-VEI-06). */
 export const listUsersWithActiveSources = async (db: Executor): Promise<number[]> => {
   const rows = await db
-    .selectDistinct({ userId: companies.userId })
+    .selectDistinct({ userId: watchedSites.userId })
     .from(watchedSites)
-    .innerJoin(companies, eq(companies.id, watchedSites.companyId))
     .where(eq(watchedSites.isActive, true));
   return rows.map((row) => row.userId);
 };
@@ -92,7 +91,7 @@ export const listUsersWithActiveSources = async (db: Executor): Promise<number[]
  */
 export const insertSource = async (
   db: Executor,
-  source: { companyId: number; adapter: SiteAdapterId; identifier: string },
+  source: { userId: number; companyId: number | null; adapter: SiteAdapterId; identifier: string },
 ): Promise<number> => {
   const [row] = await db.insert(watchedSites).values(source).returning({ id: watchedSites.id });
   if (!row) throw new Error('watched site insert returned no row');
@@ -107,22 +106,12 @@ export const setSourceActive = async (
   await db
     .update(watchedSites)
     .set({ isActive: change.isActive })
-    .where(
-      and(
-        eq(watchedSites.id, change.id),
-        inArray(watchedSites.companyId, ownedCompanyIds(db, change.userId)),
-      ),
-    );
+    .where(and(eq(watchedSites.id, change.id), ownedBy(change.userId)));
 };
-
-const ownedCompanyIds = (db: Executor, userId: number) =>
-  db.select({ id: companies.id }).from(companies).where(ownedBy(userId));
 
 /** EF-VEI-05: removes a source of the user; its offers go with it (`on delete cascade`). */
 export const deleteSource = async (db: Executor, userId: number, id: number): Promise<void> => {
-  await db
-    .delete(watchedSites)
-    .where(and(eq(watchedSites.id, id), inArray(watchedSites.companyId, ownedCompanyIds(db, userId))));
+  await db.delete(watchedSites).where(and(eq(watchedSites.id, id), ownedBy(userId)));
 };
 
 /** EF-VEI-10, EF-VEI-11: what the last check of a source left behind, kept whether it worked or not. */
@@ -171,6 +160,7 @@ export const insertOffers = async (
       offers.map((offer) => ({
         siteId,
         externalId: offer.externalId,
+        companyName: offer.employerName ?? null,
         title: offer.title,
         location: offer.location,
         contractType: offer.contractType,

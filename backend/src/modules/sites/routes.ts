@@ -150,6 +150,7 @@ export const createSitesModule = (service: WatchService): ApiModule => {
         id: adapter.id,
         label: adapter.label,
         identifierHint: adapter.identifierHint,
+        isOfficial: adapter.isOfficial === true,
       })),
     });
   });

@@ -43,6 +43,7 @@ import { createCriteriaService } from '../../src/modules/criteria/service.js';
 import { createSitesModule } from '../../src/modules/sites/routes.js';
 import { createWatchService, type WatchService } from '../../src/modules/sites/service.js';
 import type { AdapterDeps } from '../../src/scraper/adapters/types.js';
+import type { FranceTravailApi } from '../../src/scraper/official/franceTravail.js';
 import type { Place, PlaceFinder } from '../../src/scraper/official/geo.js';
 import { testDatabaseUrl } from './test-database.js';
 
@@ -138,6 +139,8 @@ export interface ExternalServices {
   collect?: AdapterDeps['fetch'];
   /** EF-VEI-30: the public service of the communes, simulated. */
   places?: PlaceFinder;
+  /** EF-VEI-32: the France Travail API, simulated; absent means « not configured » (EF-VEI-37). */
+  franceTravail?: FranceTravailApi | null;
   /** ENF-MAI-07: the optional features of this deployment; every one by default. */
   features?: EnabledFeatures;
   /** BES-39: proxies in front of the API (Vercel, Northflank); none by default. */
@@ -153,6 +156,7 @@ export const createTestContext = (
     aiProviders = unreachableAi,
     collect = unreachableCollector,
     places = knownPlaces,
+    franceTravail = null,
     features = new Set(OPTIONAL_FEATURES),
     trustProxyHops = 0,
   }: ExternalServices = {},
@@ -198,6 +202,7 @@ export const createTestContext = (
     router: llmRouter,
     queue,
     collect,
+    officialApis: { franceTravail },
     logger,
   });
   const app = createApp({

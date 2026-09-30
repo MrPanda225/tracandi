@@ -42,6 +42,7 @@ import { createOffersService } from './modules/offers/service.js';
 import { createCriteriaService } from './modules/criteria/service.js';
 import { createSitesModule } from './modules/sites/routes.js';
 import { createOfficialClient } from './scraper/official/client.js';
+import { createFranceTravailApi } from './scraper/official/franceTravail.js';
 import { createPlaceFinder } from './scraper/official/geo.js';
 import { createWatchService } from './modules/sites/service.js';
 import { createPoliteFetch } from './scraper/http.js';
@@ -154,6 +155,13 @@ const criteriaService = createCriteriaService({
   logger,
 });
 
+// EF-VEI-37: an official API without credentials leaves its source to say so; the others still run.
+const officialApis = {
+  franceTravail: config.officialSources.franceTravail
+    ? createFranceTravailApi({ request: officialRequest, credentials: config.officialSources.franceTravail })
+    : null,
+};
+
 const watchService = createWatchService({
   db: database.db,
   clock: systemClock,
@@ -162,6 +170,7 @@ const watchService = createWatchService({
   router: llmRouter,
   queue: jobQueue,
   collect,
+  officialApis,
   logger,
 });
 

@@ -60,10 +60,7 @@ export const createAccountService = ({ db, clock }: { db: Database; clock: Clock
         db,
         owned.applications.map((application) => application.id),
       ),
-      repository.readWatch(
-        db,
-        owned.companies.map((company) => company.id),
-      ),
+      repository.readWatch(db, userId),
     ]);
     return {
       exportedAt: clock(),

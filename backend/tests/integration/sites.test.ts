@@ -234,7 +234,7 @@ describe('watched sources (EF-VEI-01 to EF-VEI-05)', () => {
     expect((await api(alice).list()).body).toMatchObject({ items: [{ isActive: true }] });
   });
 
-  it('[EF-VEI-01] [ENF-MAI-03] lists the six source types with what to type for each', async () => {
+  it('[EF-VEI-01] [EF-VEI-08] [ENF-MAI-03] lists the source types with what to type for each', async () => {
     const types = await request(context.app).get('/api/sites/types').set('Cookie', alice);
 
     expect(types.status).toBe(200);
@@ -246,6 +246,7 @@ describe('watched sources (EF-VEI-01 to EF-VEI-05)', () => {
       'recruitee',
       'workday',
       'generic',
+      'france_travail',
     ]);
     // The screen shows the name and the hint as they are: it never holds the list itself.
     expect(items.every((type) => type.label !== '' && type.identifierHint !== '')).toBe(true);

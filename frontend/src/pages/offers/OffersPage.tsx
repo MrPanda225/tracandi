@@ -11,6 +11,7 @@ import {
   type OfferQuery,
   type OfferView,
 } from '../../api/offers';
+import type { SourceAdapterId } from '../../api/sites';
 import type { ContractType } from '../../api/stats';
 import { Flash } from '../../components/Flash';
 import { PageHeader } from '../../components/PageHeader';
@@ -26,6 +27,7 @@ const VIEWS: readonly { id: OfferView; label: string }[] = [
 ];
 
 const MIN_SCORES = [40, 60, 80] as const;
+const OFFICIAL_SOURCES: ReadonlySet<SourceAdapterId> = new Set(['france_travail']);
 // « Non précisé », « Autre » : filtrer sur eux ne sert à rien, le filtre propose les contrats recherchés (RG-09).
 const FILTERABLE_CONTRACTS = CONTRACT_TYPES.filter(
   (contract) => contract !== 'non_precise' && contract !== 'autre',
@@ -46,6 +48,8 @@ const factsOf = (offer: Offer): string =>
     offer.postedAt
       ? `publiée le ${formatDate(offer.postedAt)}`
       : `repérée le ${formatDate(offer.firstSeenAt)}`,
+    // EF-VEI-32: an offer of an official source names its source, as its reuse licence asks.
+    OFFICIAL_SOURCES.has(offer.source.adapter) ? `source : ${offer.source.label}` : null,
   ]
     .filter((fact): fact is string => fact !== null && fact !== '')
     .join(' · ');

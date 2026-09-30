@@ -10,6 +10,8 @@ import type { LlmRouter } from '../../llm/router.js';
 import { adapterFor } from '../../scraper/adapters/index.js';
 import { describeCollectionFailure } from '../../scraper/failures.js';
 import type { AdapterDeps, NormalizedOffer } from '../../scraper/adapters/types.js';
+import type { FranceTravailApi } from '../../scraper/official/franceTravail.js';
+import type { WatchCriteria } from '../criteria/schemas.js';
 import {
   isWorthScoring,
   matchedTargetOf,
@@ -28,6 +30,8 @@ export interface WatchPassDeps {
   router: LlmRouter;
   /** The responsible collector of T-401, shared by every adapter (rules/scraping.md). */
   collect: AdapterDeps['fetch'];
+  /** EF-VEI-32, EF-VEI-37: the clients of the official APIs; null when the server has no credentials for one. */
+  officialApis: { franceTravail: FranceTravailApi | null };
   logger: Logger;
 }
 
@@ -36,6 +40,8 @@ export interface PassContext {
   userId: number;
   /** What every new offer is scored against: the search criteria, or the reference profile at worst (EF-VEI-31). */
   scoring: ScoringProfile;
+  /** EF-VEI-32: what the official sources are queried with; null while the candidate has saved none. */
+  criteria: WatchCriteria | null;
   /** The active sources to read, chosen by the caller (EF-VEI-04). */
   sources: readonly SourceRow[];
   /** EF-VEI-15: score S at or above which an offer counts as relevant. */
@@ -131,7 +137,14 @@ const createScorer = ({ router }: ScorerDeps) => {
   };
 };
 
-export const createWatchPass = ({ db, clock, router, collect, logger }: WatchPassDeps): WatchPass => {
+export const createWatchPass = ({
+  db,
+  clock,
+  router,
+  collect,
+  officialApis,
+  logger,
+}: WatchPassDeps): WatchPass => {
   const scoreOffers = createScorer({ router });
 
   /** One source: read, kept apart from what is already known (EF-VEI-09), scored, then stored. */
@@ -139,6 +152,12 @@ export const createWatchPass = ({ db, clock, router, collect, logger }: WatchPas
     const found = await adapterFor(source.adapter).fetchOffers(source.identifier, {
       fetch: collect,
       runTask: (task, input) => router.runTask(task, { ...input, userId: context.userId }),
+      official: {
+        criteria: context.criteria,
+        since: source.lastCheckedAt,
+        now: clock(),
+        franceTravail: officialApis.franceTravail,
+      },
     });
     const known = await repository.listKnownOfferIds(db, source.id);
     const fresh = found.filter((offer) => !known.has(offer.externalId));

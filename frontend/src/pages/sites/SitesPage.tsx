@@ -20,6 +20,7 @@ import { Skeleton } from '../../components/Skeleton';
 import { formatDateTime } from '../../lib/format';
 import { CriteriaCard } from './CriteriaCard';
 import { NewSourceForm } from './NewSourceForm';
+import { OfficialSources } from './OfficialSources';
 import { Suggestions, type WatchAllFailure } from './Suggestions';
 import './SitesPage.css';
 
@@ -73,11 +74,17 @@ function SourceRow({
     <li className={`site${source.isActive ? '' : ' site--suspended'}`}>
       <div className="site__main">
         <p className="site__company">
-          {source.companyName}
+          {source.companyName ?? source.adapterLabel}
           {!source.isActive && <span className="site__badge">Suspendue</span>}
         </p>
         <p className="site__meta">
-          {source.adapterLabel} · <code>{source.identifier}</code>
+          {source.companyName === null ? (
+            'Interrogée selon vos critères de recherche'
+          ) : (
+            <>
+              {source.adapterLabel} · <code>{source.identifier}</code>
+            </>
+          )}
         </p>
         <LastCheck source={source} />
       </div>
@@ -188,7 +195,8 @@ export function SitesPage() {
 
   const handleAdd = async (source: NewSource) => {
     await addSource(source);
-    setNotice(`${source.companyName} est maintenant surveillée.`);
+    const name = source.companyName ?? types.find((type) => type.id === source.adapter)?.label ?? 'La source';
+    setNotice(`${name} est maintenant surveillée.`);
     await load();
   };
 
@@ -278,7 +286,9 @@ export function SitesPage() {
         onDismissed={() => void load()}
       />
 
-      <NewSourceForm types={types} prefill={prefill} onAdd={handleAdd} />
+      <OfficialSources types={types} sources={sources ?? []} onAdd={handleAdd} />
+
+      <NewSourceForm types={types.filter((type) => !type.isOfficial)} prefill={prefill} onAdd={handleAdd} />
 
       {sources === null && error === null && (
         <div role="status" aria-live="polite" className="sites-loading">

@@ -1,25 +1,29 @@
 import { request } from './client';
 
-/** Les six types de source de la veille (schéma `SourceType` dans /api/docs, EF-VEI-08). */
+/** Les types de source de la veille (schéma `SourceType` dans /api/docs, EF-VEI-08). */
 export type SourceAdapterId =
   | 'greenhouse'
   | 'lever'
   | 'smartrecruiters'
   | 'recruitee'
   | 'workday'
-  | 'generic';
+  | 'generic'
+  | 'france_travail';
 
 /** Un type de source, tel que l'API le décrit : l'écran ne tient pas la liste lui-même (ENF-MAI-03). */
 export interface SourceType {
   id: SourceAdapterId;
   label: string;
   identifierHint: string;
+  /** EF-VEI-32 : une source officielle, sans entreprise, interrogée selon les critères de recherche. */
+  isOfficial: boolean;
 }
 
 /** Une source surveillée (schéma `Source` dans /api/docs, EF-VEI-01, EF-VEI-10, EF-VEI-11). */
 export interface Source {
   id: number;
-  companyName: string;
+  /** Null pour une source officielle (EF-VEI-32), nommée par son type. */
+  companyName: string | null;
   adapter: SourceAdapterId;
   adapterLabel: string;
   identifier: string;
@@ -30,7 +34,8 @@ export interface Source {
 }
 
 export interface NewSource {
-  companyName: string;
+  /** Absent pour une source officielle, qui n'a pas d'entreprise (EF-VEI-32). */
+  companyName?: string;
   adapter: SourceAdapterId;
   identifier: string;
 }

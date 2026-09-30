@@ -196,8 +196,14 @@ export const countNewOffersAbove = async (
     .select({ count: count() })
     .from(jobOffers)
     .innerJoin(watchedSites, eq(jobOffers.siteId, watchedSites.id))
-    .innerJoin(companies, eq(watchedSites.companyId, companies.id))
-    .where(and(ownedBy(userId), eq(jobOffers.status, 'new'), gte(jobOffers.relevanceScore, threshold)));
+    // v1.33: the source carries its owner, official sources included (no company).
+    .where(
+      and(
+        eq(watchedSites.userId, userId),
+        eq(jobOffers.status, 'new'),
+        gte(jobOffers.relevanceScore, threshold),
+      ),
+    );
   return row?.count ?? 0;
 };
 

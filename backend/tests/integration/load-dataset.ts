@@ -113,6 +113,7 @@ export const seedLoadDataset = async (db: Database, pool: pg.Pool, now: Date): P
       .insert(watchedSites)
       .values(
         Array.from({ length: LOAD.sites }, (_, i) => ({
+          userId: user.id,
           companyId: pick(companyIds, i),
           adapter: 'greenhouse' as const,
           identifier: `site-${i}`,

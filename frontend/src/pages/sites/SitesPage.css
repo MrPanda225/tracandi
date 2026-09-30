@@ -370,3 +370,33 @@
   align-items: center;
   cursor: pointer;
 }
+
+/* ---------- Sources officielles (EF-VEI-32) ---------- */
+
+.official {
+  margin-bottom: clamp(1rem, 0.6rem + 1.5vw, 1.5rem);
+  padding: clamp(1rem, 0.8rem + 0.8vw, 1.4rem);
+  border-radius: var(--radius-md);
+  background: var(--color-canvas-raised);
+  box-shadow: var(--shadow-soft);
+}
+
+.official__title {
+  margin: 0 0 0.35rem;
+  font-size: 1.05rem;
+}
+
+.official__text {
+  margin: 0 0 0.75rem;
+  color: var(--color-mauve-deep);
+  font-size: 0.9rem;
+}
+
+.official__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}

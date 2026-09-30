@@ -48,7 +48,12 @@ const seedOffers = async (offers: readonly OfferSeed[]): Promise<number[]> => {
     .returning({ id: companies.id });
   const [site] = await database.db
     .insert(watchedSites)
-    .values({ companyId: company?.id ?? 0, adapter: 'greenhouse', identifier: 'atelieraurore' })
+    .values({
+      userId: user?.id ?? 0,
+      companyId: company?.id ?? 0,
+      adapter: 'greenhouse',
+      identifier: 'atelieraurore',
+    })
     .returning({ id: watchedSites.id });
   const rows = await database.db
     .insert(jobOffers)

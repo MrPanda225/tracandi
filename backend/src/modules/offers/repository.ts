@@ -20,7 +20,8 @@ const STATUSES_OF_VIEW: Record<OfferQuery['view'], readonly OfferStatus[]> = {
 const offerColumns = {
   id: jobOffers.id,
   title: jobOffers.title,
-  companyName: companies.name,
+  // EF-VEI-32: the employer an official source named, or the company of the source.
+  companyName: sql<string>`coalesce(${jobOffers.companyName}, ${companies.name}, 'Employeur non précisé')`,
   location: jobOffers.location,
   contractType: jobOffers.contractType,
   url: jobOffers.url,
@@ -51,8 +52,8 @@ export interface OfferRow {
   applicationId: number | null;
 }
 
-// EF-AUT-06: an offer belongs to the user owning the company of its source.
-const ownedBy = (userId: number): SQL => eq(companies.userId, userId);
+// EF-AUT-06: an offer belongs to the owner of its source.
+const ownedBy = (userId: number): SQL => eq(watchedSites.userId, userId);
 
 const filtersOf = (userId: number, query: OfferQuery): SQL | undefined =>
   and(
@@ -78,7 +79,7 @@ export const listOffers = async (
       .select(offerColumns)
       .from(jobOffers)
       .innerJoin(watchedSites, eq(watchedSites.id, jobOffers.siteId))
-      .innerJoin(companies, eq(companies.id, watchedSites.companyId))
+      .leftJoin(companies, eq(companies.id, watchedSites.companyId))
       .leftJoin(applications, eq(applications.offerId, jobOffers.id))
       .where(where)
       .orderBy(
@@ -88,12 +89,11 @@ export const listOffers = async (
       )
       .limit(query.limit)
       .offset(query.offset),
-    // The count needs no application: joining them would change nothing but the cost.
+    // The count needs neither company nor application: joining them would change nothing but the cost.
     db
       .select({ total: count() })
       .from(jobOffers)
       .innerJoin(watchedSites, eq(watchedSites.id, jobOffers.siteId))
-      .innerJoin(companies, eq(companies.id, watchedSites.companyId))
       .where(where),
   ]);
   return { rows, total: totals[0]?.total ?? 0 };
@@ -110,7 +110,7 @@ export const findOffer = async (
       .select({ ...offerColumns, description: jobOffers.description })
       .from(jobOffers)
       .innerJoin(watchedSites, eq(watchedSites.id, jobOffers.siteId))
-      .innerJoin(companies, eq(companies.id, watchedSites.companyId))
+      .leftJoin(companies, eq(companies.id, watchedSites.companyId))
       .leftJoin(applications, eq(applications.offerId, jobOffers.id))
       .where(and(ownedBy(userId), eq(jobOffers.id, id)))
   )[0];
