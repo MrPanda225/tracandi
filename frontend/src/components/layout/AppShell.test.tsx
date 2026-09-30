@@ -298,4 +298,23 @@ describe('AppShell', () => {
 
     expect(screen.queryByRole('link', { name: 'Reconnecter Gmail' })).not.toBeInTheDocument();
   });
+
+  it('[ENF-PERF-07] shows the login page while the session is still being checked', async () => {
+    let answerSession: (response: Response) => void = () => undefined;
+    const session = new Promise<Response>((resolve) => (answerSession = resolve));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) => (url.endsWith('/auth/session') ? session : Promise.resolve(json(404, {})))),
+    );
+    render(
+      <MemoryRouter initialEntries={['/connexion']} future={ROUTER_FUTURE}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole('heading', { name: 'Bon retour.' })).toBeInTheDocument();
+
+    answerSession(json(200, { account: ACCOUNT }));
+    expect(await screen.findByRole('heading', { level: 1, name: 'Tableau de bord' })).toBeInTheDocument();
+  });
 });

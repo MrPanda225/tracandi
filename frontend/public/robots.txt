@@ -7,9 +7,12 @@ Allow: /confidentialite
 Allow: /cookies
 Allow: /favicon.svg
 Allow: /llms.txt
+Allow: /sitemap.xml
 Disallow: /api/
 Disallow: /candidatures
 Disallow: /reglages
 Disallow: /offres
 Disallow: /sites
 Disallow: /atelier-cv
+
+Sitemap: https://tracandi.vercel.app/sitemap.xml
