@@ -27,10 +27,13 @@ export function RequireAuth({ children, anonymousHome }: { children: ReactNode; 
   return children;
 }
 
-/** Keeps a signed-in user away from the login page. */
+/**
+ * Keeps a signed-in user away from the login page. While the session is being checked, the page is shown at once:
+ * whoever opens it is nearly always a visitor, who no longer waits for the check (ENF-PERF-07); a signed-in user is
+ * sent to the dashboard as soon as the answer arrives.
+ */
 export function RedirectIfAuthenticated({ children }: { children: ReactNode }) {
   const { state } = useAuth();
-  if (state.status === 'loading') return <SessionPending />;
   if (state.status === 'authenticated') return <Navigate to="/" replace />;
   return children;
 }
