@@ -372,6 +372,10 @@ export const createApplicationsService = ({ db, clock }: ApplicationsServiceDeps
 
   return {
     async list(userId, query) {
+      // EF-CAN-24: « YYYY-MM-DD » compares as the days it names.
+      if (query.appliedFrom && query.appliedTo && query.appliedFrom > query.appliedTo) {
+        throw new ValidationError([{ path: 'query.appliedTo', message: 'La fin de la période précède son début' }]);
+      }
       const [result, followUpDays] = await Promise.all([
         repository.listApplications(db, userId, { ...query, searchKey: normalizeKey(query.q ?? '') }),
         followUpDaysOf(userId),

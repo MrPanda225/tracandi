@@ -228,5 +228,6 @@ Commande de contrôle : `/project:check-req EF-CAN-07`.
 | EF-CAN-19, EF-CAN-21 | T-902 | — | à faire |
 | EF-CAN-23 | T-903 | — | à faire |
 | RG-01, RG-02, RG-04, RG-05, RG-07 (v1.32) | T-904 | — | à faire |
-| EF-CAN-01 (v1.32), EF-CAN-20, EF-CAN-22, EF-CAN-24 | T-905 | — | à faire |
+| EF-CAN-01 (v1.32), EF-CAN-20, EF-CAN-24 | T-905 | `backend/tests/integration/applications.test.ts` (plus récente d'abord par défaut, ordre inverse, par entreprise dans les deux sens, par statut ; période en jours de Paris, borne haute incluse ; jour inexistant, format faux, période inversée et tri inconnu refusés) ; `applications-query-plans.test.ts` (période sans parcours complet ; chaque tri de 1 000 candidatures en moins de 200 ms) ; `src/lib/parisTime.test.ts` (jours de 23 et 25 heures) ; `frontend/src/pages/applications/ApplicationsPage.test.tsx` (ordre par défaut demandé à l'API, ordre choisi, période, regroupement par entreprise dans ce seul tri) | couverte |
+| EF-CAN-22 | T-905 | — | à faire |
 | RG-20 (v1.32) | T-906 | — | à faire |

@@ -15,16 +15,19 @@
   margin-bottom: clamp(1rem, 0.6rem + 1.5vw, 1.5rem);
 }
 
-.applications-filters__search {
+/* Narrow: the search and the order each on a whole row, the two dates of the period side by side. */
+.applications-filters__search,
+.applications-filters__order {
   grid-column: 1 / -1;
 }
 
-@container shell-main (min-width: 44rem) {
+/* Wide: the search on its own row, then five fields side by side (status, contract, order, period). */
+@container shell-main (min-width: 52rem) {
   .applications-filters {
-    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 
-  .applications-filters__search {
+  .applications-filters__order {
     grid-column: auto;
   }
 }
@@ -91,4 +94,10 @@
   border-radius: var(--radius-md);
   color: var(--color-mauve-deep);
   text-align: center;
+}
+
+/* EF-CAN-20: a flat list, one card, the applications one under the other. */
+.applications-list--flat {
+  margin: 0;
+  list-style: none;
 }

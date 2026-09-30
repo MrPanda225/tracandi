@@ -710,9 +710,13 @@ développeur l'active sur son poste (`ENABLED_FEATURES=watch,cv`) le temps d'y t
 - [ ] **T-904 Statut « Test technique »** — énumérations (migration), classement, rangs, libellé Gmail, taux de réponse,
   tableau de bord, filtre.
   *Exigences* : RG-01, RG-02, RG-04, RG-05, RG-07 (v1.32).
-- [ ] **T-905 Tri, filtre par période et couleurs** — tri au choix, filtre du … au …, index pour ENF-PERF-04,
+- [~] **T-905 Tri, filtre par période et couleurs** — tri au choix, filtre du … au …, index pour ENF-PERF-04,
   couleurs des statuts (règle `frontend.md` mise à jour).
   *Exigences* : EF-CAN-01 (v1.32), EF-CAN-20, EF-CAN-22, EF-CAN-24.
+  *Livré, étape 1 (30/09/2026, à la demande du Business Owner)* : tri au choix, par défaut la candidature la plus
+  récente d'abord ; liste à plat qui nomme l'entreprise de chaque candidature, groupée par entreprise seulement dans le
+  tri par entreprise ; filtre « Candidature du … au … » en jours de Paris (`lib/parisTime.ts`, exact les jours de
+  changement d'heure, ce qui corrige aussi le décompte quotidien de l'Atelier CV). *Reste* : couleurs (EF-CAN-22).
 - [ ] **T-906 Relance vers le recruteur** — adresses des plateformes écartées du contact (RG-20 v1.32).
   *Exigences* : RG-20.
 

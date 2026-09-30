@@ -1,6 +1,12 @@
 import { useId, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import type { Application, NewApplication } from '../../api/applications';
+import {
+  APPLICATION_ORDERS,
+  type Application,
+  type ApplicationOrder,
+  DEFAULT_ORDER,
+  type NewApplication,
+} from '../../api/applications';
 import type { ApplicationStatus, ContractType } from '../../api/stats';
 import { Flash } from '../../components/Flash';
 import { PageHeader } from '../../components/PageHeader';
@@ -26,14 +32,21 @@ interface Filters {
   status?: ApplicationStatus;
   contractType?: ContractType;
   q: string;
+  orderBy: ApplicationOrder;
+  /** EF-CAN-24: « YYYY-MM-DD » of the date fields, empty when not set. */
+  appliedFrom: string;
+  appliedTo: string;
 }
+
+const ORDERS = Object.keys(APPLICATION_ORDERS) as ApplicationOrder[];
+const toOrder = (value: string): ApplicationOrder => ORDERS.find((order) => order === value) ?? DEFAULT_ORDER;
 
 interface CompanyGroup {
   company: Application['company'];
   applications: Application[];
 }
 
-/** EF-CAN-01: the API sorts by company name, so each company's applications are contiguous. */
+/** EF-CAN-01: sorted by company, each company's applications are contiguous. */
 const groupByCompany = (applications: readonly Application[]): CompanyGroup[] => {
   const groups: CompanyGroup[] = [];
   for (const application of applications) {
@@ -45,7 +58,14 @@ const groupByCompany = (applications: readonly Application[]): CompanyGroup[] =>
 };
 
 function FilterBar({ filters, onChange }: { filters: Filters; onChange: (filters: Filters) => void }) {
-  const ids = { search: useId(), status: useId(), contract: useId() };
+  const ids = {
+    search: useId(),
+    status: useId(),
+    contract: useId(),
+    order: useId(),
+    from: useId(),
+    to: useId(),
+  };
   return (
     <form role="search" className="applications-filters" onSubmit={(event) => event.preventDefault()}>
       <div className="form-field applications-filters__search">
@@ -98,6 +118,50 @@ function FilterBar({ filters, onChange }: { filters: Filters; onChange: (filters
           ))}
         </select>
       </div>
+      <div className="form-field applications-filters__order">
+        <label className="form-field__label" htmlFor={ids.order}>
+          Trier par
+        </label>
+        <select
+          id={ids.order}
+          className="control"
+          value={filters.orderBy}
+          onChange={(event) => onChange({ ...filters, orderBy: toOrder(event.target.value) })}
+        >
+          {ORDERS.map((order) => (
+            <option key={order} value={order}>
+              {APPLICATION_ORDERS[order].label}
+            </option>
+          ))}
+        </select>
+      </div>
+      {/* EF-CAN-24: the period of application, each bound optional. */}
+      <div className="form-field">
+        <label className="form-field__label" htmlFor={ids.from}>
+          Candidature du
+        </label>
+        <input
+          id={ids.from}
+          type="date"
+          className="control"
+          value={filters.appliedFrom}
+          max={filters.appliedTo || undefined}
+          onChange={(event) => onChange({ ...filters, appliedFrom: event.target.value })}
+        />
+      </div>
+      <div className="form-field">
+        <label className="form-field__label" htmlFor={ids.to}>
+          au
+        </label>
+        <input
+          id={ids.to}
+          type="date"
+          className="control"
+          value={filters.appliedTo}
+          min={filters.appliedFrom || undefined}
+          onChange={(event) => onChange({ ...filters, appliedTo: event.target.value })}
+        />
+      </div>
     </form>
   );
 }
@@ -129,11 +193,52 @@ function EmptyState({ hasFilters }: { hasFilters: boolean }) {
   );
 }
 
-function CompanyGroups({ list }: { list: ApplicationList }) {
-  const baseId = useId();
+/** EF-CAN-20: in any other order than by company, one flat list, each application naming its company. */
+function FlatList({ list }: { list: ApplicationList }) {
+  return (
+    <ul className="company-group company-group__list applications-list--flat">
+      {list.items.map((application) => (
+        <ApplicationItem
+          key={application.id}
+          application={application}
+          showsCompany
+          onUpdated={list.replaceItem}
+          onDeleted={list.removeItem}
+        />
+      ))}
+    </ul>
+  );
+}
+
+function MoreButton({ list }: { list: ApplicationList }) {
   const remaining = list.total - list.items.length;
+  if (remaining <= 0) return null;
+  return (
+    <button
+      type="button"
+      className="btn btn--quiet applications-list__more"
+      disabled={list.isLoadingMore}
+      aria-busy={list.isLoadingMore}
+      onClick={() => void list.loadMore()}
+    >
+      {list.isLoadingMore ? 'Chargement…' : `Afficher plus (${plural(remaining, 'restante')})`}
+    </button>
+  );
+}
+
+function ApplicationsList({ list, isGrouped }: { list: ApplicationList; isGrouped: boolean }) {
   return (
     <div className="applications-list" aria-busy={list.isLoading}>
+      {isGrouped ? <CompanyGroups list={list} /> : <FlatList list={list} />}
+      <MoreButton list={list} />
+    </div>
+  );
+}
+
+function CompanyGroups({ list }: { list: ApplicationList }) {
+  const baseId = useId();
+  return (
+    <>
       {groupByCompany(list.items).map((group) => {
         const headingId = `${baseId}-company-${group.company.id}`;
         return (
@@ -144,7 +249,9 @@ function CompanyGroups({ list }: { list: ApplicationList }) {
               </h2>
               {/* Counted only when there is more than one: « 1 candidature » under every company was noise. */}
               {group.applications.length > 1 && (
-                <span className="company-group__count">{plural(group.applications.length, 'candidature')}</span>
+                <span className="company-group__count">
+                  {plural(group.applications.length, 'candidature')}
+                </span>
               )}
             </div>
             <ul className="company-group__list">
@@ -160,24 +267,13 @@ function CompanyGroups({ list }: { list: ApplicationList }) {
           </section>
         );
       })}
-      {remaining > 0 && (
-        <button
-          type="button"
-          className="btn btn--quiet applications-list__more"
-          disabled={list.isLoadingMore}
-          aria-busy={list.isLoadingMore}
-          onClick={() => void list.loadMore()}
-        >
-          {list.isLoadingMore ? 'Chargement…' : `Afficher plus (${plural(remaining, 'restante')})`}
-        </button>
-      )}
-    </div>
+    </>
   );
 }
 
 /**
- * Applications screen (T-103): every application grouped by company (EF-CAN-01), filters by status and contract
- * type (EF-CAN-02, 14), search (EF-CAN-03), chronology and Gmail links (EF-CAN-04, 05), manual creation and status
+ * Applications screen (T-103): every application, the most recent first or in the order chosen — grouped by company
+ * when sorted by company (EF-CAN-01, 20) —, filters by status, contract type and period (EF-CAN-02, 14, 24), search (EF-CAN-03), chronology and Gmail links (EF-CAN-04, 05), manual creation and status
  * change (EF-CAN-06, 07), « à relancer » badge (EF-CAN-12).
  */
 export function ApplicationsPage() {
@@ -188,11 +284,20 @@ export function ApplicationsPage() {
     status: lastFilters?.status,
     contractType: lastFilters?.contractType,
     q: lastFilters?.q ?? '',
+    orderBy: lastFilters?.orderBy ?? DEFAULT_ORDER,
+    appliedFrom: lastFilters?.appliedFrom ?? '',
+    appliedTo: lastFilters?.appliedTo ?? '',
   }));
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [confirmation, setConfirmation] = useState<string | null>(null);
-  const list = useApplications(filters);
-  const hasFilters = Boolean(filters.status ?? filters.contractType ?? filters.q.trim());
+  const list = useApplications({
+    ...filters,
+    appliedFrom: filters.appliedFrom || undefined,
+    appliedTo: filters.appliedTo || undefined,
+  });
+  const hasFilters = Boolean(
+    filters.status ?? filters.contractType ?? (filters.q.trim() || filters.appliedFrom || filters.appliedTo),
+  );
 
   // The form unmounts on close: keyboard focus goes back to the button that opened it.
   const closeForm = () => {
@@ -217,7 +322,7 @@ export function ApplicationsPage() {
         title="Candidatures"
         eyebrow={list.hasLoaded ? plural(list.total, hasFilters ? 'résultat' : 'candidature') : undefined}
       >
-        <p>Chaque candidature, groupée par entreprise, avec l’historique de ses messages.</p>
+        <p>Chaque candidature et l’historique de ses messages, dans l’ordre que vous choisissez.</p>
       </PageHeader>
 
       <div className="applications-actions">
@@ -241,7 +346,7 @@ export function ApplicationsPage() {
       {list.error && <Flash>{list.error}</Flash>}
       {!list.hasLoaded && !list.error && <ListSkeleton />}
       {list.hasLoaded && list.items.length === 0 && <EmptyState hasFilters={hasFilters} />}
-      {list.items.length > 0 && <CompanyGroups list={list} />}
+      {list.items.length > 0 && <ApplicationsList list={list} isGrouped={filters.orderBy === 'company'} />}
     </>
   );
 }

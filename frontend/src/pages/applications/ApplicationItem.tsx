@@ -27,6 +27,8 @@ interface ApplicationItemProps {
 
 interface DeletableItemProps extends ApplicationItemProps {
   onDeleted: (id: number) => void;
+  /** EF-CAN-20: in a list not grouped by company, each application says which company it is at. */
+  showsCompany?: boolean;
 }
 
 /** « CDI · Envoi direct · candidature du 3 sept. 2026 », plus the last activity when it happened another day. */
@@ -164,7 +166,12 @@ function DeleteAction({
  * badge — EF-CAN-12) that opens its detail: status change (EF-CAN-07), details, chronology (EF-CAN-04, 05) and
  * deletion (EF-CAN-09).
  */
-export function ApplicationItem({ application, onUpdated, onDeleted }: DeletableItemProps) {
+export function ApplicationItem({
+  application,
+  onUpdated,
+  onDeleted,
+  showsCompany = false,
+}: DeletableItemProps) {
   const detailId = useId();
   const [isOpen, setIsOpen] = useState(false);
 
@@ -178,6 +185,7 @@ export function ApplicationItem({ application, onUpdated, onDeleted }: Deletable
         onClick={() => setIsOpen((open) => !open)}
       >
         <span className="application__main">
+          {showsCompany && <span className="application__company">{application.company.name}</span>}
           <span className="application__title">{application.jobTitle}</span>
           <span className="application__meta">{summaryOf(application)}</span>
         </span>
