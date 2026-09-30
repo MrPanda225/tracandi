@@ -3,12 +3,7 @@ import { createApplication, type NewApplication, OFFER_DESCRIPTION_MAX_LENGTH } 
 import { ApiError, messageOf } from '../../api/client';
 import type { ApplicationStatus, ContractType } from '../../api/stats';
 import { Flash } from '../../components/Flash';
-import {
-  appliedAtFromInput,
-  appliedDateProblem,
-  EARLIEST_DATE_INPUT,
-  toDateInputValue,
-} from '../../lib/dates';
+import { appliedAtFromInput, appliedDateProblem, EARLIEST_DATE_INPUT, toDateInputValue } from '../../lib/dates';
 import { fieldErrorsFrom } from '../../lib/fieldErrors';
 import {
   APPLICATION_STATUSES,
@@ -71,9 +66,7 @@ const toNewApplication = (values: FormValues, now: Date): NewApplication => {
     jobTitle: values.jobTitle.trim(),
     status: values.status,
     contractType: values.contractType,
-    ...(values.appliedOn === toDateInputValue(now)
-      ? {}
-      : { appliedAt: appliedAtFromInput(values.appliedOn, now) }),
+    ...(values.appliedOn === toDateInputValue(now) ? {} : { appliedAt: appliedAtFromInput(values.appliedOn, now) }),
     ...(offerDescription ? { offerDescription } : {}),
   };
 };
