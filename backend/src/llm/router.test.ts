@@ -316,7 +316,15 @@ describe('runTask', () => {
     const failure = router.runTask('classify_emails', INPUT);
 
     await expect(failure).rejects.toBeInstanceOf(LlmUnavailableError);
-    await expect(failure).rejects.toMatchObject({ statusCode: 502 });
+    await expect(failure).rejects.toMatchObject({ statusCode: 502, answerRejected: true });
+  });
+
+  it('[EF-IA-04] tells apart providers all out of reach from answers all refused', async () => {
+    const gemini = fakeProvider('gemini', () => Promise.reject(apiFailure(503, 'high demand')));
+    const claude = fakeProvider('claude', () => Promise.reject(apiFailure(400, 'Your credit balance is too low')));
+    const { router } = setup({ gemini, claude });
+
+    await expect(router.runTask('tailor_cv', INPUT)).rejects.toMatchObject({ statusCode: 502, answerRejected: false });
   });
 
   it('[EF-IA-05] works with a single configured provider, whatever its rank in the route', async () => {

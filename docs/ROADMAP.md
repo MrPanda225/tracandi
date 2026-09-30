@@ -505,12 +505,20 @@ l'offre n'est écrite en base, sur disque ou dans les journaux (ENF-RGP-06).
   en deux étapes, score et verdict en mots, quatre jauges `<meter>` expliquées, « À renforcer », compétences
   manquantes, « Ce que l'IA a reçu » replié ; textes réécrits sur un ton naturel et chaleureux (ux-design, ui-design).
 
-- [ ] **T-512 CV adapté** — tâche IA « adaptation » : CV réécrit par sections, liste des modifications (section,
+- [x] **T-512 CV adapté** — tâche IA « adaptation » : CV réécrit par sections, liste des modifications (section,
   avant, après, raison), compétences de l'offre absentes du CV ; contrôle RG-21 avant toute présentation.
   *Exigences* : EF-CVX-25, EF-CVX-26, EF-CVX-27, EF-CVX-29, RG-21.
   *Fini quand* : réponse simulée citant une entreprise, un diplôme ou un chiffre absents du CV rejetée puis
   confiée à nouveau ; compétence absente listée et non ajoutée.
-- [~] **T-513 Rendu Word lisible par les ATS** — fichier .docx d'une colonne (RG-22) depuis le CV adapté,
+  *Livré (28/09/2026)* : tâche IA `tailor_cv` (route d'écriture de RG-13, déjà prévue : aucune migration), prompt
+  `llm/prompts/tailorCv.ts` (CV sans coordonnées, offre et diagnostic encadrés ; recopie à l'identique exigée ;
+  compétences absentes nommées pour ne pas les ajouter) ; `fidelity.ts` — `tailoredAnswerSchemaFor(cvText)` : le
+  schéma de la réponse porte le contrôle RG-21 (entreprises, établissements, intitulés, diplômes, lieux et dates
+  cités ; compétences, certifications, langues et centres d'intérêt cités ; aucun chiffre nouveau, où qu'il soit
+  écrit), si bien qu'une réponse qui invente est rejetée comme hors schéma et confiée au fournisseur suivant
+  (EF-IA-02), puis refusée par un message clair ; chemins seuls dans les journaux, jamais les valeurs. L'analyse
+  enchaîne lecture, diagnostic et adaptation, chaque étape publiée (`cv_steps_done` 1, 2, 3).
+- [x] **T-513 Rendu Word lisible par les ATS** — fichier .docx d'une colonne (RG-22) depuis le CV adapté,
   coordonnées rétablies, compétences cochées ajoutées sans nouveau score, téléchargement.
   *Exigences* : EF-CVX-28, EF-CVX-31, RG-22.
   *Fini quand* : test de structure du .docx (aucun `w:tbl`, `w:drawing`, `w:txbxContent`, en-tête ni pied de page) ;
@@ -523,7 +531,10 @@ l'offre n'est écrite en base, sur disque ou dans les journaux (ENF-RGP-06).
   cochées ajoutées sans doublon. Aucune dépendance nouvelle (`docx` était déjà là).
   *Reste* : le téléchargement (route et bouton), dès que T-512 produit le CV adapté.
 
-- [~] **T-514 Écran Atelier CV** — parcours en quatre étapes : CV, offre, analyse suivie en direct, résultat
+  *Livré, partie 2 (28/09/2026)* : `POST /api/cv-workshop/analyses/:id/docx` (`{ addedSkills }` : seules les
+  compétences listées par le diagnostic, 400 sinon ; coordonnées remises ; score inchangé ; `cv-adapte.docx`,
+  `Cache-Control: no-store`), bouton de téléchargement.
+- [x] **T-514 Écran Atelier CV** — parcours en quatre étapes : CV, offre, analyse suivie en direct, résultat
   (score et sous-scores expliqués, points faibles, compétences manquantes à cocher, modifications avant/après,
   téléchargement).
   *Exigences* : EF-CVX-24, EF-CVX-27 à EF-CVX-31 (affichage), ENF-UTI-01 à 04.
@@ -534,6 +545,36 @@ l'offre n'est écrite en base, sur disque ou dans les journaux (ENF-RGP-06).
   texte lu tel que l'IA le recevra et coordonnées mises à part (EF-CVX-35), nombre de pages lues par OCR, raison
   d'un échec. L'écran du profil (`ProfileForm`, `CvPreview`, `api/profile`) est retiré de l'interface ; son API
   part avec T-515. *Reste* : étapes offre, analyse et résultat.
+
+  *Livré, fin (28/09/2026)* : avancement en trois étapes ; compétences manquantes à cocher (cibles de 44 px) ;
+  « Votre CV, adapté à cette offre » — aperçu qui reprend aussitôt les compétences cochées, puis téléchargement
+  Word (une seule action principale à l'écran) ; « Ce qui a changé, et pourquoi » — avant, après, raison ; aperçu
+  déplié en entier sur téléphone. Vérifié à 1440 px et 390 px sur une API simulée (données fictives).
+- [x] **T-516 CV d'une page A4** — *demande du Business Owner du 30/09/2026 (cahier v1.31, BES-44).* Consigne
+  de la tâche `tailor_cv` bornée à une page ; contrôle côté serveur de la place occupée, qui rejette une réponse
+  trop longue comme une infidélité (le routeur passe au fournisseur suivant) ; rendu Word qui resserre espacements
+  puis taille du texte, jusqu'à 10 pt et 1,5 cm de marges, pour loger les compétences cochées ; LibreOffice installé
+  dans la CI seulement, pour compter les pages du fichier (l'image de l'API reste sans LibreOffice).
+  *Exigences* : RG-24, EF-CVX-36, EF-CVX-37.
+  *Fini quand* : le CV fictif long (12 expériences de 8 réalisations, 40 compétences, 3 cochées) donne un fichier
+  d'une page qui cite les 12 expériences ; réponse trop longue rejetée puis redemandée.
+  *Livré (30/09/2026)* : `cvWorkshop/onePage.ts` — paragraphes du CV décrits une fois (`cvBlocks`) pour le fichier
+  et pour la mesure ; mesure volontairement pessimiste de la hauteur (caractères comptés plus larges que Calibri,
+  lignes plus hautes) ; trois réglages de page, de 11 pt et 2 cm à 10 pt et 1,5 cm, le plus aéré qui tient étant
+  retenu. Dates reportées sur la ligne du titre (« Poste — Entreprise, lieu | dates »), une ligne de moins par entrée.
+  Réponse de `tailor_cv` rejetée si elle ne tient pas avec toutes les compétences manquantes cochées (EF-CVX-37) ;
+  consigne de 450 mots au plus. `tests/integration/cv-one-page.test.ts` compte les pages avec LibreOffice et
+  Carlito, installés dans la CI seulement (absents du poste de développement : vérifié par la CI).
+- [x] **T-517 Atelier CV allégé** — *demande du Business Owner du 30/09/2026 (cahier v1.31, BES-44).* Texte d'aide
+  réduit avant l'analyse ; explications des sous-scores, modifications et texte lu repliés ; score, CV adapté et
+  téléchargement visibles d'emblée ; aperçu en page A4 à la police et aux marges du fichier.
+  *Exigences* : ENF-UTI-05, ENF-UTI-06, ENF-UTI-07, EF-CVX-38 ; EF-CVX-24 et EF-CVX-29 (précisées).
+  *Fini quand* : 40 mots d'aide au plus sur l'écran vide ; démonstration à 1440 × 900 et 390 px.
+  *Livré (30/09/2026)* : environ 30 mots d'aide sur l'écran vide ; « Pourquoi ? » replie l'explication de chaque
+  sous-score, « Ce qui a changé, et pourquoi » est replié avec le nombre de modifications ; les compétences à cocher
+  passent avant le détail ; aperçu en page A4 (proportions 21 × 29,7, marges de 1,75 cm, tailles rapportées à la
+  largeur de la page, texte réduit jusqu'à 80 % si la page déborde). Vérifié par captures à 1440 × 900 (score, CV et
+  téléchargement sans défiler) et à 390 px (page A4 en vignette, lisible en zoomant).
 
 - [ ] **T-515 Retrait de l'ancien atelier** — code du profil de référence et du modèle Word (T-501, T-502, T-507),
   LibreOffice retiré de l'image, migration de suppression de `candidate_profiles` et `cv_versions`, politique de
@@ -651,3 +692,27 @@ développeur l'active sur son poste (`ENABLED_FEATURES=watch,cv`) le temps d'y t
   au plus `MAX_CONCURRENT_JOBS` à la fois sur tout le serveur (1 par défaut), les autres attendent leur tour dans
   l'ordre, l'ordre de chaque candidat restant garanti. Couvre EF-EXE-06.
   *Fini quand* : avec 1 créneau, deux candidats ne synchronisent jamais en même temps ; avec 2, ils le peuvent.
+
+---
+
+## Lot 9 — Retours de la première testeuse (BES-45, cahier v1.32)
+
+- [ ] **T-901 Doublons** — rattachement par conversation Gmail (RG-03 (0)), clés d'intitulé (RG-25) et d'entreprise
+  (RG-26), fusion de deux candidatures (API et écran).
+  *Exigences* : RG-03, RG-25, RG-26, EF-CAN-18.
+  *Fini quand* : accusé de réception puis refus d'une même conversation aux intitulés différents → une candidature ;
+  « Capgemini SE » et « Capgemini France » → une entreprise ; deux doublons fusionnés.
+- [ ] **T-902 Lien, entreprise et intitulé** — colonne du lien (migration), saisie à la création et en modification,
+  entreprise et intitulé modifiables avec refus d'un doublon.
+  *Exigences* : EF-CAN-19, EF-CAN-21.
+- [ ] **T-903 Import CSV** — lecture du fichier (sans dépendance), aperçu, correspondance des colonnes, import sans doublon.
+  *Exigences* : EF-CAN-23.
+- [ ] **T-904 Statut « Test technique »** — énumérations (migration), classement, rangs, libellé Gmail, taux de réponse,
+  tableau de bord, filtre.
+  *Exigences* : RG-01, RG-02, RG-04, RG-05, RG-07 (v1.32).
+- [ ] **T-905 Tri, filtre par période et couleurs** — tri au choix, filtre du … au …, index pour ENF-PERF-04,
+  couleurs des statuts (règle `frontend.md` mise à jour).
+  *Exigences* : EF-CAN-01 (v1.32), EF-CAN-20, EF-CAN-22, EF-CAN-24.
+- [ ] **T-906 Relance vers le recruteur** — adresses des plateformes écartées du contact (RG-20 v1.32).
+  *Exigences* : RG-20.
+

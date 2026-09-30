@@ -6,13 +6,13 @@ import { fetchRun, followRuns, type RunState } from '../../api/jobs';
 // The stream does not replay what happened before it opened: a quick reading is caught by this check as well.
 const CHECK_EVERY_MS = 2000;
 
-/** EF-CVX-32 : étapes franchies, publiées par l'API (compteur `cv_steps_done`) : 0 lecture, 1 comparaison. */
-export type AnalysisStep = 0 | 1;
+/** EF-CVX-32 : étape en cours, d'après le compteur `cv_steps_done` de l'API : 0 lecture, 1 comparaison, 2 adaptation. */
+export type AnalysisStep = 0 | 1 | 2;
 
 export type AnalysisState =
   | { status: 'idle' }
   | { status: 'running'; step: AnalysisStep }
-  | { status: 'done'; analysis: CvAnalysis }
+  | { status: 'done'; runId: number; analysis: CvAnalysis }
   | { status: 'failed'; message: string };
 
 /** Reads a file as base64, without the `data:…;base64,` prefix. */
@@ -45,7 +45,8 @@ export function useCvAnalysis() {
     const finish = async (run: RunState) => {
       if (isOver || run.id !== runId) return;
       if (run.outcome === 'queued' || run.outcome === 'running') {
-        if ((run.counters['cv_steps_done'] ?? 0) >= 1) setState({ status: 'running', step: 1 });
+        const done = run.counters['cv_steps_done'] ?? 0;
+        if (done >= 1) setState({ status: 'running', step: done >= 2 ? 2 : 1 });
         return;
       }
       isOver = true;
@@ -55,7 +56,7 @@ export function useCvAnalysis() {
         return;
       }
       try {
-        setState({ status: 'done', analysis: await fetchCvAnalysis(run.id) });
+        setState({ status: 'done', runId: run.id, analysis: await fetchCvAnalysis(run.id) });
       } catch (error) {
         setState({ status: 'failed', message: messageOf(error) });
       }

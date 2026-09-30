@@ -12,6 +12,7 @@ import {
 import {
   AnalysisIdParamsSchema,
   CvAnalysisSchema,
+  DocxRequestSchema,
   StartAnalysisBodySchema,
   StartedAnalysisSchema,
 } from './schemas.js';
@@ -25,6 +26,8 @@ const JSON_ENVELOPE_BYTES = 1024;
 export const CV_UPLOAD_BODY_LIMIT = CV_MAX_BASE64_LENGTH + JSON_ENVELOPE_BYTES;
 
 const TAG = ['Atelier CV'];
+const DOCX_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+const DOCX_NAME = 'cv-adapte.docx';
 
 const registerDocs = (registry: OpenAPIRegistry): void => {
   registry.registerPath({
@@ -57,11 +60,27 @@ const registerDocs = (registry: OpenAPIRegistry): void => {
     request: { params: AnalysisIdParamsSchema },
     responses: { 200: jsonResponse('Résultat de l’analyse', CvAnalysisSchema), ...errorResponses(400, 401, 404) },
   });
+  registry.registerPath({
+    tags: TAG,
+    security: SESSION_SECURITY,
+    method: 'post',
+    path: `${CV_UPLOAD_PATH}/{id}/docx`,
+    summary: 'Télécharger le CV adapté au format Word',
+    description:
+      'EF-CVX-28, EF-CVX-31, RG-22. Le CV adapté, lisible par les logiciels de recrutement, coordonnées remises, ' +
+      'avec les compétences manquantes que le candidat a cochées — seules celles du diagnostic sont acceptées (400 ' +
+      'sinon). Le score ne change pas. 404 comme le résultat de l’analyse.',
+    request: { params: AnalysisIdParamsSchema, body: jsonBody(DocxRequestSchema) },
+    responses: {
+      200: { description: 'Fichier Word (.docx)', content: { [DOCX_TYPE]: { schema: { type: 'string', format: 'binary' } } } },
+      ...errorResponses(400, 401, 404, 415),
+    },
+  });
 };
 
 /**
  * Routes of the CV workshop, behind the session guard: each candidate sees only their own analyses (EF-AUT-06).
- * @req EF-CVX-21, EF-CVX-32, ENF-RGP-06
+ * @req EF-CVX-21, EF-CVX-28, EF-CVX-31, EF-CVX-32, ENF-RGP-06
  */
 export const createCvWorkshopModule = (service: CvWorkshopService): ApiModule => {
   const router = Router();
@@ -81,6 +100,20 @@ export const createCvWorkshopModule = (service: CvWorkshopService): ApiModule =>
       const { params } = validate(req, { params: AnalysisIdParamsSchema });
       res.status(200).json(service.findAnalysis(currentUserId(res), params.id));
       return Promise.resolve();
+    }),
+  );
+
+  router.post(
+    `${CV_UPLOAD_PATH}/:id/docx`,
+    asyncHandler(async (req, res) => {
+      const { params, body } = validate(req, { params: AnalysisIdParamsSchema, body: DocxRequestSchema });
+      const docx = await service.renderDocx(currentUserId(res), params.id, body.addedSkills);
+      res
+        .status(200)
+        .type(DOCX_TYPE)
+        .set('Content-Disposition', `attachment; filename="${DOCX_NAME}"`)
+        .set('Cache-Control', 'no-store')
+        .send(docx);
     }),
   );
 

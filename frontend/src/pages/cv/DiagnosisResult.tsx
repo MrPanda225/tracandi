@@ -1,5 +1,6 @@
-import { useId } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import type { CvAnalysis, CvContacts, Dimension } from '../../api/cvWorkshop';
+import { ADAPTED_CV_ID, AdaptedCvCard, Changes, SkillsToAdd } from './AdaptedCv';
 
 // Heaviest first (RG-23): the order in which the candidate should read them.
 const DIMENSION_ORDER: readonly Dimension[] = ['skills', 'experience', 'techStack', 'education'];
@@ -33,12 +34,17 @@ const CONTACT_ROWS: { label: string; valuesOf: (contacts: CvContacts) => string[
   { label: 'Liens', valuesOf: (contacts) => contacts.links },
 ];
 
-/** EF-CVX-24, RG-23: the peak of the journey — one number, one verdict. */
+/**
+ * EF-CVX-24, RG-23: the peak of the journey — one number, one verdict. It takes the focus when the result replaces
+ * the form, so that neither the eye nor a screen reader is left at the bottom of the page (WCAG 2.4.3).
+ */
 function ScoreCard({ score }: { score: number }) {
   const titleId = useId();
+  const sectionRef = useRef<HTMLElement>(null);
   const verdict = verdictOf(score);
+  useEffect(() => sectionRef.current?.focus(), []);
   return (
-    <section className="cv-card cv-score" aria-labelledby={titleId}>
+    <section ref={sectionRef} className="cv-card cv-score" aria-labelledby={titleId} tabIndex={-1}>
       <h2 id={titleId} className="visually-hidden">
         Votre score
       </h2>
@@ -49,6 +55,10 @@ function ScoreCard({ score }: { score: number }) {
       <div>
         <p className="cv-score__verdict">{verdict.title}</p>
         <p className="cv-card__lede">{verdict.text}</p>
+        {/* On a phone the adapted CV is far below: one tap to reach it. */}
+        <a className="cv-score__jump" href={`#${ADAPTED_CV_ID}`}>
+          Voir mon CV adapté
+        </a>
       </div>
     </section>
   );
@@ -84,7 +94,11 @@ function Dimensions({ analysis }: { analysis: CvAnalysis }) {
                 value={score}
                 aria-label={`${DIMENSION_LABELS[dimension]} : ${String(score)} sur 100`}
               />
-              <p className="cv-dimension__explanation">{explanation}</p>
+              {/* ENF-UTI-07: the reason, on demand — the score and the bar already say the essential. */}
+              <details className="cv-why">
+                <summary className="cv-why__summary">Pourquoi ?</summary>
+                <p className="cv-dimension__explanation">{explanation}</p>
+              </details>
             </li>
           );
         })}
@@ -93,42 +107,14 @@ function Dimensions({ analysis }: { analysis: CvAnalysis }) {
   );
 }
 
-/** EF-CVX-27: what the offer asks for and the CV does not say. */
-function MissingSkills({ skills }: { skills: string[] }) {
-  const titleId = useId();
-  return (
-    <section className="cv-card" aria-labelledby={titleId}>
-      <h2 id={titleId} className="cv-card__title">
-        Ce que l’offre demande et que votre CV ne dit pas
-      </h2>
-      {skills.length > 0 ? (
-        <>
-          <ul className="cv-skills">
-            {skills.map((skill) => (
-              <li key={skill} className="cv-skills__item">
-                {skill}
-              </li>
-            ))}
-          </ul>
-          <p className="cv-card__lede">
-            Vous en maîtrisez certaines ? Elles méritent une place dans votre CV, à condition d’être vraies.
-          </p>
-        </>
-      ) : (
-        <p className="cv-card__lede">Rien d’important ne manque. Bravo !</p>
-      )}
-    </section>
-  );
-}
-
 /** EF-CVX-35, ENF-RGP-07: what the AI received, folded away — there for whoever wants to check. */
 function WhatTheAiReceived({ analysis }: { analysis: CvAnalysis }) {
   const { text, contacts, ocrPageCount } = analysis.reading;
   return (
-    <details className="cv-card cv-received">
-      <summary className="cv-received__summary">
-        <span className="cv-received__label">Ce que l’IA a reçu</span>
-        <span className="cv-received__hint">Votre CV, sans vos coordonnées</span>
+    <details className="cv-card cv-fold cv-received">
+      <summary className="cv-fold__summary">
+        <span className="cv-fold__label">Ce que l’IA a reçu</span>
+        <span className="cv-fold__hint">Votre CV, sans vos coordonnées</span>
       </summary>
       {ocrPageCount > 0 && (
         <p className="cv-card__lede">
@@ -156,20 +142,35 @@ function WhatTheAiReceived({ analysis }: { analysis: CvAnalysis }) {
   );
 }
 
-/** The result of an analysis: score, detail, missing skills, what the AI received, and what comes next. */
-export function DiagnosisResult({ analysis, onAnotherOffer }: { analysis: CvAnalysis; onAnotherOffer: () => void }) {
+/**
+ * The result of an analysis: the score and its detail, the missing skills to tick, the adapted CV to download, what
+ * changed and why, what the AI received, and what comes next. The score never moves with the ticked skills
+ * (EF-CVX-28): it measures the imported CV.
+ */
+export function DiagnosisResult({
+  runId,
+  analysis,
+  onAnotherOffer,
+}: {
+  runId: number;
+  analysis: CvAnalysis;
+  onAnotherOffer: () => void;
+}) {
+  const [ticked, setTicked] = useState<string[]>([]);
   return (
-    <>
+    <div className="cv-result">
       <ScoreCard score={analysis.diagnosis.overallScore} />
+      <SkillsToAdd skills={analysis.diagnosis.missingSkills} ticked={ticked} onTickedChange={setTicked} />
       <Dimensions analysis={analysis} />
-      <MissingSkills skills={analysis.diagnosis.missingSkills} />
+      <AdaptedCvCard cv={analysis.adapted.cv} contacts={analysis.reading.contacts} runId={runId} ticked={ticked} />
+      <Changes changes={analysis.adapted.changes} />
       <WhatTheAiReceived analysis={analysis} />
       <div className="cv-workshop__end">
-        <button type="button" className="btn" onClick={onAnotherOffer}>
+        <button type="button" className="btn btn--quiet" onClick={onAnotherOffer}>
           Analyser une autre offre
         </button>
         <p className="cv-workshop__note">Rien n’est gardé : ce résultat s’efface dans 30 minutes.</p>
       </div>
-    </>
+    </div>
   );
 }

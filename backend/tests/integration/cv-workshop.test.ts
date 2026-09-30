@@ -5,6 +5,7 @@ import { jobRuns } from '../../src/db/schema.js';
 import { CV_MAX_BYTES, NOT_A_PDF } from '../../src/modules/cvWorkshop/upload.js';
 import type { LlmProvider } from '../../src/llm/types.js';
 import { buildLockedPdf, buildTextPdf, FICTITIOUS_CV_LINES } from '../fixtures/cv/pdf.js';
+import { readParagraphs } from '../fixtures/docx/readDocx.js';
 import { createTestContext, openTestDatabase, registerUser, type TestContext, truncateAll } from './context.js';
 
 const database = openTestDatabase();
@@ -12,16 +13,18 @@ let context: TestContext;
 let alice: string;
 
 const DIAGNOSIS = readFileSync(new URL('../fixtures/llm/diagnose_cv.json', import.meta.url), 'utf8');
+const TAILORED = readFileSync(new URL('../fixtures/llm/tailor_cv.json', import.meta.url), 'utf8');
 const OFFER = 'Data Analyst en CDI à Lyon. Vous maîtrisez SQL, Python, dbt et Airflow. '.repeat(4);
 
-/** The AI of the test: it answers the diagnostic of the fixture, and remembers what it was sent. */
+/** The AI of the test: it answers the diagnostic or the adapted CV of the fixtures, and remembers what it was sent. */
 const prompts: string[] = [];
 const diagnosingAi: LlmProvider = {
   name: 'gemini',
   model: 'gemini-test',
   complete: (llmRequest) => {
     prompts.push(llmRequest.prompt);
-    return Promise.resolve({ text: DIAGNOSIS, inputTokens: 900, outputTokens: 300 });
+    const text = llmRequest.system.includes('Tu adaptes le CV') ? TAILORED : DIAGNOSIS;
+    return Promise.resolve({ text, inputTokens: 900, outputTokens: 300 });
   },
 };
 
@@ -179,3 +182,57 @@ describe('GET /api/cv-workshop/analyses/:id', () => {
   });
 });
 
+describe('POST /api/cv-workshop/analyses/:id/docx', () => {
+  const analysed = async (): Promise<number> => {
+    const started = await startAnalysis(alice, analysisOf(cvBase64()));
+    await context.queue.drain();
+    return (started.body as { runId: number }).runId;
+  };
+  const download = (cookie: string, runId: number | string, body: object) =>
+    request(context.app)
+      .post(`/api/cv-workshop/analyses/${String(runId)}/docx`)
+      .set('Cookie', cookie)
+      .set('Content-Type', 'application/json')
+      .buffer(true)
+      .parse((response, done) => {
+        const chunks: Buffer[] = [];
+        response.on('data', (chunk: Buffer) => chunks.push(chunk));
+        response.on('end', () => done(null, Buffer.concat(chunks)));
+      })
+      .send(body);
+
+  it('[EF-CVX-31] [EF-CVX-28] downloads the adapted CV as Word, contacts put back, ticked skills added', async () => {
+    const response = await download(alice, await analysed(), { addedSkills: ['Airflow'] });
+
+    expect(response.status).toBe(200);
+    expect(response.headers['content-type']).toContain('wordprocessingml.document');
+    expect(response.headers['content-disposition']).toBe('attachment; filename="cv-adapte.docx"');
+    const paragraphs = readParagraphs(response.body as Buffer);
+    expect(paragraphs[0]).toBe('Camille Durand');
+    expect(paragraphs).toContain('SQL, Python, Power BI, Airflow');
+  });
+
+  it('[EF-CVX-28] refuses a skill the diagnostic did not list', async () => {
+    const response = await download(alice, await analysed(), { addedSkills: ['Kubernetes'] });
+
+    expect(response.status).toBe(400);
+  });
+
+  it('[EF-AUT-06] answers 404 for the analysis of another account', async () => {
+    const runId = await analysed();
+    const bob = await registerUser(context.app, 'bob@example.com');
+
+    expect((await download(bob, runId, { addedSkills: [] })).status).toBe(404);
+  });
+
+  it('[ENF-SEC-04] refuses a body with other fields, or an identifier that is not a number', async () => {
+    const runId = await analysed();
+
+    expect((await download(alice, runId, { addedSkills: [], format: 'pdf' })).status).toBe(400);
+    expect((await download(alice, 'abc', { addedSkills: [] })).status).toBe(400);
+  });
+
+  it('[EF-AUT-05] refuses without a session', async () => {
+    expect((await download('', 1, { addedSkills: [] })).status).toBe(401);
+  });
+});
