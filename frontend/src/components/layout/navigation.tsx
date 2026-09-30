@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import type { OptionalFeature } from '../../api/settings';
 
 /** One screen of the application, as listed in the navigation (T-003: the 6 pages). */
 export interface NavItem {
@@ -7,6 +8,8 @@ export interface NavItem {
   /** ENF-UTI-02: what the bottom bar of a phone shows under the icon; also part of the accessible name. */
   shortLabel: string;
   icon: ReactNode;
+  /** ENF-MAI-07: the optional feature behind the screen; while it is off, the screen is only announced. */
+  feature?: OptionalFeature;
 }
 
 // Line icons drawn on a 24 px grid with the same stroke (ui-design: consistent SVG icons).
@@ -54,6 +57,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   },
   {
     path: '/offres',
+    feature: 'watch',
     label: 'Offres',
     shortLabel: 'Offres',
     icon: (
@@ -65,6 +69,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   },
   {
     path: '/sites',
+    feature: 'watch',
     label: 'Sites surveillés',
     shortLabel: 'Sites',
     icon: (
@@ -76,6 +81,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   },
   {
     path: '/atelier-cv',
+    feature: 'cv',
     label: 'Atelier CV',
     shortLabel: 'CV',
     icon: (

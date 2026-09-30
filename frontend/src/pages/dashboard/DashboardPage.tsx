@@ -54,17 +54,18 @@ function DashboardFigures({ dashboard, isRefreshing, isChartAnimated }: Dashboar
     <div className="dashboard" aria-busy={isRefreshing}>
       <KpiCards totals={dashboard.totals} offers={dashboard.offers} />
 
-      <div className="dashboard__panel">
-        {/* Replaying the drawing on every return would make known figures look like they are loading. */}
-        <WeeklyChart weekly={dashboard.weekly} isAnimated={isChartAnimated} />
-      </div>
-
+      {/* What calls for an action comes before what informs (Fogg: the trigger where the eye lands first). */}
       <div className="dashboard__panel">
         <FollowUpList
           total={dashboard.followUps.total}
           items={dashboard.followUps.items}
           followUpDays={dashboard.followUpDays}
         />
+      </div>
+
+      <div className="dashboard__panel">
+        {/* Replaying the drawing on every return would make known figures look like they are loading. */}
+        <WeeklyChart weekly={dashboard.weekly} isAnimated={isChartAnimated} />
       </div>
 
       {/* Grouped together (Five Hat Racks: same "category" axis) so this trio only ever splits into

@@ -79,19 +79,31 @@ describe('AppShell', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Tableau de bord' })).toBeInTheDocument();
   });
 
-  it('[ENF-MAI-07] keeps the six screens in the navigation when no optional feature runs', async () => {
+  it('[ENF-MAI-07] keeps the six screens in the navigation when no optional feature runs, the closed ones said « bientôt »', async () => {
     renderSignedIn('/', () => json(200, { features: [] }));
     await screen.findByRole('heading', { name: 'Tableau de bord' });
 
     const navigation = within(screen.getByRole('navigation', { name: 'Navigation principale' }));
-    expect(navigation.getAllByRole('link').map((link) => link.getAttribute('aria-label'))).toEqual([
-      'Tableau de bord (Accueil)',
-      'Candidatures (Suivi)',
-      'Offres',
-      'Sites surveillés',
-      'Atelier CV',
-      'Réglages',
-    ]);
+    await waitFor(() =>
+      expect(navigation.getAllByRole('link').map((link) => link.getAttribute('aria-label'))).toEqual([
+        'Tableau de bord (Accueil)',
+        'Candidatures (Suivi)',
+        'Offres, bientôt',
+        'Sites surveillés, bientôt',
+        'Atelier CV, bientôt',
+        'Réglages',
+      ]),
+    );
+    expect(navigation.getAllByText('Bientôt')).toHaveLength(3);
+  });
+
+  it('[ENF-MAI-07] announces nothing « bientôt » once every optional feature runs', async () => {
+    renderSignedIn('/', () => json(200, { features: ['watch', 'cv'] }));
+    await screen.findByRole('heading', { name: 'Tableau de bord' });
+
+    const navigation = within(screen.getByRole('navigation', { name: 'Navigation principale' }));
+    await waitFor(() => expect(navigation.getByRole('link', { name: 'Offres' })).toBeInTheDocument());
+    expect(navigation.queryByText('Bientôt')).toBeNull();
   });
 
   it('[ENF-MAI-07] shows a disabled screen as in preparation, without loading its content', async () => {
