@@ -38,27 +38,10 @@ const UNINFORMATIVE_CONTRACTS: ReadonlySet<Application['contractType']> = new Se
 // RG-03: the title given to an application whose messages named no position.
 const UNNAMED_TITLE = 'Candidature';
 
-const HOUR_MS = 60 * 60 * 1000;
-const DAY_MS = 24 * HOUR_MS;
-const relativeFormat = new Intl.RelativeTimeFormat('fr', { numeric: 'auto' });
-// Beyond a month, a date says more than « il y a 7 semaines ».
-const RELATIVE_DAYS_MAX = 30;
 const NOTE_PREVIEW_LENGTH = 90;
 
-/** « il y a 3 heures », « hier », « il y a 5 jours », then the date: how fresh the last news is, at a glance. */
-const freshnessOf = (iso: string, now: Date): string => {
-  const elapsed = now.getTime() - new Date(iso).getTime();
-  if (elapsed < DAY_MS) return relativeFormat.format(-Math.max(1, Math.round(elapsed / HOUR_MS)), 'hour');
-  const days = Math.round(elapsed / DAY_MS);
-  return days <= RELATIVE_DAYS_MAX ? relativeFormat.format(-days, 'day') : `le ${formatDate(iso)}`;
-};
-
-/**
- * What is worth knowing at a glance, one column each on a wide screen: the channel, the contract when known, the
- * date of application (left to screen readers under the heading of its day) and how fresh the last activity is.
- */
-function Facts({ application, isDated }: { application: Application; isDated: boolean }) {
-  const applied = formatDate(application.appliedAt);
+/** What is worth knowing at a glance, one column each on a wide screen: the channel and the contract when known. */
+function Facts({ application }: { application: Application }) {
   const contract = UNINFORMATIVE_CONTRACTS.has(application.contractType)
     ? null
     : CONTRACT_LABELS[application.contractType];
@@ -68,12 +51,18 @@ function Facts({ application, isDated }: { application: Application; isDated: bo
         {application.platform ? `via ${application.platform}` : 'Envoi direct'}
       </span>
       <span className="application__fact application__fact--contract">{contract}</span>
-      <span className="application__fact application__fact--activity">
-        <span className={isDated ? 'visually-hidden' : undefined}>candidature du {applied}</span>
-        {isDated ? '' : ' · '}
-        <span className="application__fact-label">dernière activité </span>
-        {freshnessOf(application.lastActivityAt, new Date())}
-      </span>
+    </span>
+  );
+}
+
+/**
+ * The date of application under the title — for screen readers only under the heading of its day, which already
+ * says it.
+ */
+function AppliedDate({ application, isDated }: { application: Application; isDated: boolean }) {
+  return (
+    <span className={isDated ? 'visually-hidden' : 'application__applied'}>
+      candidature du {formatDate(application.appliedAt)}
     </span>
   );
 }
@@ -226,6 +215,7 @@ export function ApplicationItem({
           ) : (
             <span className="application__title">{application.jobTitle}</span>
           )}
+          <AppliedDate application={application} isDated={isDated} />
           {application.notes && !isOpen && (
             <span className="application__note">
               {application.notes.length > NOTE_PREVIEW_LENGTH
@@ -234,7 +224,7 @@ export function ApplicationItem({
             </span>
           )}
         </span>
-        <Facts application={application} isDated={isDated} />
+        <Facts application={application} />
         <span className="application__tags">
           {/* The status first: always at the same place, top right on a phone, at the head of its column. */}
           <StatusTag status={application.status} />

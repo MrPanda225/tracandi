@@ -29,6 +29,8 @@ const SYSTEM = [
   'Un refus commence souvent par une formule d’accusé de réception (« nous avons bien reçu votre candidature ») : ' +
     'c’est la suite du message qui décide. Candidature non retenue, sans suite, poste pourvu, processus arrêté → ' +
     '"rejected".',
+  'Un accusé de réception qui prévient qu’à défaut de nouvelles sous un délai la candidature pourra être considérée ' +
+    'comme non retenue, ou qu’un refus sera annoncé par écrit, reste "acknowledged" : rien n’est encore décidé.',
   'Une invitation à un entretien annonce un rendez-vous, un créneau ou demande des disponibilités ; une phrase ' +
     'conditionnelle (« si votre profil correspond, nous reviendrons vers vous ») reste "acknowledged".',
   '- "employer" : l’employeur réel visé, tel qu’il est écrit dans le message, même quand le message vient d’une ' +
