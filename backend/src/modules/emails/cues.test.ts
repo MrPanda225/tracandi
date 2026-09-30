@@ -119,6 +119,26 @@ describe('hasRejectionCue', () => {
     expect(hasRejectionCue({ subject: null, snippet: '', text })).toBe(true);
   });
 
+  it('[RG-17] leaves an acknowledgement that warns of a silent refusal to come as an acknowledgement', () => {
+    // Reported in production (30/09/2026), names changed: the refusal is only a possibility, after a delay.
+    const text =
+      'Vous venez de postuler à notre offre Data Engineer (F/H) - en alternance et nous vous remercions de l’intérêt ' +
+      'que vous portez à notre entreprise. Nous allons, dans les meilleurs délais, étudier l’adéquation de votre ' +
+      'profil avec notre besoin. Nous ne manquerons pas de vous recontacter par téléphone si votre profil correspond à ' +
+      'notre recherche. Nous veillerons également à vous informer par écrit s’il n’était pas possible de donner une ' +
+      'suite favorable à votre candidature. Néanmoins, sans nouvelles de notre part au cours des 5 prochaines semaines, ' +
+      'vous pourrez considérer que votre candidature à ce poste n’a pas été retenue.';
+
+    expect(hasRejectionCue({ subject: 'Maison Lumen : enregistrement de votre candidature', snippet: '', text })).toBe(false);
+  });
+
+  it.each([
+    ['faute de réponse', 'Faute de réponse sous un mois, votre candidature ne sera pas retenue.'],
+    ['considérez que', 'Passé ce délai, considérez que votre candidature n’a pas été retenue.'],
+  ])('[RG-17] reads « %s » as a mere condition', (_case, snippet) => {
+    expect(hasRejectionCue({ subject: null, snippet })).toBe(false);
+  });
+
   it('[RG-17] ignores case, accents and punctuation', () => {
     expect(hasRejectionCue({ subject: null, snippet: 'NOUS NE DONNONS PAS SUITE.' })).toBe(true);
     expect(hasRejectionCue({ subject: null, snippet: 'n’a pas ete retenue' })).toBe(true);
