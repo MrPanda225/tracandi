@@ -218,6 +218,20 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
   connexion à l'écart (déconnexion en rouge, confirmée). *Exigences* : EF-CFG-05, EF-CFG-02 (retirée de l'écran),
   EF-CFG-01, EF-CFG-04, EF-GML-02, EF-GML-17, EF-GML-20.
 
+- [x] **T-312 Relance incarnée** — *demande du Business Owner du 01/10/2026 (cahier v1.34, BES-47) : « les mails
+  rédigés par l'IA sont plutôt impersonnels ».* Consigne système de `write_follow_up` réécrite : but affiché (que le
+  recruteur sente une personne qui tient à ce poste-là, dans cette entreprise-là), première personne, ton chaleureux,
+  formules de catalogue nommées et bannies, plan en trois paragraphes dont le deuxième porte la motivation.
+  La **description de l'offre enregistrée par le candidat** (EF-CAN-15) est transmise au rédacteur, bornée à
+  1 200 caractères, et devient la seule matière dont il peut tirer un motif d'intérêt ; la ligne est écrite
+  « (aucune) » quand elle manque, plutôt qu'omise. Flatterie sur ce que le modèle ignore de l'entreprise
+  (valeurs, réputation, « leader de son secteur ») explicitement interdite.
+  *Exigences* : EF-CAN-17 (v1.34), ENF-SEC-06, ENF-COU-01.
+  *Fini quand* : le prompt porte la description quand elle existe et le dit quand elle manque ; les consignes de ton
+  sont vérifiées par test ; bornes de 80 à 150 mots inchangées, contrôlées par le code.
+  *Choix assumé* : aucun fait nouveau n'est inventé pour « personnaliser » — sans description d'offre, la relance
+  reste sobre. C'est la saisie de la description (EF-CAN-15) qui rend le message personnel, pas le modèle.
+
 ## Lot 4 — Veille des offres
 
 - [x] **T-401 Client HTTP de collecte** — robots.txt (cache par origine), 3 s par hôte, agent identifiant,
