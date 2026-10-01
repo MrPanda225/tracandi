@@ -706,6 +706,17 @@ l'offre n'est écrite en base, sur disque ou dans les journaux (ENF-RGP-06).
   semaine comparés à la précédente (EF-TDB-10) servant aussi de légende et de bascule d'affichage, tableau pour
   lecteur d'écran, actualisation d'elle-même à la fin d'une synchronisation ou d'une relecture (EF-TDB-11).
 
+- [x] **T-603 Tableau de bord réordonné et liste à relancer repliée** — *demande du Business Owner du 01/10/2026
+  (cahier v1.34, BES-47) : « je ne veux pas que les relances soient en haut, il faut que le graphique soit avant ».*
+  Ordre des blocs : indicateurs clés, suivi des 5 dernières semaines, candidatures à relancer, répartitions
+  (EF-TDB-12). La liste à relancer n'affiche plus que ses 5 premières lignes ; « Afficher les N suivantes » déplie
+  les autres, le compteur et « et N autres. » restant visibles (EF-TDB-07 v1.34).
+  *Exigences* : EF-TDB-12, EF-TDB-07 (v1.34).
+  *Fini quand* : test d'ordre des blocs dans le document ; 5 lignes dépliées sur 8, puis 8 après l'action.
+  *Pourquoi* : avec 72 candidatures à relancer, 20 lignes séparaient les chiffres du graphique et des répartitions —
+  une page et demie de défilement avant la première information de synthèse. L'ancien ordre suivait Fogg (le
+  déclencheur là où l'œil se pose) ; le Business Owner tranche pour la vue d'ensemble d'abord.
+
 ## Lot 7 — Exploitation
 
 - [ ] **T-701 Sauvegardes** — réécrire `scripts/db/` pour PostgreSQL : `pg_dump` quotidien de Neon vers le poste (rôle

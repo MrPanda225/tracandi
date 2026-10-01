@@ -361,7 +361,8 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | EF-TDB-11 | Le tableau de bord ouvert doit se mettre à jour, sans action du candidat, à la fin de chaque synchronisation Gmail ou relecture des messages réussie. (v1.21, BES-33) | S | EXM-09 | T |
 | EF-TDB-05 | Le système doit afficher le nombre de candidatures par statut. | M | EXM-09 | T |
 | EF-TDB-06 | Le système doit afficher le nombre de candidatures par canal (direct ou plateforme). | C | EXM-09 | T |
-| EF-TDB-07 | Le système doit afficher la liste des candidatures à relancer, de la plus ancienne à la plus récente. | M | EXM-04 | T |
+| EF-TDB-07 | Le système doit afficher la liste des candidatures à relancer, de la plus ancienne à la plus récente. Seules les 5 premières sont dépliées ; le candidat affiche les suivantes en une action, et le nombre total reste visible. (liste repliée v1.34, BES-47) | M | EXM-04 | T |
+| EF-TDB-12 | Le tableau de bord doit présenter ses blocs dans cet ordre : indicateurs clés, suivi des 5 dernières semaines, candidatures à relancer, puis répartitions (statut, type de contrat, canal). (v1.34, BES-47) | S | EXM-09 | T |
 | EF-TDB-08 | Le système doit afficher le nombre d'offres à l'état « nouvelle » de score supérieur ou égal à S, lorsque la veille des offres est activée (ENF-MAI-07). | S | EXM-06 | T |
 | EF-TDB-09 | Le système doit afficher le nombre de candidatures et le taux de réponse (RG-07) par type de contrat. | S | EXM-11 | T |
 

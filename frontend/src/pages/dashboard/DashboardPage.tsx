@@ -57,20 +57,21 @@ function DashboardFigures({ dashboard, isRefreshing, isChartAnimated }: Dashboar
     <div className="dashboard" aria-busy={isRefreshing}>
       <KpiCards totals={dashboard.totals} offers={dashboard.offers} />
 
-      {/* What calls for an action comes before what informs (Fogg: the trigger where the eye lands first). */}
+      {/* EF-TDB-12: the week before the to-do list. The figures tell where the search stands; the follow-ups,
+          up to twenty rows long, used to push them a screen and a half down and no one scrolled that far. */}
+      <div className="dashboard__panel">
+        {/* Replaying the drawing on every return would make known figures look like they are loading. */}
+        <Suspense fallback={<div className="dashboard__chart-placeholder" aria-hidden="true" />}>
+          <WeeklyChart weekly={dashboard.weekly} isAnimated={isChartAnimated} />
+        </Suspense>
+      </div>
+
       <div className="dashboard__panel">
         <FollowUpList
           total={dashboard.followUps.total}
           items={dashboard.followUps.items}
           followUpDays={dashboard.followUpDays}
         />
-      </div>
-
-      <div className="dashboard__panel">
-        {/* Replaying the drawing on every return would make known figures look like they are loading. */}
-        <Suspense fallback={<div className="dashboard__chart-placeholder" aria-hidden="true" />}>
-          <WeeklyChart weekly={dashboard.weekly} isAnimated={isChartAnimated} />
-        </Suspense>
       </div>
 
       {/* Grouped together (Five Hat Racks: same "category" axis) so this trio only ever splits into

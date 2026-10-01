@@ -116,6 +116,12 @@
   padding-inline: 0.9rem;
 }
 
+/* EF-TDB-07: the rest of the list, one action away — centred like the « et N autres. » line it sits above. */
+.follow-ups__unfold {
+  align-self: center;
+  margin-top: 0.75rem;
+}
+
 /* The outcome of the action takes the whole row under the application. */
 .follow-ups__draft {
   flex-basis: 100%;
