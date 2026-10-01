@@ -31,6 +31,8 @@ const NO_CRITERIA =
   'Renseignez vos critères de recherche avant de lancer la veille : vos cibles servent à noter les offres.';
 const CONFLICT = 409;
 const BAD_REQUEST = 400;
+/** ENF-RGP-10 (v1.33): an offer neither kept nor applied to is removed 60 days after its source stopped publishing it. */
+const OFFER_RETENTION_MS = 60 * 24 * 60 * 60 * 1000;
 /** EF-VEI-15: default threshold S, used while the candidate has no settings row. */
 const DEFAULT_THRESHOLD = 60;
 
@@ -201,9 +203,10 @@ export const createWatchService = (deps: WatchServiceDeps): WatchService => {
    * Nothing is collected before the targets are known. A candidate who watches nothing is simply told so, rather
    * than asked for criteria they do not need yet.
    */
-  const runPass = async (userId: number): Promise<WatchReport> => {
+  const runPass = async (userId: number, trigger: 'manual' | 'schedule'): Promise<WatchReport> => {
     const threshold = await thresholdOf(userId);
-    const sources = await repository.listActiveSources(db, userId);
+    // EF-VEI-42: a scheduled pass leaves the sources not due yet; the candidate's own request reads them all.
+    const sources = await repository.listActiveSources(db, userId, trigger === 'schedule' ? deps.clock() : null);
     if (sources.length === 0) return EMPTY_REPORT(threshold);
     const saved = await criteria.read(userId);
     await sirens?.resolve(userId);
@@ -220,7 +223,7 @@ export const createWatchService = (deps: WatchServiceDeps): WatchService => {
     userId,
     job: 'scraper' as const,
     trigger,
-    run: async () => countersOf(await runPass(userId)),
+    run: async () => countersOf(await runPass(userId, trigger)),
   });
 
   return {
@@ -235,6 +238,9 @@ export const createWatchService = (deps: WatchServiceDeps): WatchService => {
     discoverSources: (userId) => queue.enqueue(discoveryWorkFor(discovery, userId)),
 
     async checkEverySource() {
+      // ENF-RGP-10: three times a day, so at least once a day.
+      const removed = await repository.purgeStaleOffers(db, new Date(deps.clock().getTime() - OFFER_RETENTION_MS));
+      if (removed > 0) logger.info('stale offers removed', { removed });
       for (const userId of await repository.listUsersWithActiveSources(db)) {
         // EF-GML-18: a candidate who already has a pass waiting or running is written off, not queued twice.
         const runId = await queue.enqueueUnlessPending(workFor(userId, 'schedule'));

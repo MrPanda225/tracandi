@@ -17,7 +17,10 @@ const renderAt = (path: string) =>
 
 beforeEach(() => {
   window.localStorage.clear();
-  vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(json(401, { error: 'Authentification requise' }))));
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(() => Promise.resolve(json(401, { error: 'Authentification requise' }))),
+  );
 });
 
 afterEach(() => {
@@ -35,7 +38,9 @@ describe('legal pages (EF-LEG-01)', () => {
 
     // The page names itself in an effect, which may run just after its heading is painted.
     await waitFor(() => expect(document.title).toBe(title));
-    expect(document.head.querySelector<HTMLMetaElement>('meta[name="description"]')?.content).toMatch(/Tracandi/);
+    expect(document.head.querySelector<HTMLMetaElement>('meta[name="description"]')?.content).toMatch(
+      /Tracandi/,
+    );
   });
 
   it('[EF-LEG-01] publishes the legal notice without a session: publisher, contact and hosts', async () => {
@@ -56,13 +61,22 @@ describe('legal pages (EF-LEG-01)', () => {
     renderAt('/confidentialite');
 
     const main = await screen.findByRole('main');
-    expect(within(main).getByRole('heading', { level: 1, name: 'Politique de confidentialité' })).toBeInTheDocument();
+    expect(
+      within(main).getByRole('heading', { level: 1, name: 'Politique de confidentialité' }),
+    ).toBeInTheDocument();
     for (const recipient of ['Vercel', 'Northflank', 'Neon', 'Google', 'Groq', 'Gemini', 'Anthropic']) {
       expect(within(main).getAllByText(new RegExp(recipient)).length).toBeGreaterThan(0);
     }
     expect(within(main).getAllByText(/CNIL/).length).toBeGreaterThan(0);
+    // ENF-RGP-05, ENF-RGP-10 (v1.33): the sources of the watch, what they receive, and how long an offer is kept.
+    for (const source of ['France Travail', 'La bonne alternance', 'Recherche d’entreprises']) {
+      expect(within(main).getAllByText(new RegExp(source)).length).toBeGreaterThan(0);
+    }
+    expect(within(main).getByText(/60 jours après que sa source a cessé de la publier/)).toBeInTheDocument();
     expect(within(main).getByText(/utilisation limitée/)).toBeInTheDocument();
-    expect(within(main).getByText(/Royaume-Uni, pays reconnu par une décision d’adéquation/)).toBeInTheDocument();
+    expect(
+      within(main).getByText(/Royaume-Uni, pays reconnu par une décision d’adéquation/),
+    ).toBeInTheDocument();
     expect(within(main).getByRole('heading', { name: 'Vos droits' })).toBeInTheDocument();
     expect(within(main).queryByText(/à compléter|\[/)).not.toBeInTheDocument();
   });
@@ -77,7 +91,10 @@ describe('legal pages (EF-LEG-01)', () => {
   it('[EF-LEG-01] links the privacy policy from the login page', async () => {
     renderAt('/connexion');
 
-    expect(await screen.findByRole('link', { name: 'Confidentialité' })).toHaveAttribute('href', '/confidentialite');
+    expect(await screen.findByRole('link', { name: 'Confidentialité' })).toHaveAttribute(
+      'href',
+      '/confidentialite',
+    );
   });
 });
 

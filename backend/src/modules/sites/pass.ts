@@ -21,6 +21,7 @@ import {
   SCORING_BATCH_SIZE,
   ScoredOffersSchema,
 } from '../offers/scoring.js';
+import { fingerprintOf, type Pace, paceAfter } from './pacing.js';
 import * as repository from './repository.js';
 import type { OfferToStore, SourceRow } from './repository.js';
 import type { WatchReport } from './schemas.js';
@@ -74,6 +75,8 @@ interface SourceOutcome {
   found: number;
   added: number;
   relevant: number;
+  /** EF-VEI-42: when the scheduled pass should read the source again. */
+  pace: Pace;
 }
 
 const emptyReport = (threshold: number): WatchReport => ({
@@ -138,6 +141,27 @@ const createScorer = ({ router }: ScorerDeps) => {
   };
 };
 
+/**
+ * EF-VEI-41, EF-VEI-42, ENF-RGP-10: what a check tells beyond the new offers — the pace of the source, and that the
+ * offers already known and found again are still published.
+ */
+const noteWhatIsStillPublished = async (
+  db: Database,
+  {
+    source,
+    found,
+    known,
+    checkedAt,
+  }: { source: SourceRow; found: readonly NormalizedOffer[]; known: ReadonlySet<string>; checkedAt: Date },
+): Promise<Pace> => {
+  const ids = found.map((offer) => offer.externalId);
+  await repository.touchOffers(db, source.id, { externalIds: ids.filter((id) => known.has(id)), seenAt: checkedAt });
+  return paceAfter(
+    { fingerprint: source.offersFingerprint, unchangedChecks: source.unchangedChecks },
+    { fingerprint: fingerprintOf(ids), checkedAt },
+  );
+};
+
 export const createWatchPass = ({
   db,
   clock,
@@ -162,14 +186,17 @@ export const createWatchPass = ({
       },
     });
     const known = await repository.listKnownOfferIds(db, source.id);
+    const checkedAt = clock();
+    const pace = await noteWhatIsStillPublished(db, { source, found, known, checkedAt });
     const fresh = found.filter((offer) => !known.has(offer.externalId));
-    if (fresh.length === 0) return { found: found.length, added: 0, relevant: 0 };
+    if (fresh.length === 0) return { found: found.length, added: 0, relevant: 0, pace };
 
     const scored = await scoreOffers(context, fresh);
     return {
       found: found.length,
-      added: await repository.insertOffers(db, source.id, scored),
+      added: await repository.insertOffers(db, source.id, { offers: scored, seenAt: checkedAt }),
       relevant: scored.filter((offer) => offer.relevanceScore >= context.threshold).length,
+      pace,
     };
   };
 
@@ -185,7 +212,7 @@ export const createWatchPass = ({
           report.offersFound += outcome.found;
           report.offersNew += outcome.added;
           report.offersRelevant += outcome.relevant;
-          await repository.recordCheck(db, source.id, { checkedAt: clock(), error: null });
+          await repository.recordCheck(db, source.id, { checkedAt: clock(), error: null, pace: outcome.pace });
         } catch (error) {
           report.sourcesFailed += 1;
           logger.warn('watched source failed', { sourceId: source.id, adapter: source.adapter, error });

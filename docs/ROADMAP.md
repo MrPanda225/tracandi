@@ -430,12 +430,21 @@ qui montre les offres, puis les sources, enfin l'économie de collecte.
   *Choix assumés* : la vérification n'appelle jamais l'IA — une page carrières sans offre balisée reste « à
   confirmer » (ENF-COU-01) ; les sites carrières des éditeurs (`career.teamtailor.com`…) et `career`, `careers`, `jobs`
   s'ajoutent aux sous-domaines techniques de RG-27 ; « Surveiller les N » reprend les sources trouvées.
-- [ ] **T-415 Collecte économe et minimisation** — empreinte de la liste d'offres, consultation planifiée espacée
+- [x] **T-415 Collecte économe et minimisation** — empreinte de la liste d'offres, consultation planifiée espacée
   des sources inchangées ; coordonnées retirées du texte des offres ; purge quotidienne des offres de plus de
   60 jours ; politique de confidentialité complétée.
   *Exigences* : EF-VEI-41, EF-VEI-42, ENF-RGP-09, ENF-RGP-10, ENF-RGP-05 (v1.33).
   *Fini quand* : source identique 3 fois écartée de la passe planifiée et lue par « Consulter maintenant » ;
   e-mail et téléphone absents d'une offre enregistrée ; offre écartée de 61 jours supprimée, offre gardée conservée.
+  *Livré* : `modules/sites/pacing.ts` (empreinte SHA-256 des identifiants triés ; 8 h × 2^(n-1), 72 h au plus) ;
+  migration 0021 (`offers_fingerprint`, `unchanged_checks`, `next_check_at`, `job_offers.last_seen_at` et son index) ;
+  passe planifiée limitée aux sources dues, « Consulter maintenant » lisant tout ; `scraper/contacts.ts` appliqué par
+  le schéma commun des offres (toutes sources, avant l'enregistrement et avant l'IA) ; purge à chaque passe
+  planifiée (trois fois par jour) ; politique de confidentialité : données de la veille, sources consultées et ce
+  qu'elles reçoivent, conservation des offres.
+  *Choix assumé* : la purge compte à partir du dernier passage où la source publiait l'offre, et non de la première
+  lecture — supprimer une offre encore publiée la ferait revenir « nouvelle », même écartée (ENF-RGP-10 reformulée).
+  Les requêtes conditionnelles HTTP (ETag) restent à faire : peu d'API d'ATS les servent, l'empreinte suffit ici.
 
 - [ ] **T-405 Récapitulatif e-mail** — envoi via Gmail des offres de score ≥ S.
   *Exigences* : EF-VEI-15.
