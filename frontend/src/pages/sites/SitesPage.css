@@ -400,3 +400,37 @@
   padding: 0;
   list-style: none;
 }
+
+/* ---------- Recherche des pages carrières (EF-VEI-38, EF-VEI-39) ---------- */
+
+.suggestions__discover {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.suggestion__verdict {
+  justify-self: start;
+  margin: 0.2rem 0 0;
+  padding: 0.1rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.suggestion__verdict--verified {
+  background: var(--status-interview-soft);
+  color: var(--status-interview);
+}
+
+.suggestion__verdict--unconfirmed {
+  background: var(--status-waiting-soft);
+  color: var(--status-waiting);
+}
+
+.suggestion__verdict--not-found {
+  background: var(--status-idle-soft);
+  color: var(--status-idle);
+}
