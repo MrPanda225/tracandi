@@ -121,6 +121,30 @@ describe('POST /api/applications/:id/follow-up-draft (EF-CAN-17)', () => {
     expect(prompt).not.toContain('Part-Dieu');
   });
 
+  it('[EF-CAN-17] hands the saved offer description to the writer, so the letter speaks of this job', async () => {
+    await setUp([SENT_APPLICATION, MCDONALDS_ACKNOWLEDGEMENT]);
+    const id = await applicationOf("McDonald's");
+    await request(context.app)
+      .patch(`/api/applications/${id}`)
+      .set('Cookie', alice)
+      .set('Content-Type', 'application/json')
+      .send({ offerDescription: 'Vous animerez l’équipe du service du midi et formerez les nouveaux équipiers.' });
+
+    await draftFor(id);
+
+    expect(writerRequests[0]?.prompt ?? '').toContain(
+      'Description de l’offre : Vous animerez l’équipe du service du midi',
+    );
+  });
+
+  it('[EF-CAN-17] says the offer description is missing rather than leaving the model to fill the blank', async () => {
+    await setUp([SENT_APPLICATION, MCDONALDS_ACKNOWLEDGEMENT]);
+
+    await draftFor(await applicationOf("McDonald's"));
+
+    expect(writerRequests[0]?.prompt ?? '').toContain('Description de l’offre : (aucune)');
+  });
+
   it('[RG-20] passes over a no-reply address stored before the rule was refined, for the previous contact', async () => {
     await setUp([SENT_APPLICATION, MCDONALDS_ACKNOWLEDGEMENT]);
     const id = await applicationOf("McDonald's");

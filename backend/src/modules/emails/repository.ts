@@ -457,6 +457,8 @@ export interface FollowUpContext {
   status: (typeof applications.$inferSelect)['status'];
   appliedAt: Date;
   lastActivityAt: Date;
+  /** EF-CAN-15: the offer as the candidate saved it, null when he saved none — what the follow-up is written on. */
+  offerDescription: string | null;
   /**
    * RG-20: the contacts of the most recent messages that carry one, most recent first, with their thread — the
    * service still sets aside those the rule now refuses, stored before it was refined.
@@ -484,6 +486,7 @@ export const findFollowUpContext = async (
       status: applications.status,
       appliedAt: applications.appliedAt,
       lastActivityAt: applications.lastActivityAt,
+      offerDescription: applications.offerDescription,
     })
     .from(applications)
     .innerJoin(companies, eq(companies.id, applications.companyId))

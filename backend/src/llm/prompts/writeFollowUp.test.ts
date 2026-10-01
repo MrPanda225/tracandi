@@ -9,6 +9,7 @@ const APPLICATION: FollowUpToWrite = {
   status: 'acknowledged',
   daysSinceActivity: 21,
   candidateName: 'Alex Martin',
+  offerDescription: null,
 };
 
 describe('buildWriteFollowUpPrompt', () => {
@@ -40,6 +41,34 @@ describe('buildWriteFollowUpPrompt', () => {
     expect(system).toContain('80 à 150 mots');
     expect(system).toContain('n’invente');
     expect(system).toContain('{"body":');
+  });
+
+  it('[EF-CAN-17] asks for a personal letter: this job, this company, no invented praise', () => {
+    const { system } = buildWriteFollowUpPrompt(APPLICATION);
+
+    expect(system).toContain('cette entreprise-là');
+    expect(system).toContain('je me permets de revenir vers vous');
+    expect(system).toMatch(/flatt|compliment/);
+  });
+
+  it('[EF-CAN-17] passes the saved offer description, bounded, as the one source of motivation', () => {
+    const { system, prompt } = buildWriteFollowUpPrompt({
+      ...APPLICATION,
+      offerDescription: `Vous suivrez la qualité des données de la plateforme. ${'x'.repeat(2000)}`,
+    });
+
+    expect(prompt).toContain(
+      'Description de l’offre : Vous suivrez la qualité des données de la plateforme.',
+    );
+    expect(prompt).toContain('…');
+    expect(prompt.length).toBeLessThan(2000);
+    expect(system).toContain('description de l’offre');
+  });
+
+  it('[EF-CAN-17] says so when no offer description was saved, rather than leaving the line out', () => {
+    const { prompt } = buildWriteFollowUpPrompt(APPLICATION);
+
+    expect(prompt).toContain('Description de l’offre : (aucune)');
   });
 
   it('[EF-CAN-17] signs without a name when none is known', () => {
