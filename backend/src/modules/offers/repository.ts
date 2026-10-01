@@ -1,4 +1,4 @@
-import { and, count, desc, eq, gte, inArray, sql, type SQL } from 'drizzle-orm';
+import { and, count, desc, eq, exists, gte, inArray, sql, type SQL } from 'drizzle-orm';
 import type { Database } from '../../db/client.js';
 import { applications, companies, jobOffers, watchedSites } from '../../db/schema.js';
 import type { OfferQuery } from './schemas.js';
@@ -31,6 +31,7 @@ const offerColumns = {
   relevanceReason: jobOffers.relevanceReason,
   matchedTarget: jobOffers.matchedTarget,
   status: jobOffers.status,
+  companySiren: jobOffers.companySiren,
   adapter: watchedSites.adapter,
   applicationId: applications.id,
 };
@@ -48,6 +49,7 @@ export interface OfferRow {
   relevanceReason: string | null;
   matchedTarget: string | null;
   status: OfferStatus;
+  companySiren: string | null;
   adapter: (typeof watchedSites.adapter.enumValues)[number];
   applicationId: number | null;
 }
@@ -114,6 +116,25 @@ export const findOffer = async (
       .leftJoin(applications, eq(applications.offerId, jobOffers.id))
       .where(and(ownedBy(userId), eq(jobOffers.id, id)))
   )[0];
+
+/**
+ * EF-VEI-35: the companies the user applied to — those with at least one application —, with their SIREN when it
+ * is known.
+ * @req EF-VEI-35, EF-AUT-06
+ */
+export const listAppliedCompanies = async (
+  db: Executor,
+  userId: number,
+): Promise<{ name: string; siren: string | null }[]> =>
+  db
+    .select({ name: companies.name, siren: companies.siren })
+    .from(companies)
+    .where(
+      and(
+        eq(companies.userId, userId),
+        exists(db.select({ id: applications.id }).from(applications).where(eq(applications.companyId, companies.id))),
+      ),
+    );
 
 /** EF-VEI-18, EF-VEI-19: sets the state of an offer already checked as the user's. */
 export const setOfferStatus = async (db: Executor, id: number, status: OfferStatus): Promise<void> => {

@@ -391,11 +391,21 @@ qui montre les offres, puis les sources, enfin l'économie de collecte.
   coup, ENF-COU-01) ; l'intérim, le saisonnier et le libéral valent « autre » (hors glossaire, EF-VEI-21), donc
   écartés sans IA par RG-10 ; les partenaires autres que LinkedIn, Indeed et WTTJ (APEC, HelloWork…) sont gardés,
   leur réutilisation passant par la licence France Travail.
-- [ ] **T-412 La bonne alternance et SIREN des entreprises** — source La bonne alternance ; SIREN retrouvé par l'API
+- [x] **T-412 La bonne alternance et SIREN des entreprises** — source La bonne alternance ; SIREN retrouvé par l'API
   Recherche d'entreprises (sans dirigeants) ; offre signalée « Vous y avez postulé ».
   *Exigences* : EF-VEI-34, EF-VEI-35, EF-VEI-36, ENF-RGP-09, ENF-RGP-11.
   *Fini quand* : API simulées — offres en alternance enregistrées ; homonymes sans SIREN ; offre de « CAPGEMINI »
   signalée pour une candidature chez « Capgemini ».
+  *Livré* : migration 0018 (`la_bonne_alternance`, `companies.siren` et `siren_checked_at`, `job_offers.company_siren`) ;
+  `scraper/official/laBonneAlternance.ts` (jeton en en-tête, une requête toutes les deux secondes) et
+  `scraper/adapters/laBonneAlternance.ts` (codes ROME autour de la commune, offres ouvertes, SIREN de l'employeur,
+  téléphone jamais lu) ; `scraper/official/companySearch.ts` et `modules/sites/sirens.ts` (dix entreprises par passe,
+  une seule active de même clé RG-26, rien pour deux homonymes, nouvelle tentative au bout d'un mois, échec sans
+  effet sur la veille) ; `companyKey` (RG-26, `lib/text.ts`, réutilisable par T-901) ; `isFromAppliedCompany` sur
+  chaque offre et badge « Vous y avez déjà postulé » ; `LBA_API_KEY` ; guide complété.
+  *Choix assumés* : La bonne alternance exige au moins un code ROME (l'API cherche par métier) et une cible en
+  alternance, refus dit dès l'activation ; le signalement se calcule à la lecture (quelques centaines d'entreprises au
+  plus) plutôt que d'être figé en base, pour suivre les candidatures ajoutées depuis.
 - [ ] **T-413 Cinq logiciels de recrutement** — adaptateurs Cegid Talentsoft (RSS), Teamtailor (RSS), Personio (XML),
   Workable et Ashby (JSON), lus sans dépendance nouvelle (`cheerio` en mode XML) ; migration de `site_adapter`.
   *Exigences* : EF-VEI-08, RG-08 (v1.33), ENF-MAI-03, ENF-FIA-02.

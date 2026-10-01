@@ -1,4 +1,4 @@
-import { and, count, eq, notExists, sql } from 'drizzle-orm';
+import { and, count, eq, exists, isNull, lt, notExists, or, sql } from 'drizzle-orm';
 import type { Database } from '../../db/client.js';
 import {
   applications,
@@ -161,6 +161,7 @@ export const insertOffers = async (
         siteId,
         externalId: offer.externalId,
         companyName: offer.employerName ?? null,
+        companySiren: offer.employerSiren ?? null,
         title: offer.title,
         location: offer.location,
         contractType: offer.contractType,
@@ -259,4 +260,40 @@ export const dismissSuggestion = async (db: Executor, userId: number, companyId:
     .values({ userId, companyId })
     .onConflictDoNothing({ target: [dismissedSourceSuggestions.userId, dismissedSourceSuggestions.companyId] });
   return true;
+};
+
+/**
+ * EF-VEI-36: the companies of the user's applications whose SIREN is unknown and was not looked for since `before`,
+ * the oldest looked for first — at most `limit`, so that one pass never asks about them all at once.
+ * @req EF-VEI-36, EF-AUT-06
+ */
+export const listCompaniesToIdentify = async (
+  db: Executor,
+  userId: number,
+  { before, limit }: { before: Date; limit: number },
+): Promise<{ id: number; name: string }[]> =>
+  db
+    .select({ id: companies.id, name: companies.name })
+    .from(companies)
+    .where(
+      and(
+        eq(companies.userId, userId),
+        isNull(companies.siren),
+        or(isNull(companies.sirenCheckedAt), lt(companies.sirenCheckedAt, before)),
+        exists(db.select({ id: applications.id }).from(applications).where(eq(applications.companyId, companies.id))),
+      ),
+    )
+    .orderBy(sql`${companies.sirenCheckedAt} asc nulls first`, companies.id)
+    .limit(limit);
+
+/** EF-VEI-36: what the search of a company's SIREN found — possibly nothing — and when. */
+export const recordSiren = async (
+  db: Executor,
+  companyId: number,
+  outcome: { siren: string | null; checkedAt: Date },
+): Promise<void> => {
+  await db
+    .update(companies)
+    .set({ siren: outcome.siren, sirenCheckedAt: outcome.checkedAt })
+    .where(eq(companies.id, companyId));
 };

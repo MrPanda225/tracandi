@@ -1,6 +1,7 @@
 import type { Database } from '../../db/client.js';
 import type { Clock } from '../../lib/clock.js';
 import { HttpError, NotFoundError } from '../../lib/errors.js';
+import { companyKey } from '../../lib/text.js';
 import { adapterFor } from '../../scraper/adapters/index.js';
 import { createApplicationFromOffer } from '../applications/service.js';
 import * as repository from './repository.js';
@@ -26,7 +27,17 @@ export interface OffersService {
   apply: (userId: number, id: number) => Promise<{ offer: OfferView; applicationId: number }>;
 }
 
-const viewOf = (row: OfferRow): OfferView => ({
+/** EF-VEI-35: what tells that an employer is a company of the candidate's applications. */
+interface AppliedCompanies {
+  keys: ReadonlySet<string>;
+  sirens: ReadonlySet<string>;
+}
+
+/** EF-VEI-35, RG-26: the same SIREN when both carry one, the same company key otherwise. */
+const isFromApplied = (row: OfferRow, applied: AppliedCompanies): boolean =>
+  (row.companySiren !== null && applied.sirens.has(row.companySiren)) || applied.keys.has(companyKey(row.companyName));
+
+const viewOf = (row: OfferRow, applied: AppliedCompanies): OfferView => ({
   id: row.id,
   title: row.title,
   companyName: row.companyName,
@@ -41,6 +52,7 @@ const viewOf = (row: OfferRow): OfferView => ({
   status: row.status,
   source: { adapter: row.adapter, label: adapterFor(row.adapter).label },
   applicationId: row.applicationId,
+  isFromAppliedCompany: isFromApplied(row, applied),
 });
 
 /**
@@ -48,6 +60,14 @@ const viewOf = (row: OfferRow): OfferView => ({
  * @req EF-VEI-16 to EF-VEI-20, EF-VEI-22, EF-AUT-06
  */
 export const createOffersService = ({ db, clock }: { db: Database; clock: Clock }): OffersService => {
+  const appliedCompaniesOf = async (userId: number): Promise<AppliedCompanies> => {
+    const companies = await repository.listAppliedCompanies(db, userId);
+    return {
+      keys: new Set(companies.map((company) => companyKey(company.name)).filter((key) => key !== '')),
+      sirens: new Set(companies.flatMap((company) => (company.siren ? [company.siren] : []))),
+    };
+  };
+
   const readOwned = async (userId: number, id: number) => {
     const row = await repository.findOffer(db, userId, id);
     if (!row) throw new NotFoundError(OFFER_NOT_FOUND);
@@ -56,13 +76,16 @@ export const createOffersService = ({ db, clock }: { db: Database; clock: Clock 
 
   return {
     async list(userId, query) {
-      const { rows, total } = await repository.listOffers(db, userId, query);
-      return { items: rows.map(viewOf), total };
+      const [{ rows, total }, applied] = await Promise.all([
+        repository.listOffers(db, userId, query),
+        appliedCompaniesOf(userId),
+      ]);
+      return { items: rows.map((row) => viewOf(row, applied)), total };
     },
 
     async get(userId, id) {
-      const row = await readOwned(userId, id);
-      return { ...viewOf(row), description: row.description };
+      const [row, applied] = await Promise.all([readOwned(userId, id), appliedCompaniesOf(userId)]);
+      return { ...viewOf(row, applied), description: row.description };
     },
 
     async setStatus(userId, id, body) {
@@ -70,7 +93,7 @@ export const createOffersService = ({ db, clock }: { db: Database; clock: Clock 
       // EF-VEI-19: an offer applied to stays so; its application is followed on the Candidatures screen.
       if (row.status === 'applied') throw new HttpError(CONFLICT, ALREADY_APPLIED);
       await repository.setOfferStatus(db, id, body.status);
-      return viewOf(await readOwned(userId, id));
+      return viewOf(await readOwned(userId, id), await appliedCompaniesOf(userId));
     },
 
     async apply(userId, id) {
@@ -88,7 +111,7 @@ export const createOffersService = ({ db, clock }: { db: Database; clock: Clock 
         await repository.setOfferStatus(tx, id, 'applied');
         return created;
       });
-      return { offer: viewOf(await readOwned(userId, id)), applicationId };
+      return { offer: viewOf(await readOwned(userId, id), await appliedCompaniesOf(userId)), applicationId };
     },
   };
 };

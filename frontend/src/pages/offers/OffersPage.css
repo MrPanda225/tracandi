@@ -184,3 +184,15 @@
   display: grid;
   gap: 0.5rem;
 }
+
+/* EF-VEI-35 : une entreprise déjà sollicitée, dite en texte (WCAG 1.4.1). */
+.offer__applied-company {
+  justify-self: start;
+  margin: 0.15rem 0 0;
+  padding: 0.1rem 0.55rem;
+  border-radius: 999px;
+  background: var(--color-accent-soft);
+  color: var(--color-accent-strong);
+  font-size: 0.8rem;
+  font-weight: 600;
+}

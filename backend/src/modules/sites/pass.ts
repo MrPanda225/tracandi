@@ -11,6 +11,7 @@ import { adapterFor } from '../../scraper/adapters/index.js';
 import { describeCollectionFailure } from '../../scraper/failures.js';
 import type { AdapterDeps, NormalizedOffer } from '../../scraper/adapters/types.js';
 import type { FranceTravailApi } from '../../scraper/official/franceTravail.js';
+import type { LaBonneAlternanceApi } from '../../scraper/official/laBonneAlternance.js';
 import type { WatchCriteria } from '../criteria/schemas.js';
 import {
   isWorthScoring,
@@ -31,7 +32,7 @@ export interface WatchPassDeps {
   /** The responsible collector of T-401, shared by every adapter (rules/scraping.md). */
   collect: AdapterDeps['fetch'];
   /** EF-VEI-32, EF-VEI-37: the clients of the official APIs; null when the server has no credentials for one. */
-  officialApis: { franceTravail: FranceTravailApi | null };
+  officialApis: { franceTravail: FranceTravailApi | null; laBonneAlternance: LaBonneAlternanceApi | null };
   logger: Logger;
 }
 
@@ -157,6 +158,7 @@ export const createWatchPass = ({
         since: source.lastCheckedAt,
         now: clock(),
         franceTravail: officialApis.franceTravail,
+        laBonneAlternance: officialApis.laBonneAlternance,
       },
     });
     const known = await repository.listKnownOfferIds(db, source.id);

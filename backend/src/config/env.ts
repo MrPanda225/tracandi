@@ -102,6 +102,8 @@ const EnvSchema = z.object({
    */
   FRANCE_TRAVAIL_CLIENT_ID: optionalValue,
   FRANCE_TRAVAIL_CLIENT_SECRET: optionalValue,
+  // EF-VEI-34, ENF-SEC-23 (v1.33): key of the API Apprentissage (La bonne alternance); without it, that source says so.
+  LBA_API_KEY: optionalValue,
   /*
    * BES-39: proxies standing in front of the API — 2 on the hosting (Vercel's rewrite, then Northflank's load
    * balancer). The client address is then read from X-Forwarded-For, so that the rate limits count each visitor
@@ -196,8 +198,8 @@ export interface Config {
   maxConcurrentJobs: number;
   /** EF-CVX-33: CV analyses a candidate may launch per day; 0 lifts the limit. */
   cvAnalysesPerDay: number;
-  /** EF-VEI-32, ENF-SEC-23: null when the France Travail application is not configured. */
-  officialSources: { franceTravail: OfficialCredentials | null };
+  /** EF-VEI-32, EF-VEI-34, ENF-SEC-23: null for each official API the server has no credentials for. */
+  officialSources: { franceTravail: OfficialCredentials | null; laBonneAlternance: { apiKey: string } | null };
 }
 
 /** Time zone of the cron expressions and schedule of each job. */
@@ -289,6 +291,7 @@ export const loadConfig = (env: Record<string, string | undefined>): Config => {
         result.data.FRANCE_TRAVAIL_CLIENT_ID && result.data.FRANCE_TRAVAIL_CLIENT_SECRET
           ? { clientId: result.data.FRANCE_TRAVAIL_CLIENT_ID, clientSecret: result.data.FRANCE_TRAVAIL_CLIENT_SECRET }
           : null,
+      laBonneAlternance: result.data.LBA_API_KEY ? { apiKey: result.data.LBA_API_KEY } : null,
     },
     features: result.data.ENABLED_FEATURES,
     trustProxyHops: result.data.TRUST_PROXY,

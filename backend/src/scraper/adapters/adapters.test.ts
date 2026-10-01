@@ -49,6 +49,7 @@ describe('SOURCE_ADAPTERS', () => {
       'workday',
       'generic',
       'france_travail',
+      'la_bonne_alternance',
     ]);
     expect(adapterFor('greenhouse')).toBe(greenhouseAdapter);
     expect(adapterFor('generic')).toBe(genericAdapter);

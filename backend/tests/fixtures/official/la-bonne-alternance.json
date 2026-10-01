@@ -1,0 +1,56 @@
+{
+  "jobs": [
+    {
+      "identifier": { "id": "6650f0c1a2b3c4d5e6f70812", "partner_label": "offres_emploi_lba", "partner_job_id": "6650f0c1a2b3c4d5e6f70812" },
+      "workplace": {
+        "name": "Atelier Numérique Exemple",
+        "description": null,
+        "website": "https://exemple.test",
+        "siret": "12345678900012",
+        "brand": "Atelier Numérique",
+        "legal_name": "ATELIER NUMERIQUE EXEMPLE SAS",
+        "size": "20-49",
+        "location": { "address": "10 rue de l'Exemple 92000 Nanterre", "geopoint": { "type": "Point", "coordinates": [2.2071, 48.8924] } },
+        "domain": { "idcc": 1486, "opco": "ATLAS", "naf": { "code": "6201Z", "label": "Programmation informatique" } }
+      },
+      "apply": { "url": "https://labonnealternance.apprentissage.beta.gouv.fr/emploi/offres_emploi_lba/6650f0c1a2b3c4d5e6f70812/data-analyst", "phone": "01 00 00 00 00", "recipient_id": "recruiters_6650f0c1a2b3c4d5e6f70812" },
+      "contract": { "start": "2026-11-02T00:00:00.000Z", "duration": 24, "type": ["Apprentissage"], "remote": "hybrid" },
+      "offer": {
+        "title": "Data analyst en alternance",
+        "description": "Tableaux de bord et analyses de ventes.",
+        "desired_skills": ["SQL", "Power BI"],
+        "to_be_acquired_skills": [],
+        "access_conditions": [],
+        "opening_count": 1,
+        "publication": { "creation": "2026-09-20T08:00:00.000Z", "expiration": "2026-11-20T08:00:00.000Z" },
+        "rome_codes": ["M1419"],
+        "target_diploma": { "european": "7", "label": "Master" },
+        "status": "Active",
+        "to_applicant_questions": null
+      },
+      "is_delegated": false
+    },
+    {
+      "identifier": { "id": null, "partner_label": "France Travail", "partner_job_id": "199ZZZZ" },
+      "workplace": { "name": "EXEMPLE INDUSTRIE", "siret": null, "location": { "address": "Paris" } },
+      "apply": { "url": "https://candidat.francetravail.fr/offres/recherche/detail/199ZZZZ", "phone": null, "recipient_id": null },
+      "contract": { "type": ["Professionnalisation"] },
+      "offer": { "title": "Apprenti data engineer", "description": "Pipelines.", "publication": { "creation": "2026-09-21T08:00:00.000Z" }, "status": "Active" }
+    },
+    {
+      "identifier": { "id": "closed-1", "partner_label": "offres_emploi_lba", "partner_job_id": "closed-1" },
+      "workplace": { "name": "Fermée" },
+      "apply": { "url": "https://labonnealternance.apprentissage.beta.gouv.fr/emploi/closed-1" },
+      "offer": { "title": "Offre pourvue", "status": "Filled" }
+    },
+    {
+      "identifier": { "id": "indeed-1", "partner_label": "Indeed", "partner_job_id": "indeed-1" },
+      "workplace": { "name": "Relayée" },
+      "apply": { "url": "https://fr.indeed.com/viewjob?jk=fictif" },
+      "offer": { "title": "Alternance data", "status": "Active" }
+    },
+    { "identifier": { "partner_label": "offres_emploi_lba" }, "offer": { "title": "Incomplète" } }
+  ],
+  "recruiters": [],
+  "warnings": []
+}

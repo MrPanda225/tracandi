@@ -8,7 +8,8 @@ export type SourceAdapterId =
   | 'recruitee'
   | 'workday'
   | 'generic'
-  | 'france_travail';
+  | 'france_travail'
+  | 'la_bonne_alternance';
 
 /** Un type de source, tel que l'API le décrit : l'écran ne tient pas la liste lui-même (ENF-MAI-03). */
 export interface SourceType {
