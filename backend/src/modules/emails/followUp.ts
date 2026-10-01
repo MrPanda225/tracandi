@@ -129,6 +129,7 @@ export const createFollowUpDrafts = ({
         status: application.status,
         daysSinceActivity: Math.floor((clock().getTime() - application.lastActivityAt.getTime()) / DAY_MS),
         candidateName: thread.find((message) => message.isSent)?.senderName ?? null,
+        offerDescription: application.offerDescription,
       }),
       schema: FollowUpDraftSchema,
     });
