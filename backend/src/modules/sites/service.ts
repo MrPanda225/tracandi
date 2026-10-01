@@ -10,7 +10,9 @@ import type { LlmRouter } from '../../llm/router.js';
 import { adapterFor } from '../../scraper/adapters/index.js';
 import type { AdapterDeps } from '../../scraper/adapters/types.js';
 import { ensureCompany } from '../applications/service.js';
+import type { ScoringProfile } from '../../llm/prompts/scoreOffers.js';
 import type { ProfileService } from '../cv/service.js';
+import { type CriteriaService, scoringProfileOf } from '../criteria/service.js';
 import { createWatchPass } from './pass.js';
 import { createSuggestionReader } from './suggestions.js';
 import * as repository from './repository.js';
@@ -19,8 +21,8 @@ import type { CreateSourceBody, SourceSuggestion, SourceView, WatchReport } from
 
 const SOURCE_NOT_FOUND = 'Source surveillée introuvable';
 const ALREADY_WATCHED = 'Cette source est déjà surveillée pour cette entreprise';
-const NO_PROFILE =
-  'Renseignez votre profil de référence avant de lancer la veille : vos cibles servent à noter les offres.';
+const NO_CRITERIA =
+  'Renseignez vos critères de recherche avant de lancer la veille : vos cibles servent à noter les offres.';
 const CONFLICT = 409;
 /** EF-VEI-15: default threshold S, used while the candidate has no settings row. */
 const DEFAULT_THRESHOLD = 60;
@@ -52,6 +54,9 @@ export interface WatchService {
 export interface WatchServiceDeps {
   db: Database;
   clock: Clock;
+  /** EF-VEI-29: what the candidate looks for. */
+  criteria: CriteriaService;
+  /** EF-VEI-31: the reference profile, read only when the candidate has no criteria yet. */
   profiles: ProfileService;
   router: LlmRouter;
   queue: JobQueue;
@@ -125,7 +130,7 @@ const createSourceCatalogue = (db: Database) => {
  * @req EF-VEI-01 to EF-VEI-07, EF-AUT-06
  */
 export const createWatchService = (deps: WatchServiceDeps): WatchService => {
-  const { db, profiles, queue, logger } = deps;
+  const { db, criteria, profiles, queue, logger } = deps;
   const catalogue = createSourceCatalogue(db);
   const pass = createWatchPass(deps);
   const suggestions = createSuggestionReader(db);
@@ -139,17 +144,27 @@ export const createWatchService = (deps: WatchServiceDeps): WatchService => {
   };
 
   /**
-   * Nothing is collected before the targets are known: they are what a score is measured against (RG-09). A
-   * candidate who watches nothing is simply told so, rather than asked for a profile they do not need yet.
+   * EF-VEI-31: the criteria of the candidate, or the targets of the reference profile while they have none.
+   * @throws HttpError 409 when there is neither: the targets are what a score is measured against (RG-09).
+   */
+  const scoringOf = async (userId: number): Promise<ScoringProfile> => {
+    const saved = await criteria.read(userId);
+    if (saved) return scoringProfileOf(saved);
+    const profile = await profiles.read(userId).catch(() => {
+      throw new HttpError(CONFLICT, NO_CRITERIA);
+    });
+    return { searchArea: profile.location.searchArea, targets: profile.targets };
+  };
+
+  /**
+   * Nothing is collected before the targets are known. A candidate who watches nothing is simply told so, rather
+   * than asked for criteria they do not need yet.
    */
   const runPass = async (userId: number): Promise<WatchReport> => {
     const threshold = await thresholdOf(userId);
     const sources = await repository.listActiveSources(db, userId);
     if (sources.length === 0) return EMPTY_REPORT(threshold);
-    const profile = await profiles.read(userId).catch(() => {
-      throw new HttpError(CONFLICT, NO_PROFILE);
-    });
-    return pass.run({ userId, profile, sources, threshold });
+    return pass.run({ userId, scoring: await scoringOf(userId), sources, threshold });
   };
 
   const countersOf = (report: WatchReport): RunCounters => ({

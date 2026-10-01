@@ -77,8 +77,11 @@ export interface PoliteFetchDeps {
   sleep?: Sleep;
 }
 
-/** Reads the body up to `maxBytes`, then gives up without holding more than that in memory (ENF-COL-04). */
-const readBounded = async (response: Response, url: string): Promise<string> => {
+/**
+ * Reads the body up to 3 MB, then gives up without holding more than that in memory (ENF-COL-04, ENF-COL-05).
+ * @throws ResponseTooLargeError past 3 MB.
+ */
+export const readBounded = async (response: Response, url: string): Promise<string> => {
   const reader = response.body?.getReader();
   if (!reader) return '';
   const chunks: Uint8Array[] = [];

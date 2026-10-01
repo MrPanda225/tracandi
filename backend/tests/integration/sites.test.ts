@@ -393,7 +393,7 @@ describe('one pass of the watch (EF-VEI-07 to EF-VEI-14)', () => {
     expect(await database.db.select().from(jobOffers)).toHaveLength(0);
   });
 
-  it('[EF-VEI-07] asks for the profile before reading anything', async () => {
+  it('[EF-VEI-07] [EF-VEI-31] asks for search criteria before reading anything, when there is no profile either', async () => {
     await withServices({ collect: boardCollector(GREENHOUSE_BOARD) });
     await api(alice).add(GREENHOUSE_SOURCE).expect(201);
 
@@ -403,7 +403,7 @@ describe('one pass of the watch (EF-VEI-07 to EF-VEI-14)', () => {
     expect(accepted.status).toBe(202);
     const state = await stateOf(accepted);
     expect(state.outcome).toBe('failure');
-    expect(state.error).toContain('profil de référence');
+    expect(state.error).toContain('critères de recherche');
   });
 
   it('[EF-VEI-07] journals an empty pass when the candidate watches nothing', async () => {

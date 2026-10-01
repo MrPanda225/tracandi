@@ -17,7 +17,13 @@ describe('optional features (ENF-MAI-07)', () => {
     const { app } = createTestContext(database, { features: new Set() });
     const cookie = await registerUser(app, 'alice@example.com');
 
-    for (const path of ['/api/profile', '/api/cv-workshop/analyses/1', '/api/sites', '/api/sites/suggestions']) {
+    for (const path of [
+      '/api/profile',
+      '/api/cv-workshop/analyses/1',
+      '/api/sites',
+      '/api/sites/suggestions',
+      '/api/watch/criteria',
+    ]) {
       expect((await request(app).get(path).set('Cookie', cookie)).status, path).toBe(404);
     }
     const run = await request(app)

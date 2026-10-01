@@ -1,12 +1,15 @@
 import type { Database } from '../../db/client.js';
 import type { Clock } from '../../lib/clock.js';
 import type { Logger } from '../../lib/logger.js';
-import { buildScoreOffersPrompt, type OfferToScore } from '../../llm/prompts/scoreOffers.js';
+import {
+  buildScoreOffersPrompt,
+  type OfferToScore,
+  type ScoringProfile,
+} from '../../llm/prompts/scoreOffers.js';
 import type { LlmRouter } from '../../llm/router.js';
 import { adapterFor } from '../../scraper/adapters/index.js';
 import { describeCollectionFailure } from '../../scraper/failures.js';
 import type { AdapterDeps, NormalizedOffer } from '../../scraper/adapters/types.js';
-import type { CandidateProfile } from '../cv/schemas.js';
 import {
   isWorthScoring,
   matchedTargetOf,
@@ -14,7 +17,6 @@ import {
   PREFILTERED_SCORE,
   SCORING_BATCH_SIZE,
   ScoredOffersSchema,
-  type ScoringTarget,
 } from '../offers/scoring.js';
 import * as repository from './repository.js';
 import type { OfferToStore, SourceRow } from './repository.js';
@@ -32,7 +34,8 @@ export interface WatchPassDeps {
 /** What one pass needs to know about the candidate it runs for. */
 export interface PassContext {
   userId: number;
-  profile: CandidateProfile;
+  /** What every new offer is scored against: the search criteria, or the reference profile at worst (EF-VEI-31). */
+  scoring: ScoringProfile;
   /** The active sources to read, chosen by the caller (EF-VEI-04). */
   sources: readonly SourceRow[];
   /** EF-VEI-15: score S at or above which an offer counts as relevant. */
@@ -47,13 +50,6 @@ export interface WatchPass {
    */
   run: (context: PassContext) => Promise<WatchReport>;
 }
-
-const targetsOf = (profile: CandidateProfile): ScoringTarget[] =>
-  profile.targets.map((target) => ({
-    label: target.label,
-    contractTypes: target.contractTypes,
-    keywords: target.keywords,
-  }));
 
 const batches = <T>(items: readonly T[], size: number): T[][] => {
   const chunks: T[][] = [];
@@ -101,17 +97,14 @@ const createScorer = ({ router }: ScorerDeps) => {
   ): Promise<Map<number, Score>> => {
     const { data } = await router.runTask('score_offers', {
       userId: context.userId,
-      ...buildScoreOffersPrompt(
-        { searchArea: context.profile.location.searchArea, targets: targetsOf(context.profile) },
-        offers,
-      ),
+      ...buildScoreOffersPrompt(context.scoring, offers),
       schema: ScoredOffersSchema,
     });
     return new Map(data.offers.map((scored) => [scored.ref, { score: scored.score, reason: scored.reason }]));
   };
 
   return async (context: PassContext, offers: readonly NormalizedOffer[]): Promise<OfferToStore[]> => {
-    const targets = targetsOf(context.profile);
+    const { targets } = context.scoring;
     const worth = offers.filter((offer) => isWorthScoring(offer, targets));
     const referenceOf = new Map(worth.map((offer, index) => [offer, index + 1]));
     const scores = new Map<number, Score>();
@@ -175,7 +168,10 @@ export const createWatchPass = ({ db, clock, router, collect, logger }: WatchPas
         } catch (error) {
           report.sourcesFailed += 1;
           logger.warn('watched source failed', { sourceId: source.id, adapter: source.adapter, error });
-          await repository.recordCheck(db, source.id, { checkedAt: clock(), error: describeCollectionFailure(error) });
+          await repository.recordCheck(db, source.id, {
+            checkedAt: clock(),
+            error: describeCollectionFailure(error),
+          });
         }
       }
       return report;

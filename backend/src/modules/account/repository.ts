@@ -16,6 +16,7 @@ import {
   prefilterKeywords,
   processedMessages,
   users,
+  watchCriteria,
   watchedSites,
 } from '../../db/schema.js';
 
@@ -24,9 +25,9 @@ import {
  * (ENF-SEC-02). Shared reference data (platforms, AI prices) is not the user's and stays out.
  */
 
-/** The account, its settings, its Gmail connection (no token) and its profile. */
+/** The account, its settings, its Gmail connection (no token), its profile and its search criteria. */
 export const readAccountData = async (db: Database, userId: number) => {
-  const [account, settings, gmail, profile, keywords] = await Promise.all([
+  const [account, settings, gmail, profile, keywords, criteria] = await Promise.all([
     db.select({ email: users.email, createdAt: users.createdAt }).from(users).where(eq(users.id, userId)),
     db
       .select({
@@ -54,6 +55,11 @@ export const readAccountData = async (db: Database, userId: number) => {
       .select({ keyword: prefilterKeywords.keyword })
       .from(prefilterKeywords)
       .where(eq(prefilterKeywords.userId, userId)),
+    // EF-VEI-29 (v1.33)
+    db
+      .select({ document: watchCriteria.document, updatedAt: watchCriteria.updatedAt })
+      .from(watchCriteria)
+      .where(eq(watchCriteria.userId, userId)),
   ]);
   return {
     account: account[0] ?? null,
@@ -61,6 +67,7 @@ export const readAccountData = async (db: Database, userId: number) => {
     gmail: gmail[0] ?? null,
     profile: profile[0] ?? null,
     prefilterKeywords: keywords.map((row) => row.keyword),
+    watchCriteria: criteria[0] ?? null,
   };
 };
 

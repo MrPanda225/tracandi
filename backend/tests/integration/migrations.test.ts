@@ -41,6 +41,7 @@ const EXPECTED_TABLES = [
   'processed_messages',
   'sessions',
   'users',
+  'watch_criteria',
   'watched_sites',
 ];
 
@@ -120,6 +121,9 @@ describe('migrations', () => {
         'PATCH /sites/{id}',
         'DELETE /sites/{id}',
         'POST /sites/run',
+        'GET /watch/criteria',
+        'PUT /watch/criteria',
+        'GET /watch/places',
       ].sort(),
     );
   });
