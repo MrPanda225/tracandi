@@ -161,9 +161,8 @@ export const readMessages = async (db: Database, userId: number) => {
   return { emails: kept, processedMessages: processed };
 };
 
-/** The sources watched for these companies, and the offers read on them. */
-export const readWatch = async (db: Database, companyIds: readonly number[]) => {
-  if (companyIds.length === 0) return { watchedSites: [], jobOffers: [] };
+/** The sources the user watches — official ones included (v1.33) — and the offers read on them. */
+export const readWatch = async (db: Database, userId: number) => {
   const sites = await db
     .select({
       id: watchedSites.id,
@@ -175,7 +174,7 @@ export const readWatch = async (db: Database, companyIds: readonly number[]) => 
       createdAt: watchedSites.createdAt,
     })
     .from(watchedSites)
-    .where(inArray(watchedSites.companyId, [...companyIds]));
+    .where(eq(watchedSites.userId, userId));
   const siteIds = sites.map((site) => site.id);
   const offers =
     siteIds.length === 0
@@ -183,6 +182,7 @@ export const readWatch = async (db: Database, companyIds: readonly number[]) => 
       : await db
           .select({
             siteId: jobOffers.siteId,
+            companyName: jobOffers.companyName,
             title: jobOffers.title,
             location: jobOffers.location,
             url: jobOffers.url,

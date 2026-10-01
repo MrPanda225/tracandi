@@ -90,6 +90,47 @@ describe('SitesPage', () => {
     expect(list.getByText(/4 offres repérées/)).toBeInTheDocument();
   });
 
+  it('[EF-VEI-32] activates France Travail in one gesture, without company nor identifier', async () => {
+    let added = false;
+    const official = {
+      ...SOURCE,
+      id: 2,
+      companyName: null,
+      adapter: 'france_travail',
+      adapterLabel: 'France Travail',
+      identifier: 'criteres',
+    };
+    const sent = mockApi({
+      'GET /sites/types': () =>
+        json(200, {
+          items: [
+            ...TYPES,
+            { id: 'france_travail', label: 'France Travail', identifierHint: 'Rien à saisir.', isOfficial: true },
+          ],
+        }),
+      'GET /sites/suggestions': () => json(200, { items: [] }),
+      'GET /watch/criteria': () => json(200, { criteria: null }),
+      'GET /sites': () => json(200, { items: added ? [official] : [] }),
+      'POST /sites': () => {
+        added = true;
+        return json(201, official);
+      },
+    });
+    renderPage();
+    const user = userEvent.setup();
+
+    // An official source is never typed in the form: it has no company.
+    const type = await screen.findByLabelText('Type de source');
+    expect(within(type).queryByRole('option', { name: 'France Travail' })).not.toBeInTheDocument();
+    await user.click(await screen.findByRole('button', { name: 'Activer France Travail' }));
+
+    expect(sent.at(-1)).toEqual({ adapter: 'france_travail', identifier: 'criteres' });
+    const list = within(await screen.findByRole('list', { name: 'Sources surveillées' }));
+    expect(list.getByText('France Travail')).toBeInTheDocument();
+    expect(list.getByText('Interrogée selon vos critères de recherche')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Activer France Travail' })).not.toBeInTheDocument();
+  });
+
   it('[EF-VEI-10] says so when a source has never been checked', async () => {
     mockApi(withSources({ ...SOURCE, lastCheckedAt: null, offerCount: 0 }));
 

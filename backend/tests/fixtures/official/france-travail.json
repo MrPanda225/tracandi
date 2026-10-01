@@ -1,0 +1,87 @@
+{
+  "resultats": [
+    {
+      "id": "198XKZQ",
+      "intitule": "Data analyst (H/F)",
+      "description": "Vous analysez les ventes et construisez des tableaux de bord Power BI.",
+      "dateCreation": "2026-09-28T09:12:03.000Z",
+      "dateActualisation": "2026-09-29T07:00:11.000Z",
+      "lieuTravail": {
+        "libelle": "92 - NANTERRE",
+        "latitude": 48.89,
+        "longitude": 2.2,
+        "codePostal": "92000",
+        "commune": "92050"
+      },
+      "romeCode": "M1419",
+      "romeLibelle": "Data analyst",
+      "entreprise": { "nom": "EXEMPLE CONSEIL SAS", "entrepriseAdaptee": false },
+      "typeContrat": "CDI",
+      "typeContratLibelle": "Contrat à durée indéterminée",
+      "natureContrat": "Contrat travail",
+      "experienceExige": "S",
+      "experienceLibelle": "2 ans",
+      "salaire": { "libelle": "Annuel de 38000,00 Euros sur 12 mois" },
+      "alternance": false,
+      "contact": {
+        "nom": "EXEMPLE CONSEIL SAS - Mme Fictive",
+        "courriel": "recrutement@exemple.test",
+        "telephone": "01 00 00 00 00",
+        "urlPostulation": "https://exemple.test/postuler/1"
+      },
+      "nombrePostes": 1,
+      "origineOffre": {
+        "origine": "1",
+        "urlOrigine": "https://candidat.francetravail.fr/offres/recherche/detail/198XKZQ"
+      }
+    },
+    {
+      "id": "199ABCD",
+      "intitule": "Apprenti data engineer",
+      "description": "Alternance de 24 mois, pipelines de données.",
+      "dateCreation": "2026-09-27T10:00:00.000Z",
+      "lieuTravail": { "libelle": "75 - PARIS 09" },
+      "entreprise": {},
+      "typeContrat": "CDD",
+      "natureContrat": "Contrat apprentissage",
+      "alternance": true,
+      "salaire": [],
+      "origineOffre": {
+        "origine": "1",
+        "urlOrigine": "https://candidat.francetravail.fr/offres/recherche/detail/199ABCD"
+      }
+    },
+    {
+      "id": "200EFGH",
+      "intitule": "Data analyst junior",
+      "description": "Offre relayée par un partenaire exclu.",
+      "dateCreation": "2026-09-27T10:00:00.000Z",
+      "lieuTravail": { "libelle": "92 - COURBEVOIE" },
+      "entreprise": { "nom": "AUTRE EXEMPLE" },
+      "typeContrat": "CDI",
+      "natureContrat": "Contrat travail",
+      "alternance": false,
+      "origineOffre": {
+        "origine": "2",
+        "urlOrigine": "https://fr.indeed.com/viewjob?jk=fictif",
+        "partenaires": [{ "nom": "INDEED", "url": "https://fr.indeed.com/viewjob?jk=fictif" }]
+      }
+    },
+    {
+      "id": "201IJKL",
+      "intitule": "Chargé d'études statistiques",
+      "dateCreation": "2026-09-26T10:00:00.000Z",
+      "lieuTravail": { "libelle": "94 - CRETEIL" },
+      "entreprise": { "nom": "EXEMPLE PUBLIC" },
+      "typeContrat": "MIS",
+      "natureContrat": "Contrat travail",
+      "alternance": false,
+      "origineOffre": {
+        "origine": "2",
+        "partenaires": [{ "nom": "APEC", "url": "https://www.apec.fr/fictif" }]
+      }
+    },
+    { "id": "", "intitule": "Résultat sans identifiant" }
+  ],
+  "filtresPossibles": []
+}

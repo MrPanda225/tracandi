@@ -2,7 +2,9 @@ import { z } from 'zod';
 import { contractType, siteAdapter } from '../../db/schema.js';
 import type { RunTaskInput, TaskResult } from '../../llm/router.js';
 import type { LlmTaskName } from '../../llm/types.js';
+import type { WatchCriteria } from '../../modules/criteria/schemas.js';
 import type { CollectedPage, RequestOptions } from '../http.js';
+import type { FranceTravailApi } from '../official/franceTravail.js';
 
 /** One of the source types of the data model (`site_adapter`). */
 export type SiteAdapterId = (typeof siteAdapter.enumValues)[number];
@@ -17,6 +19,7 @@ export const TITLE_MAX_LENGTH = 300;
 export const LOCATION_MAX_LENGTH = 200;
 export const URL_MAX_LENGTH = 1000;
 export const EXTERNAL_ID_MAX_LENGTH = 255;
+export const EMPLOYER_NAME_MAX_LENGTH = 160;
 /** The description feeds the scoring prompt (RG-09): long enough to judge, short enough to send. */
 export const DESCRIPTION_MAX_LENGTH = 5000;
 
@@ -44,6 +47,11 @@ export const NormalizedOfferSchema = z.object({
   url: z.string().max(URL_MAX_LENGTH).startsWith('https://'),
   description: z.string().max(DESCRIPTION_MAX_LENGTH).nullable(),
   postedAt: z.date().nullable(),
+  /**
+   * EF-VEI-32 (v1.33): the employer an official source names; absent for a company source, whose offers are all
+   * the company's own.
+   */
+  employerName: z.string().max(EMPLOYER_NAME_MAX_LENGTH).nullable().optional(),
 });
 
 export type NormalizedOffer = z.infer<typeof NormalizedOfferSchema>;
@@ -56,6 +64,20 @@ export type NormalizedOffer = z.infer<typeof NormalizedOfferSchema>;
 export interface AdapterDeps {
   fetch: (url: string, options?: RequestOptions) => Promise<CollectedPage>;
   runTask?: RunAdapterTask;
+  /** EF-VEI-32 (v1.33): what an official source is queried with; company sources never read it. */
+  official?: OfficialSourceDeps;
+}
+
+/**
+ * What an official source needs: the criteria of the candidate, when the source was last read, and the clients of
+ * the official APIs — null when the server has no credentials for one (EF-VEI-37).
+ */
+export interface OfficialSourceDeps {
+  criteria: WatchCriteria | null;
+  /** The previous check of this source; null before the first one. */
+  since: Date | null;
+  now: Date;
+  franceTravail: FranceTravailApi | null;
 }
 
 /**
@@ -74,6 +96,11 @@ export type RunAdapterTask = <T>(
 export interface SourceAdapter {
   /** Value of the `site_adapter` enumeration this adapter answers for. */
   readonly id: SiteAdapterId;
+  /**
+   * EF-VEI-32 (v1.33): an official source publishes the offers of many employers, is queried with the search
+   * criteria and has no company of its own; one per candidate.
+   */
+  readonly isOfficial?: true;
   /** Name shown to the candidate when choosing a type of source. */
   readonly label: string;
   /** What the candidate must type, in French (EF-VEI-01). */

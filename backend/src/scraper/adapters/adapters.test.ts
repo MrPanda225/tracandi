@@ -48,6 +48,7 @@ describe('SOURCE_ADAPTERS', () => {
       'recruitee',
       'workday',
       'generic',
+      'france_travail',
     ]);
     expect(adapterFor('greenhouse')).toBe(greenhouseAdapter);
     expect(adapterFor('generic')).toBe(genericAdapter);
@@ -81,7 +82,13 @@ const slugAdapters: readonly SourceAdapter[] = [
     expect(adapter.identifierSchema.parse('Atelier-Aurore.01')).toBe('atelier-aurore.01');
   });
 
-  it.each(SOURCE_ADAPTERS)(
+  /**
+   * The sources read on a company's site, through the responsible collector. An official source goes through its
+   * own API client instead; its failures are tested with it (`franceTravail.test.ts`).
+   */
+  const companyAdapters = SOURCE_ADAPTERS.filter((adapter) => !adapter.isOfficial);
+
+  it.each(companyAdapters)(
     '[ENF-FIA-02] $id turns a refusal of the source into a readable failure',
     async (adapter) => {
       const identifier = identifierOf(adapter.id);
@@ -93,7 +100,7 @@ const slugAdapters: readonly SourceAdapter[] = [
   );
 
   /** The generic page reads HTML, not JSON: what an unusable answer means there is tested in `generic.test.ts`. */
-  const jsonAdapters = SOURCE_ADAPTERS.filter((adapter) => adapter.id !== 'generic');
+  const jsonAdapters = companyAdapters.filter((adapter) => adapter.id !== 'generic');
 
   it.each(jsonAdapters)(
     '[ENF-FIA-02] $id refuses an answer that is not the expected JSON',

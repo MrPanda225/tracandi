@@ -228,7 +228,10 @@ describe('GET /api/stats/dashboard', () => {
 
   it('[RG-06] [BES-34] leaves out an application nobody can be written to', async () => {
     const userId = await userIdOf('alice@example.com');
-    const reachable = await createAt('2026-09-02T09:00:00.000Z', { companyName: 'Joignable', jobTitle: 'Poste A' });
+    const reachable = await createAt('2026-09-02T09:00:00.000Z', {
+      companyName: 'Joignable',
+      jobTitle: 'Poste A',
+    });
     await createAt('2026-09-02T09:00:00.000Z', { companyName: 'Muet', jobTitle: 'Poste B' });
     await giveContact(database, { userId, applicationId: reachable, address: 'rh@joignable.example' });
     context.clock.set(NOW);
@@ -254,13 +257,14 @@ describe('GET /api/stats/dashboard', () => {
   });
 
   it('[EF-TDB-08] counts the new offers whose score reaches the threshold S', async () => {
+    const userId = await userIdOf('alice@example.com');
     const [company] = await database.db
       .insert(companies)
-      .values({ userId: await userIdOf('alice@example.com'), name: 'Atelier Nova', nameKey: 'atelier nova' })
+      .values({ userId, name: 'Atelier Nova', nameKey: 'atelier nova' })
       .returning({ id: companies.id });
     const [site] = await database.db
       .insert(watchedSites)
-      .values({ companyId: company?.id ?? 0, adapter: 'greenhouse', identifier: 'ateliernova' })
+      .values({ userId, companyId: company?.id ?? 0, adapter: 'greenhouse', identifier: 'ateliernova' })
       .returning({ id: watchedSites.id });
     const offer = (externalId: string, relevanceScore: number, status: 'new' | 'dismissed') => ({
       siteId: site?.id ?? 0,

@@ -9,9 +9,11 @@ import type { Logger } from '../../lib/logger.js';
 import type { LlmRouter } from '../../llm/router.js';
 import { adapterFor } from '../../scraper/adapters/index.js';
 import type { AdapterDeps } from '../../scraper/adapters/types.js';
+import type { FranceTravailApi } from '../../scraper/official/franceTravail.js';
 import { ensureCompany } from '../applications/service.js';
 import type { ScoringProfile } from '../../llm/prompts/scoreOffers.js';
 import type { ProfileService } from '../cv/service.js';
+import type { WatchCriteria } from '../criteria/schemas.js';
 import { type CriteriaService, scoringProfileOf } from '../criteria/service.js';
 import { createWatchPass } from './pass.js';
 import { createSuggestionReader } from './suggestions.js';
@@ -62,6 +64,8 @@ export interface WatchServiceDeps {
   queue: JobQueue;
   /** The responsible collector of T-401, shared by every adapter (rules/scraping.md). */
   collect: AdapterDeps['fetch'];
+  /** EF-VEI-32, EF-VEI-37: the clients of the official APIs; null when the server has no credentials for one. */
+  officialApis: { franceTravail: FranceTravailApi | null };
   logger: Logger;
 }
 
@@ -101,10 +105,20 @@ const createSourceCatalogue = (db: Database) => {
     },
 
     async add(userId: number, body: CreateSourceBody): Promise<SourceView> {
-      const companyId = await ensureCompany(db, { userId, name: body.companyName });
-      const identifier = adapterFor(body.adapter).identifierSchema.parse(body.identifier);
+      const adapter = adapterFor(body.adapter);
+      // EF-VEI-32: an official source has no company; the schema already required one for every other type.
+      const companyId =
+        adapter.isOfficial || body.companyName === undefined
+          ? null
+          : await ensureCompany(db, { userId, name: body.companyName });
+      const identifier = adapter.identifierSchema.parse(body.identifier);
       try {
-        const id = await repository.insertSource(db, { companyId, adapter: body.adapter, identifier });
+        const id = await repository.insertSource(db, {
+          userId,
+          companyId,
+          adapter: body.adapter,
+          identifier,
+        });
         return viewOf(await readOwned(userId, id));
       } catch (error) {
         if (isUniqueViolation(error)) throw new HttpError(CONFLICT, ALREADY_WATCHED);
@@ -147,8 +161,7 @@ export const createWatchService = (deps: WatchServiceDeps): WatchService => {
    * EF-VEI-31: the criteria of the candidate, or the targets of the reference profile while they have none.
    * @throws HttpError 409 when there is neither: the targets are what a score is measured against (RG-09).
    */
-  const scoringOf = async (userId: number): Promise<ScoringProfile> => {
-    const saved = await criteria.read(userId);
+  const scoringOf = async (userId: number, saved: WatchCriteria | null): Promise<ScoringProfile> => {
     if (saved) return scoringProfileOf(saved);
     const profile = await profiles.read(userId).catch(() => {
       throw new HttpError(CONFLICT, NO_CRITERIA);
@@ -164,7 +177,8 @@ export const createWatchService = (deps: WatchServiceDeps): WatchService => {
     const threshold = await thresholdOf(userId);
     const sources = await repository.listActiveSources(db, userId);
     if (sources.length === 0) return EMPTY_REPORT(threshold);
-    return pass.run({ userId, scoring: await scoringOf(userId), sources, threshold });
+    const saved = await criteria.read(userId);
+    return pass.run({ userId, scoring: await scoringOf(userId, saved), criteria: saved, sources, threshold });
   };
 
   const countersOf = (report: WatchReport): RunCounters => ({

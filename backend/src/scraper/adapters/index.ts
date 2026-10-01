@@ -1,3 +1,4 @@
+import { franceTravailAdapter } from './franceTravail.js';
 import { genericAdapter } from './generic.js';
 import { greenhouseAdapter } from './greenhouse.js';
 import { leverAdapter } from './lever.js';
@@ -21,6 +22,8 @@ export const SOURCE_ADAPTERS: readonly SourceAdapter[] = [
   recruiteeAdapter,
   workdayAdapter,
   genericAdapter,
+  // EF-VEI-32 (v1.33): official sources, queried with the criteria rather than read from a company's site.
+  franceTravailAdapter,
 ];
 
 const BY_ID = new Map<SiteAdapterId, SourceAdapter>(SOURCE_ADAPTERS.map((adapter) => [adapter.id, adapter]));

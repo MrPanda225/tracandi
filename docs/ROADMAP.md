@@ -372,13 +372,25 @@ qui montre les offres, puis les sources, enfin l'économie de collecte.
   *Choix assumés* : une offre postulée ne change plus d'état (409) ; un intitulé déjà présent à l'entreprise est
   refusé plutôt que fusionné (RG-03), l'offre restant à regarder. Le lien vers le CV utilisé (EF-VEI-20) est sans
   objet depuis v1.30 : aucun CV n'est conservé.
-- [ ] **T-411 Client des API officielles et source France Travail** — client commun (délai, taille, débit par API,
+- [x] **T-411 Client des API officielles et source France Travail** — client commun (délai, taille, débit par API,
   sans robots.txt, ENF-COL-05), jeton OAuth en mémoire, identifiants en configuration (ENF-SEC-23), source unique
   par candidat (`user_id` sur `watched_sites`, entreprise facultative), employeur enregistré sur l'offre, partenaires
   exclus, contacts jamais lus ; guide de création des accès.
   *Exigences* : EF-VEI-08, EF-VEI-32, EF-VEI-33, EF-VEI-37, ENF-COL-05, ENF-SEC-23, ENF-RGP-09, ENF-RGP-11.
   *Fini quand* : API simulée — requête aux paramètres des critères, offres enregistrées sans contact, offre
   « Indeed » écartée, identifiants absents signalés sur la seule source.
+  *Livré* : migration 0017 (`watched_sites.user_id` repris des entreprises, `company_id` facultatif pour une source
+  officielle, une seule par candidat, `job_offers.company_name`) ; `scraper/official/franceTravail.ts` (jeton OAuth
+  en mémoire, renouvelé une minute avant son échéance et une fois sur refus, 206/204 lus, refus lisibles) ;
+  `scraper/adapters/franceTravail.ts` (requêtes par métier et par type de contrat — CDI/CDD, apprentissage et
+  professionnalisation, temps partiel pour un job étudiant —, puis par codes ROME ; 12 requêtes et 300 offres au
+  plus ; offres publiées depuis la consultation précédente, une semaine à la première ; lien vers francetravail.fr ;
+  partenaires exclus) ; `FRANCE_TRAVAIL_CLIENT_ID/SECRET` (les deux ou aucune) ; carte « Sources officielles » et
+  mention « source : France Travail » sur chaque offre ; guide `docs/SOURCES_OFFICIELLES.md`.
+  *Choix assumés* : une semaine à la première consultation plutôt que 31 jours (un mois d'offres serait noté d'un
+  coup, ENF-COU-01) ; l'intérim, le saisonnier et le libéral valent « autre » (hors glossaire, EF-VEI-21), donc
+  écartés sans IA par RG-10 ; les partenaires autres que LinkedIn, Indeed et WTTJ (APEC, HelloWork…) sont gardés,
+  leur réutilisation passant par la licence France Travail.
 - [ ] **T-412 La bonne alternance et SIREN des entreprises** — source La bonne alternance ; SIREN retrouvé par l'API
   Recherche d'entreprises (sans dirigeants) ; offre signalée « Vous y avez postulé ».
   *Exigences* : EF-VEI-34, EF-VEI-35, EF-VEI-36, ENF-RGP-09, ENF-RGP-11.
