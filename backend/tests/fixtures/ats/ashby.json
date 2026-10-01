@@ -1,0 +1,41 @@
+{
+  "jobs": [
+    {
+      "id": "00000000-aaaa-bbbb-cccc-000000000001",
+      "title": "Analytics engineer",
+      "department": "Data",
+      "team": "Core",
+      "employmentType": "FullTime",
+      "location": "Paris",
+      "shouldDisplayCompensationOnJobPostings": false,
+      "secondaryLocations": [{ "location": "Lyon", "address": { "postalAddress": { "addressRegion": "", "addressCountry": "France", "addressLocality": "Lyon" } } }],
+      "publishedAt": "2026-09-20T08:00:00.000+00:00",
+      "isListed": true,
+      "isRemote": true,
+      "workplaceType": "Hybrid",
+      "address": { "postalAddress": { "postalCode": "75002", "addressRegion": "Île-de-France", "addressCountry": "France", "addressLocality": "Paris" } },
+      "jobUrl": "https://jobs.ashbyhq.com/Exemplia/00000000-aaaa-bbbb-cccc-000000000001",
+      "applyUrl": "https://jobs.ashbyhq.com/Exemplia/00000000-aaaa-bbbb-cccc-000000000001/application",
+      "descriptionHtml": "<p>Modèles dbt et tableaux de bord.</p>",
+      "descriptionPlain": "Modèles dbt et tableaux de bord."
+    },
+    {
+      "id": "00000000-aaaa-bbbb-cccc-000000000002",
+      "title": "Stage data",
+      "employmentType": "Intern",
+      "location": "Paris",
+      "publishedAt": "2026-09-21T08:00:00.000+00:00",
+      "isListed": true,
+      "isRemote": false,
+      "jobUrl": "https://jobs.ashbyhq.com/Exemplia/00000000-aaaa-bbbb-cccc-000000000002",
+      "descriptionPlain": "Six mois."
+    },
+    {
+      "id": "00000000-aaaa-bbbb-cccc-000000000003",
+      "title": "Poste non publié",
+      "employmentType": "FullTime",
+      "isListed": false,
+      "jobUrl": "https://jobs.ashbyhq.com/Exemplia/00000000-aaaa-bbbb-cccc-000000000003"
+    }
+  ]
+}

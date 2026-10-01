@@ -8,6 +8,11 @@ export type SourceAdapterId =
   | 'recruitee'
   | 'workday'
   | 'generic'
+  | 'talentsoft'
+  | 'teamtailor'
+  | 'personio'
+  | 'workable'
+  | 'ashby'
   | 'france_travail'
   | 'la_bonne_alternance';
 

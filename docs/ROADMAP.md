@@ -406,10 +406,17 @@ qui montre les offres, puis les sources, enfin l'économie de collecte.
   *Choix assumés* : La bonne alternance exige au moins un code ROME (l'API cherche par métier) et une cible en
   alternance, refus dit dès l'activation ; le signalement se calcule à la lecture (quelques centaines d'entreprises au
   plus) plutôt que d'être figé en base, pour suivre les candidatures ajoutées depuis.
-- [ ] **T-413 Cinq logiciels de recrutement** — adaptateurs Cegid Talentsoft (RSS), Teamtailor (RSS), Personio (XML),
+- [x] **T-413 Cinq logiciels de recrutement** — adaptateurs Cegid Talentsoft (RSS), Teamtailor (RSS), Personio (XML),
   Workable et Ashby (JSON), lus sans dépendance nouvelle (`cheerio` en mode XML) ; migration de `site_adapter`.
   *Exigences* : EF-VEI-08, RG-08 (v1.33), ENF-MAI-03, ENF-FIA-02.
   *Fini quand* : un test par adaptateur sur fixture fictive fidèle au format réel ; identifiant invalide refusé.
+  *Livré* : `scraper/adapters/feed.ts` (lecture des flux XML par `cheerio` en mode XML, déjà installé), `talentsoft.ts`,
+  `teamtailor.ts`, `personio.ts`, `workable.ts`, `ashby.ts` et leur entrée au registre ; migration 0019 ; fixtures
+  fictives reproduisant les champs relevés le 01/10/2026 sur un flux public de chaque éditeur. Chaque requête passe par
+  le client poli (robots.txt, 3 s par hôte).
+  *Choix assumés* : le lieu d'une offre Talentsoft est sa troisième catégorie (ordre constant chez les clients vus, non
+  garanti ailleurs) ; « Full-time » ne vaut pas CDI (EF-VEI-22) ; le nom d'un board Ashby garde sa casse ; Flatchr et
+  les éditeurs sans flux public restent lus par la page carrières générique (JSON-LD d'abord, EF-VEI-28).
 - [ ] **T-414 Recherche des pages carrières** — exécution `source_discovery` en file : accueil du site, un rebond,
   empreintes RG-27, vérification par une consultation ; propositions « vérifiée » ou « à confirmer » à l'écran.
   *Exigences* : EF-VEI-38, EF-VEI-39, EF-VEI-40, RG-19 (v1.33), RG-27, ENF-COL-01 à 04.

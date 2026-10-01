@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:tt="https://teamtailor.com/locations">
+  <channel>
+    <title>Exemplia</title>
+    <description>Current job openings</description>
+    <link>https://exemplia.teamtailor.com/jobs</link>
+    <item>
+      <title>Chargé de données H/F</title>
+      <description>&lt;p&gt;Rejoignez l&amp;#39;équipe data : &lt;strong&gt;SQL&lt;/strong&gt; et tableaux de bord.&lt;/p&gt;</description>
+      <pubDate>Fri, 24 Jul 2026 09:05:16 +0200</pubDate>
+      <link>https://exemplia.teamtailor.com/jobs/1234567-charge-de-donnees</link>
+      <remoteStatus>hybrid</remoteStatus>
+      <guid>00000000-1111-2222-3333-444444444444</guid>
+      <tt:locations>
+        <tt:location><tt:name>Lyon Part-Dieu</tt:name><tt:address>1 rue Fictive</tt:address><tt:zip>69003</tt:zip><tt:city>Lyon</tt:city><tt:country>France</tt:country></tt:location>
+      </tt:locations>
+      <tt:department>Data</tt:department>
+      <tt:role>Data analyst</tt:role>
+      <tt:division/>
+    </item>
+    <item>
+      <title>Alternance — Développeur web</title>
+      <description>&lt;p&gt;Contrat de 24 mois.&lt;/p&gt;</description>
+      <pubDate>Mon, 21 Sep 2026 10:00:00 +0200</pubDate>
+      <link>https://exemplia.teamtailor.com/jobs/1234568-alternance-developpeur-web</link>
+      <remoteStatus>fully</remoteStatus>
+      <guid>00000000-1111-2222-3333-555555555555</guid>
+      <tt:locations/>
+    </item>
+  </channel>
+</rss>

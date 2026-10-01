@@ -1,0 +1,39 @@
+{
+  "name": "Exemplia",
+  "description": "Entreprise fictive.",
+  "jobs": [
+    {
+      "title": "Data engineer",
+      "shortcode": "ABCDEF1234",
+      "code": "",
+      "employment_type": "Full-time",
+      "telecommuting": true,
+      "department": "Data",
+      "url": "https://apply.workable.com/j/ABCDEF1234",
+      "shortlink": "https://apply.workable.com/j/ABCDEF1234",
+      "application_url": "https://apply.workable.com/j/ABCDEF1234/apply",
+      "published_on": "2026-09-15",
+      "created_at": "2026-09-14",
+      "country": "France",
+      "city": "Paris",
+      "state": "Île-de-France",
+      "education": "Master's Degree",
+      "experience": "Mid-Senior level",
+      "function": "Engineering",
+      "industry": "Computer Software",
+      "locations": [{ "country": "France", "countryCode": "FR", "city": "Paris", "region": "Île-de-France", "hidden": false }],
+      "description": "<p>Pipelines et entrepôt de données.</p>"
+    },
+    {
+      "title": "Stagiaire marketing",
+      "shortcode": "GHIJKL5678",
+      "employment_type": "Internship",
+      "telecommuting": false,
+      "url": "https://apply.workable.com/j/GHIJKL5678",
+      "published_on": "2026-09-20",
+      "city": "Lyon",
+      "country": "France",
+      "description": "<p>Stage de six mois.</p>"
+    }
+  ]
+}
