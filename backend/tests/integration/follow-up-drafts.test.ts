@@ -11,7 +11,13 @@ import { saveGmailAccount } from '../../src/modules/emails/repository.js';
 import { createFakeGmail, type FakeGmail } from '../fixtures/emails/fakeGmail.js';
 import { MCDONALDS_ACKNOWLEDGEMENT, SENT_APPLICATION } from '../fixtures/emails/messages.js';
 import { createScriptedClassifier } from '../fixtures/llm/classifications.js';
-import { createTestContext, openTestDatabase, registerUser, type TestContext, truncateAll } from './context.js';
+import {
+  createTestContext,
+  openTestDatabase,
+  registerUser,
+  type TestContext,
+  truncateAll,
+} from './context.js';
 
 const FOLLOW_UP = JSON.parse(
   readFileSync(new URL('../fixtures/llm/write_follow_up.json', import.meta.url), 'utf8'),
@@ -35,7 +41,11 @@ const scriptedProvider = (): LlmProvider => {
     complete: (llmRequest) => {
       if (!llmRequest.system.includes('e-mail de relance')) return classifier.complete(llmRequest);
       writerRequests.push(llmRequest);
-      return Promise.resolve({ text: JSON.stringify({ body: writtenBody }), inputTokens: 300, outputTokens: 200 });
+      return Promise.resolve({
+        text: JSON.stringify({ body: writtenBody }),
+        inputTokens: 300,
+        outputTokens: 200,
+      });
     },
   };
 };
@@ -50,7 +60,10 @@ const setUp = async (messages: readonly gmail_v1.Schema$Message[]) => {
   });
   context.clock.set(SYNC_TIME);
   alice = await registerUser(context.app, 'alice@example.com');
-  const [user] = await database.db.select({ id: users.id }).from(users).where(eq(users.email, 'alice@example.com'));
+  const [user] = await database.db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.email, 'alice@example.com'));
   aliceId = user?.id ?? 0;
   await saveGmailAccount(database.db, {
     userId: aliceId,
@@ -59,7 +72,10 @@ const setUp = async (messages: readonly gmail_v1.Schema$Message[]) => {
     connectedAt: SYNC_TIME,
     resetSync: true,
   });
-  await request(context.app).post('/api/gmail/sync').set('Cookie', alice).set('Content-Type', 'application/json');
+  await request(context.app)
+    .post('/api/gmail/sync')
+    .set('Cookie', alice)
+    .set('Content-Type', 'application/json');
   await context.queue.drain();
 };
 
@@ -103,7 +119,10 @@ describe('POST /api/applications/:id/follow-up-draft (EF-CAN-17)', () => {
     const [draft] = gmail.drafts;
     expect(draft?.threadId).toBe(MCDONALDS_ACKNOWLEDGEMENT.threadId);
     expect(draft?.message).toContain('To: recrutement@mcdonalds.example\r\n');
-    const body = Buffer.from(draft?.message.split('\r\n\r\n')[1]?.replace(/\r\n/g, '') ?? '', 'base64').toString();
+    const body = Buffer.from(
+      draft?.message.split('\r\n\r\n')[1]?.replace(/\r\n/g, '') ?? '',
+      'base64',
+    ).toString();
     expect(body).toBe(FOLLOW_UP.body.replace(/\n/g, '\r\n'));
   });
 
@@ -119,6 +138,32 @@ describe('POST /api/applications/:id/follow-up-draft (EF-CAN-17)', () => {
     expect(prompt).toContain('Signature : Alex Martin');
     // Nothing of a message is handed to the AI: its excerpt stays out.
     expect(prompt).not.toContain('Part-Dieu');
+  });
+
+  it('[EF-CAN-17] hands the saved offer description to the writer, so the letter speaks of this job', async () => {
+    await setUp([SENT_APPLICATION, MCDONALDS_ACKNOWLEDGEMENT]);
+    const id = await applicationOf("McDonald's");
+    await request(context.app)
+      .patch(`/api/applications/${id}`)
+      .set('Cookie', alice)
+      .set('Content-Type', 'application/json')
+      .send({
+        offerDescription: 'Vous animerez l’équipe du service du midi et formerez les nouveaux équipiers.',
+      });
+
+    await draftFor(id);
+
+    expect(writerRequests[0]?.prompt ?? '').toContain(
+      'Description de l’offre : Vous animerez l’équipe du service du midi',
+    );
+  });
+
+  it('[EF-CAN-17] says the offer description is missing rather than leaving the model to fill the blank', async () => {
+    await setUp([SENT_APPLICATION, MCDONALDS_ACKNOWLEDGEMENT]);
+
+    await draftFor(await applicationOf("McDonald's"));
+
+    expect(writerRequests[0]?.prompt ?? '').toContain('Description de l’offre : (aucune)');
   });
 
   it('[RG-20] passes over a no-reply address stored before the rule was refined, for the previous contact', async () => {

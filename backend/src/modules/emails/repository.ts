@@ -250,7 +250,10 @@ export const insertProcessedMessages = async (
  * Returns the id of the platform with this normalized name, recording it when absent (EF-GML-10).
  * @req EF-GML-10, RG-14
  */
-export const upsertPlatform = async (db: Executor, platform: { name: string; nameKey: string }): Promise<number> => {
+export const upsertPlatform = async (
+  db: Executor,
+  platform: { name: string; nameKey: string },
+): Promise<number> => {
   const [row] = await db
     .insert(platforms)
     .values(platform)
@@ -328,7 +331,11 @@ export const listEmailsWithoutContact = async (db: Executor, userId: number): Pr
  * Keeps the contact address found for a stored message (RG-20).
  * @req RG-20
  */
-export const setEmailContact = async (db: Executor, emailId: number, contactAddress: string): Promise<void> => {
+export const setEmailContact = async (
+  db: Executor,
+  emailId: number,
+  contactAddress: string,
+): Promise<void> => {
   await db.update(emails).set({ contactAddress }).where(eq(emails.id, emailId));
 };
 
@@ -432,8 +439,15 @@ export const setSyncPreferences = async (
  * Q-11: marks the Gmail connection of the user as expired; the scheduler leaves it until a new connection.
  * @req Q-11
  */
-export const markAuthorizationExpired = async (db: Executor, userId: number, expiredAt: Date): Promise<void> => {
-  await db.update(gmailAccounts).set({ authorizationExpiredAt: expiredAt }).where(eq(gmailAccounts.userId, userId));
+export const markAuthorizationExpired = async (
+  db: Executor,
+  userId: number,
+  expiredAt: Date,
+): Promise<void> => {
+  await db
+    .update(gmailAccounts)
+    .set({ authorizationExpiredAt: expiredAt })
+    .where(eq(gmailAccounts.userId, userId));
 };
 
 /**
@@ -457,6 +471,8 @@ export interface FollowUpContext {
   status: (typeof applications.$inferSelect)['status'];
   appliedAt: Date;
   lastActivityAt: Date;
+  /** EF-CAN-15: the offer as the candidate saved it, null when he saved none — what the follow-up is written on. */
+  offerDescription: string | null;
   /**
    * RG-20: the contacts of the most recent messages that carry one, most recent first, with their thread — the
    * service still sets aside those the rule now refuses, stored before it was refined.
@@ -484,6 +500,7 @@ export const findFollowUpContext = async (
       status: applications.status,
       appliedAt: applications.appliedAt,
       lastActivityAt: applications.lastActivityAt,
+      offerDescription: applications.offerDescription,
     })
     .from(applications)
     .innerJoin(companies, eq(companies.id, applications.companyId))
@@ -500,4 +517,3 @@ export const findFollowUpContext = async (
     contacts: contacts.flatMap(({ address, gmailThreadId }) => (address ? [{ address, gmailThreadId }] : [])),
   };
 };
-

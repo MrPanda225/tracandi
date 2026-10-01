@@ -218,6 +218,20 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
   connexion à l'écart (déconnexion en rouge, confirmée). *Exigences* : EF-CFG-05, EF-CFG-02 (retirée de l'écran),
   EF-CFG-01, EF-CFG-04, EF-GML-02, EF-GML-17, EF-GML-20.
 
+- [x] **T-312 Relance incarnée** — *demande du Business Owner du 01/10/2026 (cahier v1.34, BES-47) : « les mails
+  rédigés par l'IA sont plutôt impersonnels ».* Consigne système de `write_follow_up` réécrite : but affiché (que le
+  recruteur sente une personne qui tient à ce poste-là, dans cette entreprise-là), première personne, ton chaleureux,
+  formules de catalogue nommées et bannies, plan en trois paragraphes dont le deuxième porte la motivation.
+  La **description de l'offre enregistrée par le candidat** (EF-CAN-15) est transmise au rédacteur, bornée à
+  1 200 caractères, et devient la seule matière dont il peut tirer un motif d'intérêt ; la ligne est écrite
+  « (aucune) » quand elle manque, plutôt qu'omise. Flatterie sur ce que le modèle ignore de l'entreprise
+  (valeurs, réputation, « leader de son secteur ») explicitement interdite.
+  *Exigences* : EF-CAN-17 (v1.34), ENF-SEC-06, ENF-COU-01.
+  *Fini quand* : le prompt porte la description quand elle existe et le dit quand elle manque ; les consignes de ton
+  sont vérifiées par test ; bornes de 80 à 150 mots inchangées, contrôlées par le code.
+  *Choix assumé* : aucun fait nouveau n'est inventé pour « personnaliser » — sans description d'offre, la relance
+  reste sobre. C'est la saisie de la description (EF-CAN-15) qui rend le message personnel, pas le modèle.
+
 ## Lot 4 — Veille des offres
 
 - [x] **T-401 Client HTTP de collecte** — robots.txt (cache par origine), 3 s par hôte, agent identifiant,
@@ -705,6 +719,17 @@ l'offre n'est écrite en base, sur disque ou dans les journaux (ENF-RGP-06).
   barres groupées valeurs inscrites, semaine en cours plus claire et marquée « en cours », les trois chiffres de la
   semaine comparés à la précédente (EF-TDB-10) servant aussi de légende et de bascule d'affichage, tableau pour
   lecteur d'écran, actualisation d'elle-même à la fin d'une synchronisation ou d'une relecture (EF-TDB-11).
+
+- [x] **T-603 Tableau de bord réordonné et liste à relancer repliée** — *demande du Business Owner du 01/10/2026
+  (cahier v1.34, BES-47) : « je ne veux pas que les relances soient en haut, il faut que le graphique soit avant ».*
+  Ordre des blocs : indicateurs clés, suivi des 5 dernières semaines, candidatures à relancer, répartitions
+  (EF-TDB-12). La liste à relancer n'affiche plus que ses 5 premières lignes ; « Afficher les N suivantes » déplie
+  les autres, le compteur et « et N autres. » restant visibles (EF-TDB-07 v1.34).
+  *Exigences* : EF-TDB-12, EF-TDB-07 (v1.34).
+  *Fini quand* : test d'ordre des blocs dans le document ; 5 lignes dépliées sur 8, puis 8 après l'action.
+  *Pourquoi* : avec 72 candidatures à relancer, 20 lignes séparaient les chiffres du graphique et des répartitions —
+  une page et demie de défilement avant la première information de synthèse. L'ancien ordre suivait Fogg (le
+  déclencheur là où l'œil se pose) ; le Business Owner tranche pour la vue d'ensemble d'abord.
 
 ## Lot 7 — Exploitation
 
