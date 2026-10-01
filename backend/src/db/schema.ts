@@ -274,6 +274,11 @@ export const watchedSites = pgTable(
     isActive: boolean().notNull().default(true),
     lastCheckedAt: instant(),
     lastError: varchar({ length: 500 }),
+    // EF-VEI-41 (v1.33): SHA-256 of the sorted identifiers of the offers last read on the source.
+    offersFingerprint: varchar({ length: 64 }),
+    // EF-VEI-42: consecutive checks that found the same offers, and when the scheduled pass reads the source again.
+    unchangedChecks: smallint().notNull().default(0),
+    nextCheckAt: instant(),
     createdAt: createdAt(),
   },
   (t) => [
@@ -344,6 +349,8 @@ export const jobOffers = pgTable(
     description: text(),
     postedAt: instant(),
     firstSeenAt: createdAt(),
+    // ENF-RGP-10 (v1.33): the last check that still found the offer on its source.
+    lastSeenAt: instant().notNull().defaultNow(),
     relevanceScore: smallint(),
     relevanceReason: varchar({ length: 500 }),
     // Label of the profile target (targets live in the user profile, Q-16).
@@ -357,6 +364,8 @@ export const jobOffers = pgTable(
     index('ix_job_offers_status_score').on(t.status, t.relevanceScore),
     // EF-VEI-22
     index('ix_job_offers_contract_type').on(t.contractType),
+    // ENF-RGP-10: the daily purge of the offers their source no longer publishes.
+    index('ix_job_offers_last_seen').on(t.lastSeenAt),
   ],
 );
 

@@ -3,6 +3,7 @@ import { contractType, siteAdapter } from '../../db/schema.js';
 import type { RunTaskInput, TaskResult } from '../../llm/router.js';
 import type { LlmTaskName } from '../../llm/types.js';
 import type { WatchCriteria } from '../../modules/criteria/schemas.js';
+import { withoutContacts } from '../contacts.js';
 import type { CollectedPage, RequestOptions } from '../http.js';
 import type { FranceTravailApi } from '../official/franceTravail.js';
 import type { LaBonneAlternanceApi } from '../official/laBonneAlternance.js';
@@ -46,7 +47,12 @@ export const NormalizedOfferSchema = z.object({
   location: z.string().max(LOCATION_MAX_LENGTH).nullable(),
   contractType: z.enum(contractType.enumValues),
   url: z.string().max(URL_MAX_LENGTH).startsWith('https://'),
-  description: z.string().max(DESCRIPTION_MAX_LENGTH).nullable(),
+  // ENF-RGP-09 (v1.33): whatever the source, the text never keeps a recruiter's address or phone.
+  description: z
+    .string()
+    .max(DESCRIPTION_MAX_LENGTH)
+    .nullable()
+    .transform((text) => (text === null ? null : withoutContacts(text))),
   postedAt: z.date().nullable(),
   /**
    * EF-VEI-32 (v1.33): the employer an official source names; absent for a company source, whose offers are all

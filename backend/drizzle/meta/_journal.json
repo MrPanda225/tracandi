@@ -148,6 +148,13 @@
       "when": 1790812573291,
       "tag": "0020_career_page_discovery",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1790813722700,
+      "tag": "0021_sparing_collection",
+      "breakpoints": true
     }
   ]
 }

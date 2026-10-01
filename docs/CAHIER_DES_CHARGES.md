@@ -530,7 +530,7 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | ENF-RGP-07 | Le système ne doit transmettre au fournisseur IA ni le nom, ni l'adresse e-mail, ni le téléphone, ni l'adresse postale, ni les liens de profil figurant dans le CV importé ; ils sont retirés du texte avant envoi et rétablis dans le CV téléchargé. (v1.30, BES-43) | T |
 | ENF-RGP-08 | La politique de confidentialité doit décrire le traitement de l'Atelier CV : données lues, transmission au fournisseur IA sans les coordonnées, absence de conservation. (v1.30, BES-43) | I |
 | ENF-RGP-09 | Le système ne doit conserver d'une offre aucune coordonnée de recruteur : les champs de contact des sources ne sont pas lus, et les adresses e-mail et numéros de téléphone sont retirés du texte de l'offre avant son enregistrement et avant tout envoi à l'IA. (v1.33) | T |
-| ENF-RGP-10 | Le système doit supprimer chaque jour les offres à l'état « nouvelle » ou « écartée » vues pour la première fois il y a plus de 60 jours ; les offres gardées ou postulées sont conservées. (v1.33) | T |
+| ENF-RGP-10 | Le système doit supprimer chaque jour les offres à l'état « nouvelle » ou « écartée » que leur source ne publie plus depuis plus de 60 jours ; les offres gardées ou postulées sont conservées. Une offre encore publiée n'est pas supprimée : elle reviendrait au passage suivant comme nouvelle, une offre écartée comprise. (v1.33) | T |
 | ENF-RGP-11 | Les requêtes vers les sources officielles ne doivent porter que des critères de recherche (mots-clés, codes ROME, commune, rayon, types de contrat) ou le nom d'une entreprise, jamais une donnée d'identité ni de contact du candidat. (v1.33) | T |
 
 ### 7.8 Coûts
@@ -628,7 +628,7 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | Q-15 | Pour l'alternance, faut-il suivre des informations propres (école, rythme, date de début) ? | Non en v1.1 : le rythme figure dans le profil (disponibilités), repris dans le CV. |
 | Q-17 | Les indicateurs EF-TDB-01, 05, 06 et 09 portent sur toutes les candidatures de l'utilisateur, donc sur toute la table `applications` (application mono-utilisateur) : le planificateur choisit le `Seq Scan`, interdit par ENF-PERF-04 ; un index couvrant ne change pas son choix. Que faire ? (bloque T-601) | Tranchée le 22/09/2026 : ENF-PERF-04 limitée aux requêtes sélectives ; indicateurs bornés à 50 ms par requête (ENF-PERF-05). |
 | Q-18 | ~~Où héberger l'API et l'interface ?~~ **Tranchée le 24/09/2026 (BES-39)** : interface sur Vercel, API sur Northflank (région de l'Union européenne), base sur Neon ; l'interface relaie `/api` vers l'API, ce qui garde une seule origine (cookie `SameSite=Strict`, garde d'origine, retour OAuth inchangés). | Voir ADR-15 et `docs/DEPLOIEMENT.md`. |
-| Q-19 | Combien de temps garder une offre que le candidat n'a ni gardée ni postulée ? (v1.33) | 60 jours après sa première lecture (ENF-RGP-10). |
+| Q-19 | Combien de temps garder une offre que le candidat n'a ni gardée ni postulée ? (v1.33) | 60 jours après que sa source a cessé de la publier (ENF-RGP-10). |
 | Q-20 | Welcome Kit, logiciel de recrutement public du groupe Welcome to the Jungle : à surveiller ou à exclure ? (v1.33) | Exclu, dans l'esprit du §5.2 : ses offres renvoient vers welcometothejungle.com. |
 | Q-21 | Quand traiter les pages carrières qui n'affichent leurs offres qu'en JavaScript ? (v1.33) | Plus tard, sur demande ; seule piste conforme relevée : un service de rendu qui s'annonce comme robot et respecte robots.txt. |
 
