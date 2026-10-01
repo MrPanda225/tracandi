@@ -3,6 +3,7 @@ import type { Database } from '../../db/client.js';
 import {
   applications,
   companies,
+  discoveredSources,
   dismissedSourceSuggestions,
   emails,
   jobOffers,
@@ -296,4 +297,49 @@ export const recordSiren = async (
     .update(companies)
     .set({ siren: outcome.siren, sirenCheckedAt: outcome.checkedAt })
     .where(eq(companies.id, companyId));
+};
+
+/** EF-VEI-39: what the search of a company's career page concluded. */
+export interface DiscoveryRow {
+  companyId: number;
+  status: (typeof discoveredSources.status.enumValues)[number];
+  adapter: SiteAdapterId | null;
+  identifier: string | null;
+  offerCount: number | null;
+  discoveredAt: Date;
+}
+
+/**
+ * EF-VEI-38, EF-VEI-39: the conclusions of the searches of career pages for the user's companies.
+ * @req EF-VEI-38, EF-AUT-06
+ */
+export const listDiscoveries = async (db: Executor, userId: number): Promise<DiscoveryRow[]> =>
+  db
+    .select({
+      companyId: discoveredSources.companyId,
+      status: discoveredSources.status,
+      adapter: discoveredSources.adapter,
+      identifier: discoveredSources.identifier,
+      offerCount: discoveredSources.offerCount,
+      discoveredAt: discoveredSources.discoveredAt,
+    })
+    .from(discoveredSources)
+    .innerJoin(companies, eq(companies.id, discoveredSources.companyId))
+    .where(eq(companies.userId, userId));
+
+/** EF-VEI-39: records — or replaces — what the search of this company's career page concluded. */
+export const saveDiscovery = async (db: Executor, discovery: DiscoveryRow): Promise<void> => {
+  await db
+    .insert(discoveredSources)
+    .values(discovery)
+    .onConflictDoUpdate({
+      target: discoveredSources.companyId,
+      set: {
+        status: discovery.status,
+        adapter: discovery.adapter,
+        identifier: discovery.identifier,
+        offerCount: discovery.offerCount,
+        discoveredAt: discovery.discoveredAt,
+      },
+    });
 };

@@ -108,6 +108,8 @@ export const jobName = pgEnum('job_name', [
   'scraper',
   'backup',
   'cv_analysis',
+  // EF-VEI-40 (v1.33): the search of the career pages of the companies applied to.
+  'source_discovery',
 ]);
 export const triggerType = pgEnum('trigger_type', ['schedule', 'manual']);
 // EF-EXE-01 à 03 : une exécution attend son tour (`queued`) avant de tourner, de réussir, d'échouer ou d'être
@@ -127,7 +129,12 @@ export const runCounter = pgEnum('run_counter', [
   'cv_pages_ocr',
   // EF-CVX-32: steps of an analysis done so far (1 read, 2 diagnosed), published as it goes.
   'cv_steps_done',
+  // EF-VEI-38, EF-VEI-39: companies whose career page was looked for, and sources found and verified.
+  'companies_searched',
+  'sources_verified',
 ]);
+// EF-VEI-39 (v1.33): what the search of a career page concluded.
+export const discoveryStatus = pgEnum('discovery_status', ['verified', 'unconfirmed', 'not_found']);
 
 // ---------- Accounts (EF-AUT, ADR-09) ----------
 export const users = pgTable('users', {
@@ -299,6 +306,24 @@ export const dismissedSourceSuggestions = pgTable(
   },
   (t) => [primaryKey({ name: 'pk_dismissed_source_suggestions', columns: [t.userId, t.companyId] })],
 );
+
+/**
+ * EF-VEI-38, EF-VEI-39 (v1.33): the source the search of career pages found for a company of the candidate's
+ * applications, and whether it answered. The proposal of EF-VEI-23 then carries it instead of a guess; nothing is
+ * watched until the candidate confirms (RG-19).
+ */
+export const discoveredSources = pgTable('discovered_sources', {
+  companyId: integer()
+    .primaryKey()
+    .references(() => companies.id, { onDelete: 'cascade' }),
+  status: discoveryStatus().notNull(),
+  // Null when nothing was found (`not_found`).
+  adapter: siteAdapter(),
+  identifier: varchar({ length: 500 }),
+  // EF-VEI-39: offers the source rendered when it was verified.
+  offerCount: integer(),
+  discoveredAt: instant().notNull(),
+});
 
 export const jobOffers = pgTable(
   'job_offers',

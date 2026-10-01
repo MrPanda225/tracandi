@@ -3,6 +3,7 @@ import { isAbortError, messageOf } from '../../api/client';
 import { followRuns, isRunning, type RunState } from '../../api/jobs';
 import {
   addSource,
+  discoverSources,
   fetchSources,
   fetchSourceTypes,
   fetchSuggestions,
@@ -11,6 +12,7 @@ import {
   setSourceActive,
   type NewSource,
   type Source,
+  type SourceAdapterId,
   type SourceSuggestion,
   type SourceType,
 } from '../../api/sites';
@@ -141,6 +143,7 @@ export function SitesPage() {
   const [run, setRun] = useState<RunState | null>(null);
   const [suggestions, setSuggestions] = useState<SourceSuggestion[]>([]);
   const [prefill, setPrefill] = useState<NewSource | null>(null);
+  const [discovery, setDiscovery] = useState<RunState | null>(null);
 
   /* Ne lit que les sources : la liste des types ne bouge pas d'une consultation à l'autre, et la recharger à
      chaque fois risquerait de l'effacer avec une valeur capturée trop tôt. */
@@ -173,6 +176,11 @@ export function SitesPage() {
   useEffect(
     () =>
       followRuns((state) => {
+        if (state.job === 'source_discovery') {
+          setDiscovery(state);
+          if (!isRunning(state)) void load();
+          return;
+        }
         if (state.job !== 'scraper') return;
         setRun(state);
         if (!isRunning(state)) void load();
@@ -225,6 +233,19 @@ export function SitesPage() {
     await load();
     return failures;
   };
+
+  // EF-VEI-38 : la recherche est mise en file ; son avancement arrive par le flux des exécutions.
+  const handleDiscover = async () => {
+    setError(null);
+    try {
+      await discoverSources();
+    } catch (failure) {
+      setError(messageOf(failure));
+    }
+  };
+
+  const labelOf = (adapter: SourceAdapterId): string =>
+    types.find((type) => type.id === adapter)?.label ?? adapter;
 
   const handleRun = async () => {
     setError(null);
@@ -284,6 +305,9 @@ export function SitesPage() {
           })
         }
         onDismissed={() => void load()}
+        discovery={discovery}
+        onDiscover={() => void handleDiscover()}
+        labelOf={labelOf}
       />
 
       <OfficialSources types={types} sources={sources ?? []} onAdd={handleAdd} />

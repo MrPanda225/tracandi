@@ -18,6 +18,7 @@ import type { ProfileService } from '../cv/service.js';
 import type { WatchCriteria } from '../criteria/schemas.js';
 import { type CriteriaService, scoringProfileOf } from '../criteria/service.js';
 import { createWatchPass } from './pass.js';
+import { createSourceDiscovery, type SourceDiscovery } from './discovery.js';
 import { createSirenResolver } from './sirens.js';
 import { createSuggestionReader } from './suggestions.js';
 import * as repository from './repository.js';
@@ -55,6 +56,12 @@ export interface WatchService {
   suggestions: (userId: number) => Promise<SourceSuggestion[]>;
   /** @req EF-VEI-25 */
   dismissSuggestion: (userId: number, companyId: number) => Promise<void>;
+  /**
+   * Puts the search of the career pages of the proposed companies in the queue (EF-EXE-01).
+   * @returns the identifier of the execution, to follow it (EF-EXE-03).
+   * @req EF-VEI-38, EF-VEI-40
+   */
+  discoverSources: (userId: number) => Promise<number>;
 }
 
 export interface WatchServiceDeps {
@@ -148,6 +155,14 @@ const createSourceCatalogue = (db: Database, deps: { criteria: CriteriaService }
   };
 };
 
+/** EF-VEI-40: the search of the career pages, as the queue runs it. */
+const discoveryWorkFor = (discovery: SourceDiscovery, userId: number) => ({
+  userId,
+  job: 'source_discovery' as const,
+  trigger: 'manual' as const,
+  run: (report: (counters: RunCounters) => void) => discovery.run(userId, report),
+});
+
 /**
  * Watch of the career sources of a candidate: the sources themselves, and the pass that reads them all.
  * @req EF-VEI-01 to EF-VEI-07, EF-AUT-06
@@ -157,6 +172,7 @@ export const createWatchService = (deps: WatchServiceDeps): WatchService => {
   const catalogue = createSourceCatalogue(db, { criteria });
   const pass = createWatchPass(deps);
   const suggestions = createSuggestionReader(db);
+  const discovery = createSourceDiscovery({ db, clock: deps.clock, collect: deps.collect, suggestions, logger });
   const sirens = deps.findSiren
     ? createSirenResolver({ db, clock: deps.clock, findSiren: deps.findSiren, logger })
     : null;
@@ -215,6 +231,8 @@ export const createWatchService = (deps: WatchServiceDeps): WatchService => {
     suggestions: (userId) => suggestions.list(userId),
 
     dismissSuggestion: (userId, companyId) => suggestions.dismiss(userId, companyId),
+
+    discoverSources: (userId) => queue.enqueue(discoveryWorkFor(discovery, userId)),
 
     async checkEverySource() {
       for (const userId of await repository.listUsersWithActiveSources(db)) {

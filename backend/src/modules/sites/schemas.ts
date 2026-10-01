@@ -96,6 +96,13 @@ export const SourceSuggestionSchema = z
     identifier: z.string(),
     /** Combien de messages de cette entreprise ont porté ce domaine, pour que le candidat juge. */
     messages: z.number().int(),
+    /**
+     * EF-VEI-39 (v1.33) : ce qu'a conclu la recherche des pages carrières — source vérifiée avec son nombre d'offres,
+     * à confirmer, ou rien trouvé ; null tant qu'elle n'a pas été lancée pour cette entreprise.
+     */
+    verification: z.enum(['verified', 'unconfirmed', 'not_found']).nullable(),
+    offerCount: z.number().int().nullable(),
+    discoveredAt: z.string().datetime().nullable(),
   })
   .openapi('SourceSuggestion');
 

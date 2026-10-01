@@ -57,11 +57,21 @@ export interface SourceSuggestion {
   adapter: SourceAdapterId;
   identifier: string;
   messages: number;
+  /** EF-VEI-39 : ce qu'a conclu la recherche des pages carrières ; null tant qu'elle n'a pas été lancée. */
+  verification: 'verified' | 'unconfirmed' | 'not_found' | null;
+  offerCount: number | null;
+  discoveredAt: string | null;
 }
 
 /** EF-VEI-23 : les sources que le candidat pourrait surveiller, déduites de ses candidatures. */
 export const fetchSuggestions = (signal?: AbortSignal) =>
   request<{ items: SourceSuggestion[] }>('/sites/suggestions', { signal }).then((answer) => answer.items);
+
+/** EF-VEI-38, EF-VEI-40 : met en file la recherche des pages carrières des entreprises proposées. */
+export const discoverSources = () =>
+  request<{ runId: number }>('/sites/suggestions/discover', { method: 'POST' }).then(
+    (answer) => answer.runId,
+  );
 
 /** EF-VEI-25 : écarte une proposition, qui n'est plus présentée. */
 export const dismissSuggestion = (companyId: number) =>

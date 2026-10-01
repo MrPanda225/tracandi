@@ -417,10 +417,19 @@ qui montre les offres, puis les sources, enfin l'économie de collecte.
   *Choix assumés* : le lieu d'une offre Talentsoft est sa troisième catégorie (ordre constant chez les clients vus, non
   garanti ailleurs) ; « Full-time » ne vaut pas CDI (EF-VEI-22) ; le nom d'un board Ashby garde sa casse ; Flatchr et
   les éditeurs sans flux public restent lus par la page carrières générique (JSON-LD d'abord, EF-VEI-28).
-- [ ] **T-414 Recherche des pages carrières** — exécution `source_discovery` en file : accueil du site, un rebond,
+- [x] **T-414 Recherche des pages carrières** — exécution `source_discovery` en file : accueil du site, un rebond,
   empreintes RG-27, vérification par une consultation ; propositions « vérifiée » ou « à confirmer » à l'écran.
   *Exigences* : EF-VEI-38, EF-VEI-39, EF-VEI-40, RG-19 (v1.33), RG-27, ENF-COL-01 à 04.
   *Fini quand* : accueil liant un board Ashby → proposition Ashby vérifiée ; aucune source ajoutée d'office.
+  *Livré* : `scraper/atsFingerprint.ts` (RG-27 lu dans toutes les adresses de la page : liens, cadres, scripts,
+  configuration en ligne ; identifiant validé par RG-08 de son type) ; `modules/sites/discovery.ts` (accueil, puis
+  `www.`, puis la page carrières qu'il désigne ; vérification par une consultation ; 20 entreprises par exécution, les
+  jamais recherchées d'abord) ; table `discovered_sources` et exécution `source_discovery` (migration 0020) ;
+  `POST /api/sites/suggestions/discover` ; propositions portant `verification`, `offerCount`, `discoveredAt` ; bouton
+  « Rechercher leurs pages carrières » et verdict sur chaque proposition.
+  *Choix assumés* : la vérification n'appelle jamais l'IA — une page carrières sans offre balisée reste « à
+  confirmer » (ENF-COU-01) ; les sites carrières des éditeurs (`career.teamtailor.com`…) et `career`, `careers`, `jobs`
+  s'ajoutent aux sous-domaines techniques de RG-27 ; « Surveiller les N » reprend les sources trouvées.
 - [ ] **T-415 Collecte économe et minimisation** — empreinte de la liste d'offres, consultation planifiée espacée
   des sources inchangées ; coordonnées retirées du texte des offres ; purge quotidienne des offres de plus de
   60 jours ; politique de confidentialité complétée.

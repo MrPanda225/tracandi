@@ -141,6 +141,13 @@
       "when": 1790812168589,
       "tag": "0019_five_ats_adapters",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1790812573291,
+      "tag": "0020_career_page_discovery",
+      "breakpoints": true
     }
   ]
 }
