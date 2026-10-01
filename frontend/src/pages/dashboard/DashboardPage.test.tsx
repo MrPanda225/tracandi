@@ -63,6 +63,22 @@ const EMPTY_DASHBOARD: Dashboard = {
   offers: { newAboveThreshold: 0, threshold: 60 },
 };
 
+/** A dashboard whose follow-up list holds `count` applications, out of `total` waiting (EF-TDB-07). */
+const manyFollowUps = (count: number, total = count): Dashboard => ({
+  ...DASHBOARD,
+  followUps: {
+    total,
+    items: Array.from({ length: count }, (_unused, index) => ({
+      id: index + 1,
+      company: `Entreprise ${index + 1}`,
+      jobTitle: 'Développeur',
+      status: 'sent' as const,
+      lastActivityAt: '2026-09-01T09:00:00.000Z',
+      daysSinceActivity: 21 + index,
+    })),
+  },
+});
+
 const pendingTab = { go: vi.fn(), close: vi.fn() };
 vi.mock('../../lib/browser', () => ({ openPendingTab: vi.fn(() => pendingTab), leaveFor: vi.fn() }));
 
@@ -325,6 +341,47 @@ describe('DashboardPage', () => {
     expect(followUps.getByText('Atelier Nova')).toBeInTheDocument();
     expect(followUps.getByText('Développeur')).toBeInTheDocument();
     expect(followUps.getByText('il y a 21 jours')).toBeInTheDocument();
+  });
+
+  it('[EF-TDB-12] places the weekly chart before the follow-ups, between the figures and the breakdowns', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json(200, DASHBOARD)));
+
+    renderPage();
+    const chart = await screen.findByRole('region', { name: 'Suivi des 5 dernières semaines' });
+    const followUps = screen.getByRole('region', { name: 'À relancer' });
+    const byStatus = screen.getByRole('region', { name: 'Par statut' });
+
+    expect(kpiGroup().compareDocumentPosition(chart)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(chart.compareDocumentPosition(followUps)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(followUps.compareDocumentPosition(byStatus)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+
+  it('[EF-TDB-07] unfolds only the first 5 follow-ups, the rest on demand', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json(200, manyFollowUps(8))));
+
+    renderPage();
+    const followUps = within(await screen.findByRole('region', { name: 'À relancer' }));
+    const user = userEvent.setup();
+
+    expect(followUps.getAllByRole('listitem')).toHaveLength(5);
+    expect(followUps.getByText('Entreprise 1')).toBeInTheDocument();
+    expect(followUps.queryByText('Entreprise 6')).not.toBeInTheDocument();
+
+    await user.click(followUps.getByRole('button', { name: 'Afficher les 3 suivantes' }));
+
+    expect(followUps.getAllByRole('listitem')).toHaveLength(8);
+    expect(followUps.getByText('Entreprise 8')).toBeInTheDocument();
+    expect(followUps.queryByRole('button', { name: /Afficher les/ })).not.toBeInTheDocument();
+  });
+
+  it('[EF-TDB-07] keeps the total visible when more wait than the API sent', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json(200, manyFollowUps(6, 31))));
+
+    renderPage();
+    const followUps = within(await screen.findByRole('region', { name: 'À relancer' }));
+
+    expect(followUps.getByText('31')).toBeInTheDocument();
+    expect(followUps.getByText('et 25 autres.')).toBeInTheDocument();
   });
 
   it('[EF-CAN-17] prepares the follow-up as a Gmail draft and opens Gmail on it', async () => {
