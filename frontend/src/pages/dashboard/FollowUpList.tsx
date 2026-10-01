@@ -13,6 +13,12 @@ interface FollowUpListProps {
   followUpDays: number;
 }
 
+/**
+ * EF-TDB-12: rows unfolded before the candidate asks for more. Five is what the panel shows without pushing the
+ * breakdowns off the screen, and enough to see that the list is ordered by how long the wait has lasted.
+ */
+const UNFOLDED = 5;
+
 /** « il y a N jours » — Kairos: the number that should trigger the relaunch, not just a date. */
 const sinceLabel = (days: number): string => (days === 0 ? "aujourd'hui" : `il y a ${plural(days, 'jour')}`);
 
@@ -79,6 +85,9 @@ function FollowUpAction({ item }: { item: FollowUp }) {
  */
 export function FollowUpList({ total, items, followUpDays }: FollowUpListProps) {
   const titleId = useId();
+  const [isUnfolded, setIsUnfolded] = useState(false);
+  const shown = isUnfolded ? items : items.slice(0, UNFOLDED);
+  const foldedAway = items.length - shown.length;
   return (
     <section className="follow-ups" aria-labelledby={titleId}>
       <div className="follow-ups__header">
@@ -96,7 +105,7 @@ export function FollowUpList({ total, items, followUpDays }: FollowUpListProps) 
         <p className="follow-ups__empty">Rien à relancer pour l’instant : c’est à jour.</p>
       ) : (
         <ul className="follow-ups__list">
-          {items.map((item) => (
+          {shown.map((item) => (
             <li key={item.id} className="follow-ups__item">
               <div className="follow-ups__item-main">
                 <p className="follow-ups__company">{item.company}</p>
@@ -110,6 +119,15 @@ export function FollowUpList({ total, items, followUpDays }: FollowUpListProps) 
             </li>
           ))}
         </ul>
+      )}
+      {foldedAway > 0 && (
+        <button
+          type="button"
+          className="btn btn--quiet follow-ups__unfold"
+          onClick={() => setIsUnfolded(true)}
+        >
+          Afficher les {foldedAway} suivantes
+        </button>
       )}
       {total > items.length && (
         <p className="follow-ups__more">et {plural(total - items.length, 'autre')}.</p>
