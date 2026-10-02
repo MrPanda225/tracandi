@@ -15,13 +15,9 @@ describe('OfferTraitsAnswerSchema', () => {
   it.each([
     ['no title', { keywords: ['sql'] }],
     ['an empty title', { title: '  ', keywords: ['sql'] }],
-    ['a title of 81 characters', { title: 'x'.repeat(81), keywords: ['sql'] }],
     ['no keyword', { title: 'Data analyst', keywords: [] }],
-    [
-      'sixteen keywords',
-      { title: 'Data analyst', keywords: Array.from({ length: 16 }, (_u, i) => `m${String(i)}`) },
-    ],
     ['keywords that are not text', { title: 'Data analyst', keywords: [1, 2] }],
+    ['keywords that are not a list', { title: 'Data analyst', keywords: 'sql' }],
   ])('[EF-IA-03] rejects an answer with %s', (_name, answer) => {
     expect(OfferTraitsAnswerSchema.safeParse(answer).success).toBe(false);
   });
@@ -35,6 +31,25 @@ describe('OfferTraitsAnswerSchema', () => {
     });
 
     expect(parsed).toEqual({ title: 'Data analyst', keywords: ['sql'] });
+  });
+
+  it('[EF-VEI-49] cuts a title a little too long instead of refusing the answer, and keeps the first fifteen keywords', () => {
+    const parsed = OfferTraitsAnswerSchema.parse({
+      title: `  ${'x'.repeat(90)}  `,
+      keywords: Array.from({ length: 20 }, (_u, i) => `mot${String(i)}`),
+    });
+
+    expect(parsed.title).toHaveLength(80);
+    expect(parsed.keywords).toHaveLength(15);
+  });
+
+  it('[EF-VEI-49] drops a keyword that is empty, too long or not text, and refuses an answer with none left', () => {
+    const answer = { title: 'Data analyst', keywords: ['sql', '', 4, 'y'.repeat(61)] };
+
+    expect(OfferTraitsAnswerSchema.parse(answer).keywords).toEqual(['sql']);
+    expect(OfferTraitsAnswerSchema.safeParse({ title: 'Data analyst', keywords: ['', 4] }).success).toBe(
+      false,
+    );
   });
 
   it('[EF-VEI-49] keeps each keyword once, whatever its case', () => {

@@ -26,16 +26,9 @@ describe('ProfileDeductionAnswerSchema', () => {
 
   it.each([
     ['no offer', { targets: [] }],
-    ['six offers', { targets: Array(6).fill(TARGET) }],
     ['an offer with no keyword', { targets: [{ ...TARGET, keywords: [] }] }],
-    [
-      'an offer with sixteen keywords',
-      { targets: [{ ...TARGET, keywords: Array.from({ length: 16 }, (_u, i) => `mot${String(i)}`) }] },
-    ],
     ['an offer with no contract', { targets: [{ ...TARGET, contractTypes: [] }] }],
     ['an unknown contract', { targets: [{ ...TARGET, contractTypes: ['freelance'] }] }],
-    ['an unknown level', { targets: [{ ...TARGET, level: 'expert' }] }],
-    ['no level', { targets: [{ label: 'Data analyst', keywords: ['sql'], contractTypes: ['cdi'] }] }],
     ['an offer with no title', { targets: [{ ...TARGET, label: '' }] }],
     ['a period that ends before it starts', { periods: [{ start: '2024-08', end: '2022-09' }] }],
     ['a period that is not a month', { periods: [{ start: '2022', end: '2024-08' }] }],
@@ -70,6 +63,144 @@ describe('ProfileDeductionAnswerSchema', () => {
     );
 
     expect(parsed.targets[0]?.keywords).toEqual(['SQL', 'Python']);
+  });
+});
+
+describe('ProfileDeductionAnswerSchema, what a small model gets wrong (T-1010)', () => {
+  it('[EF-VEI-45] keeps the offers that are well formed and leaves out the ones that are not', () => {
+    const parsed = ProfileDeductionAnswerSchema.parse(
+      answer({
+        targets: [
+          TARGET,
+          { ...TARGET, label: 'Sans contrat connu', contractTypes: ['freelance'] },
+          { ...TARGET, label: 'Sans mot-clé', keywords: [] },
+        ],
+      }),
+    );
+
+    expect(parsed.targets.map((target) => target.label)).toEqual(['Data analyst']);
+  });
+
+  it('[EF-VEI-45] keeps the contracts it knows of an offer that lists a made-up one: « cdn » is no reason to lose it', () => {
+    const parsed = ProfileDeductionAnswerSchema.parse(
+      answer({ targets: [{ ...TARGET, contractTypes: ['cdn', 'CDI', 'Alternance', 'cdi'] }] }),
+    );
+
+    expect(parsed.targets[0]?.contractTypes).toEqual(['cdi', 'alternance']);
+  });
+
+  it('[EF-IA-03] refuses an answer whose offers are all malformed', () => {
+    const parsed = ProfileDeductionAnswerSchema.safeParse(
+      answer({
+        targets: [
+          { ...TARGET, contractTypes: ['freelance'] },
+          { ...TARGET, keywords: [] },
+        ],
+      }),
+    );
+
+    expect(parsed.success).toBe(false);
+  });
+
+  it.each([['junor'], ['expert'], [''], [null], [3]])(
+    '[EF-VEI-45] [RG-28] gives the offer the level of the candidate when the model wrote the level « %s » badly',
+    (level) => {
+      const parsed = ProfileDeductionAnswerSchema.parse(answer({ targets: [{ ...TARGET, level }] }));
+
+      expect(buildProfileDeduction(parsed, NOW)).toMatchObject({
+        years: 2,
+        level: 'junior',
+        targets: [{ label: 'Data analyst', level: 'junior' }],
+      });
+    },
+  );
+
+  it('[EF-VEI-45] gives the offer the level of the candidate when the model gave none', () => {
+    const withoutLevel = { label: 'Data analyst', keywords: ['sql', 'power bi'], contractTypes: ['cdi'] };
+    const parsed = ProfileDeductionAnswerSchema.parse(
+      answer({ periods: [{ start: '2016-01', end: '2023-12' }], targets: [withoutLevel] }),
+    );
+
+    expect(buildProfileDeduction(parsed, NOW).targets[0]).toMatchObject({ level: 'senior' });
+  });
+
+  it.each([
+    ['Confirmé', 'confirme'],
+    [' SENIOR ', 'senior'],
+    ['Junior', 'junior'],
+  ])('[EF-VEI-45] reads the level « %s » as %s', (written, level) => {
+    const parsed = ProfileDeductionAnswerSchema.parse(answer({ targets: [{ ...TARGET, level: written }] }));
+
+    expect(parsed.targets[0]?.level).toBe(level);
+  });
+
+  it('[EF-VEI-45] keeps the first five offers when the model proposes more, and the first fifteen keywords of each', () => {
+    const many = Array.from({ length: 7 }, (_unused, index) => ({
+      ...TARGET,
+      label: `Offre ${String(index)}`,
+      keywords: Array.from({ length: 18 }, (_u, i) => `mot${String(i)}`),
+    }));
+
+    const built = buildProfileDeduction(ProfileDeductionAnswerSchema.parse(answer({ targets: many })), NOW);
+
+    expect(built.targets.map((target) => target.label)).toEqual([
+      'Offre 0',
+      'Offre 1',
+      'Offre 2',
+      'Offre 3',
+      'Offre 4',
+    ]);
+    expect(built.targets[0]?.keywords).toHaveLength(15);
+  });
+
+  it('[EF-VEI-45] drops a keyword that is empty, too long or not text, and keeps the rest', () => {
+    const parsed = ProfileDeductionAnswerSchema.parse(
+      answer({ targets: [{ ...TARGET, keywords: ['sql', '', '   ', 'x'.repeat(61), 4, null, 'dbt'] }] }),
+    );
+
+    expect(parsed.targets[0]?.keywords).toEqual(['sql', 'dbt']);
+  });
+
+  it.each(['null', 'NULL', 'none'])(
+    '[EF-VEI-43] reads an end written « %s » as an experience that goes on',
+    (end) => {
+      const parsed = ProfileDeductionAnswerSchema.parse(answer({ periods: [{ start: '2024-09', end }] }));
+
+      expect(parsed.periods).toEqual([{ start: '2024-09', end: null }]);
+    },
+  );
+
+  it.each([
+    ['09/2023', '2023-09'],
+    ['9/2023', '2023-09'],
+    ['2023/09', '2023-09'],
+    ['2023-9', '2023-09'],
+    [' 2023-09 ', '2023-09'],
+  ])('[EF-VEI-43] reads the month written « %s » as %s', (written, month) => {
+    const parsed = ProfileDeductionAnswerSchema.parse(
+      answer({ periods: [{ start: written, end: written }] }),
+    );
+
+    expect(parsed.periods).toEqual([{ start: month, end: month }]);
+  });
+
+  it.each([['2023'], ['septembre 2023'], ['13/2023'], ['2023-13'], ['hier']])(
+    '[EF-VEI-43] [RG-29] still refuses the month « %s »: a year miscounted in silence is worse than a second provider',
+    (written) => {
+      const parsed = ProfileDeductionAnswerSchema.safeParse(
+        answer({ periods: [{ start: written, end: null }] }),
+      );
+
+      expect(parsed.success).toBe(false);
+    },
+  );
+
+  it('[EF-VEI-43] ignores the fields a model adds to a period', () => {
+    const parsed = ProfileDeductionAnswerSchema.parse(
+      answer({ periods: [{ start: '2023-09', end: null, label: 'Data engineer en alternance' }] }),
+    );
+
+    expect(parsed.periods).toEqual([{ start: '2023-09', end: null }]);
   });
 });
 

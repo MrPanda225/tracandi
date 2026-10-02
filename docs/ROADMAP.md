@@ -1022,6 +1022,11 @@ développeur l'active sur son poste (`ENABLED_FEATURES=watch,cv`) le temps d'y t
   restent 30 minutes en mémoire, `GET /api/cv-types/{id}/deduction` ; quota `PROFILE_DEDUCTIONS_PER_DAY` (5, 0 lève,
   429, un échec n'est pas compté) ; l'import et le remplacement lisent puis déduisent, les étapes 1 et 2 sont publiées ;
   `deductionReady` dans la liste. *Reste à faire* : la validation (T-1011).
+  *Correctif après essai réel sur le modèle local (02/10/2026)* : sur qwen3.5:4b, quatre réponses sur six de la déduction
+  étaient refusées par un schéma trop strict (niveau « junor », contrat « cdn », fin « null », objet tronqué). Température
+  du local fixée à 0,2 (six sur six valides) et schémas tolérants sur la forme : `modules/cvTypes/deduction.ts`,
+  `leniency.ts`, et l'extraction des traits d'une offre (T-1012) ; tests dans `deduction.test.ts`, `traits.test.ts`,
+  `openaiCompatible.test.ts`, `profile-deduction.test.ts`.
 - [x] **T-1011 Validation du profil et écriture des critères** — l'utilisateur corrige puis valide ; la validation
   écrit les cibles dans `watch_criteria` ; tant que rien n'est validé, seuls les critères existants servent.
   *Exigences* : EF-VEI-46, EF-VEI-47.

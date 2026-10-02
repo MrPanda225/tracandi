@@ -57,6 +57,8 @@ export interface OpenAiCompatibleDeps {
    * only the local model sets it.
    */
   reasoningEffort?: 'none';
+  /** A fixed temperature; the service's own default when absent. */
+  temperature?: number;
   /** ENF-SEC-25: a failure to reach the server tells neither its address nor the token (the local model). */
   redactNetworkErrors?: boolean;
   /**
@@ -92,6 +94,7 @@ const createTransport = ({
   baseUrl,
   apiKey,
   reasoningEffort,
+  temperature,
   redactNetworkErrors = false,
   probeMs,
   fetchImpl = fetch,
@@ -131,6 +134,7 @@ const createTransport = ({
         // The router validates the answer against the schema of the task; JSON mode spares it a prose answer.
         response_format: { type: 'json_object' },
         ...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
+        ...(temperature === undefined ? {} : { temperature }),
         messages: [
           { role: 'system', content: system },
           { role: 'user', content: prompt },
@@ -193,6 +197,13 @@ export const connectGroq = (apiKey: string, models: Partial<Record<ProviderName,
   );
 
 /**
+ * A low temperature for the local model: it reads and extracts, it does not write. Measured on the operator's model
+ * (qwen3.5:4b) with the deduction prompt: at the default temperature four answers in six were refused for a slipped
+ * enumeration, a truncated object or a string « null »; at 0.2, none in six.
+ */
+export const LOCAL_TEMPERATURE = 0.2;
+
+/**
  * The local model of the operator (EF-IA-07, ADR-16): an OpenAI-compatible service such as Ollama, behind the address
  * and the token of the configuration (ENF-SEC-24), asked not to reason, and never telling where it is (ENF-SEC-25).
  * @req EF-IA-07, EF-IA-10 to EF-IA-14, ENF-SEC-24, ENF-SEC-25
@@ -204,6 +215,7 @@ export const connectLocal = (config: LocalLlmConfig, fetchImpl?: typeof fetch): 
     baseUrl: config.baseUrl,
     apiKey: config.apiKey,
     reasoningEffort: 'none',
+    temperature: LOCAL_TEMPERATURE,
     redactNetworkErrors: true,
     probeMs: CONNECT_TIMEOUT_MS,
     ...(fetchImpl ? { fetchImpl } : {}),

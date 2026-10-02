@@ -1,6 +1,9 @@
 import { z } from 'zod';
 import { CriteriaTargetSchema } from '../criteria/schemas.js';
+import { tidyKeywords } from '../cvTypes/leniency.js';
 import { type Level, levelOfTitle, levelOfYears } from '../criteria/experience.js';
+
+const TITLE_MAX_LENGTH = 80;
 
 /**
  * EF-VEI-49, EF-IA-03: what the model answers when it reads an offer — a title and from one to fifteen keywords, in the
@@ -8,8 +11,12 @@ import { type Level, levelOfTitle, levelOfYears } from '../criteria/experience.j
  * not read, the code reads them from the text (RG-29, RG-28).
  */
 export const OfferTraitsAnswerSchema = z.object({
-  title: CriteriaTargetSchema.shape.label,
-  keywords: CriteriaTargetSchema.shape.keywords,
+  // A title a little too long is cut, not refused: the candidate corrects it anyway.
+  title: z.preprocess(
+    (title) => (typeof title === 'string' ? title.trim().slice(0, TITLE_MAX_LENGTH).trim() : title),
+    CriteriaTargetSchema.shape.label,
+  ),
+  keywords: z.preprocess(tidyKeywords, CriteriaTargetSchema.shape.keywords),
 });
 
 export type OfferTraitsAnswer = z.infer<typeof OfferTraitsAnswerSchema>;

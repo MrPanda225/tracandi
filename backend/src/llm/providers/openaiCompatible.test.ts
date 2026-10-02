@@ -170,6 +170,24 @@ describe('connectLocal', () => {
     expect(JSON.parse(String(init.body))).not.toHaveProperty('reasoning_effort');
   });
 
+  it('[EF-IA-07] asks the local model for a low temperature: a small model at its default one breaks the format two answers in three', async () => {
+    const fetchImpl = vi.fn(() => Promise.resolve(answer(completion)));
+
+    await connectLocal(LOCAL_CONFIG, fetchImpl).complete(REQUEST);
+
+    const [, init] = chatCall(fetchImpl);
+    expect(JSON.parse(String(init.body))).toMatchObject({ temperature: 0.2 });
+  });
+
+  it('[EF-IA-07] leaves the temperature of the hosted services to their own default', async () => {
+    const fetchImpl = vi.fn(() => Promise.resolve(answer(completion)));
+
+    await providerWith(fetchImpl).complete(REQUEST);
+
+    const [, init] = chatCall(fetchImpl);
+    expect(JSON.parse(String(init.body))).not.toHaveProperty('temperature');
+  });
+
   it('[ENF-SEC-25] fails without the address nor the token when the server cannot be reached', async () => {
     const unreachable = Object.assign(new TypeError('fetch failed'), {
       cause: Object.assign(new Error('connect ECONNREFUSED 192.168.1.54:11434'), { address: '192.168.1.54' }),

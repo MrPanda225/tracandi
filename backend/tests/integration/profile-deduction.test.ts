@@ -160,7 +160,8 @@ describe('deducing the profile of a CV type (T-1010, EF-VEI-43, EF-VEI-45)', () 
       Promise.resolve(
         JSON.stringify({
           periods: [],
-          targets: Array(6).fill({ label: 'x', keywords: ['a'], contractTypes: ['cdi'], level: 'junior' }),
+          // No offer of this answer can be used: a contract that does not exist, and a period that is no month.
+          targets: [{ label: 'x', keywords: ['a'], contractTypes: ['freelance'], level: 'junior' }],
         }),
       );
 
@@ -168,6 +169,37 @@ describe('deducing the profile of a CV type (T-1010, EF-VEI-43, EF-VEI-45)', () 
 
     expect(calls.map((call) => call.provider)).toEqual(['local', 'gemini']);
     expect((await deductionOf(id)).status).toBe(200);
+  });
+
+  it('[EF-IA-08] uses the answer of the local model despite its slips — a level typed « junor », a made-up contract, « null » for an end — instead of paying a hosted provider', async () => {
+    answers.local = () =>
+      Promise.resolve(
+        JSON.stringify({
+          periods: [
+            { start: '09/2022', end: '2024-08', label: 'Data analyst' },
+            { start: '2024-09', end: 'null' },
+          ],
+          targets: [
+            {
+              label: 'Data analyst',
+              keywords: ['sql', 'SQL'],
+              contractTypes: ['cdn', 'cdi'],
+              level: 'junor',
+            },
+            { label: 'Sans contrat', keywords: ['sql'], contractTypes: ['cdn'], level: 'junior' },
+          ],
+        }),
+      );
+
+    const id = await importCv('Data analyst');
+
+    expect(calls.map((call) => call.provider)).toEqual(['local']);
+    const deduction = (await deductionOf(id)).body as { years: number; targets: Record<string, unknown>[] };
+    // 09/2022 to 08/2024, then 09/2024 up to the day of the test clock (22 September 2026): 49 months, 4 years.
+    expect(deduction.years).toBe(4);
+    expect(deduction.targets).toEqual([
+      { label: 'Data analyst', keywords: ['sql'], contractTypes: ['cdi'], level: 'confirme' },
+    ]);
   });
 
   it('[EF-IA-04] ends the run in failure, with the reason, when no provider can answer — and keeps nothing', async () => {
