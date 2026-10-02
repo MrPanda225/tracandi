@@ -137,6 +137,7 @@ describe('migrations', () => {
         'PUT /watch/automatic',
         'GET /watch/criteria',
         'PUT /watch/criteria',
+        'POST /watch/criteria/validation',
         'GET /watch/places',
       ].sort(),
     );

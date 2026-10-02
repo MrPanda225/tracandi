@@ -84,6 +84,21 @@ export const WatchCriteriaSchema = z
   )
   .openapi('WatchCriteria');
 
+/**
+ * EF-VEI-46, EF-VEI-47: the profile a candidate validates after correcting it — the offers they look for, and their
+ * years of experience or their level. Nothing about where they search: that stays as they set it (EF-VEI-29). With
+ * years, the level follows from them (RG-28); the bounds are those of the criteria themselves.
+ * @req EF-VEI-46, EF-VEI-47
+ */
+export const ProfileValidationBodySchema = z
+  .object({
+    targets: z.array(CriteriaTargetSchema).min(1).max(MAX_TARGETS),
+    years: z.number().int().min(0).max(MAX_YEARS).optional(),
+    level: z.enum(LEVELS).optional(),
+  })
+  .strict()
+  .openapi('ProfileValidation');
+
 export const CriteriaResponseSchema = z
   .object({ criteria: WatchCriteriaSchema.nullable() })
   .openapi('WatchCriteriaResponse');
@@ -93,4 +108,5 @@ export const PlaceQuerySchema = z.object({ q: z.string().trim().max(PLACE_NAME_M
 export const PlaceListSchema = z.object({ items: z.array(PlaceSchema) }).openapi('PlaceList');
 
 export type WatchCriteria = z.infer<typeof WatchCriteriaSchema>;
+export type ProfileValidationBody = z.infer<typeof ProfileValidationBodySchema>;
 export type CriteriaTarget = z.infer<typeof CriteriaTargetSchema>;

@@ -1022,12 +1022,16 @@ développeur l'active sur son poste (`ENABLED_FEATURES=watch,cv`) le temps d'y t
   restent 30 minutes en mémoire, `GET /api/cv-types/{id}/deduction` ; quota `PROFILE_DEDUCTIONS_PER_DAY` (5, 0 lève,
   429, un échec n'est pas compté) ; l'import et le remplacement lisent puis déduisent, les étapes 1 et 2 sont publiées ;
   `deductionReady` dans la liste. *Reste à faire* : la validation (T-1011).
-- [ ] **T-1011 Validation du profil et écriture des critères** — l'utilisateur corrige puis valide ; la validation
+- [x] **T-1011 Validation du profil et écriture des critères** — l'utilisateur corrige puis valide ; la validation
   écrit les cibles dans `watch_criteria` ; tant que rien n'est validé, seuls les critères existants servent.
   *Exigences* : EF-VEI-46, EF-VEI-47.
   *Fini quand* : avant validation, la notation n'utilise pas le profil déduit ; années corrigées de 3 à 6 : niveau
   recalculé ; valeur hors de 0 à 50 : 400.
   *Dépend de* : T-1007, T-1010.
+  *Livré* : `POST /api/watch/criteria/validation` (corps : 1 à 5 offres, années de 0 à 50 ou niveau, rien d'autre) ;
+  les cibles, les années et le niveau remplacent ceux des critères, la commune, le rayon, le télétravail et les codes
+  ROME restent ceux du candidat (toute la France, 30 km, télétravail accepté à défaut) ; le niveau est recalculé à
+  partir des années (RG-28). Le profil déduit n'écrit rien : avant validation, seuls les critères enregistrés servent.
 - [ ] **T-1012 Offres choisies par niveau** — jusqu'à 3 offres par niveau (texte de 200 à 20 000 caractères), traits
   extraits (intitulé, mots-clés, années, niveau) puis texte jeté, traits corrigeables ; tâche IA d'extraction.
   *Exigences* : EF-VEI-48, EF-VEI-49, ENF-RGP-14 (offres).

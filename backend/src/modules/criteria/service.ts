@@ -5,15 +5,35 @@ import type { Logger } from '../../lib/logger.js';
 import type { ScoringProfile } from '../../llm/prompts/scoreOffers.js';
 import { type Place, type PlaceFinder, PlaceLookupError } from '../../scraper/official/geo.js';
 import * as repository from './repository.js';
-import { type WatchCriteria, WatchCriteriaSchema } from './schemas.js';
+import { type ProfileValidationBody, type WatchCriteria, WatchCriteriaSchema } from './schemas.js';
 
 const BAD_GATEWAY = 502;
+/** Where a candidate searches until they say: the whole of France, thirty kilometres, remote work accepted. */
+const DEFAULT_SEARCH = { place: null, radiusKm: 30, acceptsRemote: true, romeCodes: [] };
+
+/** The part of the criteria a validated profile leaves alone: the commune, the radius, remote work, ROME codes. */
+const searchOf = (saved: WatchCriteria | null) =>
+  saved
+    ? {
+        place: saved.place,
+        radiusKm: saved.radiusKm,
+        acceptsRemote: saved.acceptsRemote,
+        romeCodes: saved.romeCodes,
+      }
+    : DEFAULT_SEARCH;
 
 export interface CriteriaService {
   /** The saved criteria, or null when the candidate has none yet. @req EF-VEI-29 */
   read: (userId: number) => Promise<WatchCriteria | null>;
   /** Replaces the criteria; the value is the one read back. @req EF-VEI-29 */
   save: (userId: number, criteria: WatchCriteria) => Promise<WatchCriteria>;
+  /**
+   * EF-VEI-46, EF-VEI-47: writes the profile the candidate validated — the offers they look for, their years or their
+   * level — into their criteria, and leaves where they search as it was. A candidate who had no criteria gets the whole
+   * of France within the default radius, remote work accepted.
+   * @returns the criteria as saved.
+   */
+  validateProfile: (userId: number, profile: ProfileValidationBody) => Promise<WatchCriteria>;
   /**
    * @throws HttpError 502 when the public service of the communes cannot answer.
    * @req EF-VEI-30
@@ -50,12 +70,27 @@ export const createCriteriaService = ({
     return parsed.data;
   };
 
+  const save: CriteriaService['save'] = async (userId, criteria) => {
+    await repository.saveCriteriaDocument(db, { userId, document: criteria, updatedAt: clock() });
+    return (await read(userId)) ?? criteria;
+  };
+
   return {
     read,
 
-    async save(userId, criteria) {
-      await repository.saveCriteriaDocument(db, { userId, document: criteria, updatedAt: clock() });
-      return (await read(userId)) ?? criteria;
+    save,
+
+    async validateProfile(userId, profile) {
+      // The years and the level are the profile's: they are replaced, never merged with the old ones.
+      return save(
+        userId,
+        WatchCriteriaSchema.parse({
+          ...searchOf(await read(userId)),
+          targets: profile.targets,
+          ...(profile.years !== undefined ? { years: profile.years } : {}),
+          ...(profile.level !== undefined ? { level: profile.level } : {}),
+        }),
+      );
     },
 
     async findPlaces(query) {
