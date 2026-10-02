@@ -8,7 +8,7 @@ afterEach(() => {
 });
 
 describe('WatchSettings — the section « Veille automatique » (EF-CFG-06)', () => {
-  it('[EF-CFG-06] groups the CV types, the deduced profile and the offers chosen by level', async () => {
+  it('[EF-CFG-06] groups the slots and passes, the CV types, the deduced profile and the offers chosen by level', async () => {
     mockApi({});
 
     renderSection();
@@ -17,6 +17,7 @@ describe('WatchSettings — the section « Veille automatique » (EF-CFG-06)', (
     expect(
       within(section).getByRole('heading', { level: 2, name: 'Veille automatique' }),
     ).toBeInTheDocument();
+    expect(within(section).getByRole('region', { name: 'Créneaux et passages' })).toBeInTheDocument();
     expect(within(section).getByRole('region', { name: 'CV types' })).toBeInTheDocument();
     expect(within(section).getByRole('region', { name: 'Profil déduit à valider' })).toBeInTheDocument();
     expect(within(section).getByRole('region', { name: 'Offres choisies par niveau' })).toBeInTheDocument();

@@ -587,6 +587,7 @@ describe('SettingsPage — the section « Veille automatique » (EF-CFG-06, ENF-
     'GET /cv-types': () => json(200, { items: [], maxItems: 4 }),
     'GET /watch/criteria': () => json(200, { criteria: null }),
     'GET /chosen-offers': () => json(200, { items: [], maxPerLevel: 3 }),
+    'GET /watch/automatic': () => json(200, { enabled: false, slots: ['morning'], lastSuccessAt: null, passes: [] }),
   };
   const WATCH_ROUTES_CALLED = /cv-types|chosen-offers|watch\//;
 

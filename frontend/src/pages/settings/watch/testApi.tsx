@@ -1,6 +1,7 @@
 import { act, render } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { vi } from 'vitest';
+import type { AutomaticWatch, AutomaticWatchPass, WatchSlot } from '../../../api/autowatch';
 import type { RunState } from '../../../api/jobs';
 import { ROUTER_FUTURE } from '../../../lib/router';
 import { openStreams } from '../../../test/setup';
@@ -26,6 +27,7 @@ const EMPTY_SECTION: Record<string, Route> = {
   'GET /cv-types': () => json(200, { items: [], maxItems: 4 }),
   'GET /watch/criteria': () => json(200, { criteria: null }),
   'GET /chosen-offers': () => json(200, { items: [], maxPerLevel: 3 }),
+  'GET /watch/automatic': () => json(200, automaticWatch()),
 };
 
 /** Answers `METHOD /path` (without `/api`, without the query) with the route's response; anything else is a 404. */
@@ -78,6 +80,31 @@ export const CV_TYPE = {
 };
 
 export const cvTypes = (...items: object[]) => json(200, { items, maxItems: 4 });
+
+/** The watch as the API answers it: on, the three slots ticked, no pass yet today. */
+export const automaticWatch = (changes: Partial<AutomaticWatch> = {}): AutomaticWatch => ({
+  enabled: true,
+  slots: ['morning', 'noon', 'evening'],
+  lastSuccessAt: null,
+  passes: [],
+  ...changes,
+});
+
+/** A scheduled pass of today as the API lists it; it ended at 7 h 12 (Paris) unless it is still going. */
+export const pass = (
+  slot: WatchSlot,
+  outcome: AutomaticWatchPass['outcome'],
+  changes: Partial<AutomaticWatchPass> = {},
+): AutomaticWatchPass => ({
+  slot,
+  outcome,
+  startedAt: '2026-10-02T05:00:00.000Z',
+  finishedAt: outcome === 'queued' || outcome === 'running' ? null : '2026-10-02T05:12:00.000Z',
+  counters: {},
+  message: null,
+  ledBy: null,
+  ...changes,
+});
 
 /** A PDF small enough to read in a test; its bytes are `%PDF-1.4 test`. */
 export const pdfFile = (name = 'cv.pdf') => new File(['%PDF-1.4 test'], name, { type: 'application/pdf' });

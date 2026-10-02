@@ -8,7 +8,8 @@ export type Resource<T> =
 /**
  * Fetches what a panel shows once, when it appears, and again on `reload` — after an action changed it, or for the
  * candidate to try again. A failed reload leaves the message, never the previous value: what is shown is what the API
- * last said. `load` must keep its identity from one render to the next (a function of the API module).
+ * last said. `replace` shows a value the API has just answered to a change, without asking for it again. `load` must
+ * keep its identity from one render to the next (a function of the API module).
  * @req ENF-UTI-03
  */
 export function useResource<T>(load: (signal?: AbortSignal) => Promise<T>) {
@@ -33,5 +34,7 @@ export function useResource<T>(load: (signal?: AbortSignal) => Promise<T>) {
     }
   }, [load]);
 
-  return { resource, reload };
+  const replace = useCallback((value: T) => setResource({ status: 'ready', value }), []);
+
+  return { resource, reload, replace };
 }

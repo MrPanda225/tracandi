@@ -1084,9 +1084,9 @@ développeur l'active sur son poste (`ENABLED_FEATURES=watch,cv`) le temps d'y t
   celle-ci (EF-CFG-05) : ces deux parties sont celles de la boîte Gmail, et la veille se règle sans boîte connectée.
   *Constat d'API* : `deductionReady` reste vrai après la validation (le profil déduit n'est effacé qu'au bout de 30
   minutes) ; l'écran ne peut pas distinguer un profil déjà validé d'un profil à valider.
-  *Reste à faire* : les créneaux et l'état des passages (T-1014) ; les captures aux deux largeurs, à joindre à la pull
-  request.
-- [ ] **T-1014 Réglages : créneaux, état des passages, indicateur** — activer ou arrêter, choisir les créneaux, voir
+  *Reste à faire* : les captures aux deux largeurs, à joindre à la pull request (les créneaux et l'état des passages
+  viennent avec T-1014).
+- [x] **T-1014 Réglages : créneaux, état des passages, indicateur** — activer ou arrêter, choisir les créneaux, voir
   l'état et les compteurs de chaque passage du jour, indicateur « modèle local » ou « secours ».
   *Exigences* : EF-CFG-07, EF-CFG-08, EF-CFG-09.
   *Fini quand* : passage simulé : état et compteurs affichés sans contenu ; libellé « secours » ; adresse et jeton
@@ -1095,7 +1095,24 @@ développeur l'active sur son poste (`ENABLED_FEATURES=watch,cv`) le temps d'y t
   *Livré (API, première partie)* : migration `0029` (compteurs `model_calls_local` et `model_calls_fallback`) ; le
   passage compte quel type de fournisseur a répondu à chacun de ses appels ; `GET /api/watch/automatic` donne pour chaque
   passage du jour `ledBy` (`local`, `fallback` ou `null`) et, au premier niveau, `lastSuccessAt` (dernier passage
-  planifié réussi, de n'importe quel jour). *Reste à faire* : l'écran.
+  planifié réussi, de n'importe quel jour).
+  *Livré (écran)* : `AutomaticWatchPanel`, en tête de la section « Veille automatique » (`pages/settings/watch/`, l'état
+  d'abord comme dans EF-CFG-05) : un interrupteur pour activer ou arrêter ; les trois créneaux (matin 7 h, midi 13 h, soir
+  19 h, heure de Paris) cochés comme des pastilles, au moins un tant que la veille est activée — le dernier créneau ne se
+  décoche pas, l'activation n'est pas offerte sans créneau, le 400 de l'API reste affiché si elle le refuse — ; puis les
+  trois passages du jour, chacun avec son état en toutes lettres (« À venir », « En file », « En cours », « Réussi »,
+  « En échec », « Ignoré » et, pour un créneau sans passage, « Aucun passage », « Non utilisé » ou « Veille arrêtée »),
+  ses compteurs (sources consultées, offres nouvelles, au-dessus du seuil, en attente de note), l'heure de sa fin, la
+  raison d'un passage ignoré ou en échec (`message`, EF-VEI-55) et l'indicateur « Modèle local » ou « Secours »
+  (`ledBy`) ; la date du dernier passage réussi (`lastSuccessAt`). Les passages se relisent quand un passage planifié
+  change d'état (flux des exécutions partagé par la section). Ni adresse, ni jeton, ni nombre d'appels au modèle à
+  l'écran, ni contenu d'offre.
+  *Écart* : EF-CFG-08 cite des offres « lues » et « notées », que l'API ne compte pas : elle donne `sources_checked`,
+  `offers_new`, `offers_relevant` et `offers_unscored`. L'écran les dit « sources consultées », « offres nouvelles », « au-dessus
+  de votre seuil » (les mots de la page « Sites surveillés ») et « en attente de note ».
+  *Constat d'API* : un créneau sans passage n'a pas de ligne : « à venir » se tire de l'heure de Paris du navigateur ;
+  `ledBy` n'est donné que pour les passages du jour, l'indicateur manque donc pour le `lastSuccessAt` d'un autre jour.
+  *Reste à faire* : les captures aux deux largeurs, à joindre à la pull request.
 - [x] **T-1015 Garde-fous transversaux de l'agent** — tests et corrections pour les trois garanties qui traversent
   les tâches : aucune requête sortante vers une adresse venue du modèle, journaux sans contenu, prompts sans
   coordonnées.
