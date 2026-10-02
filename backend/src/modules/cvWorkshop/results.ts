@@ -9,6 +9,8 @@ export interface AnalysisResults<T> {
   find: (userId: number, runId: number) => T | null;
   /** Erases the result of this key now, when it is the account's own (EF-CVX-41, EF-CVX-42). */
   erase: (userId: number, runId: number) => void;
+  /** Erases every result the account holds, when the account is deleted (ENF-RGP-02, ENF-RGP-06). */
+  eraseAll: (userId: number) => void;
   /** How many results are held right now. */
   size: () => number;
 }
@@ -41,6 +43,9 @@ export const createAnalysisResults = <T>(ttlMs: number = ANALYSIS_TTL_MS): Analy
       return entry && entry.userId === userId ? entry.result : null;
     },
     erase,
+    eraseAll(userId) {
+      for (const [runId, entry] of held) if (entry.userId === userId) erase(userId, runId);
+    },
     size: () => held.size,
   };
 };

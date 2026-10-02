@@ -1,8 +1,8 @@
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import pg from 'pg';
 import request from 'supertest';
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { users } from '../../src/db/schema.js';
+import { chosenOffers, cvTypes, users } from '../../src/db/schema.js';
 import { encryptSecret } from '../../src/lib/crypto.js';
 import type { GoogleOAuth } from '../../src/modules/emails/googleOAuth.js';
 import { saveGmailAccount } from '../../src/modules/emails/repository.js';
@@ -34,6 +34,9 @@ const USER_TABLES = [
   'job_offers',
   'job_runs',
   'llm_calls',
+  // v1.35: what the agent keeps of a candidate (ENF-RGP-02, ENF-RGP-14).
+  'cv_types',
+  'chosen_offers',
 ];
 
 const database = openTestDatabase();
@@ -68,6 +71,37 @@ const seedAlice = async () => {
     applicationId: (created.body as { id: number }).id,
     address: 'rh@atelier-nova.example',
   });
+};
+
+/** EF-CVX-39, EF-VEI-48: two CV types, an offer chosen, the watch activated at two slots, a pass recorded. */
+const seedAgent = async () => {
+  const [cvType] = await database.db
+    .insert(cvTypes)
+    .values([
+      { userId: aliceId, label: 'Data analyst', years: 3, level: 'confirme' },
+      { userId: aliceId, label: 'Python', years: 1, level: 'junior' },
+    ])
+    .returning({ id: cvTypes.id });
+  await database.db.insert(chosenOffers).values({
+    userId: aliceId,
+    level: 'confirme',
+    title: 'Analytics engineer',
+    keywords: ['dbt', 'sql'],
+    years: 4,
+  });
+  await request(context.app)
+    .put('/api/watch/automatic')
+    .set('Cookie', alice)
+    .set('Content-Type', 'application/json')
+    .send({ enabled: true, slots: ['morning', 'evening'] })
+    .expect(200);
+  // What the deduction left in memory for the candidate to validate, and the result of an analysis of the workshop.
+  context.memory.deductions.save(aliceId, cvType?.id ?? 0, {
+    years: 3,
+    level: 'confirme',
+    targets: [{ label: 'Data analyst', keywords: ['sql'], contractTypes: ['cdi'], level: 'confirme' }],
+  });
+  return cvType?.id ?? 0;
 };
 
 // Who owns a row of each table: directly, or through its company, application or site. Fixed SQL, no input.
@@ -112,7 +146,9 @@ describe('GET /api/account/export (EF-AUT-12)', () => {
     const response = await request(context.app).get('/api/account/export').set('Cookie', alice);
 
     expect(response.status).toBe(200);
-    expect(response.headers['content-disposition']).toMatch(/^attachment; filename="tracandi-donnees-\d{4}-\d{2}-\d{2}\.json"$/);
+    expect(response.headers['content-disposition']).toMatch(
+      /^attachment; filename="tracandi-donnees-\d{4}-\d{2}-\d{2}\.json"$/,
+    );
     const data = JSON.parse(response.text) as Record<string, unknown>;
     expect(data).toMatchObject({
       account: { email: 'alice@example.com' },
@@ -136,12 +172,70 @@ describe('GET /api/account/export (EF-AUT-12)', () => {
     }
   });
 
+  it('[EF-AUT-12] [ENF-RGP-14] hands over the CV types, the chosen offers and the watch settings — traits only, no text', async () => {
+    await seedAgent();
+
+    const response = await request(context.app).get('/api/account/export').set('Cookie', alice);
+
+    const data = JSON.parse(response.text) as Record<string, unknown>;
+    expect(data['cvTypes']).toEqual([
+      expect.objectContaining({ label: 'Data analyst', years: 3, level: 'confirme' }),
+      expect.objectContaining({ label: 'Python', years: 1, level: 'junior' }),
+    ]);
+    expect(data['chosenOffers']).toEqual([
+      expect.objectContaining({
+        level: 'confirme',
+        title: 'Analytics engineer',
+        keywords: ['dbt', 'sql'],
+        years: 4,
+      }),
+    ]);
+    expect(data['settings']).toMatchObject({ watchAutoEnabled: true, watchSlots: ['morning', 'evening'] });
+    // The offers the model proposed are held in memory for 30 minutes and are not part of what is kept.
+    expect(response.text).not.toContain('"targets"');
+  });
+
+  it('[EF-AUT-12] [EF-VEI-51] says under which slot each scheduled pass ran', async () => {
+    await seedAgent();
+    await database.db.execute(
+      sql`INSERT INTO job_runs (user_id, job, trigger_type, slot, outcome) VALUES (${aliceId}, 'scraper', 'schedule', 'morning', 'success')`,
+    );
+
+    const data = JSON.parse(
+      (await request(context.app).get('/api/account/export').set('Cookie', alice)).text,
+    ) as { executions: { slot: string | null }[] };
+
+    expect(data.executions).toEqual([expect.objectContaining({ slot: 'morning' })]);
+  });
+
+  it('[EF-AUT-06] hands over none of the CV types nor the chosen offers of another user', async () => {
+    await seedAgent();
+    const bob = await registerUser(context.app, 'bob@example.com');
+
+    const data = JSON.parse(
+      (await request(context.app).get('/api/account/export').set('Cookie', bob)).text,
+    ) as {
+      cvTypes: unknown[];
+      chosenOffers: unknown[];
+    };
+
+    expect(data.cvTypes).toEqual([]);
+    expect(data.chosenOffers).toEqual([]);
+  });
+
   it('[EF-AUT-12] [ENF-SEC-02] never hands over a secret', async () => {
     await seedAlice();
 
     const text = (await request(context.app).get('/api/account/export').set('Cookie', alice)).text;
 
-    for (const secret of ['passwordHash', 'password_hash', 'refreshToken', 'tokenHash', 'refresh-token-alice', 'scrypt$']) {
+    for (const secret of [
+      'passwordHash',
+      'password_hash',
+      'refreshToken',
+      'tokenHash',
+      'refresh-token-alice',
+      'scrypt$',
+    ]) {
       expect(text).not.toContain(secret);
     }
   });
@@ -183,6 +277,36 @@ describe('DELETE /api/auth/account (EF-AUT-11)', () => {
     // The other accounts are untouched.
     expect(await rowsOf('app_settings', bobId)).toBe(1);
     expect((await request(context.app).get('/api/auth/me').set('Cookie', bob)).status).toBe(200);
+  });
+
+  it('[ENF-RGP-02] deletes the CV types, the chosen offers and the watch settings with the account, and the profile waiting in memory', async () => {
+    const cvTypeId = await seedAgent();
+    const bob = await registerUser(context.app, 'bob@example.com');
+    const bobId = await userIdOf('bob@example.com');
+    context.memory.deductions.save(bobId, 4242, {
+      years: 1,
+      level: 'junior',
+      targets: [{ label: 'Autre', keywords: ['x'], contractTypes: ['cdi'], level: 'junior' }],
+    });
+
+    await deleteAccount(PASSWORD).expect(204);
+
+    expect(await rowsOf('cv_types', aliceId)).toBe(0);
+    expect(await rowsOf('chosen_offers', aliceId)).toBe(0);
+    expect(await rowsOf('app_settings', aliceId)).toBe(0);
+    // Nothing of the deduction stays in memory for the 30 minutes it would have lived, and the others keep theirs.
+    expect(context.memory.deductions.find(aliceId, cvTypeId)).toBeNull();
+    expect(context.memory.deductions.find(bobId, 4242)).not.toBeNull();
+    expect((await request(context.app).get('/api/auth/me').set('Cookie', bob)).status).toBe(200);
+  });
+
+  it('[ENF-RGP-06] [ENF-RGP-02] erases the result of an analysis of the CV workshop with the account too', async () => {
+    context.memory.analyses.save(aliceId, 9, {} as never);
+
+    await deleteAccount(PASSWORD).expect(204);
+
+    expect(context.memory.analyses.find(aliceId, 9)).toBeNull();
+    expect(context.memory.analyses.size()).toBe(0);
   });
 
   it('[EF-AUT-11] closes the sessions at once, the one in use included, and clears the cookie', async () => {

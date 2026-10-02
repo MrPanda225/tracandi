@@ -7,7 +7,7 @@ import { emails, processedMessages } from '../../src/db/schema.js';
 import { connectDatabase, type DatabaseHandle } from '../../src/db/client.js';
 import { createJobQueue, type JobQueue } from '../../src/jobs/queue.js';
 import { createPdfOcr, type PdfOcr } from '../../src/modules/cvWorkshop/ocr.js';
-import { createAnalysisResults } from '../../src/modules/cvWorkshop/results.js';
+import { type AnalysisResults, createAnalysisResults } from '../../src/modules/cvWorkshop/results.js';
 import { createCvWorkshopModule } from '../../src/modules/cvWorkshop/routes.js';
 import { type CvAnalysis, createCvWorkshopService } from '../../src/modules/cvWorkshop/service.js';
 import { type EnabledFeatures, OPTIONAL_FEATURES, onlyIf } from '../../src/lib/features.js';
@@ -97,6 +97,11 @@ export interface TestContext {
   queue: JobQueue;
   /** The watch behind the routes, for the scheduled pass (EF-VEI-06). */
   watch: WatchService;
+  /** What the application holds in memory for 30 minutes: the results of the CV workshop, the profiles deduced. */
+  memory: {
+    analyses: AnalysisResults<CvAnalysis>;
+    deductions: AnalysisResults<ProfileDeduction>;
+  };
 }
 
 /** Google that must never be reached: tests needing Google pass their own fake. */
@@ -206,11 +211,20 @@ export const createTestContext = (
   const clock = createTestClock(new Date('2026-09-22T08:00:00.000Z'));
   const logger = createLogger({ write: writerOf(logWrite) });
   const encryptionKey = randomBytes(32);
+  const memory = {
+    analyses: createAnalysisResults<CvAnalysis>(),
+    deductions: createAnalysisResults<ProfileDeduction>(),
+  };
   const authService = createAuthService({
     db: database.db,
     clock: clock.now,
     passwordParams: TEST_PASSWORD_PARAMS,
     revokeExternalAccess: (userId) => gmailService.disconnect(userId),
+    // ENF-RGP-02: what is held in memory for a candidate goes with their account.
+    eraseMemoryOf: (userId) => {
+      memory.analyses.eraseAll(userId);
+      memory.deductions.eraseAll(userId);
+    },
   });
   const queue = createJobQueue({ db: database.db, clock: clock.now, logger });
   const gmailService = createGmailConnectionService({
@@ -287,7 +301,7 @@ export const createTestContext = (
             queue,
             ocr: ocrOf(ocr),
             router: llmRouter,
-            results: createAnalysisResults<CvAnalysis>(),
+            results: memory.analyses,
             clock: clock.now,
             analysesPerDay: 5,
           }),
@@ -307,7 +321,7 @@ export const createTestContext = (
             queue,
             ocr: ocrOf(ocr),
             router: llmRouter,
-            deductions: createAnalysisResults<ProfileDeduction>(),
+            deductions: memory.deductions,
             deductionsPerDay: 5,
           }),
         ),
@@ -324,7 +338,7 @@ export const createTestContext = (
       ),
     ],
   });
-  return { app, database, clock, encryptionKey, gmailSync: sync, queue, watch };
+  return { app, database, clock, encryptionKey, gmailSync: sync, queue, watch, memory };
 };
 
 export const openTestDatabase = (): DatabaseHandle =>

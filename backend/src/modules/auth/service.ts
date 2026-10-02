@@ -47,6 +47,8 @@ interface AuthServiceDeps {
   passwordParams: ScryptParams;
   /** EF-AUT-11: revokes what the user granted elsewhere (Gmail) before the account goes; must not throw. */
   revokeExternalAccess?: (userId: number) => Promise<void>;
+  /** ENF-RGP-02, ENF-RGP-06: forgets what is held in memory for the user — results kept 30 minutes — once they are gone. */
+  eraseMemoryOf?: (userId: number) => void;
 }
 
 const INVALID_CREDENTIALS = 'Adresse e-mail ou mot de passe incorrect';
@@ -60,10 +62,12 @@ const deleteAccountWith =
     db,
     resolved,
     revokeExternalAccess,
+    eraseMemoryOf,
   }: {
     db: Database;
     resolved: Map<string, { userId: number }>;
     revokeExternalAccess?: (userId: number) => Promise<void>;
+    eraseMemoryOf?: (userId: number) => void;
   }) =>
   async (userId: number, password: string): Promise<void> => {
     const passwordHash = await repository.findPasswordHashById(db, userId);
@@ -72,6 +76,7 @@ const deleteAccountWith =
     }
     await revokeExternalAccess?.(userId);
     await repository.deleteUser(db, userId);
+    eraseMemoryOf?.(userId);
     for (const [key, session] of resolved) if (session.userId === userId) resolved.delete(key);
   };
 
@@ -87,6 +92,7 @@ export const createAuthService = ({
   clock,
   passwordParams,
   revokeExternalAccess,
+  eraseMemoryOf,
 }: AuthServiceDeps): AuthService => {
   // Hash of a random password, checked when the email is unknown, so that timing does not reveal accounts.
   const decoyHash = hashPassword(generateSessionToken(), passwordParams);
@@ -151,6 +157,6 @@ export const createAuthService = ({
       return repository.findAccountById(db, userId);
     },
 
-    deleteAccount: deleteAccountWith({ db, resolved, revokeExternalAccess }),
+    deleteAccount: deleteAccountWith({ db, resolved, revokeExternalAccess, eraseMemoryOf }),
   };
 };

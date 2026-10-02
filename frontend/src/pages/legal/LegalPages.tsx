@@ -99,6 +99,12 @@ const RECIPIENTS: { name: string; role: string; place: string }[] = [
     place: 'États-Unis',
   },
   { name: 'Anthropic (Claude)', role: 'prend le relais en dernier recours', place: 'États-Unis' },
+  {
+    // ENF-RGP-05 (v1.35): the model the publisher runs himself, which leads the automatic watch.
+    name: 'Modèle d’IA local de l’éditeur',
+    role: 'lit en premier vos CV types (sans vos coordonnées), les offres à noter et celles que vous choisissez, avant de passer la main aux prestataires ci-dessus s’il est indisponible ; il tourne sur un serveur de l’éditeur et ne transmet rien à un tiers',
+    place: 'serveur de l’éditeur de Tracandi',
+  },
 ];
 
 /** ENF-RGP-05, ENF-RGP-11 (v1.33): the sources the watch queries, and the only thing each of them receives. */
@@ -161,6 +167,15 @@ export function PrivacyPage() {
           coordonnée de recruteur n’est conservée.
         </li>
         <li>
+          <strong>Votre veille automatique</strong>, si vous l’activez : les créneaux que vous choisissez
+          (matin, midi, soir), vos <em>CV types</em> (jusqu’à quatre), vos <em>offres choisies</em> (jusqu’à
+          trois par niveau) et le profil que vous validez. De chaque CV type, Tracandi ne garde que son
+          libellé, les années d’expérience calculées et le niveau ; d’une offre choisie, que son niveau, son
+          intitulé, ses mots-clés et les années demandées. Jamais le fichier, jamais son texte : ils sont lus
+          en mémoire puis jetés, et les offres types que le modèle propose ne restent que 30 minutes en
+          mémoire, le temps que vous les validiez.
+        </li>
+        <li>
           <strong>Le journal de fonctionnement</strong> : dates des synchronisations et utilisation de
           l’intelligence artificielle, sans le contenu des messages.
         </li>
@@ -187,8 +202,11 @@ export function PrivacyPage() {
       </ul>
       <p>
         L’intelligence artificielle ne reçoit que le strict nécessaire : l’objet et le début d’un e-mail (1
-        000 caractères au plus) pour le classer, et les seules informations d’une candidature pour rédiger une
-        relance. Aucun e-mail n’est envoyé en votre nom : les relances vous attendent en brouillon dans Gmail.
+        000 caractères au plus) pour le classer, les seules informations d’une candidature pour rédiger une
+        relance, le texte d’un CV type sans vos coordonnées (ni nom, ni adresse e-mail, ni téléphone, ni
+        adresse postale), le texte d’une offre sans coordonnée de recruteur, et vos critères de recherche.
+        Jamais votre adresse e-mail de compte, vos messages Gmail ni vos candidatures. Aucun e-mail n’est
+        envoyé en votre nom : les relances vous attendent en brouillon dans Gmail.
       </p>
 
       <h2>Les sources d’offres consultées</h2>

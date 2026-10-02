@@ -26,6 +26,7 @@ describe('optional features (ENF-MAI-07)', () => {
       '/api/watch/automatic',
       '/api/cv-types',
       '/api/chosen-offers',
+      '/api/cv-types/1/deduction',
       '/api/offers',
     ]) {
       expect((await request(app).get(path).set('Cookie', cookie)).status, path).toBe(404);
@@ -42,6 +43,29 @@ describe('optional features (ENF-MAI-07)', () => {
       .set('Content-Type', 'application/json')
       .send({ file: 'JVBERi0=' });
     expect(analysis.status).toBe(404);
+    // ENF-MAI-07 (v1.35): the writes of the agent's settings are no routes either.
+    const verbs = {
+      post: (path: string) => request(app).post(path),
+      put: (path: string) => request(app).put(path),
+      patch: (path: string) => request(app).patch(path),
+      delete: (path: string) => request(app).delete(path),
+    };
+    for (const [method, path] of [
+      ['post', '/api/cv-types'],
+      ['put', '/api/cv-types/1'],
+      ['delete', '/api/cv-types/1'],
+      ['post', '/api/chosen-offers'],
+      ['patch', '/api/chosen-offers/1'],
+      ['delete', '/api/chosen-offers/1'],
+      ['put', '/api/watch/automatic'],
+      ['post', '/api/watch/criteria/validation'],
+    ] as const) {
+      const response = await verbs[method](path)
+        .set('Cookie', cookie)
+        .set('Content-Type', 'application/json')
+        .send({});
+      expect(response.status, `${method} ${path}`).toBe(404);
+    }
     // The core stays: applications, dashboard, Gmail settings.
     expect((await request(app).get('/api/applications').set('Cookie', cookie)).status).toBe(200);
     expect((await request(app).get('/api/gmail/status').set('Cookie', cookie)).status).toBe(200);

@@ -2,6 +2,8 @@ import { asc, eq, inArray } from 'drizzle-orm';
 import type { Database } from '../../db/client.js';
 import {
   applications,
+  chosenOffers,
+  cvTypes,
   applicationStatusHistory,
   appSettings,
   candidateProfiles,
@@ -25,9 +27,38 @@ import {
  * (ENF-SEC-02). Shared reference data (platforms, AI prices) is not the user's and stays out.
  */
 
+/** ENF-RGP-14: the CV types as they are kept — a label, years and a level, never a file nor a text. */
+const readCvTypes = (db: Database, userId: number) =>
+  db
+    .select({
+      label: cvTypes.label,
+      years: cvTypes.years,
+      level: cvTypes.level,
+      createdAt: cvTypes.createdAt,
+      updatedAt: cvTypes.updatedAt,
+    })
+    .from(cvTypes)
+    .where(eq(cvTypes.userId, userId))
+    .orderBy(asc(cvTypes.id));
+
+/** ENF-RGP-14: the offers chosen by level as they are kept — their traits, never the text that was pasted. */
+const readChosenOffers = (db: Database, userId: number) =>
+  db
+    .select({
+      level: chosenOffers.level,
+      title: chosenOffers.title,
+      keywords: chosenOffers.keywords,
+      years: chosenOffers.years,
+      createdAt: chosenOffers.createdAt,
+      updatedAt: chosenOffers.updatedAt,
+    })
+    .from(chosenOffers)
+    .where(eq(chosenOffers.userId, userId))
+    .orderBy(asc(chosenOffers.id));
+
 /** The account, its settings, its Gmail connection (no token), its profile and its search criteria. */
 export const readAccountData = async (db: Database, userId: number) => {
-  const [account, settings, gmail, profile, keywords, criteria] = await Promise.all([
+  const [account, settings, gmail, profile, keywords, criteria, types, chosen] = await Promise.all([
     db.select({ email: users.email, createdAt: users.createdAt }).from(users).where(eq(users.id, userId)),
     db
       .select({
@@ -35,6 +66,9 @@ export const readAccountData = async (db: Database, userId: number) => {
         offerAlertThreshold: appSettings.offerAlertThreshold,
         gmailLookbackDays: appSettings.gmailLookbackDays,
         gmailApplyLabels: appSettings.gmailApplyLabels,
+        // EF-CFG-07 (v1.35): the watch that runs by itself, and the slots chosen.
+        watchAutoEnabled: appSettings.watchAutoEnabled,
+        watchSlots: appSettings.watchSlots,
       })
       .from(appSettings)
       .where(eq(appSettings.userId, userId)),
@@ -60,6 +94,8 @@ export const readAccountData = async (db: Database, userId: number) => {
       .select({ document: watchCriteria.document, updatedAt: watchCriteria.updatedAt })
       .from(watchCriteria)
       .where(eq(watchCriteria.userId, userId)),
+    readCvTypes(db, userId),
+    readChosenOffers(db, userId),
   ]);
   return {
     account: account[0] ?? null,
@@ -68,6 +104,8 @@ export const readAccountData = async (db: Database, userId: number) => {
     profile: profile[0] ?? null,
     prefilterKeywords: keywords.map((row) => row.keyword),
     watchCriteria: criteria[0] ?? null,
+    cvTypes: types,
+    chosenOffers: chosen,
   };
 };
 
@@ -202,6 +240,7 @@ export const readActivity = async (db: Database, userId: number) => {
       .select({
         job: jobRuns.job,
         trigger: jobRuns.triggerType,
+        slot: jobRuns.slot,
         outcome: jobRuns.outcome,
         startedAt: jobRuns.startedAt,
         finishedAt: jobRuns.finishedAt,

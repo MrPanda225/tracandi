@@ -65,4 +65,18 @@ describe('createAnalysisResults', () => {
     vi.advanceTimersByTime(ANALYSIS_TTL_MS);
     expect(results.find(7, 41)).toBeNull();
   });
+
+  it('[ENF-RGP-02] erases every result of one account at once, and none of another', () => {
+    const results = createAnalysisResults<typeof RESULT>();
+    results.save(7, 41, RESULT);
+    results.save(7, 42, RESULT);
+    results.save(8, 43, RESULT);
+
+    results.eraseAll(7);
+
+    expect(results.find(7, 41)).toBeNull();
+    expect(results.find(7, 42)).toBeNull();
+    expect(results.find(8, 43)).toEqual(RESULT);
+    expect(results.size()).toBe(1);
+  });
 });

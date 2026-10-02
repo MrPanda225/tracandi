@@ -78,12 +78,20 @@ const readConfigOrExit = (): Config => {
 
 const config = readConfigOrExit();
 const database = connectDatabase(config.databaseUrl, logger);
+// ENF-RGP-06: what is held in memory for 30 minutes — the results of the CV workshop, the profiles deduced.
+const analysisResults = createAnalysisResults<CvAnalysis>();
+const deductionResults = createAnalysisResults<ProfileDeduction>();
 const authService = createAuthService({
   db: database.db,
   clock: systemClock,
   passwordParams: OWASP_SCRYPT_PARAMS,
   // EF-AUT-11: a deleted account leaves no Gmail access behind (revocation at Google, best effort).
   revokeExternalAccess: (userId) => gmailService.disconnect(userId),
+  // ENF-RGP-02: nor anything held in memory for the candidate.
+  eraseMemoryOf: (userId) => {
+    analysisResults.eraseAll(userId);
+    deductionResults.eraseAll(userId);
+  },
 });
 
 const gmailService = createGmailConnectionService({
@@ -242,7 +250,7 @@ const app = createApp({
           queue: jobQueue,
           ocr: createPdfOcr(),
           router: llmRouter,
-          results: createAnalysisResults<CvAnalysis>(),
+          results: analysisResults,
           clock: systemClock,
           analysesPerDay: config.cvAnalysesPerDay,
         }),
@@ -263,7 +271,7 @@ const app = createApp({
           queue: jobQueue,
           ocr: createPdfOcr(),
           router: llmRouter,
-          deductions: createAnalysisResults<ProfileDeduction>(),
+          deductions: deductionResults,
           deductionsPerDay: config.watch.profileDeductionsPerDay,
         }),
       ),

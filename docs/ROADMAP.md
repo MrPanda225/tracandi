@@ -1071,13 +1071,21 @@ développeur l'active sur son poste (`ENABLED_FEATURES=watch,cv`) le temps d'y t
   message d'erreur d'un fournisseur dans le journal, et un service peut y citer ce qu'il a reçu (le JSON qu'il n'a pas pu
   lire) ; `llm/quoted.ts` retient désormais tout message qui reprend vingt-quatre caractères de la demande, et garde le
   type de l'échec et son statut. Vérifié par mutation : sans cette correction, le test du journal échoue.
-- [ ] **T-1016 Confidentialité, suppression du compte, documentation** — politique de confidentialité (destinataires
+- [x] **T-1016 Confidentialité, suppression du compte, documentation** — politique de confidentialité (destinataires
   dont le modèle local, traitement des CV types), suppression du compte étendue aux nouvelles tables, `ENF-MAI-07`,
   `.claude/rules/llm.md`, ligne « IA » de `CLAUDE.md`, `docs/TRACABILITE.md`.
   *Exigences* : ENF-RGP-02, ENF-RGP-05, ENF-RGP-06, ENF-RGP-08, ENF-MAI-07.
   *Fini quand* : suppression du compte : zéro ligne dans les nouvelles tables ; page Confidentialité mise à jour ;
   export des données (EF-AUT-12) complété.
   *Dépend de* : T-1009 à T-1012.
+  *Livré* : l'export (EF-AUT-12) donne les CV types, les offres choisies, les réglages de la veille et le créneau de chaque
+  passage ; la suppression du compte efface tout par cascade et, ce que la base ne voit pas, les résultats gardés
+  30 minutes en mémoire (`eraseAll`, branché sur `deleteAccount`) — y compris ceux de l'Atelier CV, que rien n'effaçait
+  avec le compte ; la page de confidentialité nomme le modèle local de l'éditeur parmi les destinataires, dit ce qui est
+  gardé d'un CV type et d'une offre choisie et ce que les modèles reçoivent ; `.claude/rules/llm.md` et `CLAUDE.md`
+  décrivent le fournisseur local, les deux tables de routes et ce que le modèle ne fait ni ne reçoit jamais.
+  *À confirmer par le Business Owner* : le pays d'hébergement du modèle local et, selon Q-25, le service de tunnel
+  (T-1017) à nommer dans la même page.
 - [ ] **T-1017 Chemin réseau vers le modèle local** — *tâche d'exploitation, sans code applicatif* : selon Q-25,
   proxy à jeton et tunnel (option A), ou autre option ; ADR-17 ; journal de mise en place dans la documentation du homelab.
   *Exigences* : ADR-17, ENF-SEC-24.

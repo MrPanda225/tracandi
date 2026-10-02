@@ -21,8 +21,10 @@ Toute nouvelle demande passe par `/project:change-request` avant le code.
 - **Base** : PostgreSQL hébergé par **Neon** (région UE, TLS). Schéma dans `backend/src/db/schema.ts`, migrations générées
   par `drizzle-kit` dans `backend/drizzle/`. Tests d'intégration sur un PostgreSQL **local** (Docker), jamais sur Neon.
   *Transition* : `scripts/db/` est encore en version MySQL jusqu'à T-701.
-- **IA** : Groq (trois emplacements de modèles gratuits, via `fetch` sur l'API compatible OpenAI), Claude
-  (`@anthropic-ai/sdk`) et Gemini (`@google/genai`) derrière un routeur avec bascule (RG-13).
+- **IA** : un modèle **local** de l'exploitant (Ollama, API compatible OpenAI, en tête des passages planifiés et des
+  traitements en file, `.claude/rules/llm.md`), Groq (trois emplacements de modèles gratuits, via `fetch` sur l'API
+  compatible OpenAI), Claude (`@anthropic-ai/sdk`) et Gemini (`@google/genai`) derrière un routeur avec bascule
+  (RG-13).
 - **Intégrations** : Gmail API (`googleapis`), API publiques des ATS.
 
 ## Commandes
