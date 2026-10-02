@@ -41,7 +41,11 @@ describe('buildTailorCvPrompt', () => {
   });
 
   it('[ENF-COU-01] bounds what is sent, however long the CV and the offer', () => {
-    const { prompt } = buildTailorCvPrompt({ ...INPUT, cvText: 'a'.repeat(50_000), offerText: 'b'.repeat(50_000) });
+    const { prompt } = buildTailorCvPrompt({
+      ...INPUT,
+      cvText: 'a'.repeat(50_000),
+      offerText: 'b'.repeat(50_000),
+    });
 
     expect(prompt.length).toBeLessThan(22_000);
   });

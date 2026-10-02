@@ -85,5 +85,7 @@ export const scoringProfileOf = (criteria: WatchCriteria): ScoringProfile => {
       contractTypes: target.contractTypes,
       keywords: target.keywords,
     })),
+    // EF-VEI-50: the level the experience an offer demands is compared with; none keeps the three years of RG-09.
+    ...(criteria.level ? { level: criteria.level } : {}),
   };
 };

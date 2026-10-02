@@ -36,7 +36,10 @@ const SYSTEM = [
  * Expected answer: `DiagnosisAnswerSchema` (modules/cvWorkshop).
  * @req EF-CVX-24, EF-CVX-27, ENF-SEC-06, ENF-COU-01
  */
-export const buildDiagnoseCvPrompt = ({ cvText, offerText }: CvToDiagnose): { system: string; prompt: string } => ({
+export const buildDiagnoseCvPrompt = ({
+  cvText,
+  offerText,
+}: CvToDiagnose): { system: string; prompt: string } => ({
   system: SYSTEM,
   prompt: [
     frameUntrusted('cv', truncate(cvText, CV_PROMPT_MAX_LENGTH)),

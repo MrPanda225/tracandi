@@ -92,4 +92,32 @@ describe('buildScoreOffersPrompt', () => {
     expect(forLocal).not.toContain('FIN-DE-LA-DESCRIPTION');
     expect(forLocal).toContain('a'.repeat(700));
   });
+
+  it('[EF-VEI-50] [RG-09] compares the experience an offer demands with the level of the candidate, not with three years', () => {
+    const senior = buildScoreOffersPrompt({ ...PROFILE, level: 'senior' }, [offer()]).system;
+    const junior = buildScoreOffersPrompt({ ...PROFILE, level: 'junior' }, [offer()]).system;
+
+    expect(senior).toContain('senior');
+    expect(senior).toContain('8 ans ou plus');
+    expect(senior).not.toContain('trois ans');
+    expect(junior).toContain('junior');
+    expect(junior).toContain('de 0 à 2 ans');
+    expect(junior).not.toContain('trois ans');
+    expect(senior).not.toEqual(junior);
+  });
+
+  it('[EF-VEI-50] [RG-09] states the level to the model as a criterion: a demand above it lowers the score, one at or below it does not', () => {
+    const { system } = buildScoreOffersPrompt({ ...PROFILE, level: 'confirme' }, [offer()]);
+
+    expect(system).toContain('confirmé');
+    expect(system).toContain('de 3 à 7 ans');
+    expect(system).toMatch(/exige davantage/u);
+  });
+
+  it('[RG-09] keeps the limit of three years when the candidate has no level (criteria without level)', () => {
+    const { system } = buildScoreOffersPrompt(PROFILE, [offer()]);
+
+    expect(system).toContain('trois ans');
+    expect(system).not.toContain('niveau du candidat');
+  });
 });

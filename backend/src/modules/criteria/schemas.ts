@@ -1,4 +1,5 @@
 import { z } from '../../lib/openapi.js';
+import { levelOfYears } from './experience.js';
 
 /** RG-09: the contracts a target may accept — the four of the glossary the candidate looks for (BES-12). */
 export const CRITERIA_CONTRACT_TYPES = ['cdi', 'cdd', 'alternance', 'job_etudiant'] as const;
@@ -13,6 +14,8 @@ const KEYWORD_MAX_LENGTH = 60;
 const PLACE_NAME_MAX_LENGTH = 120;
 const MAX_LATITUDE = 90;
 const MAX_LONGITUDE = 180;
+const MAX_YEARS = 50;
+const LEVELS = ['junior', 'confirme', 'senior'] as const;
 
 const label = (max: number) => z.string().trim().min(1).max(max);
 
@@ -70,7 +73,15 @@ export const WatchCriteriaSchema = z
     radiusKm: z.number().int().min(MIN_RADIUS_KM).max(MAX_RADIUS_KM),
     acceptsRemote: z.boolean(),
     romeCodes: distinct(RomeCodeSchema, MAX_ROME_CODES),
+    /** EF-VEI-47, EF-VEI-50 (v1.35): years of experience of the candidate; the level follows from them (RG-28). */
+    years: z.number().int().min(0).max(MAX_YEARS).optional(),
+    /** RG-28: junior, confirmé or senior; set by the years when they are given, by the candidate otherwise. */
+    level: z.enum(LEVELS).optional(),
   })
+  // EF-VEI-47: corrected years give a new level; a level given beside them never wins over them.
+  .transform((criteria) =>
+    criteria.years === undefined ? criteria : { ...criteria, level: levelOfYears(criteria.years) },
+  )
   .openapi('WatchCriteria');
 
 export const CriteriaResponseSchema = z

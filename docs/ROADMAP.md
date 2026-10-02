@@ -965,12 +965,19 @@ développeur l'active sur son poste (`ENABLED_FEATURES=watch,cv`) le temps d'y t
   l'âge d'une entreprise pour une exigence), `levelOfTitle`, `levelOfOffer`.
   *Choix assumé* : le format des périodes est `AAAA-MM` ; T-1010 y convertira ce que le modèle lit d'un CV. Les
   nombres écrits en lettres (« trois ans ») ne sont pas lus : RG-29 vise les chiffres.
-- [ ] **T-1007 Notation selon le niveau** — le document `watch_criteria` porte le niveau et les années ; le prompt de
+- [x] **T-1007 Notation selon le niveau** — le document `watch_criteria` porte le niveau et les années ; le prompt de
   `scoreOffers.ts` ne plafonne plus l'expérience à 3 ans mais la compare au niveau.
   *Exigences* : EF-VEI-50, EF-VEI-31 (modifiée), RG-09 (modifiée).
   *Fini quand* : même offre à 8 ans : mieux notée pour un senior que pour un junior (modèle simulé) ; prompt
   portant le niveau ; critères sans niveau : comportement actuel (3 ans au plus).
   *Dépend de* : T-1006.
+  *Livré* : le document `watch_criteria` accepte `years` (0 à 50) et `level` (pas de migration : c'est un document
+  validé par zod) ; avec des années, le niveau est recalculé par RG-28 (un niveau donné à côté ne l'emporte pas :
+  EF-VEI-47) ; `scoringProfileOf` transmet le niveau ; le prompt de `scoreOffers.ts` compare l'expérience exigée au
+  niveau du candidat (« autant ou moins ne pénalise pas, davantage abaisse le score ») au lieu de la limiter à trois
+  ans ; sans niveau, le texte d'avant (trois ans) est conservé.
+  *Reste à faire* : les traits des offres choisies du niveau (EF-VEI-50) dans le prompt, avec T-1012 ; l'écran qui
+  saisit les années, avec T-1013.
 - [ ] **T-1008 Créneaux et passages par utilisateur (API)** — `job_runs` porte le créneau (migration), la veille
   automatique et les créneaux choisis sont des réglages par utilisateur (`app_settings`), le planificateur lance un
   passage par utilisateur actif et par créneau, refuse sans critères avec un message, ignore un passage dont le

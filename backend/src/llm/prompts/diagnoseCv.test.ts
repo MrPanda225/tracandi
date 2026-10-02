@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { buildDiagnoseCvPrompt, CV_PROMPT_MAX_LENGTH, OFFER_PROMPT_MAX_LENGTH } from './diagnoseCv.js';
 
-const INPUT = { cvText: 'Data Analyst - Atelier Nova\nSQL, Python', offerText: 'Nous cherchons un Data Analyst maîtrisant dbt.' };
+const INPUT = {
+  cvText: 'Data Analyst - Atelier Nova\nSQL, Python',
+  offerText: 'Nous cherchons un Data Analyst maîtrisant dbt.',
+};
 
 describe('buildDiagnoseCvPrompt', () => {
   it('[ENF-SEC-06] frames the CV and the offer as untrusted content', () => {
@@ -27,7 +30,8 @@ describe('buildDiagnoseCvPrompt', () => {
   it('[EF-CVX-24] asks for the four sub-scores explained in French, and never for the overall score', () => {
     const { system } = buildDiagnoseCvPrompt(INPUT);
 
-    for (const key of ['skills', 'experience', 'education', 'techStack', 'missingSkills']) expect(system).toContain(key);
+    for (const key of ['skills', 'experience', 'education', 'techStack', 'missingSkills'])
+      expect(system).toContain(key);
     expect(system).toMatch(/1 à 3 phrases/);
     expect(system).not.toMatch(/score global/i);
   });

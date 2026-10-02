@@ -1,3 +1,4 @@
+import type { Level } from '../../modules/criteria/experience.js';
 import type { ScorableOffer, ScoringTarget } from '../../modules/offers/scoring.js';
 import { HOSTED_BATCH_LIMITS } from '../limits.js';
 import { frameUntrusted, truncate, UNTRUSTED_CONTENT_NOTICE } from './untrusted.js';
@@ -12,6 +13,8 @@ export interface ScoringProfile {
   /** RG-09: where the candidate can work, in their own words. */
   searchArea: string;
   targets: readonly ScoringTarget[];
+  /** EF-VEI-50, RG-09 (v1.35): the level the experience demanded is compared with; absent, three years at most. */
+  level?: Level;
 }
 
 /** One offer of a batch, referenced 1, 2… in the order of the prompt. */
@@ -28,22 +31,40 @@ const CONTRACT_WORDINGS: Readonly<Record<string, string>> = {
   job_etudiant: 'job étudiant',
 };
 
-const SYSTEM = [
-  'Tu notes des offres d’emploi pour un candidat, de 0 à 100, selon leur pertinence pour lui.',
-  'Le profil du candidat est placé entre balises <candidate_profile>, chaque offre entre balises <offer ref="N">.',
-  'Critères, tous d’égale importance (RG-09) :',
-  '- l’offre correspond à l’une des cibles du candidat ;',
-  '- le lieu est dans sa zone de recherche, ou le télétravail est possible ;',
-  '- le type de contrat de l’offre est accepté par la cible ; un contrat non précisé ne pénalise pas l’offre ;',
-  '- l’expérience exigée ne dépasse pas trois ans.',
-  'Chaque critère non satisfait abaisse le score. Une offre qui ne satisfait aucun critère est proche de 0 ; ' +
-    'une offre qui les satisfait tous est proche de 100.',
-  'Donne aussi "reason" : une seule phrase en français disant ce qui justifie ce score, sans recopier l’offre.',
-  'Réponds uniquement par un objet JSON de la forme ' +
-    '{"offers":[{"ref":1,"score":78,"reason":"Poste de data analyst en CDI à Paris, dans votre zone de recherche."}]}, ' +
-    'avec un élément par offre, dans l’ordre des références.',
-  UNTRUSTED_CONTENT_NOTICE,
-].join('\n');
+/** RG-28: how the instruction names each level and the experience it stands for. */
+const LEVEL_WORDINGS: Readonly<Record<Level, { name: string; range: string }>> = {
+  junior: { name: 'junior', range: 'de 0 à 2 ans' },
+  confirme: { name: 'confirmé', range: 'de 3 à 7 ans' },
+  senior: { name: 'senior', range: '8 ans ou plus' },
+};
+
+/** RG-09: the criterion of experience — against the level of the candidate when he has one, three years otherwise. */
+const experienceCriterionOf = (level: Level | undefined): string => {
+  if (level === undefined) return '- l’expérience exigée ne dépasse pas trois ans.';
+  const { name, range } = LEVEL_WORDINGS[level];
+  return (
+    `- l’expérience exigée est compatible avec le niveau du candidat (${name}, soit ${range} d’expérience) : ` +
+    'une offre qui exige autant ou moins ne pénalise pas, une offre qui exige davantage abaisse le score.'
+  );
+};
+
+const systemInstructionOf = (level: Level | undefined): string =>
+  [
+    'Tu notes des offres d’emploi pour un candidat, de 0 à 100, selon leur pertinence pour lui.',
+    'Le profil du candidat est placé entre balises <candidate_profile>, chaque offre entre balises <offer ref="N">.',
+    'Critères, tous d’égale importance (RG-09) :',
+    '- l’offre correspond à l’une des cibles du candidat ;',
+    '- le lieu est dans sa zone de recherche, ou le télétravail est possible ;',
+    '- le type de contrat de l’offre est accepté par la cible ; un contrat non précisé ne pénalise pas l’offre ;',
+    experienceCriterionOf(level),
+    'Chaque critère non satisfait abaisse le score. Une offre qui ne satisfait aucun critère est proche de 0 ; ' +
+      'une offre qui les satisfait tous est proche de 100.',
+    'Donne aussi "reason" : une seule phrase en français disant ce qui justifie ce score, sans recopier l’offre.',
+    'Réponds uniquement par un objet JSON de la forme ' +
+      '{"offers":[{"ref":1,"score":78,"reason":"Poste de data analyst en CDI à Paris, dans votre zone de recherche."}]}, ' +
+      'avec un élément par offre, dans l’ordre des références.',
+    UNTRUSTED_CONTENT_NOTICE,
+  ].join('\n');
 
 const describeProfile = (profile: ScoringProfile): string =>
   [
@@ -80,7 +101,7 @@ export const buildScoreOffersPrompt = (
   offers: readonly OfferToScore[],
   { descriptionChars = OFFER_DESCRIPTION_MAX_LENGTH }: { descriptionChars?: number } = {},
 ): { system: string; prompt: string } => ({
-  system: SYSTEM,
+  system: systemInstructionOf(profile.level),
   prompt: [
     frameUntrusted('candidate_profile', describeProfile(profile)),
     ...offers.map((offer) => describeOffer(offer, descriptionChars)),
