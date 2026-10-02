@@ -4,6 +4,7 @@ import { isTransientFailure, propertyOf, statusOfError } from '../lib/httpStatus
 import type { Logger } from '../lib/logger.js';
 import { type Sleep, wait } from '../lib/rateLimiter.js';
 import { type BatchLimits, HOSTED_BATCH_LIMITS } from './limits.js';
+import { withoutQuotedRequest } from './quoted.js';
 import type { LlmCompletion, LlmOutcome, LlmProvider, LlmTaskName, ProviderName } from './types.js';
 
 // RG-13 (v1.8): the three Groq slots in order, then the historical fallbacks — Gemini first for the volume tasks,
@@ -282,7 +283,10 @@ const createProviderRunner = ({ journal, logger, timeoutMs, sleep }: ProviderRun
         provider: provider.name,
         model: provider.model,
         outcome: result.outcome,
-        ...result.refusal,
+        // ENF-RGP-12: a service may quote the request in its error; the log keeps the kind of failure, not the quote.
+        ...('error' in result.refusal
+          ? { error: withoutQuotedRequest(result.refusal.error, [input.system, input.prompt]) }
+          : result.refusal),
       });
     }
     return result;

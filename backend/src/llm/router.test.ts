@@ -225,6 +225,21 @@ describe('runTask — why a provider was set aside', () => {
     ]);
   });
 
+  it('[ENF-RGP-12] withholds the message of a provider that quotes the request back, and keeps its status', async () => {
+    const TEXT = 'Texte fictif reconnaissable du candidat : il a mené trois projets de données à Lyon.';
+    const quoting = Object.assign(new Error(`400 invalid JSON near: ${TEXT}`), { status: 400 });
+    const { router, logged } = setup({
+      gemini: fakeProvider('gemini', () => Promise.reject(quoting)),
+      claude: fakeProvider('claude', () => Promise.resolve(answer({ category: 'interview' }))),
+    });
+
+    await router.runTask('classify_emails', { ...INPUT, prompt: `<email>${TEXT}</email>` });
+
+    expect(JSON.stringify(logged)).not.toContain('Texte fictif reconnaissable');
+    expect(logged[0]?.context).toMatchObject({ outcome: 'error', provider: 'gemini' });
+    expect((logged[0]?.context['error'] as Error & { status: number }).status).toBe(400);
+  });
+
   it('[EF-IA-03] logs the fields the schema rejected, as paths, never their value', async () => {
     const { router, logged } = setup({
       gemini: fakeProvider('gemini', () => Promise.resolve(answer({ category: 'embauché' }))),

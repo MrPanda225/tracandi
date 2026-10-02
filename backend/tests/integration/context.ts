@@ -167,6 +167,8 @@ export interface ExternalServices {
    * without SIREN search, the watch does without it.
    */
   official?: Partial<OfficialDoubles>;
+  /** ENF-RGP-12: where the lines of the log go, to check what a pass writes in it; nowhere by default. */
+  logWrite?: (line: string) => void;
   /** EF-CVX-22: the OCR of the scanned pages of an imported CV; the real one (tesseract on this machine) by default. */
   ocr?: PdfOcr;
   /** ENF-MAI-07: the optional features of this deployment; every one by default. */
@@ -176,6 +178,10 @@ export interface ExternalServices {
   /** EF-EXE-07, ENF-PERF-09: ceilings of a pass of the watch; those of the server by default. */
   watchLimits?: { maxScoredOffersPerPass?: number; maxPassMinutes?: number };
 }
+
+/** Where a test sends the log: its own sink, or nowhere. */
+const writerOf = (write: ((line: string) => void) | undefined): ((line: string) => void) =>
+  write ?? (() => undefined);
 
 /** The OCR a test passes, or the real one (tesseract on this machine). */
 const ocrOf = (ocr: PdfOcr | undefined): PdfOcr => ocr ?? createPdfOcr();
@@ -191,13 +197,14 @@ export const createTestContext = (
     places = knownPlaces,
     official = {},
     ocr,
+    logWrite,
     features = new Set(OPTIONAL_FEATURES),
     trustProxyHops = 0,
     watchLimits,
   }: ExternalServices = {},
 ): TestContext => {
   const clock = createTestClock(new Date('2026-09-22T08:00:00.000Z'));
-  const logger = createLogger({ write: () => undefined });
+  const logger = createLogger({ write: writerOf(logWrite) });
   const encryptionKey = randomBytes(32);
   const authService = createAuthService({
     db: database.db,
@@ -381,12 +388,16 @@ export const giveContact = async (
  * ENF-RGP-14: the tables of the database that hold this text somewhere in a row, whatever the column. Every table of
  * the application is read as text, so that a column added later is covered without anyone remembering it.
  */
-export const tablesHolding = async (database: DatabaseHandle, needle: string): Promise<string[]> => {
+export const tablesHolding = async (
+  database: DatabaseHandle,
+  needle: string,
+  only?: readonly string[],
+): Promise<string[]> => {
   const tables = await database.db.execute<{ table_name: string }>(
     sql`SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE'`,
   );
   const holding: string[] = [];
-  for (const { table_name: name } of tables.rows) {
+  for (const { table_name: name } of tables.rows.filter((row) => !only || only.includes(row.table_name))) {
     const hit = await database.db.execute(
       sql`SELECT 1 FROM ${sql.identifier(name)} AS t WHERE position(${needle} in t::text) > 0 LIMIT 1`,
     );

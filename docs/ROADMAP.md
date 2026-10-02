@@ -1059,7 +1059,7 @@ développeur l'active sur son poste (`ENABLED_FEATURES=watch,cv`) le temps d'y t
   *Fini quand* : passage simulé : état et compteurs affichés sans contenu ; libellé « secours » ; adresse et jeton
   absents de l'API.
   *Dépend de* : T-1008, T-1013.
-- [ ] **T-1015 Garde-fous transversaux de l'agent** — tests et corrections pour les trois garanties qui traversent
+- [x] **T-1015 Garde-fous transversaux de l'agent** — tests et corrections pour les trois garanties qui traversent
   les tâches : aucune requête sortante vers une adresse venue du modèle, journaux sans contenu, prompts sans
   coordonnées.
   *Exigences* : ENF-COL-06, ENF-RGP-12, ENF-RGP-13.
@@ -1067,6 +1067,10 @@ développeur l'active sur son poste (`ENABLED_FEATURES=watch,cv`) le temps d'y t
   reconnaissables absents des journaux et de `job_runs`, `job_run_counters`, `llm_calls` ; prompt de déduction et de
   notation sans e-mail ni téléphone.
   *Dépend de* : T-1008, T-1010, T-1012.
+  *Livré* : trois garanties prouvées par `tests/integration/agent-guards.test.ts`. Une correction : le routeur écrivait le
+  message d'erreur d'un fournisseur dans le journal, et un service peut y citer ce qu'il a reçu (le JSON qu'il n'a pas pu
+  lire) ; `llm/quoted.ts` retient désormais tout message qui reprend vingt-quatre caractères de la demande, et garde le
+  type de l'échec et son statut. Vérifié par mutation : sans cette correction, le test du journal échoue.
 - [ ] **T-1016 Confidentialité, suppression du compte, documentation** — politique de confidentialité (destinataires
   dont le modèle local, traitement des CV types), suppression du compte étendue aux nouvelles tables, `ENF-MAI-07`,
   `.claude/rules/llm.md`, ligne « IA » de `CLAUDE.md`, `docs/TRACABILITE.md`.
