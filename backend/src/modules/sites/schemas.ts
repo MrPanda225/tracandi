@@ -120,6 +120,8 @@ export const WatchReportSchema = z
     offersNew: z.number().int(),
     /** Offers scored at or above the threshold of EF-VEI-15. */
     offersRelevant: z.number().int(),
+    /** EF-VEI-54: offers kept but still waiting for a score after this pass. */
+    offersUnscored: z.number().int(),
     threshold: z.number().int(),
   })
   .openapi('WatchReport');

@@ -58,6 +58,8 @@ export interface TestClock {
   now: () => Date;
   set: (instant: Date) => void;
   advanceDays: (days: number) => void;
+  /** ENF-PERF-09: a long pass, simulated. */
+  advanceMinutes: (minutes: number) => void;
 }
 
 const createTestClock = (start: Date): TestClock => {
@@ -69,6 +71,9 @@ const createTestClock = (start: Date): TestClock => {
     },
     advanceDays: (days) => {
       current = new Date(current.getTime() + days * 24 * 60 * 60 * 1000);
+    },
+    advanceMinutes: (minutes) => {
+      current = new Date(current.getTime() + minutes * 60 * 1000);
     },
   };
 };
@@ -159,6 +164,8 @@ export interface ExternalServices {
   features?: EnabledFeatures;
   /** BES-39: proxies in front of the API (Vercel, Northflank); none by default. */
   trustProxyHops?: number;
+  /** EF-EXE-07, ENF-PERF-09: ceilings of a pass of the watch; those of the server by default. */
+  watchLimits?: { maxScoredOffersPerPass?: number; maxPassMinutes?: number };
 }
 
 /** Real application on the local test database, with an injectable clock and fake external services. */
@@ -173,6 +180,7 @@ export const createTestContext = (
     official = {},
     features = new Set(OPTIONAL_FEATURES),
     trustProxyHops = 0,
+    watchLimits,
   }: ExternalServices = {},
 ): TestContext => {
   const clock = createTestClock(new Date('2026-09-22T08:00:00.000Z'));
@@ -223,6 +231,7 @@ export const createTestContext = (
     },
     findSiren: officialDoubles.findSiren,
     logger,
+    limits: watchLimits,
   });
   const app = createApp({
     config: { frontendOrigin: FRONTEND_ORIGIN, trustProxyHops },

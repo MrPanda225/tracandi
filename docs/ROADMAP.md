@@ -932,7 +932,7 @@ développeur l'active sur son poste (`ENABLED_FEATURES=watch,cv`) le temps d'y t
   *Constat corrigé* : après un échec, la fenêtre de France Travail repartait de l'heure de l'échec, et les offres
   publiées entre la dernière réussite et l'échec n'étaient jamais lues.
   *Reste à faire* : l'export des données (EF-AUT-12) ne porte pas encore la nouvelle colonne (T-1016).
-- [ ] **T-1005 Offres sans note, plafond par passage, durée maximale** — une offre lue est enregistrée même si
+- [x] **T-1005 Offres sans note, plafond par passage, durée maximale** — une offre lue est enregistrée même si
   aucun fournisseur ne la note (note vide, compteur « en attente de note », migration de l'énumération des
   compteurs) et notée au passage suivant, les plus récentes d'abord ; au plus N offres notées par passage ;
   passage arrêté proprement à 45 minutes ; offres sans note à part dans les écrans qui trient par score.
@@ -940,6 +940,17 @@ développeur l'active sur son poste (`ENABLED_FEATURES=watch,cv`) le temps d'y t
   *Fini quand* : modèle local et secours simulés en échec : sources consultées, offres enregistrées sans note, puis
   notées au passage suivant sans doublon ; 35 offres : 20 notées, 15 reprises ; horloge simulée : arrêt à 45 minutes.
   *Dépend de* : T-1004.
+  *Livré* : migration 0024 (compteur `offers_unscored`) ; `modules/sites/scorer.ts` : la notation devient une étape
+  **après** la lecture des sources ; une offre lue est enregistrée sans note (`relevance_score` vide) si aucun modèle
+  ne répond, et reprise au passage suivant ; ordre de RG-31 (celles qui ont attendu d'abord, puis les plus récemment
+  publiées, `listUnscoredOffers`) ; `MAX_SCORED_OFFERS_PER_PASS` (20, 0 lève la limite) ; arrêt à 45 minutes
+  (`deadlineOf` : plus aucun lot ni aucune source commencés) ; rapport et compteurs `offersUnscored` /
+  `offers_unscored` ; écran des offres : « En attente de note » à la place du score (le tri `desc nulls last` mettait
+  déjà ces offres en dernier) ; contrôle `EXPLAIN` des deux nouvelles requêtes sur le jeu de charge, sans `Seq Scan`.
+  *Écart* : le délai de 45 minutes est une constante (injectable, `limits.maxPassMinutes`), non une variable
+  d'environnement : ENF-PERF-09 ne demande pas de réglage.
+  *Changement de comportement* : une indisponibilité de tous les fournisseurs ne fait plus échouer la source ; la
+  source est lue, ses offres sont gardées, et la passe se termine en succès avec `offers_unscored` > 0.
 - [ ] **T-1006 Années d'expérience et niveau** — fonctions pures, sans IA : durée cumulée des périodes d'un CV
   (chevauchements comptés une fois), années demandées par une offre (« 5 ans ou plus d'expérience »), niveau.
   *Exigences* : RG-28, RG-29, EF-VEI-43 (calcul), EF-VEI-44.

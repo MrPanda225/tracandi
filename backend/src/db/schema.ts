@@ -143,6 +143,8 @@ export const runCounter = pgEnum('run_counter', [
   'sources_checked',
   'offers_new',
   'offers_relevant',
+  // EF-VEI-54 (v1.35): offers read and kept but not scored yet, because no model answered or the pass was cut short.
+  'offers_unscored',
   // EF-CVX-22: pages of an imported CV read by OCR (the CV itself is never journaled, ENF-RGP-06).
   'cv_pages_ocr',
   // EF-CVX-32: steps of an analysis done so far (1 read, 2 diagnosed), published as it goes.

@@ -54,6 +54,7 @@ describe('loadConfig', () => {
       maxConcurrentJobs: 1,
       // EF-CVX-33: five analyses of the CV workshop a day, unless the deployment says otherwise.
       cvAnalysesPerDay: 5,
+      watch: { maxScoredOffersPerPass: 20 },
     });
   });
 
@@ -416,5 +417,29 @@ describe('loadConfig, local model', () => {
     const config = loadConfig({ ...VALID_ENV, LOCAL_LLM_BASE_URL: '', LOCAL_LLM_MODEL: '' });
 
     expect(Object.keys(config.llm)).toEqual(['claude', 'gemini']);
+  });
+});
+
+describe('loadConfig, scored offers per pass', () => {
+  it('[EF-EXE-07] scores 20 offers per pass by default, and reads the ceiling from the configuration', () => {
+    expect(loadConfig(VALID_ENV).watch).toEqual({ maxScoredOffersPerPass: 20 });
+    expect(loadConfig({ ...VALID_ENV, MAX_SCORED_OFFERS_PER_PASS: '35' }).watch.maxScoredOffersPerPass).toBe(
+      35,
+    );
+  });
+
+  it('[EF-EXE-07] lifts the ceiling with 0, and counts an empty line as absent', () => {
+    expect(loadConfig({ ...VALID_ENV, MAX_SCORED_OFFERS_PER_PASS: '0' }).watch.maxScoredOffersPerPass).toBe(
+      0,
+    );
+    expect(loadConfig({ ...VALID_ENV, MAX_SCORED_OFFERS_PER_PASS: '' }).watch.maxScoredOffersPerPass).toBe(
+      20,
+    );
+  });
+
+  it.each([['-1'], ['abc'], ['1001']])('[EF-EXE-07] refuses the ceiling %s, naming the variable', (value) => {
+    expect(errorOf({ ...VALID_ENV, MAX_SCORED_OFFERS_PER_PASS: value })).toContain(
+      'MAX_SCORED_OFFERS_PER_PASS',
+    );
   });
 });

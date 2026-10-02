@@ -1,12 +1,7 @@
 import type { Database } from '../../db/client.js';
 import type { Clock } from '../../lib/clock.js';
 import type { Logger } from '../../lib/logger.js';
-import {
-  buildScoreOffersPrompt,
-  type OfferToScore,
-  type ScoringProfile,
-} from '../../llm/prompts/scoreOffers.js';
-import { HOSTED_BATCH_LIMITS } from '../../llm/limits.js';
+import type { ScoringProfile } from '../../llm/prompts/scoreOffers.js';
 import type { LlmRouter, RunMode } from '../../llm/router.js';
 import { adapterFor } from '../../scraper/adapters/index.js';
 import { describeCollectionFailure } from '../../scraper/failures.js';
@@ -14,17 +9,12 @@ import type { AdapterDeps, NormalizedOffer } from '../../scraper/adapters/types.
 import type { FranceTravailApi } from '../../scraper/official/franceTravail.js';
 import type { LaBonneAlternanceApi } from '../../scraper/official/laBonneAlternance.js';
 import type { WatchCriteria } from '../criteria/schemas.js';
-import {
-  isWorthScoring,
-  matchedTargetOf,
-  PREFILTERED_REASON,
-  PREFILTERED_SCORE,
-  ScoredOffersSchema,
-} from '../offers/scoring.js';
+import { isWorthScoring, matchedTargetOf, PREFILTERED_REASON, PREFILTERED_SCORE } from '../offers/scoring.js';
 import { fingerprintOf, type Pace, paceAfter } from './pacing.js';
 import * as repository from './repository.js';
 import type { OfferToStore, SourceRow } from './repository.js';
 import type { WatchReport } from './schemas.js';
+import { DEFAULT_MAX_SCORED_OFFERS, deadlineOf, scorePendingOffers } from './scorer.js';
 
 export interface WatchPassDeps {
   db: Database;
@@ -35,6 +25,8 @@ export interface WatchPassDeps {
   /** EF-VEI-32, EF-VEI-37: the clients of the official APIs; null when the server has no credentials for one. */
   officialApis: { franceTravail: FranceTravailApi | null; laBonneAlternance: LaBonneAlternanceApi | null };
   logger: Logger;
+  /** EF-EXE-07, ENF-PERF-09: what one pass may do for one candidate; the defaults of the cahier des charges. */
+  limits?: { maxScoredOffersPerPass?: number; maxPassMinutes?: number } | undefined;
 }
 
 /** What one pass needs to know about the candidate it runs for. */
@@ -64,16 +56,10 @@ export interface WatchPass {
   run: (context: PassContext) => Promise<WatchReport>;
 }
 
-interface Score {
-  score: number;
-  reason: string | null;
-}
-
 /** What one source produced, as the report counts it. */
 interface SourceOutcome {
   found: number;
   added: number;
-  relevant: number;
   /** EF-VEI-42: when the scheduled pass should read the source again. */
   pace: Pace;
 }
@@ -84,66 +70,22 @@ const emptyReport = (threshold: number): WatchReport => ({
   offersFound: 0,
   offersNew: 0,
   offersRelevant: 0,
+  offersUnscored: 0,
   threshold,
 });
 
-interface ScorerDeps {
-  router: LlmRouter;
-}
-
 /**
- * EF-VEI-12 to EF-VEI-14: gives every new offer a score. RG-10 sets aside what carries no keyword of a target,
- * which costs no AI call at all; the rest is scored in batches (ENF-COU-01), fifteen at a time by the hosted providers
- * and in the smaller batches of the local model while it serves (EF-IA-12).
+ * EF-VEI-12, EF-VEI-14, EF-VEI-54: what a new offer is stored with. RG-10 sets aside what carries no keyword of a
+ * target, which costs no AI call at all; the others are stored without a score and scored at the end of the pass, or
+ * at the next one when no model answers (ENF-FIA-11).
  */
-const createScorer = ({ router }: ScorerDeps) => {
-  /**
-   * RG-09: scores one batch through the AI, by reference. A model that skips an offer leaves it unscored; the
-   * caller then falls back rather than losing the offer (ENF-FIA-02).
-   */
-  const scoreBatch = async (
-    context: PassContext,
-    offers: readonly OfferToScore[],
-    descriptionChars: number,
-  ): Promise<Map<number, Score>> => {
-    const { data } = await router.runTask('score_offers', {
-      userId: context.userId,
-      ...buildScoreOffersPrompt(context.scoring, offers, { descriptionChars }),
-      schema: ScoredOffersSchema,
-    });
-    return new Map(data.offers.map((scored) => [scored.ref, { score: scored.score, reason: scored.reason }]));
-  };
-
-  return async (context: PassContext, offers: readonly NormalizedOffer[]): Promise<OfferToStore[]> => {
-    const { targets } = context.scoring;
-    const worth = offers.filter((offer) => isWorthScoring(offer, targets));
-    const referenceOf = new Map(worth.map((offer, index) => [offer, index + 1]));
-    const scores = new Map<number, Score>();
-
-    // The limits are read before each batch: a local model that went off in the middle hands over to the hosted ones.
-    const waiting = [...worth];
-    while (waiting.length > 0) {
-      const limits = router.limitsFor?.('score_offers') ?? HOSTED_BATCH_LIMITS;
-      const batch = waiting.splice(0, limits.batchSize);
-      const scored = await scoreBatch(
-        context,
-        batch.map((offer) => ({ ...offer, ref: referenceOf.get(offer) ?? 0 })),
-        limits.descriptionChars,
-      );
-      for (const [reference, value] of scored) scores.set(reference, value);
-    }
-
-    return offers.map((offer) => {
-      const reference = referenceOf.get(offer);
-      const scored = reference === undefined ? undefined : scores.get(reference);
-      return {
-        ...offer,
-        // An offer RG-10 set aside, and one the model skipped, both stay at the bottom rather than being lost.
-        relevanceScore: scored?.score ?? PREFILTERED_SCORE,
-        relevanceReason: reference === undefined ? PREFILTERED_REASON : (scored?.reason ?? null),
-        matchedTarget: matchedTargetOf(offer, targets),
-      };
-    });
+const storableOf = (offer: NormalizedOffer, targets: ScoringProfile['targets']): OfferToStore => {
+  const isWorth = isWorthScoring(offer, targets);
+  return {
+    ...offer,
+    relevanceScore: isWorth ? null : PREFILTERED_SCORE,
+    relevanceReason: isWorth ? null : PREFILTERED_REASON,
+    matchedTarget: matchedTargetOf(offer, targets),
   };
 };
 
@@ -171,10 +113,9 @@ const noteWhatIsStillPublished = async (
   );
 };
 
-/** One pass: its router (routes of its mode, its own failures) and the scorer that goes with it. */
+/** One pass: its router (routes of its mode, its own failures). */
 interface PassWork {
   llm: LlmRouter;
-  scoreOffers: ReturnType<typeof createScorer>;
 }
 
 /** One source: read, kept apart from what is already known (EF-VEI-09), scored, then stored. */
@@ -197,53 +138,79 @@ const createSourceChecker =
     const checkedAt = clock();
     const pace = await noteWhatIsStillPublished(db, { source, found, known, checkedAt });
     const fresh = found.filter((offer) => !known.has(offer.externalId));
-    if (fresh.length === 0) return { found: found.length, added: 0, relevant: 0, pace };
+    if (fresh.length === 0) return { found: found.length, added: 0, pace };
 
-    const scored = await work.scoreOffers(context, fresh);
+    const stored = fresh.map((offer) => storableOf(offer, context.scoring.targets));
     return {
       found: found.length,
-      added: await repository.insertOffers(db, source.id, { offers: scored, seenAt: checkedAt }),
-      relevant: scored.filter((offer) => offer.relevanceScore >= context.threshold).length,
+      added: await repository.insertOffers(db, source.id, { offers: stored, seenAt: checkedAt }),
       pace,
     };
   };
 
 export const createWatchPass = (deps: WatchPassDeps): WatchPass => {
-  const { db, clock, router, logger } = deps;
+  const { db, clock, router, logger, limits } = deps;
   const checkSource = createSourceChecker(deps);
+
+  /** One source, read and its offers stored; a failure stays on the source (ENF-FIA-02). */
+  const readSource = async (work: {
+    context: PassContext;
+    source: SourceRow;
+    llm: LlmRouter;
+    report: WatchReport;
+  }) => {
+    const { context, source, llm, report } = work;
+    // The window of the next check starts where this one began: what is published while it reads is not missed.
+    const startedAt = clock();
+    try {
+      const outcome = await checkSource(context, source, { llm });
+      report.sourcesChecked += 1;
+      report.offersFound += outcome.found;
+      report.offersNew += outcome.added;
+      await repository.recordCheck(db, source.id, {
+        checkedAt: clock(),
+        error: null,
+        pace: outcome.pace,
+        succeededFrom: startedAt,
+      });
+    } catch (error) {
+      report.sourcesFailed += 1;
+      logger.warn('watched source failed', { sourceId: source.id, adapter: source.adapter, error });
+      await repository.recordCheck(db, source.id, {
+        checkedAt: clock(),
+        error: describeCollectionFailure(error),
+      });
+    }
+  };
 
   return {
     async run(context) {
       const report = emptyReport(context.threshold);
+      const startedAt = clock();
+      const deadline = deadlineOf(startedAt, limits?.maxPassMinutes);
       // EF-IA-08, EF-IA-14: one router for the whole pass, with the routes of its mode and its own count of failures.
       const llm = router.forMode?.(context.mode ?? 'attended') ?? router;
-      const work: PassWork = { llm, scoreOffers: createScorer({ router: llm }) };
       // Sources are read one after the other: the collector already spaces its calls, and a career page costs an
-      // AI call. What matters is that a failure stays on its own source (ENF-FIA-02).
+      // AI call. A pass that ran out of time reads no further source: its window picks the rest up (EF-VEI-53).
       for (const source of context.sources) {
-        // The window of the next check starts where this one began: what is published while it reads is not missed.
-        const startedAt = clock();
-        try {
-          const outcome = await checkSource(context, source, work);
-          report.sourcesChecked += 1;
-          report.offersFound += outcome.found;
-          report.offersNew += outcome.added;
-          report.offersRelevant += outcome.relevant;
-          await repository.recordCheck(db, source.id, {
-            checkedAt: clock(),
-            error: null,
-            pace: outcome.pace,
-            succeededFrom: startedAt,
-          });
-        } catch (error) {
-          report.sourcesFailed += 1;
-          logger.warn('watched source failed', { sourceId: source.id, adapter: source.adapter, error });
-          await repository.recordCheck(db, source.id, {
-            checkedAt: clock(),
-            error: describeCollectionFailure(error),
-          });
-        }
+        if (clock().getTime() >= deadline.getTime()) break;
+        await readSource({ context, source, llm, report });
       }
+      // EF-VEI-54: every offer read is stored; the scoring comes after, and never costs an offer.
+      const scoring = await scorePendingOffers(
+        { db, clock, logger },
+        {
+          llm,
+          userId: context.userId,
+          scoring: context.scoring,
+          threshold: context.threshold,
+          startedAt,
+          deadline,
+          maxOffers: limits?.maxScoredOffersPerPass ?? DEFAULT_MAX_SCORED_OFFERS,
+        },
+      );
+      report.offersRelevant = scoring.relevant;
+      report.offersUnscored = scoring.waiting;
       return report;
     },
   };

@@ -1,4 +1,4 @@
-import { and, count, eq, exists, inArray, isNull, lt, lte, notExists, or, sql } from 'drizzle-orm';
+import { and, asc, count, eq, exists, inArray, isNull, lt, lte, notExists, or, sql } from 'drizzle-orm';
 import type { Database } from '../../db/client.js';
 import {
   applications,
@@ -204,7 +204,8 @@ export const listKnownOfferIds = async (db: Executor, siteId: number): Promise<S
 
 /** An offer about to be stored: what the adapter read, plus what the scoring decided. */
 export interface OfferToStore extends NormalizedOffer {
-  relevanceScore: number;
+  /** Null while no model has scored the offer: it waits for the next pass (EF-VEI-54). */
+  relevanceScore: number | null;
   relevanceReason: string | null;
   matchedTarget: string | null;
 }
@@ -428,4 +429,69 @@ export const saveDiscovery = async (db: Executor, discovery: DiscoveryRow): Prom
         discoveredAt: discovery.discoveredAt,
       },
     });
+};
+
+/** An offer read and kept, still without a score (EF-VEI-54): what the scoring needs of it. */
+export interface UnscoredOffer {
+  id: number;
+  title: string;
+  location: string | null;
+  contractType: NormalizedOffer['contractType'];
+  description: string | null;
+}
+
+/**
+ * The offers of the candidate that wait for a score, in the order of RG-31: first the ones that waited from a
+ * previous pass, then the ones this pass found; in each group the most recently published first, and, for the same
+ * publication, the one seen first.
+ * @req EF-VEI-54, RG-31
+ */
+export const listUnscoredOffers = async (
+  db: Executor,
+  userId: number,
+  { passStartedAt, limit }: { passStartedAt: Date; limit: number },
+): Promise<UnscoredOffer[]> =>
+  db
+    .select({
+      id: jobOffers.id,
+      title: jobOffers.title,
+      location: jobOffers.location,
+      contractType: jobOffers.contractType,
+      description: jobOffers.description,
+    })
+    .from(jobOffers)
+    .innerJoin(watchedSites, eq(watchedSites.id, jobOffers.siteId))
+    .where(and(eq(watchedSites.userId, userId), isNull(jobOffers.relevanceScore)))
+    .orderBy(
+      sql`(${jobOffers.firstSeenAt} >= ${passStartedAt}) asc`,
+      sql`${jobOffers.postedAt} desc nulls last`,
+      asc(jobOffers.firstSeenAt),
+      asc(jobOffers.id),
+    )
+    .limit(limit);
+
+/** How many offers of the candidate still wait for a score (EF-VEI-54). */
+export const countUnscoredOffers = async (db: Executor, userId: number): Promise<number> => {
+  const [row] = await db
+    .select({ waiting: count() })
+    .from(jobOffers)
+    .innerJoin(watchedSites, eq(watchedSites.id, jobOffers.siteId))
+    .where(and(eq(watchedSites.userId, userId), isNull(jobOffers.relevanceScore)));
+  return row?.waiting ?? 0;
+};
+
+/** The scores a model gave to a batch of waiting offers; only an offer still without one is touched. */
+export const setScores = async (
+  db: Database,
+  scores: readonly { id: number; score: number; reason: string | null }[],
+): Promise<void> => {
+  if (scores.length === 0) return;
+  await db.transaction(async (tx) => {
+    for (const { id, score, reason } of scores) {
+      await tx
+        .update(jobOffers)
+        .set({ relevanceScore: score, relevanceReason: reason })
+        .where(and(eq(jobOffers.id, id), isNull(jobOffers.relevanceScore)));
+    }
+  });
 };

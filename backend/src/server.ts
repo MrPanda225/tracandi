@@ -190,6 +190,8 @@ const watchService = createWatchService({
   // EF-VEI-36: free and without account, always available.
   findSiren: createSirenFinder(officialRequest),
   logger,
+  // EF-EXE-07: offers scored per pass and per candidate.
+  limits: { maxScoredOffersPerPass: config.watch.maxScoredOffersPerPass },
 });
 
 // EF-EXE-05: an execution the previous run left waiting or running is closed before anything else starts.

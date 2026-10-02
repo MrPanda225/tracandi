@@ -27,6 +27,9 @@ const MAX_LOCAL_TIMEOUT_MS = 3_600_000;
 const DEFAULT_LOCAL_MAX_OUTPUT_TOKENS = 2_000;
 const MAX_LOCAL_OUTPUT_TOKENS = 32_000;
 // EF-IA-12 (v1.35): five offers of 800 characters fit a context of 8 192 tokens with their answer.
+// EF-EXE-07 (v1.35): offers scored by one pass for one candidate; the rest waits for the next pass.
+const DEFAULT_MAX_SCORED_OFFERS = 20;
+const MAX_SCORED_OFFERS = 1_000;
 const DEFAULT_LOCAL_BATCH_SIZE = 5;
 const MAX_LOCAL_BATCH_SIZE = 50;
 const DEFAULT_LOCAL_DESCRIPTION_CHARS = 800;
@@ -132,6 +135,11 @@ const EnvSchema = z.object({
       .min(MIN_LOCAL_DESCRIPTION_CHARS)
       .max(MAX_LOCAL_DESCRIPTION_CHARS)
       .default(DEFAULT_LOCAL_DESCRIPTION_CHARS),
+  ),
+  // EF-EXE-07: offers scored per pass and per candidate (AI cost and duration); 0 lifts the limit, for the tests.
+  MAX_SCORED_OFFERS_PER_PASS: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.coerce.number().int().min(0).max(MAX_SCORED_OFFERS).default(DEFAULT_MAX_SCORED_OFFERS),
   ),
   // EF-GML-01: OAuth client of the Google Cloud project, for the Gmail connection from the interface.
   GOOGLE_CLIENT_ID: z.string().min(1),
@@ -316,6 +324,8 @@ export interface Config {
   maxConcurrentJobs: number;
   /** EF-CVX-33: CV analyses a candidate may launch per day; 0 lifts the limit. */
   cvAnalysesPerDay: number;
+  /** EF-EXE-07: ceilings of a pass of the watch; 0 offers lifts the limit. */
+  watch: { maxScoredOffersPerPass: number };
   /** EF-VEI-32, EF-VEI-34, ENF-SEC-23: null for each official API the server has no credentials for. */
   officialSources: {
     franceTravail: OfficialCredentials | null;
@@ -432,5 +442,6 @@ export const loadConfig = (env: Record<string, string | undefined>): Config => {
     trustProxyHops: result.data.TRUST_PROXY,
     maxConcurrentJobs: result.data.MAX_CONCURRENT_JOBS,
     cvAnalysesPerDay: result.data.CV_ANALYSES_PER_DAY,
+    watch: { maxScoredOffersPerPass: result.data.MAX_SCORED_OFFERS_PER_PASS },
   };
 };

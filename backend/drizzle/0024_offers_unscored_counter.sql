@@ -1,0 +1,1 @@
+ALTER TYPE "public"."run_counter" ADD VALUE 'offers_unscored' BEFORE 'cv_pages_ocr';

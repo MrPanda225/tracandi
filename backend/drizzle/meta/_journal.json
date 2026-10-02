@@ -169,6 +169,13 @@
       "when": 1790955792038,
       "tag": "0023_last_success_started_at",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1790956450961,
+      "tag": "0024_offers_unscored_counter",
+      "breakpoints": true
     }
   ]
 }

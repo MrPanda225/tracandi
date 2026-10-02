@@ -17,7 +17,7 @@ import type { ScoringProfile } from '../../llm/prompts/scoreOffers.js';
 import type { ProfileService } from '../cv/service.js';
 import type { WatchCriteria } from '../criteria/schemas.js';
 import { type CriteriaService, scoringProfileOf } from '../criteria/service.js';
-import { createWatchPass } from './pass.js';
+import { createWatchPass, type WatchPassDeps } from './pass.js';
 import { createSourceDiscovery, type SourceDiscovery } from './discovery.js';
 import { createSirenResolver } from './sirens.js';
 import { createSuggestionReader } from './suggestions.js';
@@ -82,6 +82,8 @@ export interface WatchServiceDeps {
   /** EF-VEI-32, EF-VEI-37: the clients of the official APIs; null when the server has no credentials for one. */
   officialApis: { franceTravail: FranceTravailApi | null; laBonneAlternance: LaBonneAlternanceApi | null };
   logger: Logger;
+  /** EF-EXE-07, ENF-PERF-09: what one pass may do for one candidate. */
+  limits?: WatchPassDeps['limits'];
 }
 
 /** What a pass reports when the candidate watches no active source (EF-VEI-07). */
@@ -91,6 +93,7 @@ const EMPTY_REPORT = (threshold: number): WatchReport => ({
   offersFound: 0,
   offersNew: 0,
   offersRelevant: 0,
+  offersUnscored: 0,
   threshold,
 });
 
@@ -193,6 +196,7 @@ const countersOf = (report: WatchReport): RunCounters => ({
   sources_checked: report.sourcesChecked,
   offers_new: report.offersNew,
   offers_relevant: report.offersRelevant,
+  offers_unscored: report.offersUnscored,
 });
 
 /**

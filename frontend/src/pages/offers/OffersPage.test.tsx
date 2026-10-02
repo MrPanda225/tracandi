@@ -70,6 +70,24 @@ describe('OffersPage', () => {
     expect(within(offers).getByText('84')).toBeInTheDocument();
   });
 
+  it('[EF-VEI-54] [EF-VEI-16] says « En attente de note » for an offer no model has scored yet, instead of a score', async () => {
+    mockApi({
+      'GET /offers': () =>
+        json(200, {
+          items: [OFFER, { ...OFFER, id: 9, title: 'Data engineer', relevanceScore: null, relevanceReason: null }],
+          total: 2,
+        }),
+    });
+
+    renderPage();
+
+    const offers = await screen.findByRole('list', { name: 'Offres' });
+    expect(within(offers).getByText('En attente de note')).toBeInTheDocument();
+    // Only the scored offer carries a number out of 100.
+    expect(within(offers).getAllByText('/100')).toHaveLength(1);
+    expect(within(offers).queryByText('—')).not.toBeInTheDocument();
+  });
+
   it('[EF-VEI-35] says when the employer is a company the candidate applied to', async () => {
     mockApi({
       'GET /offers': () =>
