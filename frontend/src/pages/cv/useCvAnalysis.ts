@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { messageOf } from '../../api/client';
 import { type CvAnalysis, fetchCvAnalysis, startCvAnalysis } from '../../api/cvWorkshop';
 import { fetchRun, followRuns, type RunState } from '../../api/jobs';
+import { toBase64 } from '../../lib/cvFile';
 
 // The stream does not replay what happened before it opened: a quick reading is caught by this check as well.
 const CHECK_EVERY_MS = 2000;
@@ -14,15 +15,6 @@ export type AnalysisState =
   | { status: 'running'; step: AnalysisStep }
   | { status: 'done'; runId: number; analysis: CvAnalysis }
   | { status: 'failed'; message: string };
-
-/** Reads a file as base64, without the `data:…;base64,` prefix. */
-const toBase64 = (file: File): Promise<string> =>
-  new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result).replace(/^data:[^,]*,/, ''));
-    reader.onerror = () => reject(new Error('Your browser could not read the file.'));
-    reader.readAsDataURL(file);
-  });
 
 /**
  * Sends a CV and an offer to the workshop and follows the analysis in the queue (EF-CVX-32): live through the stream of

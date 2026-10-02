@@ -1056,12 +1056,36 @@ développeur l'active sur son poste (`ENABLED_FEATURES=watch,cv`) le temps d'y t
   du candidat entrent dans le profil encadré de la notation (EF-VEI-50). Ajout de prudence (ENF-COU-01), hors cahier
   des charges : au plus `CHOSEN_OFFER_EXTRACTIONS_PER_DAY` lectures par jour (20, 0 lève ; un échec n'est pas compté).
   *Reste à faire* : l'écran (T-1013).
-- [ ] **T-1013 Réglages : CV types, profil, offres choisies** — section « Veille automatique » (frontend), règle
+- [x] **T-1013 Réglages : CV types, profil, offres choisies** — section « Veille automatique » (frontend), règle
   `frontend.md`, sur 1440 px et 390 px ; absente si `watch` est désactivée.
   *Exigences* : EF-CFG-06.
   *Fini quand* : captures aux deux largeurs ; aucune adresse de modèle ni réglage de serveur à l'écran ; tests
   Testing Library.
   *Dépend de* : T-1009 à T-1012.
+  *Livré* : `pages/settings/watch/` — `WatchSettings` (la carte), `CvTypesPanel`, `ProfilePanel`, `ChosenOffersPanel` ;
+  `SettingsPage` ne la charge (`lazy`) que si `useFeature('watch')` est vrai, après la carte Gmail et avant « Mes
+  données » : sans la fonctionnalité, ni le code ni les routes ne sont demandés (ENF-MAI-07, ENF-PERF-01). *CV types* :
+  liste (libellé, années, niveau, « Profil à valider »), invitation à en fournir 3 ou 4, quatre au plus, import (libellé de
+  1 à 80 caractères, PDF de 5 Mo au plus lu en base64 par `lib/cvFile.ts`, partagé avec l'Atelier CV), remplacement,
+  suppression confirmée ; l'API répond `202 {runId}`, `useRunFollower` suit l'exécution (flux partagé `runFeed.tsx` et
+  contrôle toutes les 2 s, le premier aussitôt) : étapes « lecture » puis « déduction » (`cv_steps_done`), boutons
+  désactivés, `error` de l'exécution ou message de l'API (400, 409, 413, 429) affichés. *Profil déduit* : les offres
+  proposées par tous les CV types qui en ont un, cinq gardées au plus ; années corrigeables (entier de 0 à 50, 51
+  refusé) et niveau recalculé en direct (`lib/experience.ts`, RG-28) ; un niveau choisi à la main que les années ne
+  donnent pas part seul (l'API fait passer les années avant un niveau envoyé à côté) ; « rien n'est utilisé avant la
+  validation » (EF-VEI-46) ; critères en vigueur (années, niveau) relus de `GET /api/watch/criteria` ; 404 d'un profil
+  effacé : le message de l'API. *Offres choisies* : trois par niveau (un niveau complet n'est plus proposé, le 409 de l'API
+  reste affiché), texte de 200 à 20 000 caractères avec son compteur et la mention qu'il n'est pas conservé, traits
+  corrigeables (années ou « l'offre n'en précise pas » = `null`), retrait confirmé. Aucune adresse, jeton ni réglage de
+  serveur à l'écran (EF-CFG-06).
+  *Constat corrigé* : l'enregistrement des critères de la page « Sites surveillés » les renvoyait sans `years` ni `level` ;
+  l'API remplaçant tout le document, il effaçait le profil validé. `CriteriaCard` les garde désormais (EF-VEI-47).
+  *Écart* : la section forme une carte à part, après la carte Gmail, et non entre les « Préférences » et l'« Entretien » de
+  celle-ci (EF-CFG-05) : ces deux parties sont celles de la boîte Gmail, et la veille se règle sans boîte connectée.
+  *Constat d'API* : `deductionReady` reste vrai après la validation (le profil déduit n'est effacé qu'au bout de 30
+  minutes) ; l'écran ne peut pas distinguer un profil déjà validé d'un profil à valider.
+  *Reste à faire* : les créneaux et l'état des passages (T-1014) ; les captures aux deux largeurs, à joindre à la pull
+  request.
 - [ ] **T-1014 Réglages : créneaux, état des passages, indicateur** — activer ou arrêter, choisir les créneaux, voir
   l'état et les compteurs de chaque passage du jour, indicateur « modèle local » ou « secours ».
   *Exigences* : EF-CFG-07, EF-CFG-08, EF-CFG-09.

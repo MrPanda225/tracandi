@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -6,6 +6,7 @@ import { leaveFor } from '../../lib/browser';
 import { openStreams } from '../../test/setup';
 import { ROUTER_FUTURE } from '../../lib/router';
 import { AuthProvider } from '../../auth/AuthContext';
+import { FeaturesProvider } from '../../features/FeaturesContext';
 import { SettingsPage } from './SettingsPage';
 
 // Only leaving for Google is simulated; the other helpers (saving a file) stay real.
@@ -56,6 +57,7 @@ const renderPage = (path = '/reglages') =>
   render(
     <MemoryRouter initialEntries={[path]} future={ROUTER_FUTURE}>
       <AuthProvider>
+      <FeaturesProvider>
       <Routes>
         <Route
           path="/reglages"
@@ -67,6 +69,7 @@ const renderPage = (path = '/reglages') =>
           }
         />
       </Routes>
+      </FeaturesProvider>
       </AuthProvider>
     </MemoryRouter>,
   );
@@ -575,6 +578,66 @@ describe('SettingsPage — my data (EF-AUT-11, EF-AUT-12)', () => {
     await user.click(within(data).getByRole('button', { name: 'Supprimer définitivement' }));
 
     expect(await within(data).findByRole('alert')).toHaveTextContent('Mot de passe incorrect');
+  });
+});
+
+describe('SettingsPage — the section « Veille automatique » (EF-CFG-06, ENF-MAI-07)', () => {
+  const WATCH_ROUTES = {
+    'GET /gmail/status': () => json(200, CONNECTED),
+    'GET /cv-types': () => json(200, { items: [], maxItems: 4 }),
+    'GET /watch/criteria': () => json(200, { criteria: null }),
+    'GET /chosen-offers': () => json(200, { items: [], maxPerLevel: 3 }),
+  };
+  const WATCH_ROUTES_CALLED = /cv-types|chosen-offers|watch\//;
+
+  /** The features and the mocked fetches are microtasks: one macrotask settles all of them. */
+  const settle = () => act(() => new Promise<void>((resolve) => setTimeout(resolve, 0)));
+
+  it('[ENF-MAI-07] [EF-CFG-06] shows no section, and calls none of its routes, when the watch is off', async () => {
+    const calls = mockApi({ ...WATCH_ROUTES, 'GET /settings/features': () => json(200, { features: ['cv'] }) });
+
+    renderPage();
+    await screen.findByRole('heading', { name: 'Préférences' });
+    await settle();
+
+    expect(calls).toContain('GET /settings/features');
+    expect(screen.queryByRole('region', { name: 'Veille automatique' })).not.toBeInTheDocument();
+    expect(calls.filter((call) => WATCH_ROUTES_CALLED.test(call))).toEqual([]);
+  });
+
+  it('[ENF-MAI-07] [EF-CFG-06] shows no section until the list of features is known, and calls none of its routes', async () => {
+    const calls = mockApi({ ...WATCH_ROUTES, 'GET /settings/features': () => new Promise<Response>(() => undefined) });
+
+    renderPage();
+    await screen.findByRole('heading', { name: 'Préférences' });
+    await settle();
+
+    expect(screen.queryByRole('region', { name: 'Veille automatique' })).not.toBeInTheDocument();
+    expect(calls.filter((call) => WATCH_ROUTES_CALLED.test(call))).toEqual([]);
+  });
+
+  it('[EF-CFG-06] [EF-CFG-05] puts the section after the Gmail preferences and before « Mes données » when the watch is on', async () => {
+    mockApi({ ...WATCH_ROUTES, 'GET /settings/features': () => json(200, { features: ['watch'] }) });
+
+    renderPage();
+    const preferences = await screen.findByRole('heading', { name: 'Préférences' });
+    const section = await screen.findByRole('region', { name: 'Veille automatique' });
+    const data = screen.getByRole('region', { name: 'Mes données' });
+
+    expect(preferences.compareDocumentPosition(section) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(section.compareDocumentPosition(data) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('[EF-CFG-06] shows the section to a candidate whose Gmail is not connected', async () => {
+    mockApi({
+      ...WATCH_ROUTES,
+      'GET /gmail/status': () => json(200, { connected: false }),
+      'GET /settings/features': () => json(200, { features: ['watch'] }),
+    });
+
+    renderPage();
+
+    expect(await screen.findByRole('region', { name: 'Veille automatique' })).toBeInTheDocument();
   });
 });
 

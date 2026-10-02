@@ -1,21 +1,13 @@
 import { type DragEvent, type FormEvent, useId, useState } from 'react';
-import { CV_MAX_BYTES, OFFER_MAX_LENGTH, OFFER_MIN_LENGTH } from '../../api/cvWorkshop';
+import { OFFER_MAX_LENGTH, OFFER_MIN_LENGTH } from '../../api/cvWorkshop';
 import { Flash } from '../../components/Flash';
 import { PageHeader } from '../../components/PageHeader';
+import { describeFileRefusal, PDF_TYPE } from '../../lib/cvFile';
 import { DiagnosisResult } from './DiagnosisResult';
 import { type AnalysisStep, useCvAnalysis } from './useCvAnalysis';
 import './CvWorkshopPage.css';
 
-const PDF_TYPE = 'application/pdf';
 const numberFormat = new Intl.NumberFormat('fr-FR');
-
-/** EF-CVX-21: checked here to answer at once; the API checks the content again (ENF-SEC-22). */
-const describeFileRefusal = (file: File): string | null => {
-  const isPdf = file.type === PDF_TYPE || file.name.toLowerCase().endsWith('.pdf');
-  if (!isPdf) return 'Ce fichier n’est pas un PDF. Exportez votre CV en PDF, puis réessayez.';
-  if (file.size > CV_MAX_BYTES) return 'Votre CV dépasse 5 Mo : essayez une version plus légère.';
-  return null;
-};
 
 /** EF-CVX-23: same bounds and words as the API. */
 const describeOfferRefusal = (offer: string): string | null => {
