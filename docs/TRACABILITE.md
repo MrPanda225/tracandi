@@ -269,7 +269,7 @@ Commande de contrôle : `/project:check-req EF-CAN-07`.
 | EF-IA-08, EF-IA-09, EF-IA-12, EF-IA-13, EF-IA-14, RG-13 (modifiée) (v1.35) | T-1003 | `llm/router.test.ts` › routes by mode (routes, coupe-circuit, limites), `llm/providers/openaiCompatible.test.ts` (sonde de 10 s, échec de connexion), `llm/prompts/scoreOffers.test.ts`, `config/env.test.ts`, `tests/integration/local-model-pass.test.ts` (lots de 5, 5 et 2 ; repli ; passage demandé : hébergés d'abord) | couverte |
 | EF-VEI-52, EF-VEI-53, EF-VEI-10 (modifiée), RG-30 (v1.35) | T-1004 | `tests/integration/watch-window.test.ts` (une semaine puis depuis la dernière réussite, l'échec n'avance pas la fenêtre, 31 jours au plus, zéro doublon, début et non fin de consultation) | couverte |
 | EF-VEI-54, EF-EXE-07, RG-31, ENF-FIA-11, ENF-PERF-09 (v1.35) | T-1005 | `tests/integration/pending-score.test.ts` (offres gardées sans note, reprises sans doublon, 20 sur 35, ordre de RG-31, arrêt à 45 minutes), `config/env.test.ts`, `tests/integration/sites-query-plans.test.ts`, `frontend/src/pages/offers/OffersPage.test.tsx` | couverte |
-| RG-28, RG-29, EF-VEI-43 (calcul), EF-VEI-44 (v1.35) | T-1006 | — | à faire |
+| RG-28, RG-29, EF-VEI-43 (calcul), EF-VEI-44 (v1.35) | T-1006 | `modules/criteria/experience.test.ts` (34 mois = 3 ans, chevauchements comptés une fois, bornes 2/3/7/8 ans, « 2 à 3 ans » = 3, texte sans exigence = aucune valeur) | couverte |
 | EF-VEI-50, EF-VEI-31 (modifiée), RG-09 (modifiée) (v1.35) | T-1007 | — | à faire |
 | EF-VEI-51, EF-VEI-55, EF-EXE-08, EF-VEI-06 (modifiée), EF-VEI-42 (modifiée), EF-CFG-07 (API) (v1.35) | T-1008 | — | à faire |
 | EF-CVX-39, EF-CVX-40, EF-CVX-41, EF-CVX-42, ENF-RGP-14 (CV) (v1.35) | T-1009 | — | à faire |

@@ -951,12 +951,20 @@ développeur l'active sur son poste (`ENABLED_FEATURES=watch,cv`) le temps d'y t
   d'environnement : ENF-PERF-09 ne demande pas de réglage.
   *Changement de comportement* : une indisponibilité de tous les fournisseurs ne fait plus échouer la source ; la
   source est lue, ses offres sont gardées, et la passe se termine en succès avec `offers_unscored` > 0.
-- [ ] **T-1006 Années d'expérience et niveau** — fonctions pures, sans IA : durée cumulée des périodes d'un CV
+- [x] **T-1006 Années d'expérience et niveau** — fonctions pures, sans IA : durée cumulée des périodes d'un CV
   (chevauchements comptés une fois), années demandées par une offre (« 5 ans ou plus d'expérience »), niveau.
   *Exigences* : RG-28, RG-29, EF-VEI-43 (calcul), EF-VEI-44.
   *Fini quand* : tests aux bornes 2, 3, 7 et 8 ans ; « 2 à 3 ans » : 3 ; texte sans mention : aucune valeur ;
   34 mois : 3 ans.
   *Dépend de* : —.
+  *Livré* : `modules/criteria/experience.ts` — `experienceYearsOfPeriods` (mois couverts, un mois commun à deux
+  périodes compté une fois, période sans fin = jusqu'à maintenant, arrondi à l'entier le plus proche, de 0 à 50),
+  `PeriodSchema` (mois `AAAA-MM`, une date fausse est refusée plutôt que mal comptée), `levelOfYears` (0-2 junior,
+  3-7 confirmé, 8 et plus senior), `requiredYearsOf` (le plus grand nombre d'années d'une expression « n ans
+  d'expérience », « n+ ans », « n à m ans », le mot « expérience » à moins de 90 caractères, pour ne pas prendre
+  l'âge d'une entreprise pour une exigence), `levelOfTitle`, `levelOfOffer`.
+  *Choix assumé* : le format des périodes est `AAAA-MM` ; T-1010 y convertira ce que le modèle lit d'un CV. Les
+  nombres écrits en lettres (« trois ans ») ne sont pas lus : RG-29 vise les chiffres.
 - [ ] **T-1007 Notation selon le niveau** — le document `watch_criteria` porte le niveau et les années ; le prompt de
   `scoreOffers.ts` ne plafonne plus l'expérience à 3 ans mais la compare au niveau.
   *Exigences* : EF-VEI-50, EF-VEI-31 (modifiée), RG-09 (modifiée).
