@@ -1027,6 +1027,10 @@ développeur l'active sur son poste (`ENABLED_FEATURES=watch,cv`) le temps d'y t
   du local fixée à 0,2 (six sur six valides) et schémas tolérants sur la forme : `modules/cvTypes/deduction.ts`,
   `leniency.ts`, et l'extraction des traits d'une offre (T-1012) ; tests dans `deduction.test.ts`, `traits.test.ts`,
   `openaiCompatible.test.ts`, `profile-deduction.test.ts`.
+  Un essai de bout en bout (compte réel de test, passage planifié, modèle local) a de plus montré que, pour un lot de cinq
+  offres, le modèle écrit toujours les références en texte (`"ref":"1"`) : le lot entier était refusé, les offres restaient
+  « en attente de note ». `ScoredOfferSchema` lit désormais un entier écrit en texte (`"3"`), et refuse tout le reste
+  (`"premier"`, `"1.5"`, `"85/100"`) ; tests dans `modules/offers/scoring.test.ts`.
 - [x] **T-1011 Validation du profil et écriture des critères** — l'utilisateur corrige puis valide ; la validation
   écrit les cibles dans `watch_criteria` ; tant que rien n'est validé, seuls les critères existants servent.
   *Exigences* : EF-VEI-46, EF-VEI-47.

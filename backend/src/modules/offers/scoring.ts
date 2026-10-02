@@ -62,10 +62,14 @@ export const matchedTargetOf = (offer: ScorableOffer, targets: readonly ScoringT
 export const isWorthScoring = (offer: ScorableOffer, targets: readonly ScoringTarget[]): boolean =>
   offer.contractType !== 'autre' && matchedTargetOf(offer, targets) !== null;
 
+/** A whole number a small model wrote as text — « 3 » for 3 — read as the number it says; anything else is left to the schema. */
+const wholeNumber = (value: unknown): unknown =>
+  typeof value === 'string' && /^\s*-?\d+\s*$/u.test(value) ? Number(value) : value;
+
 /** One offer of a batch, referenced by its position in the prompt (1, 2…). */
 export const ScoredOfferSchema = z.object({
-  ref: z.number().int().positive(),
-  score: z.number().int().min(MIN_SCORE).max(MAX_SCORE),
+  ref: z.preprocess(wholeNumber, z.number().int().positive()),
+  score: z.preprocess(wholeNumber, z.number().int().min(MIN_SCORE).max(MAX_SCORE)),
   /** EF-VEI-13: one sentence in French; a model that says nothing gives no reason, not an empty one. */
   reason: z
     .string()
