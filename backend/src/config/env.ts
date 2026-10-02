@@ -19,6 +19,7 @@ const MAX_JOB_SLOTS = 5;
 // EF-CVX-33: 5 a day by default; a bound keeps a typo from meaning « unlimited » in production.
 const DEFAULT_CV_ANALYSES_PER_DAY = 5;
 const DEFAULT_PROFILE_DEDUCTIONS_PER_DAY = 5;
+const DEFAULT_OFFER_EXTRACTIONS_PER_DAY = 20;
 const MAX_PROFILE_DEDUCTIONS_PER_DAY = 1_000;
 const MAX_CV_ANALYSES_PER_DAY = 1_000;
 const MAX_PORT = 65_535;
@@ -152,6 +153,16 @@ const EnvSchema = z.object({
       .min(0)
       .max(MAX_PROFILE_DEDUCTIONS_PER_DAY)
       .default(DEFAULT_PROFILE_DEDUCTIONS_PER_DAY),
+  ),
+  // ENF-COU-01: extractions of the traits of a chosen offer per candidate and per day, Paris time; 0 lifts it.
+  CHOSEN_OFFER_EXTRACTIONS_PER_DAY: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.coerce
+      .number()
+      .int()
+      .min(0)
+      .max(MAX_PROFILE_DEDUCTIONS_PER_DAY)
+      .default(DEFAULT_OFFER_EXTRACTIONS_PER_DAY),
   ),
   // EF-GML-01: OAuth client of the Google Cloud project, for the Gmail connection from the interface.
   GOOGLE_CLIENT_ID: z.string().min(1),
@@ -337,7 +348,11 @@ export interface Config {
   /** EF-CVX-33: CV analyses a candidate may launch per day; 0 lifts the limit. */
   cvAnalysesPerDay: number;
   /** EF-EXE-07: ceilings of a pass of the watch; 0 offers lifts the limit. */
-  watch: { maxScoredOffersPerPass: number; profileDeductionsPerDay: number };
+  watch: {
+    maxScoredOffersPerPass: number;
+    profileDeductionsPerDay: number;
+    chosenOfferExtractionsPerDay: number;
+  };
   /** EF-VEI-32, EF-VEI-34, ENF-SEC-23: null for each official API the server has no credentials for. */
   officialSources: {
     franceTravail: OfficialCredentials | null;
@@ -457,6 +472,7 @@ export const loadConfig = (env: Record<string, string | undefined>): Config => {
     watch: {
       maxScoredOffersPerPass: result.data.MAX_SCORED_OFFERS_PER_PASS,
       profileDeductionsPerDay: result.data.PROFILE_DEDUCTIONS_PER_DAY,
+      chosenOfferExtractionsPerDay: result.data.CHOSEN_OFFER_EXTRACTIONS_PER_DAY,
     },
   };
 };

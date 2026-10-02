@@ -15,6 +15,14 @@ export interface ScoringProfile {
   targets: readonly ScoringTarget[];
   /** EF-VEI-50, RG-09 (v1.35): the level the experience demanded is compared with; absent, three years at most. */
   level?: Level;
+  /** EF-VEI-50: the traits of the offers the candidate chose for their level, as models of what suits them. */
+  chosenOffers?: readonly ChosenOfferTraits[];
+}
+
+/** What is kept of a chosen offer and carried into the scoring: its title and keywords (ENF-RGP-14). */
+export interface ChosenOfferTraits {
+  title: string;
+  keywords: readonly string[];
 }
 
 /** One offer of a batch, referenced 1, 2… in the order of the prompt. */
@@ -48,7 +56,12 @@ const experienceCriterionOf = (level: Level | undefined): string => {
   );
 };
 
-const systemInstructionOf = (level: Level | undefined): string =>
+/** EF-VEI-50: how the chosen offers are to be read — as models, never as a text to match word for word. */
+const CHOSEN_OFFERS_INSTRUCTION =
+  'Les offres choisies du candidat sont des modèles de ce qui lui convient : une offre qui leur ressemble par le ' +
+  'poste et les mots-clés est plus pertinente. Elles ne remplacent pas les critères ci-dessus.';
+
+const systemInstructionOf = (level: Level | undefined, hasChosenOffers: boolean): string =>
   [
     'Tu notes des offres d’emploi pour un candidat, de 0 à 100, selon leur pertinence pour lui.',
     'Le profil du candidat est placé entre balises <candidate_profile>, chaque offre entre balises <offer ref="N">.',
@@ -59,6 +72,7 @@ const systemInstructionOf = (level: Level | undefined): string =>
     experienceCriterionOf(level),
     'Chaque critère non satisfait abaisse le score. Une offre qui ne satisfait aucun critère est proche de 0 ; ' +
       'une offre qui les satisfait tous est proche de 100.',
+    ...(hasChosenOffers ? [CHOSEN_OFFERS_INSTRUCTION] : []),
     'Donne aussi "reason" : une seule phrase en français disant ce qui justifie ce score, sans recopier l’offre.',
     'Réponds uniquement par un objet JSON de la forme ' +
       '{"offers":[{"ref":1,"score":78,"reason":"Poste de data analyst en CDI à Paris, dans votre zone de recherche."}]}, ' +
@@ -76,6 +90,14 @@ const describeProfile = (profile: ScoringProfile): string =>
         .join(', ');
       return `- ${target.label} (contrats acceptés : ${contracts}) — mots-clés : ${target.keywords.join(', ')}`;
     }),
+    ...(profile.chosenOffers?.length
+      ? [
+          'Offres que le candidat a choisies pour son niveau :',
+          ...profile.chosenOffers.map(
+            (chosen) => `- ${chosen.title} — mots-clés : ${chosen.keywords.join(', ')}`,
+          ),
+        ]
+      : []),
   ].join('\n');
 
 const describeOffer = (offer: OfferToScore, descriptionChars: number): string =>
@@ -101,7 +123,7 @@ export const buildScoreOffersPrompt = (
   offers: readonly OfferToScore[],
   { descriptionChars = OFFER_DESCRIPTION_MAX_LENGTH }: { descriptionChars?: number } = {},
 ): { system: string; prompt: string } => ({
-  system: systemInstructionOf(profile.level),
+  system: systemInstructionOf(profile.level, (profile.chosenOffers?.length ?? 0) > 0),
   prompt: [
     frameUntrusted('candidate_profile', describeProfile(profile)),
     ...offers.map((offer) => describeOffer(offer, descriptionChars)),

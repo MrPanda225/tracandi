@@ -119,6 +119,8 @@ export const llmTask = pgEnum('llm_task', [
   'diagnose_cv',
   // EF-VEI-43, EF-VEI-45 (v1.35): the experience periods and the offers a CV type points to.
   'deduce_profile',
+  // EF-VEI-49 (v1.35): the title and keywords of an offer the candidate chose.
+  'extract_offer_traits',
 ]);
 export const llmOutcome = pgEnum('llm_outcome', ['success', 'error', 'timeout', 'invalid_output']);
 // EF-CVX-32 (v1.30): an analysis of the CV workshop runs in the queue like the other long treatments.
@@ -132,6 +134,8 @@ export const jobName = pgEnum('job_name', [
   'source_discovery',
   // EF-CVX-43 (v1.35): the reading of a CV type and what the model deduces from it.
   'profile_deduction',
+  // EF-VEI-49 (v1.35): the extraction of the traits of an offer the candidate chose.
+  'offer_extraction',
 ]);
 export const triggerType = pgEnum('trigger_type', ['schedule', 'manual']);
 // EF-CFG-07, EF-VEI-51 (v1.35): the three moments of the day when the watch runs for a candidate, and the slot a
@@ -264,6 +268,32 @@ export const cvTypes = pgTable(
   (t) => [
     index('ix_cv_types_user').on(t.userId),
     check('ck_cv_types_years', sql`${t.years} is null or ${t.years} between 0 and 50`),
+  ],
+);
+
+/**
+ * EF-VEI-48, EF-VEI-49, ENF-RGP-14 (v1.35): an offer the candidate chose as a model of their level — three at most per
+ * level. Only its traits are kept: its title, its keywords and the years of experience it demands. Never the text the
+ * candidate pasted, nor anything of the recruiter.
+ */
+export const chosenOffers = pgTable(
+  'chosen_offers',
+  {
+    id: integer().primaryKey().generatedAlwaysAsIdentity(),
+    userId: integer()
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    level: experienceLevel().notNull(),
+    title: varchar({ length: 80 }).notNull(),
+    keywords: text().array().notNull(),
+    years: smallint(),
+    createdAt: createdAt(),
+    updatedAt: createdAt(),
+  },
+  (t) => [
+    index('ix_chosen_offers_user_level').on(t.userId, t.level),
+    check('ck_chosen_offers_years', sql`${t.years} is null or ${t.years} between 0 and 50`),
+    check('ck_chosen_offers_keywords', sql`cardinality(${t.keywords}) between 1 and 15`),
   ],
 );
 

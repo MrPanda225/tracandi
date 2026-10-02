@@ -25,6 +25,7 @@ describe('optional features (ENF-MAI-07)', () => {
       '/api/watch/criteria',
       '/api/watch/automatic',
       '/api/cv-types',
+      '/api/chosen-offers',
       '/api/offers',
     ]) {
       expect((await request(app).get(path).set('Cookie', cookie)).status, path).toBe(404);

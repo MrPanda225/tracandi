@@ -38,6 +38,8 @@ import { createStatsModule } from '../../src/modules/stats/routes.js';
 import { createStatsService } from '../../src/modules/stats/service.js';
 import { createAutomaticWatchModule } from '../../src/modules/autowatch/routes.js';
 import { createAutomaticWatchService } from '../../src/modules/autowatch/service.js';
+import { createChosenOffersModule } from '../../src/modules/chosenOffers/routes.js';
+import { createChosenOffersService } from '../../src/modules/chosenOffers/service.js';
 import { createCriteriaModule } from '../../src/modules/criteria/routes.js';
 import { createCvTypesModule } from '../../src/modules/cvTypes/routes.js';
 import type { ProfileDeduction } from '../../src/modules/cvTypes/deduction.js';
@@ -300,6 +302,15 @@ export const createTestContext = (
             router: llmRouter,
             deductions: createAnalysisResults<ProfileDeduction>(),
             deductionsPerDay: 5,
+          }),
+        ),
+        createChosenOffersModule(
+          createChosenOffersService({
+            db: database.db,
+            clock: clock.now,
+            queue,
+            router: llmRouter,
+            extractionsPerDay: 20,
           }),
         ),
         createAutomaticWatchModule(createAutomaticWatchService({ db: database.db, clock: clock.now })),

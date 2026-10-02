@@ -86,6 +86,7 @@ platforms ──< platform_domains (référentiel commun) ; platforms ──< ap
 | platforms, platform_domains | Plateformes intermédiaires et domaines d'expéditeur (RG-10) | `name_key` unique, `domain` unique |
 | prefilter_keywords | Mots-clés d'emploi du pré-filtre (RG-10, Q-09) | PK (`user_id`, `keyword`) |
 | app_settings | Paramètres D, S, T, N, écriture des libellés ; veille automatique et créneaux choisis (v1.35, EF-CFG-07) | PK `user_id` ; au moins un créneau si la veille est activée |
+| chosen_offers | Offres choisies par niveau : intitulé, mots-clés, années exigées — jamais le texte collé ni les coordonnées du recruteur (v1.35, ENF-RGP-14) | 3 au plus par utilisateur et par niveau (service) ; 1 à 15 mots-clés |
 | cv_types | CV types d'un utilisateur : libellé, années (comptées par le code) et niveau — jamais le fichier, son texte ni les offres proposées, qui restent 30 minutes en mémoire (v1.35, ENF-RGP-14) | 4 au plus par utilisateur (service) ; années de 0 à 50 |
 | applications | Candidatures | unique (`company_id`, `job_title_key`) ; `offer_id` unique ; `status`, `last_activity_at` = redondance contrôlée (RG-06) |
 | application_status_history | Historique des statuts (Q-06) | origine `email` / `manual` / `offer` |

@@ -1032,12 +1032,21 @@ développeur l'active sur son poste (`ENABLED_FEATURES=watch,cv`) le temps d'y t
   les cibles, les années et le niveau remplacent ceux des critères, la commune, le rayon, le télétravail et les codes
   ROME restent ceux du candidat (toute la France, 30 km, télétravail accepté à défaut) ; le niveau est recalculé à
   partir des années (RG-28). Le profil déduit n'écrit rien : avant validation, seuls les critères enregistrés servent.
-- [ ] **T-1012 Offres choisies par niveau** — jusqu'à 3 offres par niveau (texte de 200 à 20 000 caractères), traits
+- [x] **T-1012 Offres choisies par niveau** — jusqu'à 3 offres par niveau (texte de 200 à 20 000 caractères), traits
   extraits (intitulé, mots-clés, années, niveau) puis texte jeté, traits corrigeables ; tâche IA d'extraction.
   *Exigences* : EF-VEI-48, EF-VEI-49, ENF-RGP-14 (offres).
   *Fini quand* : quatrième offre d'un niveau refusée ; 199 et 20 001 caractères : 400 ; « 5 ans d'expérience
   minimum » : 5 ans, niveau confirmé ; aucune colonne ne contient le texte.
   *Dépend de* : T-1003, T-1006 (réponse à Q-23).
+  *Livré* : migration `0028` (table `chosen_offers` : niveau, intitulé, mots-clés, années ; tâche `extract_offer_traits` ;
+  type d'exécution `offer_extraction`) ; `GET`, `POST`, `PATCH /{id}`, `DELETE /{id}` sous `/api/chosen-offers` ; le
+  texte collé (200 à 20 000 caractères) est lu en file : coordonnées du recruteur retirées (`withoutContacts`),
+  intitulé et mots-clés par le modèle (le local en premier), années par le code (`requiredYearsOf`, RG-29), niveau
+  indiqué d'après les années puis l'intitulé (RG-28) ; seuls ces traits sont gardés, corrigeables (`years: null` : l'offre
+  n'en exige pas) ; trois par niveau, y compris les lectures en file ; les intitulés et mots-clés des offres du niveau
+  du candidat entrent dans le profil encadré de la notation (EF-VEI-50). Ajout de prudence (ENF-COU-01), hors cahier
+  des charges : au plus `CHOSEN_OFFER_EXTRACTIONS_PER_DAY` lectures par jour (20, 0 lève ; un échec n'est pas compté).
+  *Reste à faire* : l'écran (T-1013).
 - [ ] **T-1013 Réglages : CV types, profil, offres choisies** — section « Veille automatique » (frontend), règle
   `frontend.md`, sur 1440 px et 390 px ; absente si `watch` est désactivée.
   *Exigences* : EF-CFG-06.

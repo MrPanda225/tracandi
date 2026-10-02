@@ -54,7 +54,7 @@ describe('loadConfig', () => {
       maxConcurrentJobs: 1,
       // EF-CVX-33: five analyses of the CV workshop a day, unless the deployment says otherwise.
       cvAnalysesPerDay: 5,
-      watch: { maxScoredOffersPerPass: 20, profileDeductionsPerDay: 5 },
+      watch: { maxScoredOffersPerPass: 20, profileDeductionsPerDay: 5, chosenOfferExtractionsPerDay: 20 },
     });
   });
 
@@ -422,7 +422,11 @@ describe('loadConfig, local model', () => {
 
 describe('loadConfig, scored offers per pass', () => {
   it('[EF-EXE-07] scores 20 offers per pass by default, and reads the ceiling from the configuration', () => {
-    expect(loadConfig(VALID_ENV).watch).toEqual({ maxScoredOffersPerPass: 20, profileDeductionsPerDay: 5 });
+    expect(loadConfig(VALID_ENV).watch).toEqual({
+      maxScoredOffersPerPass: 20,
+      profileDeductionsPerDay: 5,
+      chosenOfferExtractionsPerDay: 20,
+    });
     expect(loadConfig({ ...VALID_ENV, MAX_SCORED_OFFERS_PER_PASS: '35' }).watch.maxScoredOffersPerPass).toBe(
       35,
     );
@@ -463,6 +467,30 @@ describe('loadConfig, deductions of a profile per day', () => {
     (value) => {
       expect(errorOf({ ...VALID_ENV, PROFILE_DEDUCTIONS_PER_DAY: value })).toContain(
         'PROFILE_DEDUCTIONS_PER_DAY',
+      );
+    },
+  );
+});
+
+describe('loadConfig, extractions of a chosen offer per day', () => {
+  it('[ENF-COU-01] allows 20 a day by default, reads the allowance from the configuration, and lifts it with 0', () => {
+    expect(loadConfig(VALID_ENV).watch.chosenOfferExtractionsPerDay).toBe(20);
+    expect(
+      loadConfig({ ...VALID_ENV, CHOSEN_OFFER_EXTRACTIONS_PER_DAY: '40' }).watch.chosenOfferExtractionsPerDay,
+    ).toBe(40);
+    expect(
+      loadConfig({ ...VALID_ENV, CHOSEN_OFFER_EXTRACTIONS_PER_DAY: '0' }).watch.chosenOfferExtractionsPerDay,
+    ).toBe(0);
+    expect(
+      loadConfig({ ...VALID_ENV, CHOSEN_OFFER_EXTRACTIONS_PER_DAY: '' }).watch.chosenOfferExtractionsPerDay,
+    ).toBe(20);
+  });
+
+  it.each([['-1'], ['abc'], ['1001']])(
+    '[ENF-COU-01] refuses the allowance %s, naming the variable',
+    (value) => {
+      expect(errorOf({ ...VALID_ENV, CHOSEN_OFFER_EXTRACTIONS_PER_DAY: value })).toContain(
+        'CHOSEN_OFFER_EXTRACTIONS_PER_DAY',
       );
     },
   );

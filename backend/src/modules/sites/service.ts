@@ -14,6 +14,7 @@ import type { FranceTravailApi } from '../../scraper/official/franceTravail.js';
 import type { LaBonneAlternanceApi } from '../../scraper/official/laBonneAlternance.js';
 import { ensureCompany } from '../applications/service.js';
 import type { WatchSlot } from '../autowatch/slots.js';
+import { listChosenOffersOfLevel } from '../chosenOffers/repository.js';
 import type { ScoringProfile } from '../../llm/prompts/scoreOffers.js';
 import type { ProfileService } from '../cv/service.js';
 import type { WatchCriteria } from '../criteria/schemas.js';
@@ -203,6 +204,22 @@ const hasTargetsOf =
       () => false,
     );
 
+/**
+ * EF-VEI-50: the traits of the offers the candidate chose for their level join the scoring profile. A candidate with
+ * no level has none to carry: their offers are chosen by level.
+ */
+const withChosenOffers = async (
+  db: Database,
+  userId: number,
+  profile: ScoringProfile,
+): Promise<ScoringProfile> => {
+  if (!profile.level) return profile;
+  const rows = await listChosenOffersOfLevel(db, userId, profile.level);
+  return rows.length === 0
+    ? profile
+    : { ...profile, chosenOffers: rows.map((row) => ({ title: row.title, keywords: row.keywords })) };
+};
+
 const countersOf = (report: WatchReport): RunCounters => ({
   sources_checked: report.sourcesChecked,
   offers_new: report.offersNew,
@@ -247,7 +264,7 @@ export const createWatchService = (deps: WatchServiceDeps): WatchService => {
     await sirens?.resolve(userId);
     return pass.run({
       userId,
-      scoring: await scoringOf(profiles, userId, saved),
+      scoring: await withChosenOffers(db, userId, await scoringOf(profiles, userId, saved)),
       criteria: saved,
       sources,
       threshold,

@@ -546,6 +546,8 @@ describe('routes by mode (T-1003, v1.35)', () => {
     expect(SCHEDULED_ROUTES.deduce_profile).toEqual(['local', ...TASK_ROUTES.deduce_profile]);
     expect(TASK_ROUTES.deduce_profile).not.toContain('local');
     expect(TASK_ROUTES.deduce_profile.slice(-2)).toEqual(['gemini', 'claude']);
+    expect(SCHEDULED_ROUTES.extract_offer_traits).toEqual(['local', ...TASK_ROUTES.extract_offer_traits]);
+    expect(TASK_ROUTES.extract_offer_traits).not.toContain('local');
   });
 
   it.each(['classify_emails', 'diagnose_cv', 'tailor_cv', 'write_motivation', 'write_follow_up'] as const)(

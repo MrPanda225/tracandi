@@ -42,6 +42,8 @@ import { createGmailSync } from './modules/emails/sync.js';
 import { createSettingsModule } from './modules/settings/routes.js';
 import { createAutomaticWatchModule } from './modules/autowatch/routes.js';
 import { createAutomaticWatchService } from './modules/autowatch/service.js';
+import { createChosenOffersModule } from './modules/chosenOffers/routes.js';
+import { createChosenOffersService } from './modules/chosenOffers/service.js';
 import { createCriteriaModule } from './modules/criteria/routes.js';
 import { createCvTypesModule } from './modules/cvTypes/routes.js';
 import type { ProfileDeduction } from './modules/cvTypes/deduction.js';
@@ -263,6 +265,16 @@ const app = createApp({
           router: llmRouter,
           deductions: createAnalysisResults<ProfileDeduction>(),
           deductionsPerDay: config.watch.profileDeductionsPerDay,
+        }),
+      ),
+      // EF-VEI-48, EF-VEI-49
+      createChosenOffersModule(
+        createChosenOffersService({
+          db: database.db,
+          clock: systemClock,
+          queue: jobQueue,
+          router: llmRouter,
+          extractionsPerDay: config.watch.chosenOfferExtractionsPerDay,
         }),
       ),
       // EF-CFG-07, EF-CFG-08
