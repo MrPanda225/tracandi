@@ -884,12 +884,18 @@ développeur l'active sur son poste (`ENABLED_FEATURES=watch,cv`) le temps d'y t
   `think: false` est ignoré par l'interface `/v1`. Les services hébergés refusent cette valeur : elle n'est envoyée
   qu'au local (ADR-16). Le délai et le plafond de sortie sont validés ici mais appliqués par T-1002.
   *Reste à faire* : le test « coût du mois inchangé » (ENF-COU-02) avec T-705 ; aucun appel réel au homelab en test.
-- [ ] **T-1002 Délai et plafond de sortie par fournisseur** — chaque fournisseur porte son délai (60 s par défaut,
+- [x] **T-1002 Délai et plafond de sortie par fournisseur** — chaque fournisseur porte son délai (60 s par défaut,
   600 s pour le local) et son plafond de sortie (16 000 par défaut, 2 000 pour le local) ; le routeur les applique.
   *Exigences* : EF-IA-10, EF-IA-11, EF-IA-02 (modifiée).
   *Fini quand* : fournisseur simulé à 90 s abandonné s'il est hébergé, accepté s'il est local, abandonné à 601 s ;
   `max_tokens` = 2 000 vers le local, inchangé ailleurs ; tests de bascule existants inchangés.
   *Dépend de* : T-1001.
+  *Livré* : `timeoutMs` et `maxOutputTokens` facultatifs sur `LlmProvider` ; le routeur applique le délai du
+  fournisseur (60 s sinon) et coupe `max_tokens` à son plafond (`outputCeilingOf`) ; `connectLocal` porte les valeurs
+  de `LOCAL_LLM_TIMEOUT_MS` et `LOCAL_LLM_MAX_OUTPUT_TOKENS` ; `routes` injectable dans `createLlmRouter` (défaut
+  `TASK_ROUTES`) pour tester le local avant que T-1003 ne le route.
+  *Écart* : le délai des fournisseurs hébergés reste la constante de 60 s (injectable au routeur) ; EF-IA-10 le prévoit
+  « fixé par la configuration », ce qui n'est demandé par aucun critère de la tâche.
 - [ ] **T-1003 Routes par mode, lots réduits, bascule rapide** — route à deux modes (passage planifié ou demande
   attendue) : le local en tête de `score_offers`, `extract_offers` et des tâches de profil **en passage planifié
   seulement**, jamais en tête ailleurs ; lots de 5 offres et descriptions de 800 caractères quand le premier

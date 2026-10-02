@@ -119,6 +119,19 @@ describe('connectLocal', () => {
     expect(init.headers).toMatchObject({ Authorization: 'Bearer local-secret-token' });
   });
 
+  it('[EF-IA-10] [EF-IA-11] carries the delay and the output ceiling of the configuration, for the router to apply', () => {
+    const provider = connectLocal(LOCAL_CONFIG, vi.fn());
+
+    expect(provider).toMatchObject({ timeoutMs: 600_000, maxOutputTokens: 2_000 });
+  });
+
+  it('[EF-IA-10] leaves the hosted providers without a limit of their own: the router defaults apply', () => {
+    const provider = providerWith(vi.fn());
+
+    expect(provider).not.toHaveProperty('timeoutMs');
+    expect(provider).not.toHaveProperty('maxOutputTokens');
+  });
+
   it('[EF-IA-07] asks the model not to reason: its reasoning would use up the output ceiling and leave no answer', async () => {
     const fetchImpl = vi.fn(() => Promise.resolve(answer(completion)));
 

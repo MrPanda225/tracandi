@@ -149,10 +149,10 @@ export const connectGroq = (apiKey: string, models: Partial<Record<ProviderName,
 /**
  * The local model of the operator (EF-IA-07, ADR-16): an OpenAI-compatible service such as Ollama, behind the address
  * and the token of the configuration (ENF-SEC-24), asked not to reason, and never telling where it is (ENF-SEC-25).
- * @req EF-IA-07, ENF-SEC-24, ENF-SEC-25
+ * @req EF-IA-07, EF-IA-10, EF-IA-11, ENF-SEC-24, ENF-SEC-25
  */
-export const connectLocal = (config: LocalLlmConfig, fetchImpl?: typeof fetch): LlmProvider =>
-  createOpenAiCompatibleProvider({
+export const connectLocal = (config: LocalLlmConfig, fetchImpl?: typeof fetch): LlmProvider => ({
+  ...createOpenAiCompatibleProvider({
     name: 'local',
     model: config.model,
     baseUrl: config.baseUrl,
@@ -160,4 +160,8 @@ export const connectLocal = (config: LocalLlmConfig, fetchImpl?: typeof fetch): 
     reasoningEffort: 'none',
     redactNetworkErrors: true,
     ...(fetchImpl ? { fetchImpl } : {}),
-  });
+  }),
+  // EF-IA-10, EF-IA-11: the router applies them; the local server is slower and its context smaller.
+  timeoutMs: config.timeoutMs,
+  maxOutputTokens: config.maxOutputTokens,
+});

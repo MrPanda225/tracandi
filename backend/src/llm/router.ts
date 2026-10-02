@@ -86,7 +86,10 @@ interface LlmRouterDeps {
   journal: LlmJournal;
   /** Receives the reason of every provider left aside; `llm_calls` only keeps the outcome. */
   logger: Logger;
+  /** Delay of a provider that has none of its own (EF-IA-10); 60 s by default. */
   timeoutMs?: number;
+  /** The route of each task; `TASK_ROUTES` by default, injected by the tests (T-1003 defines the routes by mode). */
+  routes?: Readonly<Record<LlmTaskName, readonly ProviderName[]>>;
   sleep?: Sleep;
 }
 
@@ -124,6 +127,14 @@ const abandonedOn = (signal: AbortSignal): Promise<never> =>
   });
 
 /**
+ * EF-IA-11: the output tokens asked of a provider: what the task asks for (16 000 by default), cut to the ceiling of
+ * the provider when it has one.
+ * @req EF-IA-11
+ */
+const outputCeilingOf = (provider: LlmProvider, requested: number | undefined): number =>
+  Math.min(requested ?? DEFAULT_MAX_OUTPUT_TOKENS, provider.maxOutputTokens ?? Number.POSITIVE_INFINITY);
+
+/**
  * One call to one provider, bounded to `timeoutMs` and validated against the schema of the task.
  * Never throws: a failure, a timeout and an answer outside the schema all come back as an outcome with its reason.
  * @req EF-IA-02, EF-IA-03
@@ -140,7 +151,7 @@ const attempt = async <T>(
       provider.complete({
         system: input.system,
         prompt: input.prompt,
-        maxOutputTokens: input.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS,
+        maxOutputTokens: outputCeilingOf(provider, input.maxOutputTokens),
         signal: controller.signal,
       }),
       abandonedOn(controller.signal),
@@ -201,7 +212,8 @@ const createProviderRunner = ({ journal, logger, timeoutMs, sleep }: ProviderRun
     input: RunTaskInput<T>,
   ): Promise<Attempt<T>> => {
     const startedAt = Date.now();
-    const result = await attempt(provider, input, timeoutMs);
+    // EF-IA-10: a provider with a delay of its own (the local model) keeps it; the others have the router's.
+    const result = await attempt(provider, input, provider.timeoutMs ?? timeoutMs);
     await journal({
       userId: input.userId,
       task,
@@ -250,15 +262,17 @@ const createProviderRunner = ({ journal, logger, timeoutMs, sleep }: ProviderRun
 };
 
 /**
- * Creates the AI router. Every call is bounded to `timeoutMs` (60 s), validated against the task schema and journaled.
+ * Creates the AI router. Every call is bounded to the delay of its provider (60 s unless it has its own, EF-IA-10),
+ * limited to the output ceiling of its provider (EF-IA-11), validated against the task schema and journaled.
  * @throws Error when no provider is configured (the configuration refuses to start in that case, EF-IA-05).
- * @req EF-IA-01, EF-IA-02, EF-IA-03, EF-IA-04, EF-IA-05, EF-IA-06, RG-13, ENF-FIA-10
+ * @req EF-IA-01, EF-IA-02, EF-IA-03, EF-IA-04, EF-IA-05, EF-IA-06, EF-IA-10, EF-IA-11, RG-13, ENF-FIA-10
  */
 export const createLlmRouter = ({
   providers,
   journal,
   logger,
   timeoutMs = LLM_TIMEOUT_MS,
+  routes = TASK_ROUTES,
   sleep = wait,
 }: LlmRouterDeps): LlmRouter => {
   if (Object.values(providers).every((provider) => provider === undefined)) {
@@ -268,7 +282,7 @@ export const createLlmRouter = ({
 
   return {
     async runTask(task, input) {
-      const route = TASK_ROUTES[task].filter((name) => providers[name] !== undefined);
+      const route = routes[task].filter((name) => providers[name] !== undefined);
       let answerRejected = false;
       for (const [index, name] of route.entries()) {
         const provider = providers[name];

@@ -9,7 +9,7 @@ import {
   PROVIDER_ATTEMPTS,
   TASK_ROUTES,
 } from './router.js';
-import type { LlmCompletion, LlmProvider, LlmRequest, ProviderName } from './types.js';
+import type { LlmCompletion, LlmProvider, LlmRequest, LlmTaskName, ProviderName } from './types.js';
 
 const SCHEMA = z.object({ category: z.enum(['interview', 'rejected']) });
 const INPUT = {
@@ -25,8 +25,12 @@ const answer = (value: unknown): LlmCompletion => ({
   outputTokens: 30,
 });
 
-const fakeProvider = (name: ProviderName, complete: (request: LlmRequest) => Promise<LlmCompletion>) => {
-  const provider = { name, model: `${name}-test-model`, complete: vi.fn(complete) };
+const fakeProvider = (
+  name: ProviderName,
+  complete: (request: LlmRequest) => Promise<LlmCompletion>,
+  limits: { timeoutMs?: number; maxOutputTokens?: number } = {},
+) => {
+  const provider = { name, model: `${name}-test-model`, complete: vi.fn(complete), ...limits };
   return provider satisfies LlmProvider;
 };
 
@@ -35,7 +39,10 @@ interface LoggedEntry {
   context: Record<string, unknown>;
 }
 
-const setup = (providers: Partial<Record<ProviderName, LlmProvider>>) => {
+const setup = (
+  providers: Partial<Record<ProviderName, LlmProvider>>,
+  routes?: Readonly<Record<LlmTaskName, readonly ProviderName[]>>,
+) => {
   const journal: LlmCallRecord[] = [];
   const logged: LoggedEntry[] = [];
   const waits: number[] = [];
@@ -43,6 +50,7 @@ const setup = (providers: Partial<Record<ProviderName, LlmProvider>>) => {
     logged.push({ message, context });
   const router = createLlmRouter({
     providers,
+    ...(routes ? { routes } : {}),
     journal: (entry) => {
       journal.push(entry);
       return Promise.resolve();
@@ -264,6 +272,118 @@ describe('runTask', () => {
     await expect(router.runTask('classify_emails', INPUT)).resolves.toEqual({
       data: { category: 'interview' },
       provider: 'claude',
+    });
+  });
+
+  describe('limits of each provider (T-1002, v1.35)', () => {
+    // T-1001 routes the local model nowhere yet: the routes are injected, as T-1003 will define them.
+    const LOCAL_FIRST = { ...TASK_ROUTES, score_offers: ['local', 'gemini'] as const };
+    const LOCAL_DELAY_MS = 600_000;
+    const slowAnswer = (delayMs: number) =>
+      new Promise<LlmCompletion>((resolve) => {
+        setTimeout(() => resolve(answer({ category: 'interview' })), delayMs);
+      });
+
+    it('[EF-IA-10] abandons a hosted provider that answers in 90 seconds and accepts the local one', async () => {
+      vi.useFakeTimers();
+      const gemini = fakeProvider('gemini', () => slowAnswer(90_000));
+      const local = fakeProvider('local', () => slowAnswer(90_000), { timeoutMs: LOCAL_DELAY_MS });
+      const claude = fakeProvider('claude', () => Promise.resolve(answer({ category: 'rejected' })));
+
+      const hosted = setup({ gemini, claude }, { ...TASK_ROUTES, score_offers: ['gemini', 'claude'] });
+      const hostedResult = hosted.router.runTask('score_offers', INPUT);
+      await vi.advanceTimersByTimeAsync(90_000);
+      await expect(hostedResult).resolves.toMatchObject({ provider: 'claude' });
+      expect(hosted.journal[0]).toMatchObject({ provider: 'gemini', outcome: 'timeout' });
+
+      const withLocal = setup({ local, gemini }, LOCAL_FIRST);
+      const localResult = withLocal.router.runTask('score_offers', INPUT);
+      await vi.advanceTimersByTimeAsync(90_000);
+      await expect(localResult).resolves.toMatchObject({ provider: 'local' });
+      expect(withLocal.journal).toEqual([expect.objectContaining({ provider: 'local', outcome: 'success' })]);
+    });
+
+    it('[EF-IA-10] abandons the local model at 600 seconds and gives the task to the next provider', async () => {
+      vi.useFakeTimers();
+      let signal: AbortSignal | undefined;
+      const local = fakeProvider(
+        'local',
+        (request) => {
+          signal = request.signal;
+          return slowAnswer(601_000);
+        },
+        { timeoutMs: LOCAL_DELAY_MS },
+      );
+      const gemini = fakeProvider('gemini', () => Promise.resolve(answer({ category: 'interview' })));
+      const { router, journal } = setup({ local, gemini }, LOCAL_FIRST);
+
+      const result = router.runTask('score_offers', INPUT);
+      await vi.advanceTimersByTimeAsync(LOCAL_DELAY_MS - 1);
+      expect(gemini.complete).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(1);
+
+      await expect(result).resolves.toMatchObject({ provider: 'gemini' });
+      expect(signal?.aborted).toBe(true);
+      expect(journal[0]).toMatchObject({ provider: 'local', outcome: 'timeout', durationMs: LOCAL_DELAY_MS });
+    });
+
+    it('[EF-IA-10] keeps the delay of the router for a provider that has none of its own', async () => {
+      vi.useFakeTimers();
+      const gemini = fakeProvider('gemini', () => slowAnswer(LLM_TIMEOUT_MS + 1));
+      const claude = fakeProvider('claude', () => Promise.resolve(answer({ category: 'interview' })));
+      const { router, journal } = setup({ gemini, claude });
+
+      const result = router.runTask('classify_emails', INPUT);
+      await vi.advanceTimersByTimeAsync(LLM_TIMEOUT_MS);
+
+      await expect(result).resolves.toMatchObject({ provider: 'claude' });
+      expect(journal[0]).toMatchObject({
+        provider: 'gemini',
+        outcome: 'timeout',
+        durationMs: LLM_TIMEOUT_MS,
+      });
+    });
+
+    it('[EF-IA-11] asks the local model for at most its ceiling of output tokens, and the others for what they were asked', async () => {
+      const local = fakeProvider('local', () => Promise.resolve(answer({ category: 'interview' })), {
+        maxOutputTokens: 2_000,
+      });
+      const gemini = fakeProvider('gemini', () => Promise.resolve(answer({ category: 'interview' })));
+      const onLocal = setup({ local, gemini }, LOCAL_FIRST);
+      const onHosted = setup({ gemini });
+
+      await onLocal.router.runTask('score_offers', INPUT);
+      await onHosted.router.runTask('classify_emails', INPUT);
+
+      expect(local.complete.mock.calls[0]?.[0].maxOutputTokens).toBe(2_000);
+      // EF-IA-11: a hosted provider keeps the current ceiling (16 000 by default).
+      expect(gemini.complete.mock.calls[0]?.[0].maxOutputTokens).toBe(16_000);
+    });
+
+    it('[EF-IA-11] keeps the smaller bound when a task asks for fewer tokens than the ceiling, and cuts a larger one', async () => {
+      const local = fakeProvider('local', () => Promise.resolve(answer({ category: 'interview' })), {
+        maxOutputTokens: 2_000,
+      });
+      const { router } = setup({ local }, LOCAL_FIRST);
+
+      await router.runTask('score_offers', { ...INPUT, maxOutputTokens: 500 });
+      await router.runTask('score_offers', { ...INPUT, maxOutputTokens: 9_000 });
+
+      expect(local.complete.mock.calls.map(([request]) => request.maxOutputTokens)).toEqual([500, 2_000]);
+    });
+
+    it('[EF-IA-02] [EF-IA-10] still gives the task to the next provider when the local model fails', async () => {
+      const local = fakeProvider('local', () => Promise.reject(new Error('connection refused')), {
+        timeoutMs: LOCAL_DELAY_MS,
+      });
+      const gemini = fakeProvider('gemini', () => Promise.resolve(answer({ category: 'interview' })));
+      const { router, journal } = setup({ local, gemini }, LOCAL_FIRST);
+
+      await expect(router.runTask('score_offers', INPUT)).resolves.toMatchObject({ provider: 'gemini' });
+      expect(journal.map((entry) => [entry.provider, entry.outcome])).toEqual([
+        ['local', 'error'],
+        ['gemini', 'success'],
+      ]);
     });
   });
 
