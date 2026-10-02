@@ -541,6 +541,13 @@ describe('routes by mode (T-1003, v1.35)', () => {
     expect(SCHEDULED_ROUTES.extract_offers).toEqual(['local', ...TASK_ROUTES.extract_offers]);
   });
 
+  it('[EF-IA-08] [RG-13] puts the local model first for the deduction of a profile and the choice of an offer, and never in an attended run', () => {
+    // The CV types are read in the queue, nobody waits at the screen: the local model leads, the hosted ones follow.
+    expect(SCHEDULED_ROUTES.deduce_profile).toEqual(['local', ...TASK_ROUTES.deduce_profile]);
+    expect(TASK_ROUTES.deduce_profile).not.toContain('local');
+    expect(TASK_ROUTES.deduce_profile.slice(-2)).toEqual(['gemini', 'claude']);
+  });
+
   it.each(['classify_emails', 'diagnose_cv', 'tailor_cv', 'write_motivation', 'write_follow_up'] as const)(
     '[EF-IA-09] leaves the route of %s as it is, in a scheduled pass too',
     (task) => {

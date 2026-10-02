@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import request from 'supertest';
 import { asc } from 'drizzle-orm';
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -27,13 +28,15 @@ let alice: string;
 let bob: string;
 let aiCalls: number;
 
-/** An AI that counts what it is asked: reading a CV type must not reach it (EF-CVX-40). */
+const DEDUCTION = readFileSync(new URL('../fixtures/llm/deduce_profile.json', import.meta.url), 'utf8');
+
+/** An AI that counts what it is asked: a CV that cannot be read must never reach it (EF-CVX-40). */
 const ai: LlmProvider = {
   name: 'gemini',
   model: 'test',
   complete: () => {
     aiCalls += 1;
-    return Promise.reject(new Error('No AI provider must be called to read a CV type'));
+    return Promise.resolve({ text: DEDUCTION, inputTokens: 900, outputTokens: 300 });
   },
 };
 
@@ -104,7 +107,7 @@ describe('importing a CV type (T-1009, EF-CVX-39)', () => {
     expect(await outcomeOf('alice@example.com', response)).toMatchObject({
       outcome: 'success',
       job: 'profile_deduction',
-      counters: { cv_steps_done: 1 },
+      counters: { cv_steps_done: 2 },
     });
     const { items, maxItems } = await listOf(alice);
     expect(items.map((item) => item.label)).toEqual(['Data analyst']);
@@ -205,7 +208,7 @@ describe('reading a CV type with the controls of the CV workshop (T-1009, EF-CVX
     expect(aiCalls).toBe(0);
   });
 
-  it('[EF-CVX-22] [EF-CVX-40] reads a scanned page by OCR on the server, without any AI call', async () => {
+  it('[EF-CVX-22] [EF-CVX-40] reads a scanned page by OCR on the server, and only then asks the model', async () => {
     const scanned = buildScannedPdf([blankImage()]).toString('base64');
 
     const response = await importCv(alice, 'Scan', scanned);
@@ -214,7 +217,8 @@ describe('reading a CV type with the controls of the CV workshop (T-1009, EF-CVX
     expect(ocrPages).toHaveBeenCalledTimes(1);
     expect(state).toMatchObject({ outcome: 'success', counters: { cv_pages_ocr: 1 } });
     expect((await listOf(alice)).items.map((item) => item.label)).toEqual(['Scan']);
-    expect(aiCalls).toBe(0);
+    // The OCR runs on this server; the one call to a model is the deduction, from the text it read.
+    expect(aiCalls).toBe(1);
   });
 
   it('[EF-CVX-40] refuses a PDF that holds no text at all, even read by OCR', async () => {
@@ -226,6 +230,7 @@ describe('reading a CV type with the controls of the CV workshop (T-1009, EF-CVX
     expect(state).toMatchObject({ outcome: 'failure' });
     expect(state?.error).toMatch(/aucun texte/u);
     expect(await database.db.select().from(cvTypes)).toEqual([]);
+    expect(aiCalls).toBe(0);
   });
 });
 

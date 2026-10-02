@@ -1,5 +1,6 @@
 import { experienceLevel } from '../../db/schema.js';
 import { z } from '../../lib/openapi.js';
+import { DEDUCED_TARGETS_MAX, DeducedTargetSchema } from './deduction.js';
 
 /** EF-CVX-39: how many CV types a candidate keeps, and how long a label may be. */
 export const CV_TYPES_MAX = 4;
@@ -38,6 +39,8 @@ export const CvTypeSchema = z
     /** EF-VEI-43: worked out by the code from the periods of the CV; null until the CV was deduced from. */
     years: z.number().int().nullable(),
     level: z.enum(experienceLevel.enumValues).nullable(),
+    /** EF-VEI-46: the offers deduced from this CV type are waiting to be validated (kept 30 minutes in memory). */
+    deductionReady: z.boolean(),
     createdAt: z.string().datetime(),
     updatedAt: z.string().datetime(),
   })
@@ -46,6 +49,20 @@ export const CvTypeSchema = z
 export const CvTypeListSchema = z
   .object({ items: z.array(CvTypeSchema), maxItems: z.number().int() })
   .openapi('CvTypeList');
+
+const DeducedTargetViewSchema = DeducedTargetSchema.openapi('DeducedTarget');
+
+/**
+ * EF-VEI-43, EF-VEI-45: what was deduced from a CV type, for the candidate to correct and validate (EF-VEI-46): the
+ * years the code counted, their level, and the offers the model proposed. Kept 30 minutes in memory (ENF-RGP-14).
+ */
+export const ProfileDeductionSchema = z
+  .object({
+    years: z.number().int().min(0).max(50),
+    level: z.enum(experienceLevel.enumValues),
+    targets: z.array(DeducedTargetViewSchema).min(1).max(DEDUCED_TARGETS_MAX),
+  })
+  .openapi('ProfileDeduction');
 
 export type ImportCvTypeBody = z.infer<typeof ImportCvTypeBodySchema>;
 export type ReplaceCvTypeBody = z.infer<typeof ReplaceCvTypeBodySchema>;

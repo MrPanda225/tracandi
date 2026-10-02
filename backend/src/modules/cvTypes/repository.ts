@@ -5,6 +5,12 @@ import { cvTypes } from '../../db/schema.js';
 /** A CV type as stored: its label, the years and level worked out from it (ENF-RGP-14). */
 export type CvTypeRow = typeof cvTypes.$inferSelect;
 
+/** What is worked out from a CV type and kept with it: the years, and the level they give (ENF-RGP-14). */
+export interface CvTypeProfile {
+  years: number;
+  level: NonNullable<CvTypeRow['level']>;
+}
+
 /** @req EF-CVX-39 */
 export const listCvTypes = async (db: Database, userId: number): Promise<CvTypeRow[]> =>
   db.select().from(cvTypes).where(eq(cvTypes.userId, userId)).orderBy(asc(cvTypes.id));
@@ -32,28 +38,34 @@ export const countCvTypes = async (db: Database, userId: number): Promise<number
  */
 export const insertCvType = async (
   db: Database,
-  { userId, label, now, max }: { userId: number; label: string; now: Date; max: number },
+  {
+    userId,
+    label,
+    profile,
+    now,
+    max,
+  }: { userId: number; label: string; profile: CvTypeProfile; now: Date; max: number },
 ): Promise<CvTypeRow | null> =>
   db.transaction(async (tx) => {
     if ((await countCvTypes(tx as unknown as Database, userId)) >= max) return null;
     const [row] = await tx
       .insert(cvTypes)
-      .values({ userId, label, createdAt: now, updatedAt: now })
+      .values({ userId, label, years: profile.years, level: profile.level, createdAt: now, updatedAt: now })
       .returning();
     return row ?? null;
   });
 
 /**
- * A CV type read again from another file: what was worked out from the old one is erased (EF-CVX-41).
+ * A CV type read again from another file: what was worked out from the old one gives way to the new (EF-CVX-41).
  * @returns false when the CV type is gone.
  */
-export const resetCvType = async (
+export const updateCvTypeProfile = async (
   db: Database,
-  { userId, id, now }: { userId: number; id: number; now: Date },
+  { userId, id, profile, now }: { userId: number; id: number; profile: CvTypeProfile; now: Date },
 ): Promise<boolean> => {
   const updated = await db
     .update(cvTypes)
-    .set({ years: null, level: null, updatedAt: now })
+    .set({ years: profile.years, level: profile.level, updatedAt: now })
     .where(and(eq(cvTypes.userId, userId), eq(cvTypes.id, id)))
     .returning({ id: cvTypes.id });
   return updated.length > 0;

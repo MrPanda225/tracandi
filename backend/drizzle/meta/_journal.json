@@ -190,6 +190,13 @@
       "when": 1790958086759,
       "tag": "0026_cv_types",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1790958596751,
+      "tag": "0027_deduce_profile_task",
+      "breakpoints": true
     }
   ]
 }

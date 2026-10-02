@@ -131,6 +131,7 @@ describe('migrations', () => {
         'GET /cv-types',
         'POST /cv-types',
         'PUT /cv-types/{id}',
+        'GET /cv-types/{id}/deduction',
         'DELETE /cv-types/{id}',
         'GET /watch/automatic',
         'PUT /watch/automatic',

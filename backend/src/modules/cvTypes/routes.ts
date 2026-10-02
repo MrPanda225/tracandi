@@ -15,6 +15,7 @@ import {
   CvTypeIdParamsSchema,
   CvTypeListSchema,
   ImportCvTypeBodySchema,
+  ProfileDeductionSchema,
   ReplaceCvTypeBodySchema,
 } from './schemas.js';
 import type { CvTypesService } from './service.js';
@@ -27,7 +28,8 @@ export const CV_TYPES_BODY_LIMIT = CV_MAX_BASE64_LENGTH + JSON_ENVELOPE_BYTES;
 
 const TAG = ['Veille'];
 
-const registerCvTypesDocs = (registry: OpenAPIRegistry): void => {
+/** The reading routes: the list of the CV types and what was deduced from one (EF-CVX-39, EF-VEI-45). */
+const registerReadingDocs = (registry: OpenAPIRegistry): void => {
   registry.registerPath({
     tags: TAG,
     security: SESSION_SECURITY,
@@ -42,17 +44,39 @@ const registerCvTypesDocs = (registry: OpenAPIRegistry): void => {
   registry.registerPath({
     tags: TAG,
     security: SESSION_SECURITY,
+    method: 'get',
+    path: `${CV_TYPES_PATH}/{id}/deduction`,
+    summary: 'Profil déduit d’un CV type, à valider',
+    description:
+      'EF-VEI-43, EF-VEI-45, EF-VEI-46. Les années comptées par le code à partir des périodes du CV, le niveau qui ' +
+      'en découle (RG-28) et de 1 à 5 offres types proposées par le modèle, au format des cibles. Rien n’en est ' +
+      'retenu avant la validation ; le résultat s’efface 30 minutes après la lecture (404 ensuite, ou pour un autre ' +
+      'compte).',
+    request: { params: CvTypeIdParamsSchema },
+    responses: {
+      200: jsonResponse('Profil déduit', ProfileDeductionSchema),
+      ...errorResponses(400, 401, 404),
+    },
+  });
+};
+
+/** The routes that change the CV types: import, replacement, deletion (EF-CVX-39 to EF-CVX-42). */
+const registerChangeDocs = (registry: OpenAPIRegistry): void => {
+  registry.registerPath({
+    tags: TAG,
+    security: SESSION_SECURITY,
     method: 'post',
     path: CV_TYPES_PATH,
     summary: 'Importer un CV type',
     description:
-      'EF-CVX-39, EF-CVX-40, EF-CVX-43. Le PDF (5 Mo au plus, en base64) est vérifié, puis lu dans la file ' +
-      'd’exécution — les pages sans texte par OCR sur le serveur — avec les contrôles de l’Atelier CV. Répond ' +
-      'aussitôt l’identifiant de l’exécution, suivie par /api/jobs/stream. 409 au-delà de 4 CV types.',
+      'EF-CVX-39, EF-CVX-40, EF-CVX-43, EF-CVX-44. Le PDF (5 Mo au plus, en base64) est vérifié, puis lu dans la ' +
+      'file d’exécution — les pages sans texte par OCR sur le serveur — avec les contrôles de l’Atelier CV, et le ' +
+      'profil en est déduit (le modèle local en premier). Répond aussitôt l’identifiant de l’exécution, suivie par ' +
+      '/api/jobs/stream. 409 au-delà de 4 CV types, 429 au-delà de 5 lectures par jour.',
     request: { body: jsonBody(ImportCvTypeBodySchema) },
     responses: {
       202: jsonResponse('Lecture en file', StartedAnalysisSchema),
-      ...errorResponses(400, 401, 409, 413),
+      ...errorResponses(400, 401, 409, 413, 429),
     },
   });
   registry.registerPath({
@@ -67,7 +91,7 @@ const registerCvTypesDocs = (registry: OpenAPIRegistry): void => {
     request: { params: CvTypeIdParamsSchema, body: jsonBody(ReplaceCvTypeBodySchema) },
     responses: {
       202: jsonResponse('Lecture en file', StartedAnalysisSchema),
-      ...errorResponses(400, 401, 404, 413),
+      ...errorResponses(400, 401, 404, 413, 429),
     },
   });
   registry.registerPath({
@@ -113,6 +137,15 @@ export const createCvTypesModule = (service: CvTypesService): ApiModule => {
     }),
   );
 
+  router.get(
+    `${CV_TYPES_PATH}/:id/deduction`,
+    asyncHandler((req, res) => {
+      const { params } = validate(req, { params: CvTypeIdParamsSchema });
+      res.status(200).json(service.findDeduction(currentUserId(res), params.id));
+      return Promise.resolve();
+    }),
+  );
+
   router.delete(
     `${CV_TYPES_PATH}/:id`,
     asyncHandler(async (req, res) => {
@@ -122,5 +155,11 @@ export const createCvTypesModule = (service: CvTypesService): ApiModule => {
     }),
   );
 
-  return { router, registerDocs: registerCvTypesDocs };
+  return {
+    router,
+    registerDocs: (registry) => {
+      registerReadingDocs(registry);
+      registerChangeDocs(registry);
+    },
+  };
 };

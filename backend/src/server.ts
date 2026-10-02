@@ -44,6 +44,7 @@ import { createAutomaticWatchModule } from './modules/autowatch/routes.js';
 import { createAutomaticWatchService } from './modules/autowatch/service.js';
 import { createCriteriaModule } from './modules/criteria/routes.js';
 import { createCvTypesModule } from './modules/cvTypes/routes.js';
+import type { ProfileDeduction } from './modules/cvTypes/deduction.js';
 import { createCvTypesService } from './modules/cvTypes/service.js';
 import { createOffersModule } from './modules/offers/routes.js';
 import { createOffersService } from './modules/offers/service.js';
@@ -254,7 +255,15 @@ const app = createApp({
       createCriteriaModule(criteriaService),
       // EF-CVX-39 to EF-CVX-43
       createCvTypesModule(
-        createCvTypesService({ db: database.db, clock: systemClock, queue: jobQueue, ocr: createPdfOcr() }),
+        createCvTypesService({
+          db: database.db,
+          clock: systemClock,
+          queue: jobQueue,
+          ocr: createPdfOcr(),
+          router: llmRouter,
+          deductions: createAnalysisResults<ProfileDeduction>(),
+          deductionsPerDay: config.watch.profileDeductionsPerDay,
+        }),
       ),
       // EF-CFG-07, EF-CFG-08
       createAutomaticWatchModule(createAutomaticWatchService({ db: database.db, clock: systemClock })),

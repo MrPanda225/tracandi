@@ -1007,7 +1007,7 @@ développeur l'active sur son poste (`ENABLED_FEATURES=watch,cv`) le temps d'y t
   la lecture réutilise `decodeCvUpload` et `readCv` de l'Atelier CV (OCR, coordonnées à part, refus motivés) ; les
   imports en file comptent dans les quatre places ; un fichier illisible ne laisse rien (import) ou laisse le CV type
   tel qu'il était (remplacement). *Reste à faire* : les années et le niveau, avec la déduction (T-1010).
-- [ ] **T-1010 Déduction du profil par le modèle** — tâche IA de profil (skill `add-llm-task` : entrée de route,
+- [x] **T-1010 Déduction du profil par le modèle** — tâche IA de profil (skill `add-llm-task` : entrée de route,
   prompt, schéma, migration de `llm_task`) en file d'exécution ; années calculées par le code (T-1006), jamais par le
   modèle ; 1 à 5 offres types déduites ; résultat en mémoire 30 minutes ; quota quotidien.
   *Exigences* : EF-CVX-43, EF-CVX-44, EF-VEI-43, EF-VEI-45, ENF-RGP-13.
@@ -1015,6 +1015,13 @@ développeur l'active sur son poste (`ENABLED_FEATURES=watch,cv`) le temps d'y t
   le nombre affiché vient du calcul ; réponse hors schéma rejetée ; prompt capturé sans adresse e-mail ni téléphone ;
   sixième déduction du jour : 429.
   *Dépend de* : T-1001, T-1003, T-1006, T-1009.
+  *Livré* : tâche `deduce_profile` (migration `0027`, `llm/prompts/deduceProfile.ts`, route : le local en tête pour
+  une exécution en file, les hébergés sinon) ; `ProfileDeductionAnswerSchema` (périodes AAAA-MM, « présent » lu comme
+  une expérience en cours, 1 à 5 offres au format des cibles avec leur niveau, aucune place pour des années) ; les
+  années sont comptées par le code (RG-29) et le niveau suit (RG-28), gardés sur le CV type ; les offres proposées
+  restent 30 minutes en mémoire, `GET /api/cv-types/{id}/deduction` ; quota `PROFILE_DEDUCTIONS_PER_DAY` (5, 0 lève,
+  429, un échec n'est pas compté) ; l'import et le remplacement lisent puis déduisent, les étapes 1 et 2 sont publiées ;
+  `deductionReady` dans la liste. *Reste à faire* : la validation (T-1011).
 - [ ] **T-1011 Validation du profil et écriture des critères** — l'utilisateur corrige puis valide ; la validation
   écrit les cibles dans `watch_criteria` ; tant que rien n'est validé, seuls les critères existants servent.
   *Exigences* : EF-VEI-46, EF-VEI-47.

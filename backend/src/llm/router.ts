@@ -25,6 +25,8 @@ export const TASK_ROUTES: Readonly<Record<LlmTaskName, readonly ProviderName[]>>
   write_follow_up: WRITING_ROUTE,
   // EF-CVX-24 (RG-13): an analysis with bounded scores, like the scoring of the offers.
   diagnose_cv: VOLUME_ROUTE,
+  // EF-VEI-45 (RG-13 v1.35): a structured reading of a CV, like the diagnostic; the local model leads it (below).
+  deduce_profile: VOLUME_ROUTE,
 };
 
 type Routes = Readonly<Record<LlmTaskName, readonly ProviderName[]>>;
@@ -37,11 +39,15 @@ type Routes = Readonly<Record<LlmTaskName, readonly ProviderName[]>>;
  */
 export type RunMode = 'attended' | 'scheduled';
 
-/** EF-IA-08: the routes of a scheduled pass: those of an attended run, with the local model ahead for two tasks. */
+/**
+ * EF-IA-08: the routes of a scheduled pass, or of a treatment queued with nobody waiting at the screen: those of an
+ * attended run, with the local model ahead for the tasks it leads.
+ */
 export const SCHEDULED_ROUTES: Routes = {
   ...TASK_ROUTES,
   score_offers: ['local', ...TASK_ROUTES.score_offers],
   extract_offers: ['local', ...TASK_ROUTES.extract_offers],
+  deduce_profile: ['local', ...TASK_ROUTES.deduce_profile],
 };
 
 /** EF-IA-14: consecutive connection failures after which a provider is left aside until the end of the pass. */

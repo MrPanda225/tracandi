@@ -117,6 +117,8 @@ export const llmTask = pgEnum('llm_task', [
   'write_follow_up',
   // EF-CVX-24 (v1.30): diagnostic of an imported CV against an offer.
   'diagnose_cv',
+  // EF-VEI-43, EF-VEI-45 (v1.35): the experience periods and the offers a CV type points to.
+  'deduce_profile',
 ]);
 export const llmOutcome = pgEnum('llm_outcome', ['success', 'error', 'timeout', 'invalid_output']);
 // EF-CVX-32 (v1.30): an analysis of the CV workshop runs in the queue like the other long treatments.

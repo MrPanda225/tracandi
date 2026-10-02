@@ -54,7 +54,7 @@ describe('loadConfig', () => {
       maxConcurrentJobs: 1,
       // EF-CVX-33: five analyses of the CV workshop a day, unless the deployment says otherwise.
       cvAnalysesPerDay: 5,
-      watch: { maxScoredOffersPerPass: 20 },
+      watch: { maxScoredOffersPerPass: 20, profileDeductionsPerDay: 5 },
     });
   });
 
@@ -422,7 +422,7 @@ describe('loadConfig, local model', () => {
 
 describe('loadConfig, scored offers per pass', () => {
   it('[EF-EXE-07] scores 20 offers per pass by default, and reads the ceiling from the configuration', () => {
-    expect(loadConfig(VALID_ENV).watch).toEqual({ maxScoredOffersPerPass: 20 });
+    expect(loadConfig(VALID_ENV).watch).toEqual({ maxScoredOffersPerPass: 20, profileDeductionsPerDay: 5 });
     expect(loadConfig({ ...VALID_ENV, MAX_SCORED_OFFERS_PER_PASS: '35' }).watch.maxScoredOffersPerPass).toBe(
       35,
     );
@@ -442,4 +442,28 @@ describe('loadConfig, scored offers per pass', () => {
       'MAX_SCORED_OFFERS_PER_PASS',
     );
   });
+});
+
+describe('loadConfig, deductions of a profile per day', () => {
+  it('[EF-CVX-44] allows 5 a day by default, reads the allowance from the configuration, and lifts it with 0', () => {
+    expect(loadConfig(VALID_ENV).watch.profileDeductionsPerDay).toBe(5);
+    expect(loadConfig({ ...VALID_ENV, PROFILE_DEDUCTIONS_PER_DAY: '12' }).watch.profileDeductionsPerDay).toBe(
+      12,
+    );
+    expect(loadConfig({ ...VALID_ENV, PROFILE_DEDUCTIONS_PER_DAY: '0' }).watch.profileDeductionsPerDay).toBe(
+      0,
+    );
+    expect(loadConfig({ ...VALID_ENV, PROFILE_DEDUCTIONS_PER_DAY: '' }).watch.profileDeductionsPerDay).toBe(
+      5,
+    );
+  });
+
+  it.each([['-1'], ['abc'], ['1001']])(
+    '[EF-CVX-44] refuses the allowance %s, naming the variable',
+    (value) => {
+      expect(errorOf({ ...VALID_ENV, PROFILE_DEDUCTIONS_PER_DAY: value })).toContain(
+        'PROFILE_DEDUCTIONS_PER_DAY',
+      );
+    },
+  );
 });

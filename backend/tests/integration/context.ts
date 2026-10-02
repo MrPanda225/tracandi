@@ -40,6 +40,7 @@ import { createAutomaticWatchModule } from '../../src/modules/autowatch/routes.j
 import { createAutomaticWatchService } from '../../src/modules/autowatch/service.js';
 import { createCriteriaModule } from '../../src/modules/criteria/routes.js';
 import { createCvTypesModule } from '../../src/modules/cvTypes/routes.js';
+import type { ProfileDeduction } from '../../src/modules/cvTypes/deduction.js';
 import { createCvTypesService } from '../../src/modules/cvTypes/service.js';
 import { createOffersModule } from '../../src/modules/offers/routes.js';
 import { createOffersService } from '../../src/modules/offers/service.js';
@@ -291,7 +292,15 @@ export const createTestContext = (
         createOffersModule(createOffersService({ db: database.db, clock: clock.now })),
         createCriteriaModule(criteria),
         createCvTypesModule(
-          createCvTypesService({ db: database.db, clock: clock.now, queue, ocr: ocrOf(ocr) }),
+          createCvTypesService({
+            db: database.db,
+            clock: clock.now,
+            queue,
+            ocr: ocrOf(ocr),
+            router: llmRouter,
+            deductions: createAnalysisResults<ProfileDeduction>(),
+            deductionsPerDay: 5,
+          }),
         ),
         createAutomaticWatchModule(createAutomaticWatchService({ db: database.db, clock: clock.now })),
       ),
