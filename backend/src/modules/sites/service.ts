@@ -165,6 +165,36 @@ const discoveryWorkFor = (discovery: SourceDiscovery, userId: number) => ({
   run: (report: (counters: RunCounters) => void) => discovery.run(userId, report),
 });
 
+const thresholdOf = async (db: Database, userId: number): Promise<number> => {
+  const [row] = await db
+    .select({ threshold: appSettings.offerAlertThreshold })
+    .from(appSettings)
+    .where(eq(appSettings.userId, userId));
+  return row?.threshold ?? DEFAULT_THRESHOLD;
+};
+
+/**
+ * EF-VEI-31: the criteria of the candidate, or the targets of the reference profile while they have none.
+ * @throws HttpError 409 when there is neither: the targets are what a score is measured against (RG-09).
+ */
+const scoringOf = async (
+  profiles: WatchServiceDeps['profiles'],
+  userId: number,
+  saved: WatchCriteria | null,
+): Promise<ScoringProfile> => {
+  if (saved) return scoringProfileOf(saved);
+  const profile = await profiles.read(userId).catch(() => {
+    throw new HttpError(CONFLICT, NO_CRITERIA);
+  });
+  return { searchArea: profile.location.searchArea, targets: profile.targets };
+};
+
+const countersOf = (report: WatchReport): RunCounters => ({
+  sources_checked: report.sourcesChecked,
+  offers_new: report.offersNew,
+  offers_relevant: report.offersRelevant,
+});
+
 /**
  * Watch of the career sources of a candidate: the sources themselves, and the pass that reads them all.
  * @req EF-VEI-01 to EF-VEI-07, EF-AUT-06
@@ -174,50 +204,42 @@ export const createWatchService = (deps: WatchServiceDeps): WatchService => {
   const catalogue = createSourceCatalogue(db, { criteria });
   const pass = createWatchPass(deps);
   const suggestions = createSuggestionReader(db);
-  const discovery = createSourceDiscovery({ db, clock: deps.clock, collect: deps.collect, suggestions, logger });
+  const discovery = createSourceDiscovery({
+    db,
+    clock: deps.clock,
+    collect: deps.collect,
+    suggestions,
+    logger,
+  });
   const sirens = deps.findSiren
     ? createSirenResolver({ db, clock: deps.clock, findSiren: deps.findSiren, logger })
     : null;
-
-  const thresholdOf = async (userId: number): Promise<number> => {
-    const [row] = await db
-      .select({ threshold: appSettings.offerAlertThreshold })
-      .from(appSettings)
-      .where(eq(appSettings.userId, userId));
-    return row?.threshold ?? DEFAULT_THRESHOLD;
-  };
-
-  /**
-   * EF-VEI-31: the criteria of the candidate, or the targets of the reference profile while they have none.
-   * @throws HttpError 409 when there is neither: the targets are what a score is measured against (RG-09).
-   */
-  const scoringOf = async (userId: number, saved: WatchCriteria | null): Promise<ScoringProfile> => {
-    if (saved) return scoringProfileOf(saved);
-    const profile = await profiles.read(userId).catch(() => {
-      throw new HttpError(CONFLICT, NO_CRITERIA);
-    });
-    return { searchArea: profile.location.searchArea, targets: profile.targets };
-  };
 
   /**
    * Nothing is collected before the targets are known. A candidate who watches nothing is simply told so, rather
    * than asked for criteria they do not need yet.
    */
   const runPass = async (userId: number, trigger: 'manual' | 'schedule'): Promise<WatchReport> => {
-    const threshold = await thresholdOf(userId);
+    const threshold = await thresholdOf(db, userId);
     // EF-VEI-42: a scheduled pass leaves the sources not due yet; the candidate's own request reads them all.
-    const sources = await repository.listActiveSources(db, userId, trigger === 'schedule' ? deps.clock() : null);
+    const sources = await repository.listActiveSources(
+      db,
+      userId,
+      trigger === 'schedule' ? deps.clock() : null,
+    );
     if (sources.length === 0) return EMPTY_REPORT(threshold);
     const saved = await criteria.read(userId);
     await sirens?.resolve(userId);
-    return pass.run({ userId, scoring: await scoringOf(userId, saved), criteria: saved, sources, threshold });
+    return pass.run({
+      userId,
+      scoring: await scoringOf(profiles, userId, saved),
+      criteria: saved,
+      sources,
+      threshold,
+      // EF-IA-08, EF-IA-09: the pass of the clock is led by the local model, the one the candidate asked for is not.
+      mode: trigger === 'schedule' ? 'scheduled' : 'attended',
+    });
   };
-
-  const countersOf = (report: WatchReport): RunCounters => ({
-    sources_checked: report.sourcesChecked,
-    offers_new: report.offersNew,
-    offers_relevant: report.offersRelevant,
-  });
 
   const workFor = (userId: number, trigger: 'manual' | 'schedule') => ({
     userId,
@@ -239,7 +261,10 @@ export const createWatchService = (deps: WatchServiceDeps): WatchService => {
 
     async checkEverySource() {
       // ENF-RGP-10: three times a day, so at least once a day.
-      const removed = await repository.purgeStaleOffers(db, new Date(deps.clock().getTime() - OFFER_RETENTION_MS));
+      const removed = await repository.purgeStaleOffers(
+        db,
+        new Date(deps.clock().getTime() - OFFER_RETENTION_MS),
+      );
       if (removed > 0) logger.info('stale offers removed', { removed });
       for (const userId of await repository.listUsersWithActiveSources(db)) {
         // EF-GML-18: a candidate who already has a pass waiting or running is written off, not queued twice.

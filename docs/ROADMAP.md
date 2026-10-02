@@ -896,7 +896,7 @@ développeur l'active sur son poste (`ENABLED_FEATURES=watch,cv`) le temps d'y t
   `TASK_ROUTES`) pour tester le local avant que T-1003 ne le route.
   *Écart* : le délai des fournisseurs hébergés reste la constante de 60 s (injectable au routeur) ; EF-IA-10 le prévoit
   « fixé par la configuration », ce qui n'est demandé par aucun critère de la tâche.
-- [ ] **T-1003 Routes par mode, lots réduits, bascule rapide** — route à deux modes (passage planifié ou demande
+- [x] **T-1003 Routes par mode, lots réduits, bascule rapide** — route à deux modes (passage planifié ou demande
   attendue) : le local en tête de `score_offers`, `extract_offers` et des tâches de profil **en passage planifié
   seulement**, jamais en tête ailleurs ; lots de 5 offres et descriptions de 800 caractères quand le premier
   fournisseur est local ; échec de connexion en 10 s au plus ; coupe-circuit après deux échecs de connexion.
@@ -905,6 +905,18 @@ développeur l'active sur son poste (`ENABLED_FEATURES=watch,cv`) le temps d'y t
   10 s, puis plus aucun appel au local jusqu'à la fin du passage ; 12 offres : appels de 5, 5 et 2 ; routes de
   `classify_emails`, `diagnose_cv`, `tailor_cv`, `write_follow_up` inchangées.
   *Dépend de* : T-1001, T-1002.
+  *Livré* : `RunMode` et `SCHEDULED_ROUTES` (le local devant `score_offers` et `extract_offers`, les autres routes
+  inchangées) ; `forMode(mode)` : un routeur par passage, avec son propre compte d'échecs de connexion
+  (coupe-circuit après deux échecs consécutifs, le passage suivant retente) ; `limitsFor(task)` : lots et longueur de
+  description du premier fournisseur disponible, relus avant chaque lot ; sonde `GET /models` de 10 s avant chaque appel
+  au local (`CONNECT_TIMEOUT_MS`) et erreur marquée `connection` ; `LOCAL_LLM_BATCH_SIZE` et
+  `LOCAL_LLM_DESCRIPTION_CHARS` ; `PassContext.mode` (`schedule` → `scheduled`, « Consulter maintenant » →
+  `attended`) ; `llm/limits.ts`.
+  *Choix assumé* : la sonde interroge `/models`, point d'entrée commun aux services compatibles OpenAI, plutôt qu'une
+  commande propre à Ollama ; une réponse quelconque (même 404) compte comme « le serveur est là ».
+  *Reste à faire* : l'extraction des pages carrières par le local (`extract_offers`) envoie jusqu'à 12 000 caractères
+  de texte et 120 liens : avec un contexte de 8 192 jetons et 2 000 jetons de sortie, c'est à surveiller (non couvert
+  par EF-IA-12, qui ne vise que la notation) ; les tâches de profil seront ajoutées à `SCHEDULED_ROUTES` par T-1010.
 - [ ] **T-1004 Fenêtre depuis la dernière consultation réussie** — colonne « début de la dernière consultation
   réussie » sur `watched_sites` (migration) ; la fenêtre de France Travail s'en sert ; une consultation échouée ne
   l'avance pas ; ADR-18.

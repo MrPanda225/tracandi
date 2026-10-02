@@ -26,6 +26,12 @@ const MIN_LOCAL_TIMEOUT_MS = 1_000;
 const MAX_LOCAL_TIMEOUT_MS = 3_600_000;
 const DEFAULT_LOCAL_MAX_OUTPUT_TOKENS = 2_000;
 const MAX_LOCAL_OUTPUT_TOKENS = 32_000;
+// EF-IA-12 (v1.35): five offers of 800 characters fit a context of 8 192 tokens with their answer.
+const DEFAULT_LOCAL_BATCH_SIZE = 5;
+const MAX_LOCAL_BATCH_SIZE = 50;
+const DEFAULT_LOCAL_DESCRIPTION_CHARS = 800;
+const MIN_LOCAL_DESCRIPTION_CHARS = 200;
+const MAX_LOCAL_DESCRIPTION_CHARS = 5_000;
 // Ollama ignores the key it is given; a private address needs none (ENF-SEC-24), a placeholder keeps the header.
 const PRIVATE_NETWORK_TOKEN = 'ollama';
 
@@ -113,6 +119,19 @@ const EnvSchema = z.object({
   LOCAL_LLM_MAX_OUTPUT_TOKENS: z.preprocess(
     (value) => (value === '' ? undefined : value),
     z.coerce.number().int().min(1).max(MAX_LOCAL_OUTPUT_TOKENS).default(DEFAULT_LOCAL_MAX_OUTPUT_TOKENS),
+  ),
+  LOCAL_LLM_BATCH_SIZE: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.coerce.number().int().min(1).max(MAX_LOCAL_BATCH_SIZE).default(DEFAULT_LOCAL_BATCH_SIZE),
+  ),
+  LOCAL_LLM_DESCRIPTION_CHARS: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.coerce
+      .number()
+      .int()
+      .min(MIN_LOCAL_DESCRIPTION_CHARS)
+      .max(MAX_LOCAL_DESCRIPTION_CHARS)
+      .default(DEFAULT_LOCAL_DESCRIPTION_CHARS),
   ),
   // EF-GML-01: OAuth client of the Google Cloud project, for the Gmail connection from the interface.
   GOOGLE_CLIENT_ID: z.string().min(1),
@@ -259,6 +278,9 @@ export interface LocalLlmConfig extends LlmProviderConfig {
   baseUrl: string;
   timeoutMs: number;
   maxOutputTokens: number;
+  /** EF-IA-12: offers per batch and characters of each description while the local model serves the scoring. */
+  batchSize: number;
+  descriptionChars: number;
 }
 
 /** Configured AI providers: the hosted ones by key and model, and the local model of the operator. */
@@ -344,6 +366,8 @@ const localModelOf = (env: Env): { local?: LocalLlmConfig } =>
           baseUrl: withoutTrailingSlash(env.LOCAL_LLM_BASE_URL),
           timeoutMs: env.LOCAL_LLM_TIMEOUT_MS,
           maxOutputTokens: env.LOCAL_LLM_MAX_OUTPUT_TOKENS,
+          batchSize: env.LOCAL_LLM_BATCH_SIZE,
+          descriptionChars: env.LOCAL_LLM_DESCRIPTION_CHARS,
         },
       }
     : {};

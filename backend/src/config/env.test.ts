@@ -281,6 +281,8 @@ describe('loadConfig, local model', () => {
         baseUrl: 'http://192.168.1.54:11434/v1',
         timeoutMs: 600_000,
         maxOutputTokens: 2_000,
+        batchSize: 5,
+        descriptionChars: 800,
       },
     });
   });
@@ -379,6 +381,16 @@ describe('loadConfig, local model', () => {
       );
     },
   );
+
+  it.each([
+    ['LOCAL_LLM_BATCH_SIZE', '0'],
+    ['LOCAL_LLM_BATCH_SIZE', '51'],
+    ['LOCAL_LLM_BATCH_SIZE', 'x'],
+    ['LOCAL_LLM_DESCRIPTION_CHARS', '199'],
+    ['LOCAL_LLM_DESCRIPTION_CHARS', '5001'],
+  ])('[ENF-MAI-09] [EF-IA-12] refuses %s = %s, naming the variable', (variable, value) => {
+    expect(errorOf({ ...BASE_ENV, ...LOCAL, [variable]: value })).toContain(variable);
+  });
 
   it('[ENF-MAI-09] refuses an address without a model, and a model or a token without an address', () => {
     expect(errorOf({ ...BASE_ENV, LOCAL_LLM_BASE_URL: LOCAL.LOCAL_LLM_BASE_URL })).toContain(

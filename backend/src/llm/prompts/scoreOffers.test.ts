@@ -79,4 +79,17 @@ describe('buildScoreOffersPrompt', () => {
     expect(prompt).toContain('…');
     expect(prompt.length).toBeLessThan(OFFER_DESCRIPTION_MAX_LENGTH + 1000);
   });
+
+  it('[EF-IA-12] cuts the description to the length the first provider can read, 2 000 characters by default', () => {
+    const description = `${'a'.repeat(900)}FIN-DE-LA-DESCRIPTION`;
+
+    const byDefault = buildScoreOffersPrompt(PROFILE, [offer({ description })]).prompt;
+    const forLocal = buildScoreOffersPrompt(PROFILE, [offer({ description })], {
+      descriptionChars: 800,
+    }).prompt;
+
+    expect(byDefault).toContain('FIN-DE-LA-DESCRIPTION');
+    expect(forLocal).not.toContain('FIN-DE-LA-DESCRIPTION');
+    expect(forLocal).toContain('a'.repeat(700));
+  });
 });

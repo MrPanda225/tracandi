@@ -1,9 +1,10 @@
 import type { ScorableOffer, ScoringTarget } from '../../modules/offers/scoring.js';
+import { HOSTED_BATCH_LIMITS } from '../limits.js';
 import { frameUntrusted, truncate, UNTRUSTED_CONTENT_NOTICE } from './untrusted.js';
 
 /** ENF-COU-01: bounds of what one batch sends, whatever the size of an offer. */
 export const OFFER_TITLE_MAX_LENGTH = 300;
-export const OFFER_DESCRIPTION_MAX_LENGTH = 2000;
+export const OFFER_DESCRIPTION_MAX_LENGTH = HOSTED_BATCH_LIMITS.descriptionChars;
 const LOCATION_MAX_LENGTH = 200;
 
 /** What the candidate looks for, as the scoring states it. Comes from the reference profile (EF-CVX-02). */
@@ -56,14 +57,14 @@ const describeProfile = (profile: ScoringProfile): string =>
     }),
   ].join('\n');
 
-const describeOffer = (offer: OfferToScore): string =>
+const describeOffer = (offer: OfferToScore, descriptionChars: number): string =>
   frameUntrusted(
     'offer',
     [
       `Intitulé : ${truncate(offer.title, OFFER_TITLE_MAX_LENGTH)}`,
       `Lieu : ${offer.location ? truncate(offer.location, LOCATION_MAX_LENGTH) : '(non précisé)'}`,
       `Contrat : ${CONTRACT_WORDINGS[offer.contractType] ?? 'non précisé'}`,
-      `Description : ${offer.description ? truncate(offer.description, OFFER_DESCRIPTION_MAX_LENGTH) : '(aucune)'}`,
+      `Description : ${offer.description ? truncate(offer.description, descriptionChars) : '(aucune)'}`,
     ].join('\n'),
     { ref: offer.ref },
   );
@@ -72,15 +73,16 @@ const describeOffer = (offer: OfferToScore): string =>
  * Prompt of the `score_offers` task for one batch of offers, referenced 1, 2… in their order. The profile is the
  * candidate's own data and is framed all the same, because an offer read just before could otherwise pretend to
  * be part of it (ENF-SEC-06). Expected answer: `ScoredOffersSchema` (modules/offers).
- * @req EF-VEI-12, EF-VEI-13, RG-09, ENF-SEC-06, ENF-COU-01
+ * @req EF-VEI-12, EF-VEI-13, RG-09, ENF-SEC-06, ENF-COU-01, EF-IA-12
  */
 export const buildScoreOffersPrompt = (
   profile: ScoringProfile,
   offers: readonly OfferToScore[],
+  { descriptionChars = OFFER_DESCRIPTION_MAX_LENGTH }: { descriptionChars?: number } = {},
 ): { system: string; prompt: string } => ({
   system: SYSTEM,
   prompt: [
     frameUntrusted('candidate_profile', describeProfile(profile)),
-    ...offers.map((offer) => describeOffer(offer)),
+    ...offers.map((offer) => describeOffer(offer, descriptionChars)),
   ].join('\n\n'),
 });

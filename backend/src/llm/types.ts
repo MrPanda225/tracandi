@@ -1,4 +1,5 @@
 import type { llmOutcome, llmProvider, llmTask } from '../db/schema.js';
+import type { BatchLimits } from './limits.js';
 
 /** AI tasks of RG-13, as stored in `llm_calls.task`. */
 export type LlmTaskName = (typeof llmTask.enumValues)[number];
@@ -38,6 +39,11 @@ export interface LlmProvider {
    * server has a context of a few thousand tokens, so its answers are bounded (2 000 by default).
    */
   maxOutputTokens?: number;
+  /**
+   * EF-IA-12: how many offers a batch holds and how much of each description it carries for this provider; the
+   * hosted limits (15 offers, 2 000 characters) when absent.
+   */
+  batchLimits?: BatchLimits;
   /** @throws on any failure (network, quota, refusal, empty answer): the router then tries the next provider. */
   complete: (request: LlmRequest) => Promise<LlmCompletion>;
 }

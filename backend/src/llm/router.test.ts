@@ -7,6 +7,7 @@ import {
   LLM_TIMEOUT_MS,
   type LlmCallRecord,
   PROVIDER_ATTEMPTS,
+  SCHEDULED_ROUTES,
   TASK_ROUTES,
 } from './router.js';
 import type { LlmCompletion, LlmProvider, LlmRequest, LlmTaskName, ProviderName } from './types.js';
@@ -28,7 +29,11 @@ const answer = (value: unknown): LlmCompletion => ({
 const fakeProvider = (
   name: ProviderName,
   complete: (request: LlmRequest) => Promise<LlmCompletion>,
-  limits: { timeoutMs?: number; maxOutputTokens?: number } = {},
+  limits: {
+    timeoutMs?: number;
+    maxOutputTokens?: number;
+    batchLimits?: { batchSize: number; descriptionChars: number };
+  } = {},
 ) => {
   const provider = { name, model: `${name}-test-model`, complete: vi.fn(complete), ...limits };
   return provider satisfies LlmProvider;
@@ -82,7 +87,7 @@ describe('TASK_ROUTES', () => {
     }
   });
 
-  it('[EF-IA-07] [RG-13] gives no task to the local model before the routes by mode of T-1003', () => {
+  it('[EF-IA-09] leaves the local model out of every route of an attended run', () => {
     for (const route of Object.values(TASK_ROUTES)) {
       expect(route).not.toContain('local');
     }
@@ -522,5 +527,112 @@ describe('LlmUnavailableError', () => {
     expect(error.message).toBe(
       'Aucun service d’IA n’a pu traiter la demande. Réessayez dans quelques minutes.',
     );
+  });
+});
+
+describe('routes by mode (T-1003, v1.35)', () => {
+  const CONNECTION_FAILURE = () =>
+    Object.assign(new Error('the model server could not be reached'), { connection: true });
+  const ok = () => Promise.resolve(answer({ category: 'interview' }));
+  const LOCAL_LIMITS = { batchSize: 5, descriptionChars: 800 };
+
+  it('[EF-IA-08] puts the local model first for the scoring and the extraction of a scheduled pass, the hosted providers behind', () => {
+    expect(SCHEDULED_ROUTES.score_offers).toEqual(['local', ...TASK_ROUTES.score_offers]);
+    expect(SCHEDULED_ROUTES.extract_offers).toEqual(['local', ...TASK_ROUTES.extract_offers]);
+  });
+
+  it.each(['classify_emails', 'diagnose_cv', 'tailor_cv', 'write_motivation', 'write_follow_up'] as const)(
+    '[EF-IA-09] leaves the route of %s as it is, in a scheduled pass too',
+    (task) => {
+      expect(SCHEDULED_ROUTES[task]).toEqual(TASK_ROUTES[task]);
+      expect(SCHEDULED_ROUTES[task]).not.toContain('local');
+    },
+  );
+
+  it('[EF-IA-08] sends the first call of a scheduled pass to the local model, and the same task asked in an attended run to the hosted ones', async () => {
+    const local = fakeProvider('local', ok);
+    const gemini = fakeProvider('gemini', ok);
+    const { router } = setup({ local, gemini });
+
+    await router.forMode('scheduled').runTask('score_offers', INPUT);
+    expect(local.complete).toHaveBeenCalledTimes(1);
+    expect(gemini.complete).not.toHaveBeenCalled();
+
+    await router.runTask('score_offers', INPUT);
+    expect(local.complete).toHaveBeenCalledTimes(1);
+    expect(gemini.complete).toHaveBeenCalledTimes(1);
+  });
+
+  it('[EF-IA-08] gives a scheduled task to the next provider when the local model fails, and runs without the local model when none is configured', async () => {
+    const local = fakeProvider('local', () => Promise.reject(new Error('model refused')));
+    const gemini = fakeProvider('gemini', ok);
+
+    const failing = setup({ local, gemini });
+    await expect(failing.router.forMode('scheduled').runTask('score_offers', INPUT)).resolves.toMatchObject({
+      provider: 'gemini',
+    });
+    const without = setup({ gemini });
+    await expect(without.router.forMode('scheduled').runTask('score_offers', INPUT)).resolves.toMatchObject({
+      provider: 'gemini',
+    });
+  });
+
+  it('[EF-IA-14] stops calling the local model for the rest of a pass after two connection failures', async () => {
+    const local = fakeProvider('local', () => Promise.reject(CONNECTION_FAILURE()));
+    const gemini = fakeProvider('gemini', ok);
+    const { router } = setup({ local, gemini });
+    const pass = router.forMode('scheduled');
+
+    for (let call = 0; call < 5; call += 1) await pass.runTask('score_offers', INPUT);
+
+    expect(local.complete).toHaveBeenCalledTimes(2);
+    expect(gemini.complete).toHaveBeenCalledTimes(5);
+    // The next pass tries the local model again.
+    await router.forMode('scheduled').runTask('score_offers', INPUT);
+    expect(local.complete).toHaveBeenCalledTimes(3);
+  });
+
+  it('[EF-IA-14] counts only consecutive connection failures: an answer, or a refusal of another kind, starts over', async () => {
+    let call = 0;
+    const local = fakeProvider('local', () => {
+      call += 1;
+      if (call === 2) return ok();
+      if (call === 4) return Promise.reject(new Error('answer outside the schema'));
+      return Promise.reject(CONNECTION_FAILURE());
+    });
+    const gemini = fakeProvider('gemini', ok);
+    const pass = setup({ local, gemini }).router.forMode('scheduled');
+
+    for (let step = 0; step < 6; step += 1) await pass.runTask('score_offers', INPUT);
+
+    // failure, answer, failure, refusal, failure, failure → the breaker opens only on the last two.
+    expect(local.complete).toHaveBeenCalledTimes(6);
+  });
+
+  it('[EF-IA-12] sizes the batches by the first provider of the route: the local limits while it serves, the hosted ones otherwise', async () => {
+    const local = fakeProvider('local', () => Promise.reject(CONNECTION_FAILURE()), {
+      batchLimits: LOCAL_LIMITS,
+    });
+    const gemini = fakeProvider('gemini', ok);
+    const { router } = setup({ local, gemini });
+    const pass = router.forMode('scheduled');
+
+    expect(pass.limitsFor('score_offers')).toEqual(LOCAL_LIMITS);
+    expect(router.limitsFor('score_offers')).toEqual({ batchSize: 15, descriptionChars: 2_000 });
+    expect(pass.limitsFor('classify_emails')).toEqual({ batchSize: 15, descriptionChars: 2_000 });
+
+    await pass.runTask('score_offers', INPUT);
+    await pass.runTask('score_offers', INPUT);
+    // Local down for two calls: the hosted limits are back for the batches that remain.
+    expect(pass.limitsFor('score_offers')).toEqual({ batchSize: 15, descriptionChars: 2_000 });
+  });
+
+  it('[EF-IA-12] takes the hosted limits when the local model is not configured', () => {
+    const { router } = setup({ gemini: fakeProvider('gemini', ok) });
+
+    expect(router.forMode('scheduled').limitsFor('score_offers')).toEqual({
+      batchSize: 15,
+      descriptionChars: 2_000,
+    });
   });
 });

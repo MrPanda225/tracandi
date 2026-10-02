@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { normalizeKey } from '../../lib/text.js';
+import { HOSTED_BATCH_LIMITS } from '../../llm/limits.js';
 import type { OfferContractType } from '../../scraper/adapters/types.js';
 
 /**
@@ -8,7 +9,7 @@ import type { OfferContractType } from '../../scraper/adapters/types.js';
  */
 export const PREFILTERED_SCORE = 5;
 /** ENF-COU-01: offers are scored fifteen at a time (rules/llm.md). */
-export const SCORING_BATCH_SIZE = 15;
+export const SCORING_BATCH_SIZE = HOSTED_BATCH_LIMITS.batchSize;
 /** EF-VEI-14: what the candidate reads beside an offer no model ever looked at. */
 export const PREFILTERED_REASON = 'Écartée sans appel à l’IA : aucun mot-clé de vos cibles (RG-10).';
 

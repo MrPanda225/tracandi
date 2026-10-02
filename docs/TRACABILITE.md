@@ -266,7 +266,7 @@ Commande de contrôle : `/project:check-req EF-CAN-07`.
 | ENF-SEC-25 | T-1001 | `openaiCompatible.test.ts` (échec réseau sans adresse ni jeton), `config/env.test.ts` (message sans valeur), `assignments.test.ts`, `settings.test.ts` | couverte |
 | ENF-MAI-09 | T-1001 | `config/env.test.ts` (adresse, délai, plafond, modèle) ; lots et plafond d'offres : T-1003, T-1005 | partielle |
 | EF-IA-10, EF-IA-11, EF-IA-02 (modifiée) (v1.35) | T-1002 | `llm/router.test.ts` › limits of each provider (90 s accepté par le local et refusé aux hébergés, 601 s abandonné, `max_tokens` 2 000 / 16 000, repli), `llm/providers/openaiCompatible.test.ts` | couverte |
-| EF-IA-08, EF-IA-09, EF-IA-12, EF-IA-13, EF-IA-14, RG-13 (modifiée) (v1.35) | T-1003 | — | à faire |
+| EF-IA-08, EF-IA-09, EF-IA-12, EF-IA-13, EF-IA-14, RG-13 (modifiée) (v1.35) | T-1003 | `llm/router.test.ts` › routes by mode (routes, coupe-circuit, limites), `llm/providers/openaiCompatible.test.ts` (sonde de 10 s, échec de connexion), `llm/prompts/scoreOffers.test.ts`, `config/env.test.ts`, `tests/integration/local-model-pass.test.ts` (lots de 5, 5 et 2 ; repli ; passage demandé : hébergés d'abord) | couverte |
 | EF-VEI-52, EF-VEI-53, EF-VEI-10 (modifiée), RG-30 (v1.35) | T-1004 | — | à faire |
 | EF-VEI-54, EF-EXE-07, RG-31, ENF-FIA-11, ENF-PERF-09 (v1.35) | T-1005 | — | à faire |
 | RG-28, RG-29, EF-VEI-43 (calcul), EF-VEI-44 (v1.35) | T-1006 | — | à faire |

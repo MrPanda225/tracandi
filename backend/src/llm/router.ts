@@ -3,6 +3,7 @@ import { LlmUnavailableError } from '../lib/errors.js';
 import { isTransientFailure, propertyOf, statusOfError } from '../lib/httpStatus.js';
 import type { Logger } from '../lib/logger.js';
 import { type Sleep, wait } from '../lib/rateLimiter.js';
+import { type BatchLimits, HOSTED_BATCH_LIMITS } from './limits.js';
 import type { LlmCompletion, LlmOutcome, LlmProvider, LlmTaskName, ProviderName } from './types.js';
 
 // RG-13 (v1.8): the three Groq slots in order, then the historical fallbacks — Gemini first for the volume tasks,
@@ -25,6 +26,26 @@ export const TASK_ROUTES: Readonly<Record<LlmTaskName, readonly ProviderName[]>>
   // EF-CVX-24 (RG-13): an analysis with bounded scores, like the scoring of the offers.
   diagnose_cv: VOLUME_ROUTE,
 };
+
+type Routes = Readonly<Record<LlmTaskName, readonly ProviderName[]>>;
+
+/**
+ * EF-IA-08 (v1.35, RG-13): the mode of a run. A **scheduled** pass (7, 13 and 19 o'clock) has nobody waiting for it:
+ * the local model leads the scoring and the extraction of offers, the hosted providers take over when it fails.
+ * An **attended** run — a candidate waiting at the screen, or the pass he asked for himself — keeps the hosted
+ * providers first and never names the local model (EF-IA-09).
+ */
+export type RunMode = 'attended' | 'scheduled';
+
+/** EF-IA-08: the routes of a scheduled pass: those of an attended run, with the local model ahead for two tasks. */
+export const SCHEDULED_ROUTES: Routes = {
+  ...TASK_ROUTES,
+  score_offers: ['local', ...TASK_ROUTES.score_offers],
+  extract_offers: ['local', ...TASK_ROUTES.extract_offers],
+};
+
+/** EF-IA-14: consecutive connection failures after which a provider is left aside until the end of the pass. */
+const CONNECTION_FAILURES_BEFORE_OPEN = 2;
 
 /** EF-IA-02: a provider silent for longer than this is abandoned for the next one. */
 export const LLM_TIMEOUT_MS = 60_000;
@@ -78,6 +99,21 @@ export interface LlmRouter {
    * @req EF-IA-01, EF-IA-02, EF-IA-03, EF-IA-04, EF-IA-06
    */
   runTask: <T>(task: LlmTaskName, input: RunTaskInput<T>) => Promise<TaskResult<T>>;
+  /**
+   * EF-IA-08, EF-IA-14: a router for one run, with the routes of its mode and a count of connection failures of its
+   * own, so that a provider that is off is left aside for the rest of that run and tried again at the next one.
+   */
+  forMode?: (mode: RunMode) => LlmRouter;
+  /**
+   * EF-IA-12: the batch of offers and the length of descriptions the first provider of the route can take at this
+   * moment — the local limits while it serves, the hosted ones once it is left aside or when it is not configured.
+   */
+  limitsFor?: (task: LlmTaskName) => BatchLimits;
+}
+
+/** The router as the server builds it: every member present, and a router for a mode that has them too. */
+export interface FullLlmRouter extends Required<LlmRouter> {
+  forMode: (mode: RunMode) => FullLlmRouter;
 }
 
 interface LlmRouterDeps {
@@ -88,8 +124,10 @@ interface LlmRouterDeps {
   logger: Logger;
   /** Delay of a provider that has none of its own (EF-IA-10); 60 s by default. */
   timeoutMs?: number;
-  /** The route of each task; `TASK_ROUTES` by default, injected by the tests (T-1003 defines the routes by mode). */
-  routes?: Readonly<Record<LlmTaskName, readonly ProviderName[]>>;
+  /** The route of each task of an attended run; `TASK_ROUTES` by default, injected by the tests. */
+  routes?: Routes;
+  /** The route of each task of a scheduled pass (EF-IA-08); `SCHEDULED_ROUTES` by default. */
+  scheduledRoutes?: Routes;
   sleep?: Sleep;
 }
 
@@ -192,6 +230,10 @@ const askedDelayOf = (refusal: Refusal): number | null => {
   return typeof asked === 'number' && asked >= 0 ? asked : null;
 };
 
+/** EF-IA-14: the provider could not be reached at all, which is not the same as a refusal of its answer. */
+const isConnectionFailure = (refusal: Refusal): boolean =>
+  'error' in refusal && propertyOf(refusal.error, 'connection') === true;
+
 /** What one provider run needs: the journal of the calls, the logs of the refusals and the time budget. */
 interface ProviderRunnerDeps {
   journal: LlmJournal;
@@ -265,24 +307,37 @@ const createProviderRunner = ({ journal, logger, timeoutMs, sleep }: ProviderRun
  * Creates the AI router. Every call is bounded to the delay of its provider (60 s unless it has its own, EF-IA-10),
  * limited to the output ceiling of its provider (EF-IA-11), validated against the task schema and journaled.
  * @throws Error when no provider is configured (the configuration refuses to start in that case, EF-IA-05).
- * @req EF-IA-01, EF-IA-02, EF-IA-03, EF-IA-04, EF-IA-05, EF-IA-06, EF-IA-10, EF-IA-11, RG-13, ENF-FIA-10
+ * @req EF-IA-01 to EF-IA-06, EF-IA-08, EF-IA-10 to EF-IA-14, RG-13, ENF-FIA-10
  */
-export const createLlmRouter = ({
-  providers,
-  journal,
-  logger,
-  timeoutMs = LLM_TIMEOUT_MS,
-  routes = TASK_ROUTES,
-  sleep = wait,
-}: LlmRouterDeps): LlmRouter => {
+export const createLlmRouter = (deps: LlmRouterDeps): FullLlmRouter => {
+  const {
+    providers,
+    journal,
+    logger,
+    timeoutMs = LLM_TIMEOUT_MS,
+    routes = TASK_ROUTES,
+    scheduledRoutes = SCHEDULED_ROUTES,
+    sleep = wait,
+  } = deps;
   if (Object.values(providers).every((provider) => provider === undefined)) {
     throw new Error('At least one LLM provider must be configured');
   }
   const runProvider = createProviderRunner({ journal, logger, timeoutMs, sleep });
+  // EF-IA-14: consecutive connection failures of each provider, for the life of this router (one pass).
+  const connectionFailures = new Map<ProviderName, number>();
+  const isLeftAside = (name: ProviderName): boolean =>
+    (connectionFailures.get(name) ?? 0) >= CONNECTION_FAILURES_BEFORE_OPEN;
+  const noteOutcome = (name: ProviderName, result: Attempt<unknown>): void => {
+    const lost = result.outcome !== 'success' && isConnectionFailure(result.refusal);
+    if (lost) connectionFailures.set(name, (connectionFailures.get(name) ?? 0) + 1);
+    else connectionFailures.delete(name);
+  };
+  const routeOf = (task: LlmTaskName): ProviderName[] =>
+    routes[task].filter((name) => providers[name] !== undefined && !isLeftAside(name));
 
   return {
     async runTask(task, input) {
-      const route = routes[task].filter((name) => providers[name] !== undefined);
+      const route = routeOf(task);
       let answerRejected = false;
       for (const [index, name] of route.entries()) {
         const provider = providers[name];
@@ -293,10 +348,19 @@ export const createLlmRouter = ({
           input,
           hasFallback: index < route.length - 1,
         });
+        noteOutcome(name, result);
         if (result.outcome === 'success') return { data: result.data, provider: name };
         answerRejected ||= result.outcome === 'invalid_output';
+        // EF-IA-14: the provider just became unreachable for this pass; the rest of the route takes the task.
       }
       throw new LlmUnavailableError(answerRejected);
+    },
+
+    forMode: (mode) => createLlmRouter({ ...deps, routes: mode === 'scheduled' ? scheduledRoutes : routes }),
+
+    limitsFor: (task) => {
+      const first = routeOf(task)[0];
+      return (first ? providers[first]?.batchLimits : undefined) ?? HOSTED_BATCH_LIMITS;
     },
   };
 };

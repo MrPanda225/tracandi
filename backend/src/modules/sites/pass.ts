@@ -6,7 +6,8 @@ import {
   type OfferToScore,
   type ScoringProfile,
 } from '../../llm/prompts/scoreOffers.js';
-import type { LlmRouter } from '../../llm/router.js';
+import { HOSTED_BATCH_LIMITS } from '../../llm/limits.js';
+import type { LlmRouter, RunMode } from '../../llm/router.js';
 import { adapterFor } from '../../scraper/adapters/index.js';
 import { describeCollectionFailure } from '../../scraper/failures.js';
 import type { AdapterDeps, NormalizedOffer } from '../../scraper/adapters/types.js';
@@ -18,7 +19,6 @@ import {
   matchedTargetOf,
   PREFILTERED_REASON,
   PREFILTERED_SCORE,
-  SCORING_BATCH_SIZE,
   ScoredOffersSchema,
 } from '../offers/scoring.js';
 import { fingerprintOf, type Pace, paceAfter } from './pacing.js';
@@ -48,6 +48,11 @@ export interface PassContext {
   sources: readonly SourceRow[];
   /** EF-VEI-15: score S at or above which an offer counts as relevant. */
   threshold: number;
+  /**
+   * EF-IA-08, EF-IA-09: `scheduled` for the pass of 7, 13 and 19 o'clock, which the local model leads; `attended` (the
+   * default) for the pass the candidate asked for, which the hosted providers lead.
+   */
+  mode?: RunMode;
 }
 
 export interface WatchPass {
@@ -58,12 +63,6 @@ export interface WatchPass {
    */
   run: (context: PassContext) => Promise<WatchReport>;
 }
-
-const batches = <T>(items: readonly T[], size: number): T[][] => {
-  const chunks: T[][] = [];
-  for (let at = 0; at < items.length; at += size) chunks.push(items.slice(at, at + size));
-  return chunks;
-};
 
 interface Score {
   score: number;
@@ -94,7 +93,8 @@ interface ScorerDeps {
 
 /**
  * EF-VEI-12 to EF-VEI-14: gives every new offer a score. RG-10 sets aside what carries no keyword of a target,
- * which costs no AI call at all; the rest is scored fifteen at a time (ENF-COU-01).
+ * which costs no AI call at all; the rest is scored in batches (ENF-COU-01), fifteen at a time by the hosted providers
+ * and in the smaller batches of the local model while it serves (EF-IA-12).
  */
 const createScorer = ({ router }: ScorerDeps) => {
   /**
@@ -104,10 +104,11 @@ const createScorer = ({ router }: ScorerDeps) => {
   const scoreBatch = async (
     context: PassContext,
     offers: readonly OfferToScore[],
+    descriptionChars: number,
   ): Promise<Map<number, Score>> => {
     const { data } = await router.runTask('score_offers', {
       userId: context.userId,
-      ...buildScoreOffersPrompt(context.scoring, offers),
+      ...buildScoreOffersPrompt(context.scoring, offers, { descriptionChars }),
       schema: ScoredOffersSchema,
     });
     return new Map(data.offers.map((scored) => [scored.ref, { score: scored.score, reason: scored.reason }]));
@@ -119,10 +120,15 @@ const createScorer = ({ router }: ScorerDeps) => {
     const referenceOf = new Map(worth.map((offer, index) => [offer, index + 1]));
     const scores = new Map<number, Score>();
 
-    for (const batch of batches(worth, SCORING_BATCH_SIZE)) {
+    // The limits are read before each batch: a local model that went off in the middle hands over to the hosted ones.
+    const waiting = [...worth];
+    while (waiting.length > 0) {
+      const limits = router.limitsFor?.('score_offers') ?? HOSTED_BATCH_LIMITS;
+      const batch = waiting.splice(0, limits.batchSize);
       const scored = await scoreBatch(
         context,
         batch.map((offer) => ({ ...offer, ref: referenceOf.get(offer) ?? 0 })),
+        limits.descriptionChars,
       );
       for (const [reference, value] of scored) scores.set(reference, value);
     }
@@ -155,28 +161,29 @@ const noteWhatIsStillPublished = async (
   }: { source: SourceRow; found: readonly NormalizedOffer[]; known: ReadonlySet<string>; checkedAt: Date },
 ): Promise<Pace> => {
   const ids = found.map((offer) => offer.externalId);
-  await repository.touchOffers(db, source.id, { externalIds: ids.filter((id) => known.has(id)), seenAt: checkedAt });
+  await repository.touchOffers(db, source.id, {
+    externalIds: ids.filter((id) => known.has(id)),
+    seenAt: checkedAt,
+  });
   return paceAfter(
     { fingerprint: source.offersFingerprint, unchangedChecks: source.unchangedChecks },
     { fingerprint: fingerprintOf(ids), checkedAt },
   );
 };
 
-export const createWatchPass = ({
-  db,
-  clock,
-  router,
-  collect,
-  officialApis,
-  logger,
-}: WatchPassDeps): WatchPass => {
-  const scoreOffers = createScorer({ router });
+/** One pass: its router (routes of its mode, its own failures) and the scorer that goes with it. */
+interface PassWork {
+  llm: LlmRouter;
+  scoreOffers: ReturnType<typeof createScorer>;
+}
 
-  /** One source: read, kept apart from what is already known (EF-VEI-09), scored, then stored. */
-  const checkSource = async (context: PassContext, source: SourceRow): Promise<SourceOutcome> => {
+/** One source: read, kept apart from what is already known (EF-VEI-09), scored, then stored. */
+const createSourceChecker =
+  ({ db, clock, collect, officialApis }: WatchPassDeps) =>
+  async (context: PassContext, source: SourceRow, work: PassWork): Promise<SourceOutcome> => {
     const found = await adapterFor(source.adapter).fetchOffers(source.identifier, {
       fetch: collect,
-      runTask: (task, input) => router.runTask(task, { ...input, userId: context.userId }),
+      runTask: (task, input) => work.llm.runTask(task, { ...input, userId: context.userId }),
       official: {
         criteria: context.criteria,
         since: source.lastCheckedAt,
@@ -191,7 +198,7 @@ export const createWatchPass = ({
     const fresh = found.filter((offer) => !known.has(offer.externalId));
     if (fresh.length === 0) return { found: found.length, added: 0, relevant: 0, pace };
 
-    const scored = await scoreOffers(context, fresh);
+    const scored = await work.scoreOffers(context, fresh);
     return {
       found: found.length,
       added: await repository.insertOffers(db, source.id, { offers: scored, seenAt: checkedAt }),
@@ -200,19 +207,30 @@ export const createWatchPass = ({
     };
   };
 
+export const createWatchPass = (deps: WatchPassDeps): WatchPass => {
+  const { db, clock, router, logger } = deps;
+  const checkSource = createSourceChecker(deps);
+
   return {
     async run(context) {
       const report = emptyReport(context.threshold);
+      // EF-IA-08, EF-IA-14: one router for the whole pass, with the routes of its mode and its own count of failures.
+      const llm = router.forMode?.(context.mode ?? 'attended') ?? router;
+      const work: PassWork = { llm, scoreOffers: createScorer({ router: llm }) };
       // Sources are read one after the other: the collector already spaces its calls, and a career page costs an
       // AI call. What matters is that a failure stays on its own source (ENF-FIA-02).
       for (const source of context.sources) {
         try {
-          const outcome = await checkSource(context, source);
+          const outcome = await checkSource(context, source, work);
           report.sourcesChecked += 1;
           report.offersFound += outcome.found;
           report.offersNew += outcome.added;
           report.offersRelevant += outcome.relevant;
-          await repository.recordCheck(db, source.id, { checkedAt: clock(), error: null, pace: outcome.pace });
+          await repository.recordCheck(db, source.id, {
+            checkedAt: clock(),
+            error: null,
+            pace: outcome.pace,
+          });
         } catch (error) {
           report.sourcesFailed += 1;
           logger.warn('watched source failed', { sourceId: source.id, adapter: source.adapter, error });
