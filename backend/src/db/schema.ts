@@ -163,6 +163,9 @@ export const runCounter = pgEnum('run_counter', [
   // EF-VEI-38, EF-VEI-39: companies whose career page was looked for, and sources found and verified.
   'companies_searched',
   'sources_verified',
+  // EF-CFG-09 (v1.35): calls a pass made to the local model, and to the providers that took over from it.
+  'model_calls_local',
+  'model_calls_fallback',
 ]);
 // EF-VEI-39 (v1.33): what the search of a career page concluded.
 export const discoveryStatus = pgEnum('discovery_status', ['verified', 'unconfirmed', 'not_found']);

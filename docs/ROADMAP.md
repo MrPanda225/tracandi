@@ -1059,6 +1059,10 @@ développeur l'active sur son poste (`ENABLED_FEATURES=watch,cv`) le temps d'y t
   *Fini quand* : passage simulé : état et compteurs affichés sans contenu ; libellé « secours » ; adresse et jeton
   absents de l'API.
   *Dépend de* : T-1008, T-1013.
+  *Livré (API, première partie)* : migration `0029` (compteurs `model_calls_local` et `model_calls_fallback`) ; le
+  passage compte quel type de fournisseur a répondu à chacun de ses appels ; `GET /api/watch/automatic` donne pour chaque
+  passage du jour `ledBy` (`local`, `fallback` ou `null`) et, au premier niveau, `lastSuccessAt` (dernier passage
+  planifié réussi, de n'importe quel jour). *Reste à faire* : l'écran.
 - [x] **T-1015 Garde-fous transversaux de l'agent** — tests et corrections pour les trois garanties qui traversent
   les tâches : aucune requête sortante vers une adresse venue du modèle, journaux sans contenu, prompts sans
   coordonnées.

@@ -1,4 +1,4 @@
-import { and, arrayContains, asc, eq, gte, inArray } from 'drizzle-orm';
+import { and, arrayContains, asc, desc, eq, gte, inArray, isNotNull } from 'drizzle-orm';
 import type { Database } from '../../db/client.js';
 import { appSettings, jobRunCounters, jobRuns } from '../../db/schema.js';
 import type { WatchSlot } from './slots.js';
@@ -99,4 +99,28 @@ export const listPassesSince = async (
       counters.filter((row) => row.runId === id).map((row) => [row.counter, row.value]),
     ),
   }));
+};
+
+/**
+ * When the last scheduled pass of this user that succeeded ended, whichever day it was. A pass that was ignored or
+ * failed, and the pass the candidate asked for (it has no slot), are not one. Served by the index
+ * `ix_job_runs_user_job_started` (user, job, start).
+ * @req EF-CFG-08
+ */
+export const findLastSuccessAt = async (db: Database, userId: number): Promise<Date | null> => {
+  const [row] = await db
+    .select({ finishedAt: jobRuns.finishedAt })
+    .from(jobRuns)
+    .where(
+      and(
+        eq(jobRuns.userId, userId),
+        eq(jobRuns.job, 'scraper'),
+        eq(jobRuns.outcome, 'success'),
+        isNotNull(jobRuns.slot),
+        isNotNull(jobRuns.finishedAt),
+      ),
+    )
+    .orderBy(desc(jobRuns.startedAt))
+    .limit(1);
+  return row?.finishedAt ?? null;
 };

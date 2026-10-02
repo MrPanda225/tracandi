@@ -71,6 +71,8 @@ const emptyReport = (threshold: number): WatchReport => ({
   offersNew: 0,
   offersRelevant: 0,
   offersUnscored: 0,
+  modelCallsLocal: 0,
+  modelCallsFallback: 0,
   threshold,
 });
 
@@ -148,6 +150,20 @@ const createSourceChecker =
     };
   };
 
+/**
+ * EF-CFG-09: the same router, counting in the report which kind of provider answered each call — the local model, or
+ * the ones that took over from it. The count carries no name, no address and no content.
+ */
+const countingModelCalls = (base: LlmRouter, report: WatchReport): LlmRouter => ({
+  ...base,
+  runTask: async (task, input) => {
+    const result = await base.runTask(task, input);
+    if (result.provider === 'local') report.modelCallsLocal += 1;
+    else report.modelCallsFallback += 1;
+    return result;
+  },
+});
+
 export const createWatchPass = (deps: WatchPassDeps): WatchPass => {
   const { db, clock, router, logger, limits } = deps;
   const checkSource = createSourceChecker(deps);
@@ -189,7 +205,7 @@ export const createWatchPass = (deps: WatchPassDeps): WatchPass => {
       const startedAt = clock();
       const deadline = deadlineOf(startedAt, limits?.maxPassMinutes);
       // EF-IA-08, EF-IA-14: one router for the whole pass, with the routes of its mode and its own count of failures.
-      const llm = router.forMode?.(context.mode ?? 'attended') ?? router;
+      const llm = countingModelCalls(router.forMode?.(context.mode ?? 'attended') ?? router, report);
       // Sources are read one after the other: the collector already spaces its calls, and a career page costs an
       // AI call. A pass that ran out of time reads no further source: its window picks the rest up (EF-VEI-53).
       for (const source of context.sources) {

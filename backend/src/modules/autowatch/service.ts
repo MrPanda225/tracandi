@@ -4,6 +4,12 @@ import { startOfParisDay } from '../../lib/parisTime.js';
 import * as repository from './repository.js';
 import type { AutomaticWatch, AutomaticWatchBody } from './schemas.js';
 
+/** EF-CFG-09: which kind of provider led a pass, from the calls it counted — null when it asked none. */
+const ledByOf = (counters: Record<string, number>): 'local' | 'fallback' | null => {
+  if ((counters['model_calls_fallback'] ?? 0) > 0) return 'fallback';
+  return (counters['model_calls_local'] ?? 0) > 0 ? 'local' : null;
+};
+
 export interface AutomaticWatchService {
   /** The choice of the candidate and the scheduled passes of today. @req EF-CFG-07, EF-CFG-08 */
   read: (userId: number) => Promise<AutomaticWatch>;
@@ -26,17 +32,20 @@ export const createAutomaticWatchService = ({
   clock,
 }: AutomaticWatchServiceDeps): AutomaticWatchService => {
   const read = async (userId: number): Promise<AutomaticWatch> => {
-    const [settings, passes] = await Promise.all([
+    const [settings, passes, lastSuccess] = await Promise.all([
       repository.findSettings(db, userId),
       repository.listPassesSince(db, { userId, since: startOfParisDay(clock()) }),
+      repository.findLastSuccessAt(db, userId),
     ]);
     return {
       ...settings,
+      lastSuccessAt: lastSuccess?.toISOString() ?? null,
       passes: passes.map(({ error, startedAt, finishedAt, ...pass }) => ({
         ...pass,
         startedAt: startedAt.toISOString(),
         finishedAt: finishedAt?.toISOString() ?? null,
         message: error,
+        ledBy: ledByOf(pass.counters),
       })),
     };
   };

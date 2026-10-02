@@ -24,6 +24,7 @@ let alice: string;
 let bob: string;
 let search: ReturnType<typeof vi.fn<FranceTravailApi['search']>>;
 let aiDown: boolean;
+let localDown: boolean;
 
 const CRITERIA = {
   targets: [
@@ -35,11 +36,12 @@ const CRITERIA = {
   romeCodes: [],
 };
 
-const scoringAi: LlmProvider = {
-  name: 'gemini',
+/** The model of the test, local or hosted: it scores every offer it is given, unless it is down. */
+const scoringAi = (name: 'local' | 'gemini'): LlmProvider => ({
+  name,
   model: 'test',
   complete: ({ prompt }) => {
-    if (aiDown) return Promise.reject(new Error('model unreachable'));
+    if (aiDown || (name === 'local' && localDown)) return Promise.reject(new Error('model unreachable'));
     const refs = [...prompt.matchAll(/<offer ref="(\d+)">/gu)].map((match) => Number(match[1]));
     return Promise.resolve({
       text: JSON.stringify({
@@ -49,7 +51,7 @@ const scoringAi: LlmProvider = {
       outputTokens: 5,
     });
   },
-};
+});
 
 const ALL_SLOTS = ['morning', 'noon', 'evening'];
 
@@ -102,9 +104,10 @@ const userIdOf = async (email: string) => {
 beforeEach(async () => {
   await truncateAll(database);
   aiDown = false;
+  localDown = false;
   search = vi.fn<FranceTravailApi['search']>(() => Promise.resolve(FIXTURE.resultats));
   context = createTestContext(database, {
-    aiProviders: { gemini: scoringAi },
+    aiProviders: { local: scoringAi('local'), gemini: scoringAi('gemini') },
     official: { franceTravail: { search } },
   });
   context.clock.set(AT.morning);
@@ -123,7 +126,7 @@ describe('automatic watch settings (T-1008, EF-CFG-07)', () => {
   it('[EF-CFG-07] is off by default, with the three slots offered', async () => {
     const response = await as(alice).get('/api/watch/automatic').expect(200);
 
-    expect(response.body).toEqual({ enabled: false, slots: ALL_SLOTS, passes: [] });
+    expect(response.body).toEqual({ enabled: false, slots: ALL_SLOTS, lastSuccessAt: null, passes: [] });
   });
 
   it('[EF-CFG-07] activates the watch with the slots chosen, and gives them back', async () => {
@@ -176,6 +179,7 @@ describe('automatic watch settings (T-1008, EF-CFG-07)', () => {
     expect((await as(bob).get('/api/watch/automatic')).body).toEqual({
       enabled: false,
       slots: ALL_SLOTS,
+      lastSuccessAt: null,
       passes: [],
     });
   });
@@ -384,5 +388,99 @@ describe('a pass still running at the next slot (T-1008, EF-EXE-08)', () => {
     expect(evening.passes.find((pass) => pass.slot === 'evening')?.counters).toMatchObject({
       offers_unscored: 0,
     });
+  });
+});
+
+describe('which model led the pass, and when the last one succeeded (T-1014, EF-CFG-08, EF-CFG-09)', () => {
+  interface Read {
+    lastSuccessAt: string | null;
+    passes: { slot: string; ledBy: string | null; counters: Record<string, number> }[];
+  }
+  const read = async () => (await as(alice).get('/api/watch/automatic').expect(200)).body as Read;
+
+  it('[EF-CFG-09] says the local model led a pass it scored with', async () => {
+    await automatic(alice, true).expect(200);
+
+    await scheduledPassAt('morning');
+
+    expect((await read()).passes[0]).toMatchObject({ slot: 'morning', ledBy: 'local' });
+  });
+
+  it('[EF-CFG-09] says « fallback » when the local model could not answer and a hosted provider did', async () => {
+    await automatic(alice, true).expect(200);
+    localDown = true;
+
+    await scheduledPassAt('morning');
+
+    expect((await read()).passes[0]).toMatchObject({ ledBy: 'fallback' });
+  });
+
+  it('[EF-CFG-09] says nothing of a pass that asked no model: nothing new to score, nothing to read', async () => {
+    await automatic(alice, true).expect(200);
+    await scheduledPassAt('morning');
+    await scheduledPassAt('noon');
+    await scheduledPassAt('evening');
+
+    const { passes } = await read();
+
+    // The morning scored the new offers; the next two found nothing more to ask a model about.
+    expect(passes.map((pass) => pass.ledBy)).toEqual(['local', null, null]);
+  });
+
+  it('[EF-CFG-09] says nothing of a pass that was ignored', async () => {
+    await automatic(bob, true).expect(200);
+
+    await scheduledPassAt('morning');
+
+    expect((await as(bob).get('/api/watch/automatic').expect(200)).body).toMatchObject({
+      passes: [{ outcome: 'skipped', ledBy: null }],
+    });
+  });
+
+  it('[EF-CFG-09] [ENF-SEC-25] never shows an address, a token nor the name of a model', async () => {
+    await automatic(alice, true).expect(200);
+    await scheduledPassAt('morning');
+
+    const text = JSON.stringify(await read());
+
+    expect(text).not.toMatch(/https?:|192\.168|token|baseUrl|apiKey|local-test|gemini-test/iu);
+  });
+
+  it('[EF-CFG-08] gives the date of the last successful pass, whichever day it was', async () => {
+    await automatic(alice, true).expect(200);
+    expect((await read()).lastSuccessAt).toBeNull();
+
+    await scheduledPassAt('morning');
+    const first = (await read()).lastSuccessAt;
+    context.clock.advanceDays(3);
+
+    expect(first).not.toBeNull();
+    // Three days later nothing ran: the passes of the day are none, the last success is still the morning's.
+    expect((await read()).passes).toEqual([]);
+    expect((await read()).lastSuccessAt).toBe(first);
+  });
+
+  it('[EF-CFG-08] leaves an ignored pass, a failed one and the pass the candidate asked for out of the last success', async () => {
+    await automatic(alice, true).expect(200);
+    const aliceId = await userIdOf('alice@example.com');
+    await context.watch.checkNow(aliceId);
+    await context.queue.drain();
+    expect((await read()).lastSuccessAt).toBeNull();
+
+    await automatic(bob, true).expect(200);
+    await scheduledPassAt('morning');
+    expect((await as(bob).get('/api/watch/automatic').expect(200)).body).toMatchObject({
+      lastSuccessAt: null,
+    });
+  });
+
+  it('[EF-CFG-08] counts the calls to a model by kind, without any content', async () => {
+    await automatic(alice, true).expect(200);
+
+    await scheduledPassAt('morning');
+
+    const { passes } = await read();
+    expect(passes[0]?.counters).toMatchObject({ model_calls_local: 1 });
+    expect(passes[0]?.counters['model_calls_fallback']).toBeUndefined();
   });
 });

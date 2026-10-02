@@ -36,6 +36,11 @@ const PassSchema = z
     counters: z.record(z.string(), z.number().int()),
     /** Why a pass was ignored or failed (EF-VEI-55). */
     message: z.string().nullable(),
+    /**
+     * EF-CFG-09: « local » when the models that answered were all the local one, « fallback » when a provider took over
+     * from it, null when the pass asked no model. Never an address, a token nor the name of a model (ENF-SEC-25).
+     */
+    ledBy: z.enum(['local', 'fallback']).nullable(),
   })
   .openapi('AutomaticWatchPass');
 
@@ -43,6 +48,8 @@ export const AutomaticWatchSchema = z
   .object({
     enabled: z.boolean(),
     slots: z.array(WatchSlotSchema),
+    /** EF-CFG-08: when the last scheduled pass that succeeded ended, whichever day it was; null before the first. */
+    lastSuccessAt: z.string().datetime().nullable(),
     /** The scheduled passes of today, Paris time, in the order they were started. */
     passes: z.array(PassSchema),
   })

@@ -122,6 +122,9 @@ export const WatchReportSchema = z
     offersRelevant: z.number().int(),
     /** EF-VEI-54: offers kept but still waiting for a score after this pass. */
     offersUnscored: z.number().int(),
+    /** EF-CFG-09: how many calls the pass made to the local model, and to the providers that took over from it. */
+    modelCallsLocal: z.number().int(),
+    modelCallsFallback: z.number().int(),
     threshold: z.number().int(),
   })
   .openapi('WatchReport');

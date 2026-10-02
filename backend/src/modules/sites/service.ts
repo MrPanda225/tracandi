@@ -97,6 +97,8 @@ const EMPTY_REPORT = (threshold: number): WatchReport => ({
   offersNew: 0,
   offersRelevant: 0,
   offersUnscored: 0,
+  modelCallsLocal: 0,
+  modelCallsFallback: 0,
   threshold,
 });
 
@@ -225,6 +227,9 @@ const countersOf = (report: WatchReport): RunCounters => ({
   offers_new: report.offersNew,
   offers_relevant: report.offersRelevant,
   offers_unscored: report.offersUnscored,
+  // EF-CFG-09: only the kinds that were used: a pass that asked no model has neither.
+  ...(report.modelCallsLocal > 0 ? { model_calls_local: report.modelCallsLocal } : {}),
+  ...(report.modelCallsFallback > 0 ? { model_calls_fallback: report.modelCallsFallback } : {}),
 });
 
 /**
