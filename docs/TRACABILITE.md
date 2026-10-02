@@ -260,3 +260,21 @@ Commande de contrôle : `/project:check-req EF-CAN-07`.
 | EF-CAN-01 (v1.32), EF-CAN-20, EF-CAN-24 | T-905 | `backend/tests/integration/applications.test.ts` (plus récente d'abord par défaut, ordre inverse, par entreprise dans les deux sens, par statut ; période en jours de Paris, borne haute incluse ; jour inexistant, format faux, période inversée et tri inconnu refusés) ; `applications-query-plans.test.ts` (période sans parcours complet ; chaque tri de 1 000 candidatures en moins de 200 ms) ; `src/lib/parisTime.test.ts` (jours de 23 et 25 heures) ; `frontend/src/pages/applications/ApplicationsPage.test.tsx` (ordre par défaut demandé à l'API, ordre choisi, période, regroupement par entreprise dans ce seul tri) | couverte |
 | EF-CAN-22 | T-905 | — | à faire |
 | RG-20 (v1.32) | T-906 | — | à faire |
+| EF-IA-07, EF-IA-05, ENF-COU-02, ENF-SEC-24, ENF-SEC-25, ENF-MAI-09 (v1.35) | T-1001 | — | à faire |
+| EF-IA-10, EF-IA-11, EF-IA-02 (modifiée) (v1.35) | T-1002 | — | à faire |
+| EF-IA-08, EF-IA-09, EF-IA-12, EF-IA-13, EF-IA-14, RG-13 (modifiée) (v1.35) | T-1003 | — | à faire |
+| EF-VEI-52, EF-VEI-53, EF-VEI-10 (modifiée), RG-30 (v1.35) | T-1004 | — | à faire |
+| EF-VEI-54, EF-EXE-07, RG-31, ENF-FIA-11, ENF-PERF-09 (v1.35) | T-1005 | — | à faire |
+| RG-28, RG-29, EF-VEI-43 (calcul), EF-VEI-44 (v1.35) | T-1006 | — | à faire |
+| EF-VEI-50, EF-VEI-31 (modifiée), RG-09 (modifiée) (v1.35) | T-1007 | — | à faire |
+| EF-VEI-51, EF-VEI-55, EF-EXE-08, EF-VEI-06 (modifiée), EF-VEI-42 (modifiée), EF-CFG-07 (API) (v1.35) | T-1008 | — | à faire |
+| EF-CVX-39, EF-CVX-40, EF-CVX-41, EF-CVX-42, ENF-RGP-14 (CV) (v1.35) | T-1009 | — | à faire |
+| EF-CVX-43, EF-CVX-44, EF-VEI-43, EF-VEI-45, ENF-RGP-13 (v1.35) | T-1010 | — | à faire |
+| EF-VEI-46, EF-VEI-47 (v1.35) | T-1011 | — | à faire |
+| EF-VEI-48, EF-VEI-49, ENF-RGP-14 (offres) (v1.35) | T-1012 | — | à faire |
+| EF-CFG-06 (v1.35) | T-1013 | — | à faire |
+| EF-CFG-07, EF-CFG-08, EF-CFG-09 (v1.35) | T-1014 | — | à faire |
+| ENF-COL-06, ENF-RGP-12, ENF-RGP-13 (v1.35) | T-1015 | — | à faire |
+| ENF-RGP-02, ENF-RGP-05, ENF-RGP-06, ENF-RGP-08, ENF-MAI-07 (v1.35) | T-1016 | — | à faire |
+| ADR-17, ENF-SEC-24 (v1.35) | T-1017 | — | à faire |
+| EF-IA-15 (v1.35) | T-1018 | — | à faire |
