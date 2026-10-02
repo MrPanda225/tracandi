@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { LocalLlmConfig } from '../../config/env.js';
 import type { LlmCompletion, LlmProvider, LlmRequest, ProviderName } from '../types.js';
 
 /** Groq's OpenAI-compatible endpoint, host of the free models of RG-13 (v1.7). */
@@ -47,6 +48,14 @@ export interface OpenAiCompatibleDeps {
   /** Root of the API, without a trailing slash (`https://api.groq.com/openai/v1`). */
   baseUrl: string;
   apiKey: string;
+  /**
+   * ADR-16: asks a model that reasons by default not to (`reasoning_effort: "none"`). On the local server a reasoning
+   * model uses up the whole output ceiling thinking and answers nothing; the hosted services refuse this value, so
+   * only the local model sets it.
+   */
+  reasoningEffort?: 'none';
+  /** ENF-SEC-25: a failure to reach the server tells neither its address nor the token (the local model). */
+  redactNetworkErrors?: boolean;
   /** Injected so that tests never reach the network (testing.md). */
   fetchImpl?: typeof fetch;
 }
@@ -63,12 +72,12 @@ export const createOpenAiCompatibleProvider = ({
   model,
   baseUrl,
   apiKey,
+  reasoningEffort,
+  redactNetworkErrors = false,
   fetchImpl = fetch,
-}: OpenAiCompatibleDeps): LlmProvider => ({
-  name,
-  model,
-  async complete({ system, prompt, maxOutputTokens, signal }: LlmRequest): Promise<LlmCompletion> {
-    const response = await fetchImpl(`${baseUrl}/chat/completions`, {
+}: OpenAiCompatibleDeps): LlmProvider => {
+  const send = ({ system, prompt, maxOutputTokens, signal }: LlmRequest): Promise<Response> =>
+    fetchImpl(`${baseUrl}/chat/completions`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -76,29 +85,41 @@ export const createOpenAiCompatibleProvider = ({
         max_tokens: maxOutputTokens,
         // The router validates the answer against the schema of the task; JSON mode spares it a prose answer.
         response_format: { type: 'json_object' },
+        ...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
         messages: [
           { role: 'system', content: system },
           { role: 'user', content: prompt },
         ],
       }),
       signal,
+    }).catch((error: unknown) => {
+      // An abort is the router's own timeout and tells nothing; any other network error names the host it tried.
+      if (!redactNetworkErrors || signal.aborted) throw error;
+      throw new Error(`${model}: the model server could not be reached`);
     });
-    if (!response.ok) {
-      throw Object.assign(new Error(`${model}: ${await describeFailure(response)}`), {
-        status: response.status,
-        retryAfterMs: retryAfterMsOf(response),
-      });
-    }
-    const answer = CompletionSchema.parse(await response.json());
-    const text = answer.choices?.[0]?.message?.content;
-    if (!text) throw new Error(`${model} answered with no text`);
-    return {
-      text,
-      inputTokens: answer.usage?.prompt_tokens ?? null,
-      outputTokens: answer.usage?.completion_tokens ?? null,
-    };
-  },
-});
+
+  return {
+    name,
+    model,
+    async complete(request: LlmRequest): Promise<LlmCompletion> {
+      const response = await send(request);
+      if (!response.ok) {
+        throw Object.assign(new Error(`${model}: ${await describeFailure(response)}`), {
+          status: response.status,
+          retryAfterMs: retryAfterMsOf(response),
+        });
+      }
+      const answer = CompletionSchema.parse(await response.json());
+      const text = answer.choices?.[0]?.message?.content;
+      if (!text) throw new Error(`${model} answered with no text`);
+      return {
+        text,
+        inputTokens: answer.usage?.prompt_tokens ?? null,
+        outputTokens: answer.usage?.completion_tokens ?? null,
+      };
+    },
+  };
+};
 
 /** Configuration of one model behind an OpenAI-compatible service. */
 export interface OpenAiCompatibleConfig {
@@ -124,3 +145,19 @@ export const connectGroq = (apiKey: string, models: Partial<Record<ProviderName,
         ]
       : [],
   );
+
+/**
+ * The local model of the operator (EF-IA-07, ADR-16): an OpenAI-compatible service such as Ollama, behind the address
+ * and the token of the configuration (ENF-SEC-24), asked not to reason, and never telling where it is (ENF-SEC-25).
+ * @req EF-IA-07, ENF-SEC-24, ENF-SEC-25
+ */
+export const connectLocal = (config: LocalLlmConfig, fetchImpl?: typeof fetch): LlmProvider =>
+  createOpenAiCompatibleProvider({
+    name: 'local',
+    model: config.model,
+    baseUrl: config.baseUrl,
+    apiKey: config.apiKey,
+    reasoningEffort: 'none',
+    redactNetworkErrors: true,
+    ...(fetchImpl ? { fetchImpl } : {}),
+  });

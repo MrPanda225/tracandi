@@ -42,4 +42,25 @@ describe('describeAssignments', () => {
     expect(providers).toEqual([{ name: 'gemini', model: 'gemini-3.6-flash' }]);
     expect(tasks.every((task) => task.providers.join() === 'gemini')).toBe(true);
   });
+
+  it('[EF-IA-07] [ENF-SEC-25] lists the local model with its name only, never its address nor its token, and routes no task to it yet', () => {
+    const configured = {
+      local: {
+        apiKey: 'local-secret-token',
+        model: 'qwen3.5:4b',
+        baseUrl: 'http://192.168.1.54:11434/v1',
+      },
+      gemini: { model: 'gemini-3.6-flash' },
+    };
+
+    const assignments = describeAssignments(configured);
+
+    expect(assignments.providers).toEqual([
+      { name: 'local', model: 'qwen3.5:4b' },
+      { name: 'gemini', model: 'gemini-3.6-flash' },
+    ]);
+    // T-1001: no route cites the local model before T-1003 (RG-13 v1.35).
+    expect(assignments.tasks.every((task) => !task.providers.includes('local'))).toBe(true);
+    expect(JSON.stringify(assignments)).not.toMatch(/local-secret-token|192\.168\.1\.54/);
+  });
 });

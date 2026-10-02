@@ -84,4 +84,24 @@ describe('LLM calls journal', () => {
     ]);
     expect(rows.every((row) => row.durationMs >= 0)).toBe(true);
   });
+
+  it('[EF-IA-07] [ENF-COU-02] stores a call of the local model under the provider « local », without content', async () => {
+    await createLlmJournal(database.db)({
+      userId,
+      task: 'score_offers',
+      provider: 'local',
+      model: 'qwen3.5:4b',
+      outcome: 'success',
+      durationMs: 36_200,
+      inputTokens: 167,
+      outputTokens: 145,
+    });
+
+    const rows = await database.db
+      .select({ provider: llmCalls.provider, model: llmCalls.model, outputTokens: llmCalls.outputTokens })
+      .from(llmCalls)
+      .where(eq(llmCalls.userId, userId));
+
+    expect(rows).toEqual([{ provider: 'local', model: 'qwen3.5:4b', outputTokens: 145 }]);
+  });
 });
