@@ -183,6 +183,13 @@
       "when": 1790957255788,
       "tag": "0025_watch_slots",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1790958086759,
+      "tag": "0026_cv_types",
+      "breakpoints": true
     }
   ]
 }

@@ -128,6 +128,8 @@ export const jobName = pgEnum('job_name', [
   'cv_analysis',
   // EF-VEI-40 (v1.33): the search of the career pages of the companies applied to.
   'source_discovery',
+  // EF-CVX-43 (v1.35): the reading of a CV type and what the model deduces from it.
+  'profile_deduction',
 ]);
 export const triggerType = pgEnum('trigger_type', ['schedule', 'manual']);
 // EF-CFG-07, EF-VEI-51 (v1.35): the three moments of the day when the watch runs for a candidate, and the slot a
@@ -235,6 +237,33 @@ export const watchCriteria = pgTable('watch_criteria', {
   document: jsonb().notNull(),
   updatedAt: instant().notNull().defaultNow(),
 });
+
+// EF-VEI-44, RG-28 (v1.35): junior 0 to 2 years, confirmé 3 to 7, senior 8 and more.
+export const experienceLevel = pgEnum('experience_level', ['junior', 'confirme', 'senior']);
+
+/**
+ * EF-CVX-39 to EF-CVX-42, ENF-RGP-14 (v1.35): a CV type of the candidate. Only its label, the years of experience
+ * worked out from it and their level are kept — never the file, never its text. A row with no years yet is a CV
+ * type read but not deduced from.
+ */
+export const cvTypes = pgTable(
+  'cv_types',
+  {
+    id: integer().primaryKey().generatedAlwaysAsIdentity(),
+    userId: integer()
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    label: varchar({ length: 80 }).notNull(),
+    years: smallint(),
+    level: experienceLevel(),
+    createdAt: createdAt(),
+    updatedAt: createdAt(),
+  },
+  (t) => [
+    index('ix_cv_types_user').on(t.userId),
+    check('ck_cv_types_years', sql`${t.years} is null or ${t.years} between 0 and 50`),
+  ],
+);
 
 // ---------- Reference data ----------
 export const companies = pgTable(

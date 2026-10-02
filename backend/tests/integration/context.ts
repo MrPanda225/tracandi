@@ -6,7 +6,7 @@ import { createApp } from '../../src/app.js';
 import { emails, processedMessages } from '../../src/db/schema.js';
 import { connectDatabase, type DatabaseHandle } from '../../src/db/client.js';
 import { createJobQueue, type JobQueue } from '../../src/jobs/queue.js';
-import { createPdfOcr } from '../../src/modules/cvWorkshop/ocr.js';
+import { createPdfOcr, type PdfOcr } from '../../src/modules/cvWorkshop/ocr.js';
 import { createAnalysisResults } from '../../src/modules/cvWorkshop/results.js';
 import { createCvWorkshopModule } from '../../src/modules/cvWorkshop/routes.js';
 import { type CvAnalysis, createCvWorkshopService } from '../../src/modules/cvWorkshop/service.js';
@@ -39,6 +39,8 @@ import { createStatsService } from '../../src/modules/stats/service.js';
 import { createAutomaticWatchModule } from '../../src/modules/autowatch/routes.js';
 import { createAutomaticWatchService } from '../../src/modules/autowatch/service.js';
 import { createCriteriaModule } from '../../src/modules/criteria/routes.js';
+import { createCvTypesModule } from '../../src/modules/cvTypes/routes.js';
+import { createCvTypesService } from '../../src/modules/cvTypes/service.js';
 import { createOffersModule } from '../../src/modules/offers/routes.js';
 import { createOffersService } from '../../src/modules/offers/service.js';
 import { createCriteriaService } from '../../src/modules/criteria/service.js';
@@ -162,6 +164,8 @@ export interface ExternalServices {
    * without SIREN search, the watch does without it.
    */
   official?: Partial<OfficialDoubles>;
+  /** EF-CVX-22: the OCR of the scanned pages of an imported CV; the real one (tesseract on this machine) by default. */
+  ocr?: PdfOcr;
   /** ENF-MAI-07: the optional features of this deployment; every one by default. */
   features?: EnabledFeatures;
   /** BES-39: proxies in front of the API (Vercel, Northflank); none by default. */
@@ -169,6 +173,9 @@ export interface ExternalServices {
   /** EF-EXE-07, ENF-PERF-09: ceilings of a pass of the watch; those of the server by default. */
   watchLimits?: { maxScoredOffersPerPass?: number; maxPassMinutes?: number };
 }
+
+/** The OCR a test passes, or the real one (tesseract on this machine). */
+const ocrOf = (ocr: PdfOcr | undefined): PdfOcr => ocr ?? createPdfOcr();
 
 /** Real application on the local test database, with an injectable clock and fake external services. */
 export const createTestContext = (
@@ -180,6 +187,7 @@ export const createTestContext = (
     collect = unreachableCollector,
     places = knownPlaces,
     official = {},
+    ocr,
     features = new Set(OPTIONAL_FEATURES),
     trustProxyHops = 0,
     watchLimits,
@@ -267,7 +275,7 @@ export const createTestContext = (
         createCvWorkshopModule(
           createCvWorkshopService({
             queue,
-            ocr: createPdfOcr(),
+            ocr: ocrOf(ocr),
             router: llmRouter,
             results: createAnalysisResults<CvAnalysis>(),
             clock: clock.now,
@@ -282,6 +290,9 @@ export const createTestContext = (
         createSitesModule(watch),
         createOffersModule(createOffersService({ db: database.db, clock: clock.now })),
         createCriteriaModule(criteria),
+        createCvTypesModule(
+          createCvTypesService({ db: database.db, clock: clock.now, queue, ocr: ocrOf(ocr) }),
+        ),
         createAutomaticWatchModule(createAutomaticWatchService({ db: database.db, clock: clock.now })),
       ),
     ],
@@ -344,4 +355,22 @@ export const giveContact = async (
     .returning({ id: emails.id });
   if (!row) throw new Error('contact message not stored');
   return row.id;
+};
+
+/**
+ * ENF-RGP-14: the tables of the database that hold this text somewhere in a row, whatever the column. Every table of
+ * the application is read as text, so that a column added later is covered without anyone remembering it.
+ */
+export const tablesHolding = async (database: DatabaseHandle, needle: string): Promise<string[]> => {
+  const tables = await database.db.execute<{ table_name: string }>(
+    sql`SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE'`,
+  );
+  const holding: string[] = [];
+  for (const { table_name: name } of tables.rows) {
+    const hit = await database.db.execute(
+      sql`SELECT 1 FROM ${sql.identifier(name)} AS t WHERE position(${needle} in t::text) > 0 LIMIT 1`,
+    );
+    if (hit.rows.length > 0) holding.push(name);
+  }
+  return holding;
 };

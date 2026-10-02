@@ -995,13 +995,18 @@ développeur l'active sur son poste (`ENABLED_FEATURES=watch,cv`) le temps d'y t
   « ignoré » avec son message (EF-VEI-55), un passage dont le précédent tourne encore l'est aussi (EF-EXE-08) ;
   `modules/sites/scheduled.ts`. *Reste à faire* : l'écran (T-1013, T-1014) et le libellé « modèle local » ou
   « secours » (EF-CFG-09, T-1014).
-- [ ] **T-1009 CV types** — table des CV types (libellé, années, niveau ; jamais le fichier ni le texte, migration),
+- [x] **T-1009 CV types** — table des CV types (libellé, années, niveau ; jamais le fichier ni le texte, migration),
   import de 1 à 4 PDF réutilisant `cvWorkshop` (format, taille, OCR, refus, coordonnées), remplacement, suppression ;
   routes sous la fonctionnalité `watch`.
   *Exigences* : EF-CVX-39, EF-CVX-40, EF-CVX-41, EF-CVX-42, ENF-RGP-14 (CV).
   *Fini quand* : quatre CV acceptés, cinquième refusé ; DOCX et PDF protégé refusés sans appel IA ; suppression : zéro
   ligne pour ce CV ; aucune colonne ne contient le texte.
   *Dépend de* : — (réponse à Q-22).
+  *Livré* : migration `0026_cv_types` (table `cv_types` : libellé, années, niveau ; type d'exécution
+  `profile_deduction`) ; `GET`, `POST`, `PUT /{id}`, `DELETE /{id}` sous `/api/cv-types`, fonctionnalité `watch` ;
+  la lecture réutilise `decodeCvUpload` et `readCv` de l'Atelier CV (OCR, coordonnées à part, refus motivés) ; les
+  imports en file comptent dans les quatre places ; un fichier illisible ne laisse rien (import) ou laisse le CV type
+  tel qu'il était (remplacement). *Reste à faire* : les années et le niveau, avec la déduction (T-1010).
 - [ ] **T-1010 Déduction du profil par le modèle** — tâche IA de profil (skill `add-llm-task` : entrée de route,
   prompt, schéma, migration de `llm_task`) en file d'exécution ; années calculées par le code (T-1006), jamais par le
   modèle ; 1 à 5 offres types déduites ; résultat en mémoire 30 minutes ; quota quotidien.

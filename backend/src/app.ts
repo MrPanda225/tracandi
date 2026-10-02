@@ -22,6 +22,7 @@ import {
   z,
 } from './lib/openapi.js';
 import { CV_UPLOAD_BODY_LIMIT, CV_UPLOAD_PATH } from './modules/cvWorkshop/routes.js';
+import { CV_TYPES_BODY_LIMIT, CV_TYPES_PATH } from './modules/cvTypes/routes.js';
 
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX_REQUESTS = 300;
@@ -107,6 +108,8 @@ export const createApp = (options: AppOptions): Express => {
   // EF-CVX-21: the CV workshop receives a PDF of up to 5 MB in base64; every other route keeps 100 kB. Parsed here
   // first, its body is left alone by the general parser.
   app.use(`/api${CV_UPLOAD_PATH}`, express.json({ limit: CV_UPLOAD_BODY_LIMIT }));
+  // EF-CVX-39: the CV types are sent the same way, as a PDF of up to 5 MB in base64.
+  app.use(`/api${CV_TYPES_PATH}`, express.json({ limit: CV_TYPES_BODY_LIMIT }));
   app.use(express.json({ limit: JSON_BODY_LIMIT }));
   app.use('/api', createApiRouter(options));
   app.use(notFound);

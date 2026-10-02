@@ -85,7 +85,8 @@ platforms ──< platform_domains (référentiel commun) ; platforms ──< ap
 | companies | Employeurs d'un utilisateur | unique (`user_id`, `name_key`) — RG-14 |
 | platforms, platform_domains | Plateformes intermédiaires et domaines d'expéditeur (RG-10) | `name_key` unique, `domain` unique |
 | prefilter_keywords | Mots-clés d'emploi du pré-filtre (RG-10, Q-09) | PK (`user_id`, `keyword`) |
-| app_settings | Paramètres D, S, T, N, écriture des libellés | PK `user_id` |
+| app_settings | Paramètres D, S, T, N, écriture des libellés ; veille automatique et créneaux choisis (v1.35, EF-CFG-07) | PK `user_id` ; au moins un créneau si la veille est activée |
+| cv_types | CV types d'un utilisateur : libellé, années et niveau déduits — jamais le fichier ni son texte (v1.35, ENF-RGP-14) | 4 au plus par utilisateur (service) ; années de 0 à 50 |
 | applications | Candidatures | unique (`company_id`, `job_title_key`) ; `offer_id` unique ; `status`, `last_activity_at` = redondance contrôlée (RG-06) |
 | application_status_history | Historique des statuts (Q-06) | origine `email` / `manual` / `offer` |
 | processed_messages | Messages Gmail déjà traités, sans contenu (Q-08) | PK (`user_id`, `gmail_message_id`) |
@@ -96,7 +97,7 @@ platforms ──< platform_domains (référentiel commun) ; platforms ──< ap
 | cv_keywords | Mots-clés de l'offre, couverts ou non (EF-CVX-16) | PK (`cv_version_id`, `keyword`) ; taux calculé |
 | gmail_accounts | Connexion Gmail d'un utilisateur | PK `user_id` ; jeton chiffré AES-256-GCM |
 | gmail_labels | Cache des libellés créés | PK (`user_id`, `name`) |
-| job_runs, job_run_counters | Journal des exécutions et compteurs | PK (`run_id`, `counter`) |
+| job_runs, job_run_counters | Journal des exécutions et compteurs ; créneau d'un passage planifié (v1.35, EF-VEI-51) | PK (`run_id`, `counter`) |
 | llm_calls, llm_model_prices | Journal IA et tarifs (coût calculé, EF-CFG-03) | PK tarifs (`provider`, `model`, `valid_from`) |
 
 Valeurs calculées, jamais stockées : « à relancer » (RG-06), taux de réponse (RG-07), taux de couverture (EF-CVX-16),
