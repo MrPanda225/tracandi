@@ -40,6 +40,8 @@ import { createFollowUpDrafts } from './modules/emails/followUp.js';
 import { createGmailModules } from './modules/emails/routes.js';
 import { createGmailSync } from './modules/emails/sync.js';
 import { createSettingsModule } from './modules/settings/routes.js';
+import { createAutomaticWatchModule } from './modules/autowatch/routes.js';
+import { createAutomaticWatchService } from './modules/autowatch/service.js';
 import { createCriteriaModule } from './modules/criteria/routes.js';
 import { createOffersModule } from './modules/offers/routes.js';
 import { createOffersService } from './modules/offers/service.js';
@@ -192,6 +194,8 @@ const watchService = createWatchService({
   logger,
   // EF-EXE-07: offers scored per pass and per candidate.
   limits: { maxScoredOffersPerPass: config.watch.maxScoredOffersPerPass },
+  // EF-VEI-51: the hour of a scheduled pass is read in the time zone of the scheduler.
+  timezone: config.scheduler.timezone,
 });
 
 // EF-EXE-05: an execution the previous run left waiting or running is closed before anything else starts.
@@ -246,6 +250,10 @@ const app = createApp({
       createSitesModule(watchService),
       createOffersModule(createOffersService({ db: database.db, clock: systemClock })),
       createCriteriaModule(criteriaService),
+      // EF-CFG-07, EF-CFG-08
+      createAutomaticWatchModule(
+        createAutomaticWatchService({ db: database.db, clock: systemClock }),
+      ),
     ),
   ],
 });
@@ -263,7 +271,7 @@ const server = app.listen(config.port, config.host, () => {
 const scheduler = startScheduler({
   jobs: [
     { name: 'gmail_sync', cron: config.scheduler.gmailCron, run: () => gmailSync.synchroniseEveryMailbox() },
-    // EF-VEI-06: every active source of every candidate, at 7, 13 and 19 o'clock Paris time — when the watch runs.
+    // EF-VEI-06, EF-VEI-51: the watch of every candidate who activated it, at 7, 13 and 19 o'clock Paris time.
     ...onlyIf(config.features, 'watch', {
       name: 'scraper',
       cron: config.scheduler.watchCron,

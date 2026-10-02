@@ -127,6 +127,8 @@ describe('migrations', () => {
         'GET /offers/{id}',
         'PATCH /offers/{id}',
         'POST /offers/{id}/apply',
+        'GET /watch/automatic',
+        'PUT /watch/automatic',
         'GET /watch/criteria',
         'PUT /watch/criteria',
         'GET /watch/places',

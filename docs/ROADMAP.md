@@ -978,7 +978,7 @@ développeur l'active sur son poste (`ENABLED_FEATURES=watch,cv`) le temps d'y t
   ans ; sans niveau, le texte d'avant (trois ans) est conservé.
   *Reste à faire* : les traits des offres choisies du niveau (EF-VEI-50) dans le prompt, avec T-1012 ; l'écran qui
   saisit les années, avec T-1013.
-- [ ] **T-1008 Créneaux et passages par utilisateur (API)** — `job_runs` porte le créneau (migration), la veille
+- [x] **T-1008 Créneaux et passages par utilisateur (API)** — `job_runs` porte le créneau (migration), la veille
   automatique et les créneaux choisis sont des réglages par utilisateur (`app_settings`), le planificateur lance un
   passage par utilisateur actif et par créneau, refuse sans critères avec un message, ignore un passage dont le
   précédent est en cours.
@@ -987,6 +987,14 @@ développeur l'active sur son poste (`ENABLED_FEATURES=watch,cv`) le temps d'y t
   autre ; créneau « midi » décoché : pas de passage à 13 h ; zéro créneau activé : 400 ; passage de 7 h encore en
   cours à 13 h : ligne « ignoré ».
   *Dépend de* : T-1005.
+  *Livré* : migration `0025_watch_slots` (`job_runs.slot`, `app_settings.watch_auto_enabled` et `watch_slots`, au moins
+  un créneau si activée ; les candidats qui avaient une source active gardent leur veille) ; `GET` et `PUT
+  /api/watch/automatic` (réglages, créneaux dans l'ordre de la journée, 400 sans créneau, passages du jour de Paris
+  avec état, compteurs et message, jamais de contenu) ; l'horloge lance un passage par candidat activé et par créneau
+  (heure de Paris : avant 10 h matin, jusqu'à 16 h midi, ensuite soir), un passage de critères absents est enregistré
+  « ignoré » avec son message (EF-VEI-55), un passage dont le précédent tourne encore l'est aussi (EF-EXE-08) ;
+  `modules/sites/scheduled.ts`. *Reste à faire* : l'écran (T-1013, T-1014) et le libellé « modèle local » ou
+  « secours » (EF-CFG-09, T-1014).
 - [ ] **T-1009 CV types** — table des CV types (libellé, années, niveau ; jamais le fichier ni le texte, migration),
   import de 1 à 4 PDF réutilisant `cvWorkshop` (format, taille, OCR, refus, coordonnées), remplacement, suppression ;
   routes sous la fonctionnalité `watch`.

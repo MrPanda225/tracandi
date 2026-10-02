@@ -36,6 +36,8 @@ import { createGmailSync, type GmailSync } from '../../src/modules/emails/sync.j
 import { createSettingsModule } from '../../src/modules/settings/routes.js';
 import { createStatsModule } from '../../src/modules/stats/routes.js';
 import { createStatsService } from '../../src/modules/stats/service.js';
+import { createAutomaticWatchModule } from '../../src/modules/autowatch/routes.js';
+import { createAutomaticWatchService } from '../../src/modules/autowatch/service.js';
 import { createCriteriaModule } from '../../src/modules/criteria/routes.js';
 import { createOffersModule } from '../../src/modules/offers/routes.js';
 import { createOffersService } from '../../src/modules/offers/service.js';
@@ -232,6 +234,7 @@ export const createTestContext = (
     findSiren: officialDoubles.findSiren,
     logger,
     limits: watchLimits,
+    timezone: 'Europe/Paris',
   });
   const app = createApp({
     config: { frontendOrigin: FRONTEND_ORIGIN, trustProxyHops },
@@ -279,6 +282,7 @@ export const createTestContext = (
         createSitesModule(watch),
         createOffersModule(createOffersService({ db: database.db, clock: clock.now })),
         createCriteriaModule(criteria),
+        createAutomaticWatchModule(createAutomaticWatchService({ db: database.db, clock: clock.now })),
       ),
     ],
   });

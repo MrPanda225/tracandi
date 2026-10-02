@@ -87,6 +87,10 @@ beforeEach(async () => {
   });
   alice = await registerUser(context.app, 'alice@example.com');
   await send('/api/watch/criteria', CRITERIA, 'put').expect(200);
+  // EF-CFG-07: the pass of the clock only watches for a candidate who activated the watch.
+  await send('/api/watch/automatic', { enabled: true, slots: ['morning', 'noon', 'evening'] }, 'put').expect(
+    200,
+  );
   await send('/api/sites', {
     companyName: 'Atelier Aurore',
     adapter: 'greenhouse',

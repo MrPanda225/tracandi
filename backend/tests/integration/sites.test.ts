@@ -102,6 +102,13 @@ const api = (cookie: string) => ({
     await context.queue.drain();
     return accepted;
   },
+  /** EF-CFG-07: the candidate activates the watch that runs by itself, at the three slots. */
+  activateWatch: () =>
+    request(context.app)
+      .put('/api/watch/automatic')
+      .set('Cookie', cookie)
+      .set('Content-Type', 'application/json')
+      .send({ enabled: true, slots: ['morning', 'noon', 'evening'] }),
   saveProfile: (profile: unknown) =>
     request(context.app)
       .put('/api/profile')
@@ -423,7 +430,7 @@ describe('one pass of the watch (EF-VEI-07 to EF-VEI-14)', () => {
     });
   });
 
-  it('[EF-VEI-06] [ENF-FIA-02] runs the scheduled pass for every candidate who watches a source', async () => {
+  it('[EF-VEI-06] [ENF-FIA-02] runs the scheduled pass for every candidate who activated the watch', async () => {
     const ai = scoringAi({ offers: [{ ref: 1, score: 82 }] });
     await withServices({ collect: boardCollector(GREENHOUSE_BOARD), aiProviders: ai.providers });
     const bob = await registerUser(context.app, 'bob@example.com');
@@ -431,6 +438,8 @@ describe('one pass of the watch (EF-VEI-07 to EF-VEI-14)', () => {
     await api(bob).saveProfile(DATA_PROFILE).expect(204);
     await api(alice).add(GREENHOUSE_SOURCE).expect(201);
     await api(bob).add(GREENHOUSE_SOURCE).expect(201);
+    await api(alice).activateWatch().expect(200);
+    await api(bob).activateWatch().expect(200);
 
     await context.watch.checkEverySource();
     await context.queue.drain();
@@ -440,13 +449,15 @@ describe('one pass of the watch (EF-VEI-07 to EF-VEI-14)', () => {
     expect(offers).toHaveLength(4);
   });
 
-  it('[ENF-FIA-02] finishes the scheduled pass even when a candidate has no profile', async () => {
+  it('[ENF-FIA-02] [EF-VEI-55] finishes the scheduled pass even when a candidate has no profile', async () => {
     const ai = scoringAi({ offers: [{ ref: 1, score: 82 }] });
     await withServices({ collect: boardCollector(GREENHOUSE_BOARD), aiProviders: ai.providers });
     const bob = await registerUser(context.app, 'bob@example.com');
     await api(bob).saveProfile(DATA_PROFILE).expect(204);
     await api(alice).add(GREENHOUSE_SOURCE).expect(201);
     await api(bob).add(GREENHOUSE_SOURCE).expect(201);
+    await api(alice).activateWatch().expect(200);
+    await api(bob).activateWatch().expect(200);
 
     await expect(context.watch.checkEverySource()).resolves.toBeUndefined();
     await context.queue.drain();

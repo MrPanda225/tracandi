@@ -130,6 +130,9 @@ export const jobName = pgEnum('job_name', [
   'source_discovery',
 ]);
 export const triggerType = pgEnum('trigger_type', ['schedule', 'manual']);
+// EF-CFG-07, EF-VEI-51 (v1.35): the three moments of the day when the watch runs for a candidate, and the slot a
+// scheduled pass is recorded under.
+export const watchSlot = pgEnum('watch_slot', ['morning', 'noon', 'evening']);
 // EF-EXE-01 à 03 : une exécution attend son tour (`queued`) avant de tourner, de réussir, d'échouer ou d'être
 // écartée parce qu'une autre du même travail était déjà en file.
 export const runOutcome = pgEnum('run_outcome', ['queued', 'running', 'success', 'failure', 'skipped']);
@@ -190,12 +193,20 @@ export const appSettings = pgTable(
     coverageThreshold: smallint().notNull().default(60),
     gmailLookbackDays: smallint().notNull().default(30),
     gmailApplyLabels: boolean().notNull().default(true),
+    // EF-CFG-07 (v1.35): the watch of the candidate runs by itself only when they activated it, at the slots they chose.
+    watchAutoEnabled: boolean().notNull().default(false),
+    watchSlots: watchSlot()
+      .array()
+      .notNull()
+      .default(sql`ARRAY['morning', 'noon', 'evening']::watch_slot[]`),
   },
   (t) => [
     check('ck_app_settings_follow_up_days', sql`${t.followUpDays} between 1 and 365`),
     check('ck_app_settings_offer_alert_threshold', sql`${t.offerAlertThreshold} between 0 and 100`),
     check('ck_app_settings_coverage_threshold', sql`${t.coverageThreshold} between 0 and 100`),
     check('ck_app_settings_gmail_lookback_days', sql`${t.gmailLookbackDays} between 1 and 365`),
+    // EF-CFG-07: at least one slot when the watch is activated.
+    check('ck_app_settings_watch_slots', sql`not ${t.watchAutoEnabled} or cardinality(${t.watchSlots}) >= 1`),
   ],
 );
 
@@ -582,6 +593,8 @@ export const jobRuns = pgTable(
       .references(() => users.id, { onDelete: 'cascade' }),
     job: jobName().notNull(),
     triggerType: triggerType().notNull(),
+    // EF-VEI-51 (v1.35): the slot of a scheduled pass of the watch; null for every other execution.
+    slot: watchSlot(),
     startedAt: createdAt(),
     finishedAt: instant(),
     outcome: runOutcome().notNull().default('running'),

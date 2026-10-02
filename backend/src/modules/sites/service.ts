@@ -13,12 +13,14 @@ import type { SirenFinder } from '../../scraper/official/companySearch.js';
 import type { FranceTravailApi } from '../../scraper/official/franceTravail.js';
 import type { LaBonneAlternanceApi } from '../../scraper/official/laBonneAlternance.js';
 import { ensureCompany } from '../applications/service.js';
+import type { WatchSlot } from '../autowatch/slots.js';
 import type { ScoringProfile } from '../../llm/prompts/scoreOffers.js';
 import type { ProfileService } from '../cv/service.js';
 import type { WatchCriteria } from '../criteria/schemas.js';
 import { type CriteriaService, scoringProfileOf } from '../criteria/service.js';
 import { createWatchPass, type WatchPassDeps } from './pass.js';
 import { createSourceDiscovery, type SourceDiscovery } from './discovery.js';
+import { createScheduledWatch } from './scheduled.js';
 import { createSirenResolver } from './sirens.js';
 import { createSuggestionReader } from './suggestions.js';
 import * as repository from './repository.js';
@@ -31,8 +33,6 @@ const NO_CRITERIA =
   'Renseignez vos critères de recherche avant de lancer la veille : vos cibles servent à noter les offres.';
 const CONFLICT = 409;
 const BAD_REQUEST = 400;
-/** ENF-RGP-10 (v1.33): an offer neither kept nor applied to is removed 60 days after its source stopped publishing it. */
-const OFFER_RETENTION_MS = 60 * 24 * 60 * 60 * 1000;
 /** EF-VEI-15: default threshold S, used while the candidate has no settings row. */
 const DEFAULT_THRESHOLD = 60;
 
@@ -84,6 +84,8 @@ export interface WatchServiceDeps {
   logger: Logger;
   /** EF-EXE-07, ENF-PERF-09: what one pass may do for one candidate. */
   limits?: WatchPassDeps['limits'];
+  /** EF-VEI-51: the time zone whose hour gives the slot of a scheduled pass; the scheduler's. */
+  timezone?: string;
 }
 
 /** What a pass reports when the candidate watches no active source (EF-VEI-07). */
@@ -192,6 +194,15 @@ const scoringOf = async (
   return { searchArea: profile.location.searchArea, targets: profile.targets };
 };
 
+/** EF-VEI-55: whether a candidate has something to search for — criteria, or the profile standing for them. */
+const hasTargetsOf =
+  ({ profiles, criteria }: Pick<WatchServiceDeps, 'profiles' | 'criteria'>) =>
+  async (userId: number): Promise<boolean> =>
+    scoringOf(profiles, userId, await criteria.read(userId)).then(
+      () => true,
+      () => false,
+    );
+
 const countersOf = (report: WatchReport): RunCounters => ({
   sources_checked: report.sourcesChecked,
   offers_new: report.offersNew,
@@ -245,11 +256,18 @@ export const createWatchService = (deps: WatchServiceDeps): WatchService => {
     });
   };
 
-  const workFor = (userId: number, trigger: 'manual' | 'schedule') => ({
+  const workFor = (userId: number, trigger: 'manual' | 'schedule', slot?: WatchSlot) => ({
     userId,
     job: 'scraper' as const,
     trigger,
+    ...(slot ? { slot } : {}),
     run: async () => countersOf(await runPass(userId, trigger)),
+  });
+
+  const scheduled = createScheduledWatch({
+    ...deps,
+    hasTargets: hasTargetsOf(deps),
+    workFor: (userId, slot) => workFor(userId, 'schedule', slot),
   });
 
   return {
@@ -263,18 +281,6 @@ export const createWatchService = (deps: WatchServiceDeps): WatchService => {
 
     discoverSources: (userId) => queue.enqueue(discoveryWorkFor(discovery, userId)),
 
-    async checkEverySource() {
-      // ENF-RGP-10: three times a day, so at least once a day.
-      const removed = await repository.purgeStaleOffers(
-        db,
-        new Date(deps.clock().getTime() - OFFER_RETENTION_MS),
-      );
-      if (removed > 0) logger.info('stale offers removed', { removed });
-      for (const userId of await repository.listUsersWithActiveSources(db)) {
-        // EF-GML-18: a candidate who already has a pass waiting or running is written off, not queued twice.
-        const runId = await queue.enqueueUnlessPending(workFor(userId, 'schedule'));
-        if (runId === null) logger.info('scheduled watch skipped, one is already queued', { userId });
-      }
-    },
+    checkEverySource: () => scheduled.run(),
   };
 };

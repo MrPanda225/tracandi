@@ -100,15 +100,6 @@ export const listActiveSources = async (
     )
     .orderBy(watchedSites.id);
 
-/** Every user whose watch has at least one active source, for the scheduled pass (EF-VEI-06). */
-export const listUsersWithActiveSources = async (db: Executor): Promise<number[]> => {
-  const rows = await db
-    .selectDistinct({ userId: watchedSites.userId })
-    .from(watchedSites)
-    .where(eq(watchedSites.isActive, true));
-  return rows.map((row) => row.userId);
-};
-
 /**
  * Adds a source.
  * @throws the unique violation of `uq_watched_sites_source` when it is already watched (EF-VEI-03).

@@ -176,6 +176,13 @@
       "when": 1790956450961,
       "tag": "0024_offers_unscored_counter",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1790957255788,
+      "tag": "0025_watch_slots",
+      "breakpoints": true
     }
   ]
 }
