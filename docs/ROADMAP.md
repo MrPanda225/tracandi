@@ -1109,3 +1109,37 @@ développeur l'active sur son poste (`ENABLED_FEATURES=watch,cv`) le temps d'y t
   *Exigences* : EF-IA-15.
   *Fini quand* : tâche réservée et local éteint : erreur d'EF-IA-04, aucun fournisseur hébergé appelé.
   *Dépend de* : T-1003.
+
+**Revue indépendante du backend du lot 10 (02/10/2026)** — relue par un second agent, en lecture seule, sur
+`dev..fix/T-1010-tolerant-local-answers` ; chaque point ci-dessous a été vérifié dans le code avant d'être corrigé.
+*Corrigés* (tests écrits d'abord, `fix/lot-10-review-findings`) :
+- **grave** : l'Atelier CV (T-510) comportait deux expressions régulières à retour arrière — l'une exponentielle sur une
+  ligne de séparateurs (`- - - … Paris`, 26 paires : 2 s, 40 paires : des heures), l'autre quadratique sur un mot de 200 000
+  caractères — que la lecture d'un CV type (`/api/cv-types`) rendait atteignables par tout compte : elles figent tout le
+  processus. Réécrites en lecture linéaire (comparées à l'ancienne version sur 20 000 chaînes tirées au hasard : zéro
+  différence), texte d'un CV borné à 60 000 caractères, même correction pour `EMAILS` (offres) ;
+- une offre que le modèle ne note pas gardait la note d'une offre écartée et n'était plus jamais renotée : elle reste
+  désormais sans note et repart au passage suivant ; une réponse qui ne note aucune offre du lot est refusée (le fournisseur
+  suivant est interrogé) ;
+- un passage dont aucune source n'était due ne notait pas le retard et annonçait 0 offre en attente ;
+- les demandes d'un candidat (lecture d'un CV, d'une offre) passent avant les passages de l'horloge dans la file ;
+- plusieurs requêtes envoyées ensemble ne contournent plus le quota du jour (file d'attente par candidat), ni les trois
+  places d'un niveau (verrou consultatif en base) ;
+- `requiredYearsOf` : « 1,5 an » n'est plus 5 ans, « 100 ans » plus 0 ; temps linéaire sur 20 000 espaces ;
+- modèle local : le corps d'une page d'erreur (proxy, tunnel) n'entre plus dans le journal ; aucune redirection suivie ;
+  attente de `Retry-After` plafonnée à 60 s ;
+- identifiant d'URL hors de ce que la base contient : 400 et non 500 (toutes les routes à identifiant) ; l'analyseur JSON de
+  6,7 Mo ne couvre plus que les routes qui reçoivent un fichier ;
+- l'échec de la purge des vieilles offres n'empêche plus les passages ; une panne de base n'est plus enregistrée comme
+  « pas de critères ».
+
+*Limites connues, non corrigées* (à décider) :
+- **sources France Travail** : une requête lit une page de 150 offres, 12 requêtes et 300 offres au plus, sans pagination
+  (T-411) ; au-delà, des offres anciennes de la fenêtre ne sont jamais lues alors que la consultation compte comme
+  réussie. Rare avec trois passages par jour, possible après une longue interruption ;
+- EF-IA-10 : le délai (60 s) et le plafond de sortie (16 000) des fournisseurs hébergés sont des constantes, seuls ceux du
+  local sont configurables ;
+- la migration 0025 active la veille automatique des candidats qui avaient déjà une source active (comportement d'avant,
+  sans effet en production où `watch` est éteinte) ;
+- avec `MAX_CONCURRENT_JOBS=1`, une demande de candidat attend la fin du passage en cours (jusqu'à 45 minutes) ; le
+  modèle local ne traite qu'une demande à la fois, deux emplacements n'y changeraient rien.

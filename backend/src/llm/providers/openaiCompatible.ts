@@ -70,14 +70,25 @@ export interface OpenAiCompatibleDeps {
   fetchImpl?: typeof fetch;
 }
 
+/**
+ * The refusal of the service, with its HTTP status for the router (ENF-FIA-10). The page of a proxy or a tunnel in front
+ * of the local model may name its public address: for that model the log keeps the status only (ENF-SEC-25).
+ */
+const refusalOf = async (model: string, response: Response, redactBody: boolean): Promise<Error> =>
+  Object.assign(
+    new Error(
+      `${model}: ${redactBody ? `HTTP ${String(response.status)}` : await describeFailure(response)}`,
+    ),
+    { status: response.status, retryAfterMs: retryAfterMsOf(response) },
+  );
+
 /** What the answer of the service says, or the refusal it is: its HTTP status is kept for the router (ENF-FIA-10). */
-const readCompletion = async (model: string, response: Response): Promise<LlmCompletion> => {
-  if (!response.ok) {
-    throw Object.assign(new Error(`${model}: ${await describeFailure(response)}`), {
-      status: response.status,
-      retryAfterMs: retryAfterMsOf(response),
-    });
-  }
+const readCompletion = async (
+  model: string,
+  response: Response,
+  redactBody: boolean,
+): Promise<LlmCompletion> => {
+  if (!response.ok) throw await refusalOf(model, response, redactBody);
   const answer = CompletionSchema.parse(await response.json());
   const text = answer.choices?.[0]?.message?.content;
   if (!text) throw new Error(`${model} answered with no text`);
@@ -112,6 +123,8 @@ const createTransport = ({
       const response = await fetchImpl(`${baseUrl}/models`, {
         method: 'GET',
         headers: { Authorization: `Bearer ${apiKey}` },
+        // ENF-SEC-25: a redirect would carry the request, a CV included, to an address nobody configured.
+        redirect: 'error',
         signal: controller.signal,
       });
       await response.body?.cancel().catch(() => undefined);
@@ -140,6 +153,7 @@ const createTransport = ({
           { role: 'user', content: prompt },
         ],
       }),
+      redirect: 'error',
       signal,
     }).catch((error: unknown) => {
       // An abort is the router's own timeout and tells nothing; any other network error names the host it tried.
@@ -166,7 +180,7 @@ export const createOpenAiCompatibleProvider = (deps: OpenAiCompatibleDeps): LlmP
     model,
     async complete(request: LlmRequest): Promise<LlmCompletion> {
       if (probeMs !== undefined) await transport.probe(request.signal);
-      return readCompletion(model, await transport.send(request));
+      return readCompletion(model, await transport.send(request), deps.redactNetworkErrors === true);
     },
   };
 };

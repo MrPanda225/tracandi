@@ -1,5 +1,8 @@
-/** Addresses as they appear in an offer: « recrutement@exemple.fr », « jean.dupont+rh@exemple.co.uk ». */
-const EMAILS = /[\p{L}\p{N}._%+-]+@[\p{L}\p{N}-]+(?:\.[\p{L}\p{N}-]+)+/gu;
+/**
+ * Addresses as they appear in an offer: « recrutement@exemple.fr », « jean.dupont+rh@exemple.co.uk ». A match starts
+ * only at the beginning of a run of address characters: a long run without an « @ » costs one pass, not one per letter.
+ */
+const EMAILS = /(?<![\p{L}\p{N}._%+-])[\p{L}\p{N}._%+-]+@[\p{L}\p{N}-]+(?:\.[\p{L}\p{N}-]+)+/gu;
 /**
  * French and international numbers: « 01 23 45 67 89 », « 01.23.45.67.89 », « +33 1 23 45 67 89 »,
  * « +33 (0)1 23 45 67 89 », « 0123456789 ». A salary or a date never has ten digits in pairs like these.

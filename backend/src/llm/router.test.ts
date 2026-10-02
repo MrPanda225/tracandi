@@ -174,6 +174,20 @@ describe('runTask — a provider that refuses for the moment', () => {
     expect(waits).toEqual([1_740]);
   });
 
+  it('[ENF-FIA-10] [ENF-PERF-09] never waits more than a minute for a provider that asks for an hour', async () => {
+    let calls = 0;
+    const away = Object.assign(new Error('Service unavailable'), { status: 503, retryAfterMs: 3_600_000 });
+    const only = fakeProvider('groq_1', () => {
+      calls += 1;
+      return calls === 1 ? Promise.reject(away) : Promise.resolve(answer({ category: 'interview' }));
+    });
+    const { router, waits } = setup({ groq_1: only });
+
+    await router.runTask('classify_emails', INPUT);
+
+    expect(waits).toEqual([60_000]);
+  });
+
   it('[ENF-FIA-10] never asks again when the provider refused the request itself', async () => {
     const credit = apiFailure(400, 'Your credit balance is too low to access the Anthropic API.');
     const claude = fakeProvider('claude', () => Promise.reject(credit));

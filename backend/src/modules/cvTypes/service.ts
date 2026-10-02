@@ -1,6 +1,7 @@
 import type { Database } from '../../db/client.js';
 import type { JobQueue, RunCounters } from '../../jobs/queue.js';
 import type { Clock } from '../../lib/clock.js';
+import { createKeyedMutex } from '../../lib/async.js';
 import { HttpError, NotFoundError } from '../../lib/errors.js';
 import { startOfParisDay } from '../../lib/parisTime.js';
 import { buildDeduceProfilePrompt } from '../../llm/prompts/deduceProfile.js';
@@ -153,7 +154,7 @@ const replacementRun =
  * EF-CVX-39 to EF-CVX-44: the CV types of a candidate — at most four, each read in the queue with the controls of the
  * CV workshop (format, size, OCR, locked or damaged file) and deduced from before anything is kept of it.
  */
-export const createCvTypesService = (deps: CvTypesServiceDeps): CvTypesService => {
+const createService = (deps: CvTypesServiceDeps): CvTypesService => {
   const { db, queue, deductions } = deps;
   /** Imports asked for and not over yet, per candidate: they count against the four places as soon as asked. */
   const pendingImports = new Map<number, number>();
@@ -216,3 +217,20 @@ export const createCvTypesService = (deps: CvTypesServiceDeps): CvTypesService =
     },
   };
 };
+
+/**
+ * ENF-COU-01, EF-CVX-44: the requests of one candidate that read a count and then write it — the daily allowance, the
+ * four places — are served one after the other, so that twenty requests sent together do not all read the same count.
+ */
+const serialised = (service: CvTypesService): CvTypesService => {
+  const exclusively = createKeyedMutex<number>();
+  return {
+    ...service,
+    startImport: (userId, body) => exclusively(userId, () => service.startImport(userId, body)),
+    startReplacement: (userId, id, body) =>
+      exclusively(userId, () => service.startReplacement(userId, id, body)),
+  };
+};
+
+export const createCvTypesService = (deps: CvTypesServiceDeps): CvTypesService =>
+  serialised(createService(deps));

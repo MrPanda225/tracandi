@@ -6,7 +6,7 @@ import {
   buildTextPdf,
   FICTITIOUS_CV_LINES,
 } from '../../../tests/fixtures/cv/pdf.js';
-import { MAX_OCR_PAGES, readCv } from './reading.js';
+import { MAX_CV_TEXT_CHARS, MAX_OCR_PAGES, readCv } from './reading.js';
 
 const fakeOcr = (texts: (page: number) => string = () => [...FICTITIOUS_CV_LINES].join('\n')) => ({
   readPages: vi.fn((_pdf: Buffer, pages: readonly number[]) => Promise.resolve(pages.map(texts))),
@@ -23,6 +23,19 @@ describe('readCv', () => {
     expect(cv.text).toContain('Data Analyst - Atelier Nova');
     expect(cv.text).not.toContain('camille.durand@example.com');
     expect(cv.contacts.name).toBe('Camille Durand');
+  });
+
+  it('[ENF-SEC-22] keeps at most 60 000 characters of a PDF that holds far more than a CV, and still reads it', async () => {
+    const lines = Array.from(
+      { length: 2000 },
+      (_unused, index) =>
+        `Ligne ${String(index)} : du texte ordinaire pour remplir la page de ce CV démesuré`,
+    );
+
+    const cv = await readCv(buildTextPdf([lines]), { ocr: fakeOcr() });
+
+    expect(cv.text.length).toBeLessThanOrEqual(MAX_CV_TEXT_CHARS);
+    expect(cv.text).toContain('Ligne 0');
   });
 
   it('[EF-CVX-22] reads by OCR only the pages that carry no text', async () => {
@@ -49,10 +62,11 @@ describe('readCv', () => {
   });
 
   it('[EF-CVX-34] refuses a CV in which even OCR finds no text', async () => {
-    await expect(readCv(buildScannedPdf([blankImage()]), { ocr: fakeOcr(() => '  \n ') })).rejects.toMatchObject({
+    await expect(
+      readCv(buildScannedPdf([blankImage()]), { ocr: fakeOcr(() => '  \n ') }),
+    ).rejects.toMatchObject({
       statusCode: 422,
       message: expect.stringContaining('aucun texte') as string,
     });
   });
 });
-

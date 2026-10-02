@@ -1,4 +1,4 @@
-import { and, asc, count, eq } from 'drizzle-orm';
+import { and, asc, count, eq, sql } from 'drizzle-orm';
 import type { Database } from '../../db/client.js';
 import { chosenOffers, type experienceLevel } from '../../db/schema.js';
 
@@ -47,6 +47,17 @@ export const countChosenOffersOfLevel = async (
   return row?.total ?? 0;
 };
 
+/** Class of the advisory lock that serialises the writes of one candidate's chosen offers. */
+const CHOSEN_OFFERS_LOCK = 1012;
+
+/**
+ * Holds the lock of this candidate's chosen offers until the transaction ends: the count of a level is read and then
+ * written under it, so that two writes together cannot both read « 2 » and make 4 (EF-VEI-48).
+ */
+const lockOffersOf = async (tx: Pick<Database, 'execute'>, userId: number): Promise<void> => {
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(${CHOSEN_OFFERS_LOCK}, ${userId})`);
+};
+
 /** The traits of an offer, as kept (ENF-RGP-14). */
 export interface Traits {
   title: string;
@@ -71,6 +82,7 @@ export const insertChosenOffer = async (
   }: { userId: number; level: ExperienceLevel; traits: Traits; now: Date; max: number },
 ): Promise<ChosenOfferRow | null> =>
   db.transaction(async (tx) => {
+    await lockOffersOf(tx, userId);
     if ((await countChosenOffersOfLevel(tx as unknown as Database, userId, level)) >= max) return null;
     const [row] = await tx
       .insert(chosenOffers)
@@ -102,6 +114,7 @@ export const updateChosenOffer = async (
   },
 ): Promise<ChosenOfferRow | 'full' | null> =>
   db.transaction(async (tx) => {
+    await lockOffersOf(tx, userId);
     const current = await findChosenOffer(tx as unknown as Database, userId, id);
     if (!current) return null;
     if (changes.level && changes.level !== current.level) {

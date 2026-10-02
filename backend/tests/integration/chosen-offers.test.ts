@@ -242,6 +242,13 @@ describe('choosing offers by level (T-1012, EF-VEI-48)', () => {
   });
 });
 
+describe('what a request may be (review of the lot 10)', () => {
+  it('[ENF-SEC-04] refuses an identifier beyond what the database holds with a 400, not a 500', async () => {
+    await as(alice).patch('/api/chosen-offers/99999999999', { title: 'x' }).expect(400);
+    await as(alice).delete('/api/chosen-offers/99999999999').expect(400);
+  });
+});
+
 describe('the traits extracted from a chosen offer (T-1012, EF-VEI-49)', () => {
   it('[EF-VEI-49] [RG-29] [RG-28] reads « 5 ans d’expérience minimum » as 5 years, the level confirmé', async () => {
     const offer = await chosen('confirme', OFFER({ years: '5 ans d’expérience minimum' }));
@@ -454,6 +461,47 @@ describe('what is kept of a chosen offer (T-1012, ENF-RGP-14)', () => {
     context.clock.advanceDays(1);
     expect((await choose('junior', OFFER())).status).toBe(202);
     await context.queue.drain();
+  });
+});
+
+describe('the allowance against requests sent together, and the places of a level (review of the lot 10)', () => {
+  it('[ENF-COU-01] holds the allowance of 20 against six requests sent together when two are left', async () => {
+    for (let index = 0; index < 18; index += 1) {
+      expect((await choose('junior', OFFER())).status, String(index)).toBe(202);
+      await context.queue.drain();
+      const { items } = await listOf();
+      if (items.length >= 3) await as(alice).delete(`/api/chosen-offers/${String(items[0]?.id)}`);
+    }
+    const [first, second] = (await listOf()).items;
+    await as(alice).delete(`/api/chosen-offers/${String(first?.id)}`);
+    await as(alice).delete(`/api/chosen-offers/${String(second?.id)}`);
+
+    const statuses = await Promise.all(
+      ['junior', 'junior', 'confirme', 'confirme', 'senior', 'senior'].map((level) =>
+        choose(level, OFFER()).then((response) => response.status),
+      ),
+    );
+    await context.queue.drain();
+
+    expect(statuses.filter((status) => status === 202)).toHaveLength(2);
+    expect(statuses.filter((status) => status === 429)).toHaveLength(4);
+  });
+
+  it('[EF-VEI-48] never makes four offers of a level when two corrections to that level arrive together', async () => {
+    const mine = [await chosen('senior'), await chosen('senior')];
+    const movers = [await chosen('junior'), await chosen('confirme')];
+
+    const statuses = await Promise.all(
+      movers.map((offer) =>
+        as(alice)
+          .patch(`/api/chosen-offers/${String(offer.id)}`, { level: 'senior' })
+          .then((response) => response.status),
+      ),
+    );
+
+    expect(mine).toHaveLength(2);
+    expect(statuses.sort()).toEqual([200, 409]);
+    expect((await listOf()).items.filter((item) => item.level === 'senior')).toHaveLength(3);
   });
 });
 

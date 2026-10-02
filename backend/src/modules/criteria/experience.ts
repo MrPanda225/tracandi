@@ -76,7 +76,8 @@ const plain = (text: string): string =>
     .replace(/\p{Diacritic}/gu, '');
 
 // « 5 ans », « 2 à 3 ans », « 4+ ans », « 8 années », « 3 years ».
-const YEARS = /(\d{1,2})(?:\s*(?:a|-|et)\s*(\d{1,2}))?\s*\+?\s*(?:ans?|annees?|years?)\b/gu;
+// Not preceded by a digit, a point or a comma: « 1,5 an » is not 5 years, nor « 2.5 ans », nor « 100 ans » 0.
+const YEARS = /(?<![\d.,])(\d{1,2})(?:\s*(?:a|-|et)\s*(\d{1,2}))?\s*\+?\s*(?:ans?|annees?|years?)\b/gu;
 const EXPERIENCE_WORD = /experi/u;
 
 /**
@@ -86,7 +87,8 @@ const EXPERIENCE_WORD = /experi/u;
  * @req RG-29
  */
 export const requiredYearsOf = (text: string): number | null => {
-  const flat = plain(text);
+  // Runs of spaces are one space: a text of twenty thousand of them costs one pass, not one per digit before them.
+  const flat = plain(text).replace(/\s+/gu, ' ');
   let highest: number | null = null;
   for (const match of flat.matchAll(YEARS)) {
     const around = flat.slice(

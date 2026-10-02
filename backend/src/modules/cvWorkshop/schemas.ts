@@ -1,4 +1,5 @@
 import { z } from '../../lib/openapi.js';
+import { idParam } from '../../lib/ids.js';
 import { AdaptedCvSchema } from './adaptedCv.js';
 
 // EF-CVX-27: same bounds as the diagnostic's list.
@@ -23,7 +24,7 @@ export const StartAnalysisBodySchema = z
   .strict()
   .openapi('CvAnalysisRequest');
 
-export const AnalysisIdParamsSchema = z.object({ id: z.coerce.number().int().positive() });
+export const AnalysisIdParamsSchema = z.object({ id: idParam() });
 
 const CvContactsSchema = z
   .object({

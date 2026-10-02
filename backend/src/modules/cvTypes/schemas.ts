@@ -1,4 +1,5 @@
 import { experienceLevel } from '../../db/schema.js';
+import { idParam } from '../../lib/ids.js';
 import { z } from '../../lib/openapi.js';
 import { DEDUCED_TARGETS_MAX, DeducedTargetSchema } from './deduction.js';
 
@@ -29,7 +30,7 @@ export const ReplaceCvTypeBodySchema = z
   .strict()
   .openapi('CvTypeReplacement');
 
-export const CvTypeIdParamsSchema = z.object({ id: z.coerce.number().int().positive() });
+export const CvTypeIdParamsSchema = z.object({ id: idParam() });
 
 /** What is kept of a CV type, and all of it (ENF-RGP-14): never the file nor its text. */
 export const CvTypeSchema = z

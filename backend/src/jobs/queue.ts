@@ -84,6 +84,16 @@ const viewOf = (run: JobRunView): RunState => ({
   error: run.error,
 });
 
+/** The state of an execution that has just been journaled and waits its turn (EF-EXE-03). */
+const queuedStateOf = (runId: number, work: QueuedWork): RunState => ({
+  id: runId,
+  job: work.job,
+  trigger: work.trigger,
+  outcome: 'queued',
+  counters: {},
+  error: null,
+});
+
 /** What is waiting or running, with its owner, and who follows it (EF-EXE-03, EF-EXE-04). */
 const createFollowerRegistry = () => {
   const live = new Map<number, { userId: number; state: RunState }>();
@@ -178,12 +188,12 @@ const createLanes = (slotCount: number) => {
   const lanes = new Map<number, Promise<void>>();
   const slots = createSlots(slotCount);
   return {
-    add(userId: number, task: () => Promise<void>): void {
+    add(userId: number, task: () => Promise<void>, { background = false } = {}): void {
       const previous = lanes.get(userId) ?? Promise.resolve();
       // EF-EXE-02: each execution waits for the previous one of the same candidate, and none is dropped. The lane
       // holds the promise that is stored, so the last one of a candidate clears its own entry.
       const chained: Promise<void> = previous
-        .then(() => slots.run(task))
+        .then(() => slots.run(task, { background }))
         .finally(() => {
           if (lanes.get(userId) === chained) lanes.delete(userId);
         });
@@ -216,15 +226,11 @@ export const createJobQueue = (deps: QueueDeps): JobQueue => {
       outcome: 'queued',
       slot: work.slot ?? null,
     });
-    followers.publish(work.userId, {
-      id: runId,
-      job: work.job,
-      trigger: work.trigger,
-      outcome: 'queued',
-      counters: {},
-      error: null,
+    followers.publish(work.userId, queuedStateOf(runId, work));
+    // The pass of the clock gives way to what a candidate asked for and waits for (EF-EXE-06).
+    lanes.add(work.userId, () => executeRun({ ...deps, followers }, runId, work), {
+      background: work.trigger === 'schedule',
     });
-    lanes.add(work.userId, () => executeRun({ ...deps, followers }, runId, work));
     return runId;
   };
 

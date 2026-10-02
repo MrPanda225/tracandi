@@ -174,6 +174,23 @@ describe('importing a CV type (T-1009, EF-CVX-39)', () => {
   });
 });
 
+describe('what a request may be (review of the lot 10)', () => {
+  it('[ENF-SEC-04] refuses an identifier beyond what the database holds with a 400, not a 500', async () => {
+    await as(alice).delete('/api/cv-types/99999999999').expect(400);
+    await as(alice).put('/api/cv-types/99999999999', { file: cvBase64() }).expect(400);
+    await as(alice).get('/api/cv-types/99999999999/deduction').expect(400);
+  });
+
+  it('[ENF-SEC-04] keeps the limit of 100 kB for every request of the CV types that carries no file', async () => {
+    const heavy = { filler: 'x'.repeat(200_000) };
+
+    expect((await as(alice).delete('/api/cv-types/1').send(heavy)).status).toBe(413);
+    // The routes that receive a file are the only ones that may carry 5 MB.
+    expect((await as(alice).post('/api/cv-types', { label: 'Data', file: cvBase64() })).status).toBe(202);
+    await context.queue.drain();
+  });
+});
+
 describe('reading a CV type with the controls of the CV workshop (T-1009, EF-CVX-40)', () => {
   it('[EF-CVX-40] refuses a DOCX at once, with no run, no row and no AI call', async () => {
     const docx = Buffer.concat([Buffer.from('PK\u0003\u0004', 'latin1'), Buffer.alloc(100, 0)]);

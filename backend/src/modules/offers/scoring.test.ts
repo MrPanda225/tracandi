@@ -4,6 +4,7 @@ import {
   matchedTargetOf,
   PREFILTERED_SCORE,
   ScoredOffersSchema,
+  scoredOffersSchemaFor,
   type ScorableOffer,
   type ScoringTarget,
 } from './scoring.js';
@@ -113,5 +114,21 @@ describe('ScoredOffersSchema — EF-IA-03', () => {
     ['a reference that is not one', { ref: 0, score: 70 }],
   ])('[EF-IA-03] refuses %s', (_case, scored) => {
     expect(ScoredOffersSchema.safeParse({ offers: [scored] }).success).toBe(false);
+  });
+});
+
+describe('scoredOffersSchemaFor — a batch of a given size (review of the lot 10)', () => {
+  const answer = (...refs: number[]) => ({ offers: refs.map((ref) => ({ ref, score: 70 })) });
+
+  it('[EF-IA-03] accepts an answer that scores at least one offer of the batch, the others being left out', () => {
+    expect(scoredOffersSchemaFor(5).safeParse(answer(1, 3)).success).toBe(true);
+    expect(scoredOffersSchemaFor(5).safeParse(answer(5)).success).toBe(true);
+  });
+
+  it.each([
+    ['no offer at all', answer()],
+    ['only references that are not in the batch', answer(6, 7)],
+  ])('[EF-IA-03] refuses an answer with %s, so that the next provider is asked', (_name, given) => {
+    expect(scoredOffersSchemaFor(5).safeParse(given).success).toBe(false);
   });
 });

@@ -5,6 +5,7 @@ import {
   emailCategory,
   emailDirection,
 } from '../../db/schema.js';
+import { idParam } from '../../lib/ids.js';
 import { z } from '../../lib/openapi.js';
 import { normalizeKey } from '../../lib/text.js';
 
@@ -65,7 +66,7 @@ const AppliedAtSchema = z
     example: '2026-09-07T10:00:00.000Z',
   });
 
-export const IdParamsSchema = z.object({ id: z.coerce.number().int().positive().openapi({ example: 1 }) });
+export const IdParamsSchema = z.object({ id: idParam().openapi({ example: 1 }) });
 
 /** EF-CAN-02, EF-CAN-03, EF-CAN-14 */
 /** EF-CAN-20: the orders the list can be read in. */

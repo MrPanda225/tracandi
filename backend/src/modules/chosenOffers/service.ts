@@ -1,6 +1,7 @@
 import type { Database } from '../../db/client.js';
 import type { JobQueue, RunCounters } from '../../jobs/queue.js';
 import type { Clock } from '../../lib/clock.js';
+import { createKeyedMutex } from '../../lib/async.js';
 import { HttpError, NotFoundError } from '../../lib/errors.js';
 import { startOfParisDay } from '../../lib/parisTime.js';
 import { buildExtractOfferTraitsPrompt } from '../../llm/prompts/extractOfferTraits.js';
@@ -109,7 +110,7 @@ const extractionRun =
  * EF-VEI-48, EF-VEI-49: the offers a candidate chooses as models of their level — three at most per level, each read in
  * the queue, then kept as its traits alone.
  */
-export const createChosenOffersService = (deps: ChosenOffersServiceDeps): ChosenOffersService => {
+const createService = (deps: ChosenOffersServiceDeps): ChosenOffersService => {
   const { db, queue, clock } = deps;
   /** Extractions asked for and not over yet, per candidate and level: they count against the three places. */
   const pending = new Map<string, number>();
@@ -167,3 +168,18 @@ export const createChosenOffersService = (deps: ChosenOffersServiceDeps): Chosen
     },
   };
 };
+
+/**
+ * ENF-COU-01: the requests of one candidate that read a count and then write it — the daily allowance, the three
+ * places of a level — are served one after the other, so that requests sent together do not all read the same count.
+ */
+const serialised = (service: ChosenOffersService): ChosenOffersService => {
+  const exclusively = createKeyedMutex<number>();
+  return {
+    ...service,
+    startExtraction: (userId, body) => exclusively(userId, () => service.startExtraction(userId, body)),
+  };
+};
+
+export const createChosenOffersService = (deps: ChosenOffersServiceDeps): ChosenOffersService =>
+  serialised(createService(deps));

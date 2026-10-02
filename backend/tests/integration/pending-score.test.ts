@@ -17,6 +17,9 @@ let context: TestContext;
 let alice: string;
 let board: { jobs: unknown[] };
 let aiDown = false;
+/** What the simulated model answers for: the first `answersFor` references only, or nothing at all. */
+let answersFor: number | null = null;
+let answersNothing = false;
 /** Minutes the simulated model « takes » per call: the test clock moves by that much (ENF-PERF-09). */
 let minutesPerCall = 0;
 const prompts: string[] = [];
@@ -43,7 +46,8 @@ const scoringAi = (): LlmProvider => ({
     prompts.push(prompt);
     if (minutesPerCall > 0) context.clock.advanceMinutes(minutesPerCall);
     if (aiDown) return Promise.reject(new Error('no model answers'));
-    const refs = [...prompt.matchAll(/<offer ref="(\d+)">/gu)].map((match) => Number(match[1]));
+    const asked = [...prompt.matchAll(/<offer ref="(\d+)">/gu)].map((match) => Number(match[1]));
+    const refs = answersNothing ? [] : answersFor === null ? asked : asked.slice(0, answersFor);
     return Promise.resolve({
       text: JSON.stringify({ offers: refs.map((ref) => ({ ref, score: 70, reason: 'Proche.' })) }),
       inputTokens: 10,
@@ -84,6 +88,8 @@ const titlesInPrompt = (prompt: string) =>
 const start = async (limits?: { maxScoredOffersPerPass?: number; maxPassMinutes?: number }) => {
   prompts.length = 0;
   aiDown = false;
+  answersFor = null;
+  answersNothing = false;
   minutesPerCall = 0;
   await truncateAll(database);
   context = createTestContext(database, {
@@ -217,5 +223,39 @@ describe('duration of a pass (ENF-PERF-09)', () => {
     // Fifteen at a time: 0 min, 30 min, then 60 min: the third batch is not started.
     expect(prompts).toHaveLength(2);
     expect(state).toMatchObject({ outcome: 'success', counters: { offers_new: 40, offers_unscored: 10 } });
+  });
+});
+
+describe('a model that does not score every offer it is given (review of the lot 10, EF-VEI-54)', () => {
+  it('[EF-VEI-54] keeps waiting the offers the model skipped, and scores them at the next pass', async () => {
+    answersFor = 3;
+
+    const first = await checkNow();
+
+    // Three scored; the nine others are not given a score they never got: they wait for the next pass.
+    expect(first).toMatchObject({ counters: { offers_relevant: 3, offers_unscored: 9 } });
+    expect((await scores()).filter((score) => score === null)).toHaveLength(9);
+    answersFor = null;
+
+    const second = await checkNow();
+
+    expect(second).toMatchObject({ counters: { offers_new: 0, offers_unscored: 0 } });
+    expect(await scores()).toEqual(Array.from({ length: 12 }, () => 70));
+  });
+
+  it('[EF-IA-03] refuses an answer that scores none of the offers of the batch, and leaves the batch waiting', async () => {
+    answersNothing = true;
+
+    const first = await checkNow();
+
+    expect(first).toMatchObject({
+      outcome: 'success',
+      counters: { offers_relevant: 0, offers_unscored: 12 },
+    });
+    expect(await scores()).toEqual(Array.from({ length: 12 }, () => null));
+    answersNothing = false;
+
+    expect(await checkNow()).toMatchObject({ counters: { offers_unscored: 0 } });
+    expect(await scores()).toEqual(Array.from({ length: 12 }, () => 70));
   });
 });

@@ -66,6 +66,8 @@ export const LLM_TIMEOUT_MS = 60_000;
  */
 const RETRY_BACKOFF_MS = [2000, 5000] as const;
 export const PROVIDER_ATTEMPTS = RETRY_BACKOFF_MS.length + 1;
+/** The longest a provider is waited for between two attempts, whatever it asks (`Retry-After`). */
+const MAX_RETRY_WAIT_MS = 60_000;
 // Room for a whole CV or a batch of classifications; billing follows the tokens actually produced.
 const DEFAULT_MAX_OUTPUT_TOKENS = 16_000;
 
@@ -309,7 +311,8 @@ const createProviderRunner = ({ journal, logger, timeoutMs, sleep }: ProviderRun
       if (last.outcome === 'success' || !isWorthAnotherTry(last.refusal)) return last;
       // A saturated provider is left to the next one of the route rather than waited for (RG-13).
       if (isSaturated(last.refusal) && hasFallback) return last;
-      await sleep(askedDelayOf(last.refusal) ?? backoffMs);
+      // ENF-PERF-09: a provider that asks for an hour is not waited for an hour: the pass has a deadline of its own.
+      await sleep(Math.min(askedDelayOf(last.refusal) ?? backoffMs, MAX_RETRY_WAIT_MS));
       last = await tryOnce(provider, task, input);
     }
     return last;

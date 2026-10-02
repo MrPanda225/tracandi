@@ -1,4 +1,5 @@
 import { experienceLevel } from '../../db/schema.js';
+import { idParam } from '../../lib/ids.js';
 import { z } from '../../lib/openapi.js';
 import { CriteriaTargetSchema } from '../criteria/schemas.js';
 
@@ -38,7 +39,7 @@ export const UpdateChosenOfferBodySchema = z
   .refine((body) => Object.keys(body).length > 0, { message: 'Indiquez au moins un trait à corriger.' })
   .openapi('ChosenOfferCorrection');
 
-export const ChosenOfferIdParamsSchema = z.object({ id: z.coerce.number().int().positive() });
+export const ChosenOfferIdParamsSchema = z.object({ id: idParam() });
 
 /** What is kept of a chosen offer, and all of it (ENF-RGP-14): its traits, never its text. */
 export const ChosenOfferSchema = z

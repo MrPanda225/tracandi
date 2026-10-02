@@ -388,6 +388,19 @@ describe('the daily allowance of deductions (T-1010, EF-CVX-44)', () => {
     await context.queue.drain();
   });
 
+  it('[EF-CVX-44] [ENF-COU-01] holds the allowance against requests sent together: ten replacements at once give four runs, not ten', async () => {
+    const id = await importCv('Un');
+
+    const statuses = await Promise.all(
+      Array.from({ length: 10 }, () => as(alice).put(`/api/cv-types/${String(id)}`, { file: cvBase64() })),
+    ).then((responses) => responses.map((response) => response.status));
+    await context.queue.drain();
+
+    // The import of « Un » was the first of the five of the day.
+    expect(statuses.filter((status) => status === 202)).toHaveLength(4);
+    expect(statuses.filter((status) => status === 429)).toHaveLength(6);
+  });
+
   it('[EF-CVX-44] does not count a deduction that failed', async () => {
     answers.local = () => Promise.resolve('nope');
     answers.gemini = () => Promise.resolve('nope');

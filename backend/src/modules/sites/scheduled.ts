@@ -27,6 +27,16 @@ export interface ScheduledWatchDeps {
   workFor: (userId: number, slot: WatchSlot) => QueuedWork;
 }
 
+/** ENF-RGP-10: the daily purge. A purge that fails is logged and goes no further: the passes of the candidates must start. */
+const purgeStaleOffers = async ({ db, clock, logger }: ScheduledWatchDeps): Promise<void> => {
+  try {
+    const removed = await repository.purgeStaleOffers(db, new Date(clock().getTime() - OFFER_RETENTION_MS));
+    if (removed > 0) logger.info('stale offers removed', { removed });
+  } catch (error) {
+    logger.warn('stale offers could not be purged', { error });
+  }
+};
+
 /**
  * EF-VEI-06, EF-VEI-51: what the clock starts at each of its three o'clock — the pass of every candidate who
  * activated their watch and ticked the slot (EF-CFG-07).
@@ -51,8 +61,7 @@ export const createScheduledWatch = (deps: ScheduledWatchDeps) => {
   return {
     async run(): Promise<void> {
       // ENF-RGP-10: three times a day, so at least once a day.
-      const removed = await repository.purgeStaleOffers(db, new Date(clock().getTime() - OFFER_RETENTION_MS));
-      if (removed > 0) logger.info('stale offers removed', { removed });
+      await purgeStaleOffers(deps);
       const slot = slotAt(clock(), deps.timezone ?? DEFAULT_TIMEZONE);
       for (const userId of await automaticWatch.listUsersAtSlot(db, slot)) {
         try {

@@ -128,6 +128,23 @@ describe('requiredYearsOf', () => {
     expect(requiredYearsOf(text)).toBeNull();
   });
 
+  it.each([
+    ["Minimum 1,5 an d'expérience", null],
+    ["2.5 ans d'expérience", null],
+    ["100 ans d'expérience du groupe", null],
+    ["Entreprise de 15 ans d'expérience sectorielle", 15],
+  ])('[RG-29] does not read a number that is part of a larger one: « %s »', (text, years) => {
+    // « 1,5 an » is not 5 years, « 2.5 ans » is not 5, « 100 ans » is a company's age, not a requirement.
+    expect(requiredYearsOf(text)).toBe(years);
+  });
+
+  it('[RG-29] reads a requirement quickly even in a text of 20 000 spaces', () => {
+    const startedAt = performance.now();
+    requiredYearsOf(`1${' '.repeat(20_000)}x`);
+
+    expect(performance.now() - startedAt).toBeLessThan(200);
+  });
+
   it('[RG-29] is not fooled by accents or capitals', () => {
     expect(requiredYearsOf('EXPERIENCE: 6 ANS minimum')).toBe(6);
   });

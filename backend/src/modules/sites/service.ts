@@ -191,19 +191,34 @@ const scoringOf = async (
   saved: WatchCriteria | null,
 ): Promise<ScoringProfile> => {
   if (saved) return scoringProfileOf(saved);
-  const profile = await profiles.read(userId).catch(() => {
-    throw new HttpError(CONFLICT, NO_CRITERIA);
+  const profile = await profiles.read(userId).catch((error: unknown) => {
+    // Only « there is no profile » means there is nothing to search for; a failure of the database is not that.
+    throw error instanceof NotFoundError ? new HttpError(CONFLICT, NO_CRITERIA) : error;
   });
   return { searchArea: profile.location.searchArea, targets: profile.targets };
 };
 
+/**
+ * EF-VEI-54: a pass with no source to read still has work when offers wait for a score from an earlier pass — a source
+ * spaced out for a day (EF-VEI-42) must not keep a backlog from being scored once a model answers again.
+ */
+const hasNothingToDo = async (
+  db: Database,
+  userId: number,
+  sources: readonly SourceRow[],
+): Promise<boolean> => sources.length === 0 && (await repository.countUnscoredOffers(db, userId)) === 0;
+
 /** EF-VEI-55: whether a candidate has something to search for — criteria, or the profile standing for them. */
-const hasTargetsOf =
+export const hasTargetsOf =
   ({ profiles, criteria }: Pick<WatchServiceDeps, 'profiles' | 'criteria'>) =>
   async (userId: number): Promise<boolean> =>
     scoringOf(profiles, userId, await criteria.read(userId)).then(
       () => true,
-      () => false,
+      (error: unknown) => {
+        // Nothing to search for is an answer; any other failure is not, and must not be recorded as one.
+        if (error instanceof HttpError && error.statusCode === CONFLICT) return false;
+        throw error;
+      },
     );
 
 /**
@@ -264,7 +279,7 @@ export const createWatchService = (deps: WatchServiceDeps): WatchService => {
       userId,
       trigger === 'schedule' ? deps.clock() : null,
     );
-    if (sources.length === 0) return EMPTY_REPORT(threshold);
+    if (await hasNothingToDo(db, userId, sources)) return EMPTY_REPORT(threshold);
     const saved = await criteria.read(userId);
     await sirens?.resolve(userId);
     return pass.run({

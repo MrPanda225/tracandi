@@ -1,4 +1,5 @@
 import { jobName, runCounter, runOutcome, triggerType } from '../../db/schema.js';
+import { idParam } from '../../lib/ids.js';
 import { z } from '../../lib/openapi.js';
 
 /** EF-EXE-03: state of one execution, as the interface follows it. */
@@ -20,4 +21,4 @@ export const AcceptedRunSchema = z
   .object({ runId: z.number().int().positive().openapi({ description: 'Exécution à suivre (EF-EXE-03)' }) })
   .openapi('AcceptedRun');
 
-export const RunIdParamsSchema = z.object({ id: z.coerce.number().int().positive() });
+export const RunIdParamsSchema = z.object({ id: idParam() });

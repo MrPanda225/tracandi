@@ -188,6 +188,42 @@ describe('connectLocal', () => {
     expect(JSON.parse(String(init.body))).not.toHaveProperty('temperature');
   });
 
+  it('[ENF-SEC-25] [ENF-RGP-12] refuses to follow a redirect: the request, with the text of a CV, goes to the address of the configuration only', async () => {
+    const fetchImpl = vi.fn(() => Promise.resolve(answer(completion)));
+
+    await connectLocal(LOCAL_CONFIG, fetchImpl).complete(REQUEST);
+    await providerWith(fetchImpl).complete(REQUEST);
+
+    for (const [, init] of fetchImpl.mock.calls as unknown as [string, RequestInit][]) {
+      expect(init.redirect).toBe('error');
+    }
+  });
+
+  it('[ENF-SEC-25] keeps the body of an error page out of the failure of the local model: it may name the public host of a tunnel', async () => {
+    const page = '<html><title>502 Bad Gateway — modele.tunnel.example.com</title></html>';
+    const fetchImpl = vi.fn((url: string) =>
+      Promise.resolve(url.endsWith('/models') ? answer({}) : new Response(page, { status: 502 })),
+    ) as unknown as typeof fetch;
+
+    const failure = (await connectLocal(LOCAL_CONFIG, fetchImpl)
+      .complete(REQUEST)
+      .catch((error: unknown) => error)) as Error & { status: number };
+
+    expect(failure).toMatchObject({ status: 502 });
+    expect(failure.message).not.toContain('tunnel.example.com');
+    expect(failure.message).toContain('502');
+  });
+
+  it('[EF-IA-02] still tells a hosted provider’s refusal in its own words, as the log of the router needs', async () => {
+    const fetchImpl = vi.fn(() => Promise.resolve(answer({ error: { message: 'Rate limit reached' } }, 429)));
+
+    const failure = (await providerWith(fetchImpl)
+      .complete(REQUEST)
+      .catch((error: unknown) => error)) as Error;
+
+    expect(failure.message).toContain('Rate limit reached');
+  });
+
   it('[ENF-SEC-25] fails without the address nor the token when the server cannot be reached', async () => {
     const unreachable = Object.assign(new TypeError('fetch failed'), {
       cause: Object.assign(new Error('connect ECONNREFUSED 192.168.1.54:11434'), { address: '192.168.1.54' }),

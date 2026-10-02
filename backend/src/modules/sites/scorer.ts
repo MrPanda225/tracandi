@@ -4,7 +4,7 @@ import type { Logger } from '../../lib/logger.js';
 import { HOSTED_BATCH_LIMITS } from '../../llm/limits.js';
 import { buildScoreOffersPrompt, type ScoringProfile } from '../../llm/prompts/scoreOffers.js';
 import type { LlmRouter } from '../../llm/router.js';
-import { PREFILTERED_SCORE, ScoredOffersSchema } from '../offers/scoring.js';
+import { scoredOffersSchemaFor } from '../offers/scoring.js';
 import * as repository from './repository.js';
 import type { UnscoredOffer } from './repository.js';
 
@@ -46,8 +46,9 @@ interface Deps {
 }
 
 /**
- * RG-09: scores one batch through the AI, by reference. A model that skips an offer gives it the score of an offer set
- * aside, which keeps it at the bottom of the list rather than losing it (ENF-FIA-02).
+ * RG-09: scores one batch through the AI, by reference. An offer the model leaves out is not given a score: it stays
+ * without one and is sent again at the next pass (EF-VEI-54). A model that scores none of the batch is refused by the
+ * schema, so that the router asks the next provider.
  */
 const scoreBatch = async (
   input: PendingScoringInput,
@@ -58,12 +59,12 @@ const scoreBatch = async (
   const { data } = await input.llm.runTask('score_offers', {
     userId: input.userId,
     ...buildScoreOffersPrompt(input.scoring, offers, { descriptionChars }),
-    schema: ScoredOffersSchema,
+    schema: scoredOffersSchemaFor(batch.length),
   });
   const byReference = new Map(data.offers.map((scored) => [scored.ref, scored]));
-  return batch.map((offer, index) => {
+  return batch.flatMap((offer, index) => {
     const scored = byReference.get(index + 1);
-    return { id: offer.id, score: scored?.score ?? PREFILTERED_SCORE, reason: scored?.reason ?? null };
+    return scored ? [{ id: offer.id, score: scored.score, reason: scored.reason }] : [];
   });
 };
 

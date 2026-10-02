@@ -89,5 +89,16 @@ export const ScoredOfferSchema = z.object({
  */
 export const ScoredOffersSchema = z.object({ offers: z.array(ScoredOfferSchema) });
 
+/**
+ * The answer for a batch of `batchSize` offers: it must score at least one of them. An answer with none — empty, or
+ * with references the batch does not have — is refused, so that the next provider is asked (EF-IA-03); the offers it
+ * leaves out wait for the next pass instead of being given a score nobody gave (EF-VEI-54).
+ * @req EF-IA-03, EF-VEI-54
+ */
+export const scoredOffersSchemaFor = (batchSize: number) =>
+  ScoredOffersSchema.refine((answer) => answer.offers.some(({ ref }) => ref <= batchSize), {
+    message: 'No offer of the batch is scored',
+  });
+
 export type ScoredOffer = z.infer<typeof ScoredOfferSchema>;
 export type ScoredOffers = z.infer<typeof ScoredOffersSchema>;

@@ -369,6 +369,29 @@ describe('a pass still running at the next slot (T-1008, EF-EXE-08)', () => {
     ]);
   });
 
+  it('[EF-EXE-08] [EF-VEI-54] takes up at 19 h the backlog even when no source is due: the source was read at 13 h and is spaced out until 21 h', async () => {
+    await automatic(alice, true).expect(200);
+    aiDown = true;
+    await scheduledPassAt('morning');
+    await scheduledPassAt('noon'); // Same offers again: the source is now spaced out by 8 hours (EF-VEI-42).
+    const waiting = await database.db.select({ score: jobOffers.relevanceScore }).from(jobOffers);
+    expect(waiting.some((offer) => offer.score === null)).toBe(true);
+    aiDown = false;
+
+    await scheduledPassAt('evening');
+
+    const scored = await database.db.select({ score: jobOffers.relevanceScore }).from(jobOffers);
+    expect(scored.every((offer) => offer.score !== null)).toBe(true);
+    const { passes } = (await as(alice).get('/api/watch/automatic')).body as {
+      passes: { slot: string; counters: Record<string, number> }[];
+    };
+    // Nothing was read at 19 h, and the pass says what it did: the offers it could score, none left waiting.
+    expect(passes.find((pass) => pass.slot === 'evening')?.counters).toMatchObject({
+      sources_checked: 0,
+      offers_unscored: 0,
+    });
+  });
+
   it('[EF-EXE-08] [EF-VEI-54] takes up at 19 h the offers the morning could not score', async () => {
     await automatic(alice, true).expect(200);
     aiDown = true;
