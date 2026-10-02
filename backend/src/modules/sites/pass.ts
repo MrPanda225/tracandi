@@ -186,7 +186,8 @@ const createSourceChecker =
       runTask: (task, input) => work.llm.runTask(task, { ...input, userId: context.userId }),
       official: {
         criteria: context.criteria,
-        since: source.lastCheckedAt,
+        // RG-30: from the start of the last SUCCESSFUL check, so that a failed one never leaves a gap (EF-VEI-53).
+        since: source.lastSuccessStartedAt,
         now: clock(),
         franceTravail: officialApis.franceTravail,
         laBonneAlternance: officialApis.laBonneAlternance,
@@ -220,6 +221,8 @@ export const createWatchPass = (deps: WatchPassDeps): WatchPass => {
       // Sources are read one after the other: the collector already spaces its calls, and a career page costs an
       // AI call. What matters is that a failure stays on its own source (ENF-FIA-02).
       for (const source of context.sources) {
+        // The window of the next check starts where this one began: what is published while it reads is not missed.
+        const startedAt = clock();
         try {
           const outcome = await checkSource(context, source, work);
           report.sourcesChecked += 1;
@@ -230,6 +233,7 @@ export const createWatchPass = (deps: WatchPassDeps): WatchPass => {
             checkedAt: clock(),
             error: null,
             pace: outcome.pace,
+            succeededFrom: startedAt,
           });
         } catch (error) {
           report.sourcesFailed += 1;

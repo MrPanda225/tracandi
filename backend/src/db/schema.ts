@@ -290,7 +290,11 @@ export const watchedSites = pgTable(
     // RG-08: ATS slug (lower case) or https URL.
     identifier: varchar({ length: 500 }).notNull(),
     isActive: boolean().notNull().default(true),
+    // EF-VEI-10: when the source was last consulted, a failed consultation included.
     lastCheckedAt: instant(),
+    // EF-VEI-52, RG-30 (v1.35): when the last SUCCESSFUL consultation began; the window of the next one starts there,
+    // so that a failure never makes the offers published since the last success slip away.
+    lastSuccessStartedAt: instant(),
     lastError: varchar({ length: 500 }),
     // EF-VEI-41 (v1.33): SHA-256 of the sorted identifiers of the offers last read on the source.
     offersFingerprint: varchar({ length: 64 }),

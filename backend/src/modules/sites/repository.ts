@@ -27,6 +27,8 @@ export interface SourceRow {
   identifier: string;
   isActive: boolean;
   lastCheckedAt: Date | null;
+  /** EF-VEI-52, RG-30: where the window of the next consultation starts; null before the first success. */
+  lastSuccessStartedAt: Date | null;
   lastError: string | null;
   offerCount: number;
   /** EF-VEI-41, EF-VEI-42: what the last check found, and how many checks in a row found the same. */
@@ -54,6 +56,7 @@ const sourceColumns = {
   identifier: watchedSites.identifier,
   isActive: watchedSites.isActive,
   lastCheckedAt: watchedSites.lastCheckedAt,
+  lastSuccessStartedAt: watchedSites.lastSuccessStartedAt,
   lastError: watchedSites.lastError,
   offerCount,
   offersFingerprint: watchedSites.offersFingerprint,
@@ -90,7 +93,9 @@ export const listActiveSources = async (
       and(
         ownedBy(userId),
         eq(watchedSites.isActive, true),
-        dueAt === null ? undefined : or(isNull(watchedSites.nextCheckAt), lte(watchedSites.nextCheckAt, dueAt)),
+        dueAt === null
+          ? undefined
+          : or(isNull(watchedSites.nextCheckAt), lte(watchedSites.nextCheckAt, dueAt)),
       ),
     )
     .orderBy(watchedSites.id);
@@ -141,13 +146,15 @@ export const deleteSource = async (db: Executor, userId: number, id: number): Pr
 export const recordCheck = async (
   db: Executor,
   id: number,
-  outcome: { checkedAt: Date; error: string | null; pace?: Pace },
+  outcome: { checkedAt: Date; error: string | null; pace?: Pace; succeededFrom?: Date },
 ): Promise<void> => {
   await db
     .update(watchedSites)
     .set({
       lastCheckedAt: outcome.checkedAt,
       lastError: outcome.error,
+      // EF-VEI-53, RG-30: only a successful consultation moves the window; a failed one leaves it where it was.
+      ...(outcome.succeededFrom ? { lastSuccessStartedAt: outcome.succeededFrom } : {}),
       ...(outcome.pace
         ? {
             offersFingerprint: outcome.pace.fingerprint,
@@ -318,7 +325,11 @@ export const listPlatformDomains = async (db: Executor): Promise<Set<string>> =>
  * EF-VEI-25 : retient qu'une proposition a été écartée. Deux refus de suite ne sont pas une erreur.
  * @returns faux quand l'entreprise n'est pas celle du candidat (EF-AUT-06).
  */
-export const dismissSuggestion = async (db: Executor, userId: number, companyId: number): Promise<boolean> => {
+export const dismissSuggestion = async (
+  db: Executor,
+  userId: number,
+  companyId: number,
+): Promise<boolean> => {
   const owned = await db
     .select({ id: companies.id })
     .from(companies)
@@ -327,7 +338,9 @@ export const dismissSuggestion = async (db: Executor, userId: number, companyId:
   await db
     .insert(dismissedSourceSuggestions)
     .values({ userId, companyId })
-    .onConflictDoNothing({ target: [dismissedSourceSuggestions.userId, dismissedSourceSuggestions.companyId] });
+    .onConflictDoNothing({
+      target: [dismissedSourceSuggestions.userId, dismissedSourceSuggestions.companyId],
+    });
   return true;
 };
 
@@ -349,7 +362,12 @@ export const listCompaniesToIdentify = async (
         eq(companies.userId, userId),
         isNull(companies.siren),
         or(isNull(companies.sirenCheckedAt), lt(companies.sirenCheckedAt, before)),
-        exists(db.select({ id: applications.id }).from(applications).where(eq(applications.companyId, companies.id))),
+        exists(
+          db
+            .select({ id: applications.id })
+            .from(applications)
+            .where(eq(applications.companyId, companies.id)),
+        ),
       ),
     )
     .orderBy(sql`${companies.sirenCheckedAt} asc nulls first`, companies.id)

@@ -917,13 +917,21 @@ développeur l'active sur son poste (`ENABLED_FEATURES=watch,cv`) le temps d'y t
   *Reste à faire* : l'extraction des pages carrières par le local (`extract_offers`) envoie jusqu'à 12 000 caractères
   de texte et 120 liens : avec un contexte de 8 192 jetons et 2 000 jetons de sortie, c'est à surveiller (non couvert
   par EF-IA-12, qui ne vise que la notation) ; les tâches de profil seront ajoutées à `SCHEDULED_ROUTES` par T-1010.
-- [ ] **T-1004 Fenêtre depuis la dernière consultation réussie** — colonne « début de la dernière consultation
+- [x] **T-1004 Fenêtre depuis la dernière consultation réussie** — colonne « début de la dernière consultation
   réussie » sur `watched_sites` (migration) ; la fenêtre de France Travail s'en sert ; une consultation échouée ne
   l'avance pas ; ADR-18.
   *Exigences* : EF-VEI-52, EF-VEI-53, EF-VEI-10 (modifiée), RG-30.
   *Fini quand* : consultation de 7 h en échec : celle de 13 h demande depuis la dernière réussite ; première
   consultation : 7 jours ; dernière réussite il y a 40 jours : 31 jours ; zéro doublon (EF-VEI-09).
   *Dépend de* : —. *Corrige* le constat C-2.
+  *Livré* : migration 0023 (`watched_sites.last_success_started_at`, avec reprise des sources déjà lues : leur dernière
+  consultation réussie, moins une heure) ; `recordCheck(..., { succeededFrom })` n'avance la colonne que sur un succès ;
+  le passage note l'heure où la consultation commence (et non celle où elle finit) ; la fenêtre de France Travail part
+  de cette colonne (`since: source.lastSuccessStartedAt`) au lieu de `last_checked_at`, qui note aussi les échecs.
+  `last_checked_at` garde son rôle d'EF-VEI-10 (dernière consultation, échec compris).
+  *Constat corrigé* : après un échec, la fenêtre de France Travail repartait de l'heure de l'échec, et les offres
+  publiées entre la dernière réussite et l'échec n'étaient jamais lues.
+  *Reste à faire* : l'export des données (EF-AUT-12) ne porte pas encore la nouvelle colonne (T-1016).
 - [ ] **T-1005 Offres sans note, plafond par passage, durée maximale** — une offre lue est enregistrée même si
   aucun fournisseur ne la note (note vide, compteur « en attente de note », migration de l'énumération des
   compteurs) et notée au passage suivant, les plus récentes d'abord ; au plus N offres notées par passage ;
