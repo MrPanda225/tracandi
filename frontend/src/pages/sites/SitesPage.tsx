@@ -3,6 +3,7 @@ import { isAbortError, messageOf } from '../../api/client';
 import { followRuns, isRunning, type RunState } from '../../api/jobs';
 import {
   addSource,
+  discoverSources,
   fetchSources,
   fetchSourceTypes,
   fetchSuggestions,
@@ -11,6 +12,7 @@ import {
   setSourceActive,
   type NewSource,
   type Source,
+  type SourceAdapterId,
   type SourceSuggestion,
   type SourceType,
 } from '../../api/sites';
@@ -18,7 +20,9 @@ import { Flash } from '../../components/Flash';
 import { PageHeader } from '../../components/PageHeader';
 import { Skeleton } from '../../components/Skeleton';
 import { formatDateTime } from '../../lib/format';
+import { CriteriaCard } from './CriteriaCard';
 import { NewSourceForm } from './NewSourceForm';
+import { OfficialSources } from './OfficialSources';
 import { Suggestions, type WatchAllFailure } from './Suggestions';
 import './SitesPage.css';
 
@@ -72,11 +76,17 @@ function SourceRow({
     <li className={`site${source.isActive ? '' : ' site--suspended'}`}>
       <div className="site__main">
         <p className="site__company">
-          {source.companyName}
+          {source.companyName ?? source.adapterLabel}
           {!source.isActive && <span className="site__badge">Suspendue</span>}
         </p>
         <p className="site__meta">
-          {source.adapterLabel} · <code>{source.identifier}</code>
+          {source.companyName === null ? (
+            'Interrogée selon vos critères de recherche'
+          ) : (
+            <>
+              {source.adapterLabel} · <code>{source.identifier}</code>
+            </>
+          )}
         </p>
         <LastCheck source={source} />
       </div>
@@ -133,6 +143,7 @@ export function SitesPage() {
   const [run, setRun] = useState<RunState | null>(null);
   const [suggestions, setSuggestions] = useState<SourceSuggestion[]>([]);
   const [prefill, setPrefill] = useState<NewSource | null>(null);
+  const [discovery, setDiscovery] = useState<RunState | null>(null);
 
   /* Ne lit que les sources : la liste des types ne bouge pas d'une consultation à l'autre, et la recharger à
      chaque fois risquerait de l'effacer avec une valeur capturée trop tôt. */
@@ -165,6 +176,11 @@ export function SitesPage() {
   useEffect(
     () =>
       followRuns((state) => {
+        if (state.job === 'source_discovery') {
+          setDiscovery(state);
+          if (!isRunning(state)) void load();
+          return;
+        }
         if (state.job !== 'scraper') return;
         setRun(state);
         if (!isRunning(state)) void load();
@@ -187,7 +203,8 @@ export function SitesPage() {
 
   const handleAdd = async (source: NewSource) => {
     await addSource(source);
-    setNotice(`${source.companyName} est maintenant surveillée.`);
+    const name = source.companyName ?? types.find((type) => type.id === source.adapter)?.label ?? 'La source';
+    setNotice(`${name} est maintenant surveillée.`);
     await load();
   };
 
@@ -210,10 +227,25 @@ export function SitesPage() {
         failures.push({ companyName: suggestion.companyName, reason: messageOf(failure) });
       }
     }
-    setNotice(added === 0 ? null : `${String(added)} source${added > 1 ? 's' : ''} ajoutée${added > 1 ? 's' : ''}.`);
+    setNotice(
+      added === 0 ? null : `${String(added)} source${added > 1 ? 's' : ''} ajoutée${added > 1 ? 's' : ''}.`,
+    );
     await load();
     return failures;
   };
+
+  // EF-VEI-38 : la recherche est mise en file ; son avancement arrive par le flux des exécutions.
+  const handleDiscover = async () => {
+    setError(null);
+    try {
+      await discoverSources();
+    } catch (failure) {
+      setError(messageOf(failure));
+    }
+  };
+
+  const labelOf = (adapter: SourceAdapterId): string =>
+    types.find((type) => type.id === adapter)?.label ?? adapter;
 
   const handleRun = async () => {
     setError(null);
@@ -231,13 +263,15 @@ export function SitesPage() {
     <>
       <PageHeader title="Sites surveillés" eyebrow="Veille des offres">
         <p>
-          Les entreprises dont Tracandi lit le site carrières. Chaque source active est consultée à 7 h, 13 h et
-          19 h ; les offres repérées sont notées selon vos cibles.
+          Les entreprises dont Tracandi lit le site carrières. Chaque source active est consultée à 7 h, 13 h
+          et 19 h ; les offres repérées sont notées selon ce que vous recherchez.
         </p>
       </PageHeader>
 
       {error !== null && <Flash>{error}</Flash>}
       {notice !== null && <Flash tone="success">{notice}</Flash>}
+
+      <CriteriaCard />
 
       <div className="sites-actions">
         <button
@@ -271,9 +305,14 @@ export function SitesPage() {
           })
         }
         onDismissed={() => void load()}
+        discovery={discovery}
+        onDiscover={() => void handleDiscover()}
+        labelOf={labelOf}
       />
 
-      <NewSourceForm types={types} prefill={prefill} onAdd={handleAdd} />
+      <OfficialSources types={types} sources={sources ?? []} onAdd={handleAdd} />
+
+      <NewSourceForm types={types.filter((type) => !type.isOfficial)} prefill={prefill} onAdd={handleAdd} />
 
       {sources === null && error === null && (
         <div role="status" aria-live="polite" className="sites-loading">

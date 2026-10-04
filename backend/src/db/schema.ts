@@ -25,6 +25,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
   varchar,
 } from 'drizzle-orm/pg-core';
@@ -73,6 +74,16 @@ export const siteAdapter = pgEnum('site_adapter', [
   'recruitee',
   'workday',
   'generic',
+  // EF-VEI-32 (v1.33): one source per candidate, queried with their search criteria.
+  'france_travail',
+  // EF-VEI-34 (v1.33): work-study offers, same rule.
+  'la_bonne_alternance',
+  // EF-VEI-08 (v1.33): five more career site software.
+  'talentsoft',
+  'teamtailor',
+  'personio',
+  'workable',
+  'ashby',
 ]);
 export const offerStatus = pgEnum('offer_status', ['new', 'saved', 'dismissed', 'applied']);
 // RG-13 (v1.8): one value per route entry. The three Groq entries are numbered slots, not model families: the
@@ -91,17 +102,19 @@ export const llmTask = pgEnum('llm_task', [
 ]);
 export const llmOutcome = pgEnum('llm_outcome', ['success', 'error', 'timeout', 'invalid_output']);
 // EF-CVX-32 (v1.30): an analysis of the CV workshop runs in the queue like the other long treatments.
-export const jobName = pgEnum('job_name', ['gmail_sync', 'gmail_reclassify', 'scraper', 'backup', 'cv_analysis']);
+export const jobName = pgEnum('job_name', [
+  'gmail_sync',
+  'gmail_reclassify',
+  'scraper',
+  'backup',
+  'cv_analysis',
+  // EF-VEI-40 (v1.33): the search of the career pages of the companies applied to.
+  'source_discovery',
+]);
 export const triggerType = pgEnum('trigger_type', ['schedule', 'manual']);
 // EF-EXE-01 à 03 : une exécution attend son tour (`queued`) avant de tourner, de réussir, d'échouer ou d'être
 // écartée parce qu'une autre du même travail était déjà en file.
-export const runOutcome = pgEnum('run_outcome', [
-  'queued',
-  'running',
-  'success',
-  'failure',
-  'skipped',
-]);
+export const runOutcome = pgEnum('run_outcome', ['queued', 'running', 'success', 'failure', 'skipped']);
 export const runCounter = pgEnum('run_counter', [
   'messages_read',
   'messages_retained',
@@ -116,7 +129,12 @@ export const runCounter = pgEnum('run_counter', [
   'cv_pages_ocr',
   // EF-CVX-32: steps of an analysis done so far (1 read, 2 diagnosed), published as it goes.
   'cv_steps_done',
+  // EF-VEI-38, EF-VEI-39: companies whose career page was looked for, and sources found and verified.
+  'companies_searched',
+  'sources_verified',
 ]);
+// EF-VEI-39 (v1.33): what the search of a career page concluded.
+export const discoveryStatus = pgEnum('discovery_status', ['verified', 'unconfirmed', 'not_found']);
 
 // ---------- Accounts (EF-AUT, ADR-09) ----------
 export const users = pgTable('users', {
@@ -174,6 +192,19 @@ export const candidateProfiles = pgTable('candidate_profiles', {
   updatedAt: instant().notNull().defaultNow(),
 });
 
+/**
+ * EF-VEI-29 (v1.33): the search criteria of a candidate, one document per user — targets, commune, radius, remote
+ * work, ROME codes. They drive the requests to the official sources and the scoring of every offer (RG-09); the
+ * application validates the document against `WatchCriteriaSchema` before every write and after every read.
+ */
+export const watchCriteria = pgTable('watch_criteria', {
+  userId: integer()
+    .primaryKey()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  document: jsonb().notNull(),
+  updatedAt: instant().notNull().defaultNow(),
+});
+
 // ---------- Reference data ----------
 export const companies = pgTable(
   'companies',
@@ -185,6 +216,10 @@ export const companies = pgTable(
     name: varchar({ length: 160 }).notNull(),
     // RG-14 normalized key, computed by the application.
     nameKey: varchar({ length: 160 }).notNull(),
+    // EF-VEI-36 (v1.33): SIREN found by the API Recherche d'entreprises, when a single active company matched.
+    siren: varchar({ length: 9 }),
+    // When the SIREN was last looked for, found or not: a company is not asked about again at every pass.
+    sirenCheckedAt: instant(),
     createdAt: createdAt(),
   },
   (t) => [
@@ -227,18 +262,36 @@ export const watchedSites = pgTable(
   'watched_sites',
   {
     id: integer().primaryKey().generatedAlwaysAsIdentity(),
-    companyId: integer()
+    // EF-AUT-06: the owner, carried by the source itself since an official source has no company (v1.33).
+    userId: integer()
       .notNull()
-      .references(() => companies.id, { onDelete: 'cascade' }),
+      .references(() => users.id, { onDelete: 'cascade' }),
+    // Null for an official source (EF-VEI-32), which publishes the offers of many employers.
+    companyId: integer().references(() => companies.id, { onDelete: 'cascade' }),
     adapter: siteAdapter().notNull(),
     // RG-08: ATS slug (lower case) or https URL.
     identifier: varchar({ length: 500 }).notNull(),
     isActive: boolean().notNull().default(true),
     lastCheckedAt: instant(),
     lastError: varchar({ length: 500 }),
+    // EF-VEI-41 (v1.33): SHA-256 of the sorted identifiers of the offers last read on the source.
+    offersFingerprint: varchar({ length: 64 }),
+    // EF-VEI-42: consecutive checks that found the same offers, and when the scheduled pass reads the source again.
+    unchangedChecks: smallint().notNull().default(0),
+    nextCheckAt: instant(),
     createdAt: createdAt(),
   },
-  (t) => [unique('uq_watched_sites_source').on(t.companyId, t.adapter, t.identifier)],
+  (t) => [
+    unique('uq_watched_sites_source').on(t.companyId, t.adapter, t.identifier),
+    // EF-VEI-32, RG-08: a single official source of each kind per candidate.
+    uniqueIndex('uq_watched_sites_official').on(t.userId, t.adapter).where(sql`${t.companyId} is null`),
+    // A company source names its company; only an official source goes without one.
+    check(
+      'ck_watched_sites_company',
+      sql`${t.companyId} is not null or ${t.adapter}::text in ('france_travail', 'la_bonne_alternance')`,
+    ),
+    index('ix_watched_sites_user').on(t.userId),
+  ],
 );
 
 /**
@@ -256,10 +309,26 @@ export const dismissedSourceSuggestions = pgTable(
       .references(() => companies.id, { onDelete: 'cascade' }),
     dismissedAt: createdAt(),
   },
-  (t) => [
-    primaryKey({ name: 'pk_dismissed_source_suggestions', columns: [t.userId, t.companyId] }),
-  ],
+  (t) => [primaryKey({ name: 'pk_dismissed_source_suggestions', columns: [t.userId, t.companyId] })],
 );
+
+/**
+ * EF-VEI-38, EF-VEI-39 (v1.33): the source the search of career pages found for a company of the candidate's
+ * applications, and whether it answered. The proposal of EF-VEI-23 then carries it instead of a guess; nothing is
+ * watched until the candidate confirms (RG-19).
+ */
+export const discoveredSources = pgTable('discovered_sources', {
+  companyId: integer()
+    .primaryKey()
+    .references(() => companies.id, { onDelete: 'cascade' }),
+  status: discoveryStatus().notNull(),
+  // Null when nothing was found (`not_found`).
+  adapter: siteAdapter(),
+  identifier: varchar({ length: 500 }),
+  // EF-VEI-39: offers the source rendered when it was verified.
+  offerCount: integer(),
+  discoveredAt: instant().notNull(),
+});
 
 export const jobOffers = pgTable(
   'job_offers',
@@ -269,6 +338,10 @@ export const jobOffers = pgTable(
       .notNull()
       .references(() => watchedSites.id, { onDelete: 'cascade' }),
     externalId: varchar({ length: 255 }).notNull(),
+    // The employer the source names (EF-VEI-32); null when it is the company of the source itself.
+    companyName: varchar({ length: 160 }),
+    // EF-VEI-35: SIREN of that employer, when the source gives its SIRET.
+    companySiren: varchar({ length: 9 }),
     title: varchar({ length: 300 }).notNull(),
     location: varchar({ length: 200 }),
     contractType: contractType().notNull().default('non_precise'),
@@ -276,6 +349,8 @@ export const jobOffers = pgTable(
     description: text(),
     postedAt: instant(),
     firstSeenAt: createdAt(),
+    // ENF-RGP-10 (v1.33): the last check that still found the offer on its source.
+    lastSeenAt: instant().notNull().defaultNow(),
     relevanceScore: smallint(),
     relevanceReason: varchar({ length: 500 }),
     // Label of the profile target (targets live in the user profile, Q-16).
@@ -289,6 +364,8 @@ export const jobOffers = pgTable(
     index('ix_job_offers_status_score').on(t.status, t.relevanceScore),
     // EF-VEI-22
     index('ix_job_offers_contract_type').on(t.contractType),
+    // ENF-RGP-10: the daily purge of the offers their source no longer publishes.
+    index('ix_job_offers_last_seen').on(t.lastSeenAt),
   ],
 );
 
@@ -415,7 +492,9 @@ export const emails = pgTable(
     // EF-GML-20: the received messages of one category, to read them again
     index('ix_emails_user_category').on(t.userId, t.category),
     // RG-20: the messages still without a contact address, read again to find one (EF-GML-20)
-    index('ix_emails_user_without_contact').on(t.userId).where(sql`${t.contactAddress} is null`),
+    index('ix_emails_user_without_contact')
+      .on(t.userId)
+      .where(sql`${t.contactAddress} is null`),
   ],
 );
 

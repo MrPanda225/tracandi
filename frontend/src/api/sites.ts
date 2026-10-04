@@ -1,25 +1,35 @@
 import { request } from './client';
 
-/** Les six types de source de la veille (schéma `SourceType` dans /api/docs, EF-VEI-08). */
+/** Les types de source de la veille (schéma `SourceType` dans /api/docs, EF-VEI-08). */
 export type SourceAdapterId =
   | 'greenhouse'
   | 'lever'
   | 'smartrecruiters'
   | 'recruitee'
   | 'workday'
-  | 'generic';
+  | 'generic'
+  | 'talentsoft'
+  | 'teamtailor'
+  | 'personio'
+  | 'workable'
+  | 'ashby'
+  | 'france_travail'
+  | 'la_bonne_alternance';
 
 /** Un type de source, tel que l'API le décrit : l'écran ne tient pas la liste lui-même (ENF-MAI-03). */
 export interface SourceType {
   id: SourceAdapterId;
   label: string;
   identifierHint: string;
+  /** EF-VEI-32 : une source officielle, sans entreprise, interrogée selon les critères de recherche. */
+  isOfficial: boolean;
 }
 
 /** Une source surveillée (schéma `Source` dans /api/docs, EF-VEI-01, EF-VEI-10, EF-VEI-11). */
 export interface Source {
   id: number;
-  companyName: string;
+  /** Null pour une source officielle (EF-VEI-32), nommée par son type. */
+  companyName: string | null;
   adapter: SourceAdapterId;
   adapterLabel: string;
   identifier: string;
@@ -30,7 +40,8 @@ export interface Source {
 }
 
 export interface NewSource {
-  companyName: string;
+  /** Absent pour une source officielle, qui n'a pas d'entreprise (EF-VEI-32). */
+  companyName?: string;
   adapter: SourceAdapterId;
   identifier: string;
 }
@@ -46,11 +57,21 @@ export interface SourceSuggestion {
   adapter: SourceAdapterId;
   identifier: string;
   messages: number;
+  /** EF-VEI-39 : ce qu'a conclu la recherche des pages carrières ; null tant qu'elle n'a pas été lancée. */
+  verification: 'verified' | 'unconfirmed' | 'not_found' | null;
+  offerCount: number | null;
+  discoveredAt: string | null;
 }
 
 /** EF-VEI-23 : les sources que le candidat pourrait surveiller, déduites de ses candidatures. */
 export const fetchSuggestions = (signal?: AbortSignal) =>
   request<{ items: SourceSuggestion[] }>('/sites/suggestions', { signal }).then((answer) => answer.items);
+
+/** EF-VEI-38, EF-VEI-40 : met en file la recherche des pages carrières des entreprises proposées. */
+export const discoverSources = () =>
+  request<{ runId: number }>('/sites/suggestions/discover', { method: 'POST' }).then(
+    (answer) => answer.runId,
+  );
 
 /** EF-VEI-25 : écarte une proposition, qui n'est plus présentée. */
 export const dismissSuggestion = (companyId: number) =>

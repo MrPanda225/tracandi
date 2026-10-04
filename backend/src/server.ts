@@ -36,7 +36,16 @@ import { createFollowUpDrafts } from './modules/emails/followUp.js';
 import { createGmailModules } from './modules/emails/routes.js';
 import { createGmailSync } from './modules/emails/sync.js';
 import { createSettingsModule } from './modules/settings/routes.js';
+import { createCriteriaModule } from './modules/criteria/routes.js';
+import { createOffersModule } from './modules/offers/routes.js';
+import { createOffersService } from './modules/offers/service.js';
+import { createCriteriaService } from './modules/criteria/service.js';
 import { createSitesModule } from './modules/sites/routes.js';
+import { createOfficialClient } from './scraper/official/client.js';
+import { createSirenFinder } from './scraper/official/companySearch.js';
+import { createFranceTravailApi } from './scraper/official/franceTravail.js';
+import { createPlaceFinder } from './scraper/official/geo.js';
+import { createLaBonneAlternanceApi } from './scraper/official/laBonneAlternance.js';
 import { createWatchService } from './modules/sites/service.js';
 import { createPoliteFetch } from './scraper/http.js';
 import { createStatsModule } from './modules/stats/routes.js';
@@ -112,7 +121,8 @@ const messageFetcher = createMessageFetcher({
   db: database.db,
   openMailbox: connectGmailMailbox(config.gmail, {
     // ENF-FIA-03: a quota refusal or a Gmail outage is attempted again; the journal keeps why the pass was slow.
-    onRetry: ({ attempt, delayMs, error }) => logger.warn('gmail call attempted again', { attempt, delayMs, error }),
+    onRetry: ({ attempt, delayMs, error }) =>
+      logger.warn('gmail call attempted again', { attempt, delayMs, error }),
   }),
   encryptionKey: config.gmail.tokenEncryptionKey,
   clock: systemClock,
@@ -138,13 +148,36 @@ const collect = config.scraper.contact
         new Error('Renseignez SCRAPER_CONTACT_EMAIL pour que la veille puisse consulter un site.'),
       );
 
+// ENF-COL-05: the official APIs, called under their terms of use at half their published rate.
+const officialRequest = createOfficialClient({ contact: config.scraper.contact });
+const criteriaService = createCriteriaService({
+  db: database.db,
+  clock: systemClock,
+  places: createPlaceFinder(officialRequest),
+  logger,
+});
+
+// EF-VEI-37: an official API without credentials leaves its source to say so; the others still run.
+const officialApis = {
+  franceTravail: config.officialSources.franceTravail
+    ? createFranceTravailApi({ request: officialRequest, credentials: config.officialSources.franceTravail })
+    : null,
+  laBonneAlternance: config.officialSources.laBonneAlternance
+    ? createLaBonneAlternanceApi({ request: officialRequest, apiKey: config.officialSources.laBonneAlternance.apiKey })
+    : null,
+};
+
 const watchService = createWatchService({
   db: database.db,
   clock: systemClock,
+  criteria: criteriaService,
   profiles: createProfileService({ db: database.db, clock: systemClock }),
   router: llmRouter,
   queue: jobQueue,
   collect,
+  officialApis,
+  // EF-VEI-36: free and without account, always available.
+  findSiren: createSirenFinder(officialRequest),
   logger,
 });
 
@@ -194,7 +227,13 @@ const app = createApp({
       ),
     ),
     createSettingsModule({ aiAssignments: describeAssignments(config.llm), features: config.features }),
-    ...onlyIf(config.features, 'watch', createSitesModule(watchService)),
+    ...onlyIf(
+      config.features,
+      'watch',
+      createSitesModule(watchService),
+      createOffersModule(createOffersService({ db: database.db, clock: systemClock })),
+      createCriteriaModule(criteriaService),
+    ),
   ],
 });
 

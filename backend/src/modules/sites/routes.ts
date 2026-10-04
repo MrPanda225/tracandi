@@ -118,6 +118,20 @@ const registerSitesDocs = (registry: OpenAPIRegistry): void => {
     tags: ['Veille'],
     security: SESSION_SECURITY,
     method: 'post',
+    path: '/sites/suggestions/discover',
+    summary: 'Rechercher les pages carrières des entreprises proposées',
+    description:
+      'EF-VEI-38 à EF-VEI-40. Mise en file : pour chaque entreprise proposée, l’accueil de son site est lu, puis au ' +
+      'besoin la page carrières qu’il désigne ; le logiciel de recrutement est reconnu à ses liens et scripts (RG-27) ' +
+      'et la source trouvée est consultée une fois. Les propositions portent ensuite le résultat ; aucune source ' +
+      'n’est ajoutée d’office (RG-19).',
+    responses: { 202: jsonResponse('Recherche mise en file', AcceptedRunSchema), ...errorResponses(401) },
+  });
+
+  registry.registerPath({
+    tags: ['Veille'],
+    security: SESSION_SECURITY,
+    method: 'post',
     path: '/sites/run',
     summary: 'Consulter toutes les sources actives maintenant',
     description:
@@ -150,6 +164,7 @@ export const createSitesModule = (service: WatchService): ApiModule => {
         id: adapter.id,
         label: adapter.label,
         identifierHint: adapter.identifierHint,
+        isOfficial: adapter.isOfficial === true,
       })),
     });
   });
@@ -192,6 +207,13 @@ export const createSitesModule = (service: WatchService): ApiModule => {
       const { params } = validate(req, { params: CompanyIdSchema });
       await service.dismissSuggestion(currentUserId(res), params.companyId);
       res.status(NO_CONTENT).end();
+    }),
+  );
+
+  router.post(
+    '/sites/suggestions/discover',
+    asyncHandler(async (_req, res) => {
+      res.status(ACCEPTED).json({ runId: await service.discoverSources(currentUserId(res)) });
     }),
   );
 

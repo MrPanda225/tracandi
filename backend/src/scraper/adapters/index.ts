@@ -1,8 +1,15 @@
+import { franceTravailAdapter } from './franceTravail.js';
+import { ashbyAdapter } from './ashby.js';
 import { genericAdapter } from './generic.js';
 import { greenhouseAdapter } from './greenhouse.js';
+import { laBonneAlternanceAdapter } from './laBonneAlternance.js';
 import { leverAdapter } from './lever.js';
+import { personioAdapter } from './personio.js';
 import { recruiteeAdapter } from './recruitee.js';
 import { smartrecruitersAdapter } from './smartrecruiters.js';
+import { talentsoftAdapter } from './talentsoft.js';
+import { teamtailorAdapter } from './teamtailor.js';
+import { workableAdapter } from './workable.js';
 import { workdayAdapter } from './workday.js';
 import type { SiteAdapterId, SourceAdapter } from './types.js';
 
@@ -20,7 +27,16 @@ export const SOURCE_ADAPTERS: readonly SourceAdapter[] = [
   smartrecruitersAdapter,
   recruiteeAdapter,
   workdayAdapter,
+  // v1.33 (BES-46): the career sites most used in France after the historical five.
+  talentsoftAdapter,
+  teamtailorAdapter,
+  personioAdapter,
+  workableAdapter,
+  ashbyAdapter,
   genericAdapter,
+  // EF-VEI-32 (v1.33): official sources, queried with the criteria rather than read from a company's site.
+  franceTravailAdapter,
+  laBonneAlternanceAdapter,
 ];
 
 const BY_ID = new Map<SiteAdapterId, SourceAdapter>(SOURCE_ADAPTERS.map((adapter) => [adapter.id, adapter]));

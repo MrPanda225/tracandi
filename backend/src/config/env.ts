@@ -97,6 +97,14 @@ const EnvSchema = z.object({
     .default('')
     .transform((value) => value || null),
   /*
+   * EF-VEI-32, ENF-SEC-23 (v1.33): application registered on francetravail.io, API « Offres d'emploi v2 ». Both or
+   * neither: without them the France Travail source says it is not configured, the rest of the watch runs.
+   */
+  FRANCE_TRAVAIL_CLIENT_ID: optionalValue,
+  FRANCE_TRAVAIL_CLIENT_SECRET: optionalValue,
+  // EF-VEI-34, ENF-SEC-23 (v1.33): key of the API Apprentissage (La bonne alternance); without it, that source says so.
+  LBA_API_KEY: optionalValue,
+  /*
    * BES-39: proxies standing in front of the API — 2 on the hosting (Vercel's rewrite, then Northflank's load
    * balancer). The client address is then read from X-Forwarded-For, so that the rate limits count each visitor
    * rather than the proxy they share (ENF-SEC-19). 0 in local use: the header is ignored, nobody can forge it.
@@ -145,10 +153,27 @@ const requireAiProviders = (env: Env, context: z.RefinementCtx): void => {
   }
 };
 
+/** ENF-SEC-23: half a pair of credentials is a typing slip, not a choice; the server says so at start. */
+const requireCredentialPairs = (env: Env, context: z.RefinementCtx): void => {
+  if (Boolean(env.FRANCE_TRAVAIL_CLIENT_ID) !== Boolean(env.FRANCE_TRAVAIL_CLIENT_SECRET)) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['FRANCE_TRAVAIL_CLIENT_ID, FRANCE_TRAVAIL_CLIENT_SECRET'],
+      message: 'both are required, or neither',
+    });
+  }
+};
+
 /** Key and model of one AI provider. */
 export interface LlmProviderConfig {
   apiKey: string;
   model: string;
+}
+
+/** ENF-SEC-23: credentials of an official API, read from the configuration only. */
+export interface OfficialCredentials {
+  clientId: string;
+  clientSecret: string;
 }
 
 /** Validated runtime configuration. */
@@ -173,6 +198,8 @@ export interface Config {
   maxConcurrentJobs: number;
   /** EF-CVX-33: CV analyses a candidate may launch per day; 0 lifts the limit. */
   cvAnalysesPerDay: number;
+  /** EF-VEI-32, EF-VEI-34, ENF-SEC-23: null for each official API the server has no credentials for. */
+  officialSources: { franceTravail: OfficialCredentials | null; laBonneAlternance: { apiKey: string } | null };
 }
 
 /** Time zone of the cron expressions and schedule of each job. */
@@ -216,7 +243,7 @@ export class ConfigError extends Error {
  * @req ENF-SEC-03, ENF-SEC-08, ENF-SEC-11, ENF-SEC-15, EF-IA-05, EF-GML-03, ENF-MAI-07
  */
 export const loadConfig = (env: Record<string, string | undefined>): Config => {
-  const result = EnvSchema.superRefine(requireAiProviders).safeParse(env);
+  const result = EnvSchema.superRefine(requireAiProviders).superRefine(requireCredentialPairs).safeParse(env);
   if (!result.success) {
     const reasons = result.error.issues.map((issue) => `${issue.path.join('.')} (${issue.message})`);
     throw new ConfigError(`Invalid environment variables: ${reasons.join(', ')}`);
@@ -259,6 +286,13 @@ export const loadConfig = (env: Record<string, string | undefined>): Config => {
       watchCron: result.data.CRON_SCRAPER,
     },
     scraper: { contact: result.data.SCRAPER_CONTACT_EMAIL },
+    officialSources: {
+      franceTravail:
+        result.data.FRANCE_TRAVAIL_CLIENT_ID && result.data.FRANCE_TRAVAIL_CLIENT_SECRET
+          ? { clientId: result.data.FRANCE_TRAVAIL_CLIENT_ID, clientSecret: result.data.FRANCE_TRAVAIL_CLIENT_SECRET }
+          : null,
+      laBonneAlternance: result.data.LBA_API_KEY ? { apiKey: result.data.LBA_API_KEY } : null,
+    },
     features: result.data.ENABLED_FEATURES,
     trustProxyHops: result.data.TRUST_PROXY,
     maxConcurrentJobs: result.data.MAX_CONCURRENT_JOBS,

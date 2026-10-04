@@ -1,12 +1,18 @@
 import type { Database } from '../../db/client.js';
 import type { Clock } from '../../lib/clock.js';
 import type { Logger } from '../../lib/logger.js';
-import { buildScoreOffersPrompt, type OfferToScore } from '../../llm/prompts/scoreOffers.js';
+import {
+  buildScoreOffersPrompt,
+  type OfferToScore,
+  type ScoringProfile,
+} from '../../llm/prompts/scoreOffers.js';
 import type { LlmRouter } from '../../llm/router.js';
 import { adapterFor } from '../../scraper/adapters/index.js';
 import { describeCollectionFailure } from '../../scraper/failures.js';
 import type { AdapterDeps, NormalizedOffer } from '../../scraper/adapters/types.js';
-import type { CandidateProfile } from '../cv/schemas.js';
+import type { FranceTravailApi } from '../../scraper/official/franceTravail.js';
+import type { LaBonneAlternanceApi } from '../../scraper/official/laBonneAlternance.js';
+import type { WatchCriteria } from '../criteria/schemas.js';
 import {
   isWorthScoring,
   matchedTargetOf,
@@ -14,8 +20,8 @@ import {
   PREFILTERED_SCORE,
   SCORING_BATCH_SIZE,
   ScoredOffersSchema,
-  type ScoringTarget,
 } from '../offers/scoring.js';
+import { fingerprintOf, type Pace, paceAfter } from './pacing.js';
 import * as repository from './repository.js';
 import type { OfferToStore, SourceRow } from './repository.js';
 import type { WatchReport } from './schemas.js';
@@ -26,13 +32,18 @@ export interface WatchPassDeps {
   router: LlmRouter;
   /** The responsible collector of T-401, shared by every adapter (rules/scraping.md). */
   collect: AdapterDeps['fetch'];
+  /** EF-VEI-32, EF-VEI-37: the clients of the official APIs; null when the server has no credentials for one. */
+  officialApis: { franceTravail: FranceTravailApi | null; laBonneAlternance: LaBonneAlternanceApi | null };
   logger: Logger;
 }
 
 /** What one pass needs to know about the candidate it runs for. */
 export interface PassContext {
   userId: number;
-  profile: CandidateProfile;
+  /** What every new offer is scored against: the search criteria, or the reference profile at worst (EF-VEI-31). */
+  scoring: ScoringProfile;
+  /** EF-VEI-32: what the official sources are queried with; null while the candidate has saved none. */
+  criteria: WatchCriteria | null;
   /** The active sources to read, chosen by the caller (EF-VEI-04). */
   sources: readonly SourceRow[];
   /** EF-VEI-15: score S at or above which an offer counts as relevant. */
@@ -47,13 +58,6 @@ export interface WatchPass {
    */
   run: (context: PassContext) => Promise<WatchReport>;
 }
-
-const targetsOf = (profile: CandidateProfile): ScoringTarget[] =>
-  profile.targets.map((target) => ({
-    label: target.label,
-    contractTypes: target.contractTypes,
-    keywords: target.keywords,
-  }));
 
 const batches = <T>(items: readonly T[], size: number): T[][] => {
   const chunks: T[][] = [];
@@ -71,6 +75,8 @@ interface SourceOutcome {
   found: number;
   added: number;
   relevant: number;
+  /** EF-VEI-42: when the scheduled pass should read the source again. */
+  pace: Pace;
 }
 
 const emptyReport = (threshold: number): WatchReport => ({
@@ -101,17 +107,14 @@ const createScorer = ({ router }: ScorerDeps) => {
   ): Promise<Map<number, Score>> => {
     const { data } = await router.runTask('score_offers', {
       userId: context.userId,
-      ...buildScoreOffersPrompt(
-        { searchArea: context.profile.location.searchArea, targets: targetsOf(context.profile) },
-        offers,
-      ),
+      ...buildScoreOffersPrompt(context.scoring, offers),
       schema: ScoredOffersSchema,
     });
     return new Map(data.offers.map((scored) => [scored.ref, { score: scored.score, reason: scored.reason }]));
   };
 
   return async (context: PassContext, offers: readonly NormalizedOffer[]): Promise<OfferToStore[]> => {
-    const targets = targetsOf(context.profile);
+    const { targets } = context.scoring;
     const worth = offers.filter((offer) => isWorthScoring(offer, targets));
     const referenceOf = new Map(worth.map((offer, index) => [offer, index + 1]));
     const scores = new Map<number, Score>();
@@ -138,7 +141,35 @@ const createScorer = ({ router }: ScorerDeps) => {
   };
 };
 
-export const createWatchPass = ({ db, clock, router, collect, logger }: WatchPassDeps): WatchPass => {
+/**
+ * EF-VEI-41, EF-VEI-42, ENF-RGP-10: what a check tells beyond the new offers — the pace of the source, and that the
+ * offers already known and found again are still published.
+ */
+const noteWhatIsStillPublished = async (
+  db: Database,
+  {
+    source,
+    found,
+    known,
+    checkedAt,
+  }: { source: SourceRow; found: readonly NormalizedOffer[]; known: ReadonlySet<string>; checkedAt: Date },
+): Promise<Pace> => {
+  const ids = found.map((offer) => offer.externalId);
+  await repository.touchOffers(db, source.id, { externalIds: ids.filter((id) => known.has(id)), seenAt: checkedAt });
+  return paceAfter(
+    { fingerprint: source.offersFingerprint, unchangedChecks: source.unchangedChecks },
+    { fingerprint: fingerprintOf(ids), checkedAt },
+  );
+};
+
+export const createWatchPass = ({
+  db,
+  clock,
+  router,
+  collect,
+  officialApis,
+  logger,
+}: WatchPassDeps): WatchPass => {
   const scoreOffers = createScorer({ router });
 
   /** One source: read, kept apart from what is already known (EF-VEI-09), scored, then stored. */
@@ -146,16 +177,26 @@ export const createWatchPass = ({ db, clock, router, collect, logger }: WatchPas
     const found = await adapterFor(source.adapter).fetchOffers(source.identifier, {
       fetch: collect,
       runTask: (task, input) => router.runTask(task, { ...input, userId: context.userId }),
+      official: {
+        criteria: context.criteria,
+        since: source.lastCheckedAt,
+        now: clock(),
+        franceTravail: officialApis.franceTravail,
+        laBonneAlternance: officialApis.laBonneAlternance,
+      },
     });
     const known = await repository.listKnownOfferIds(db, source.id);
+    const checkedAt = clock();
+    const pace = await noteWhatIsStillPublished(db, { source, found, known, checkedAt });
     const fresh = found.filter((offer) => !known.has(offer.externalId));
-    if (fresh.length === 0) return { found: found.length, added: 0, relevant: 0 };
+    if (fresh.length === 0) return { found: found.length, added: 0, relevant: 0, pace };
 
     const scored = await scoreOffers(context, fresh);
     return {
       found: found.length,
-      added: await repository.insertOffers(db, source.id, scored),
+      added: await repository.insertOffers(db, source.id, { offers: scored, seenAt: checkedAt }),
       relevant: scored.filter((offer) => offer.relevanceScore >= context.threshold).length,
+      pace,
     };
   };
 
@@ -171,11 +212,14 @@ export const createWatchPass = ({ db, clock, router, collect, logger }: WatchPas
           report.offersFound += outcome.found;
           report.offersNew += outcome.added;
           report.offersRelevant += outcome.relevant;
-          await repository.recordCheck(db, source.id, { checkedAt: clock(), error: null });
+          await repository.recordCheck(db, source.id, { checkedAt: clock(), error: null, pace: outcome.pace });
         } catch (error) {
           report.sourcesFailed += 1;
           logger.warn('watched source failed', { sourceId: source.id, adapter: source.adapter, error });
-          await repository.recordCheck(db, source.id, { checkedAt: clock(), error: describeCollectionFailure(error) });
+          await repository.recordCheck(db, source.id, {
+            checkedAt: clock(),
+            error: describeCollectionFailure(error),
+          });
         }
       }
       return report;

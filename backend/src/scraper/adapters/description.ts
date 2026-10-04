@@ -49,6 +49,8 @@ const CONTRACT_WORDINGS: Readonly<Record<string, ContractWording>> = {
   'emploi etudiant': anywhere('job_etudiant'),
   'student job': anywhere('job_etudiant'),
   student: exact('job_etudiant'),
+  // Personio's « working_student » (v1.33).
+  'working student': exact('job_etudiant'),
   stage: anywhere('autre'),
   internship: anywhere('autre'),
   intern: exact('autre'),

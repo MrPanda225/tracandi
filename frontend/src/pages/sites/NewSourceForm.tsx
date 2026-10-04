@@ -94,7 +94,7 @@ export function NewSourceForm({
           aria-required
           aria-invalid={refusals['body.companyName'] !== undefined || undefined}
           aria-describedby={refusals['body.companyName'] ? `${companyId}-error` : undefined}
-          value={draft.companyName}
+          value={draft.companyName ?? ''}
           onChange={(event) => setDraft({ ...draft, companyName: event.target.value })}
         />
         {refusals['body.companyName'] && (

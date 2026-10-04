@@ -16,11 +16,19 @@ export const SOURCE_ADAPTER_IDS = siteAdapter.enumValues;
  */
 export const CreateSourceSchema = z
   .object({
-    companyName: z.string().trim().min(1).max(COMPANY_NAME_MAX_LENGTH),
+    /** Required for a company source; ignored for an official one, which has none (EF-VEI-32). */
+    companyName: z.string().trim().min(1).max(COMPANY_NAME_MAX_LENGTH).optional(),
     adapter: z.enum(SOURCE_ADAPTER_IDS),
     identifier: z.string().trim().min(1).max(IDENTIFIER_MAX_LENGTH),
   })
   .superRefine((value, context) => {
+    if (!adapterFor(value.adapter).isOfficial && value.companyName === undefined) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['companyName'],
+        message: 'Nom d’entreprise requis.',
+      });
+    }
     const read = adapterFor(value.adapter).identifierSchema.safeParse(value.identifier);
     if (!read.success) {
       for (const issue of read.error.issues) {
@@ -39,7 +47,8 @@ export const SourceIdSchema = z.object({ id: z.coerce.number().int().positive() 
 export const SourceViewSchema = z
   .object({
     id: z.number().int(),
-    companyName: z.string(),
+    /** Null for an official source (EF-VEI-32): the screen names it by its type. */
+    companyName: z.string().nullable(),
     adapter: z.enum(SOURCE_ADAPTER_IDS),
     /** Name of the type in French, so the screen never has to hold the list itself. */
     adapterLabel: z.string(),
@@ -63,12 +72,12 @@ export const SourceTypeSchema = z
     label: z.string(),
     /** Ce que le candidat doit saisir, en français (RG-08). */
     identifierHint: z.string(),
+    /** EF-VEI-32 : une source officielle, sans entreprise, interrogée selon les critères de recherche. */
+    isOfficial: z.boolean(),
   })
   .openapi('SourceType');
 
-export const SourceTypeListSchema = z
-  .object({ items: z.array(SourceTypeSchema) })
-  .openapi('SourceTypeList');
+export const SourceTypeListSchema = z.object({ items: z.array(SourceTypeSchema) }).openapi('SourceTypeList');
 
 /** EF-VEI-07: what one pass of the watch produced, for the candidate who asked for it. */
 /**
@@ -87,6 +96,13 @@ export const SourceSuggestionSchema = z
     identifier: z.string(),
     /** Combien de messages de cette entreprise ont porté ce domaine, pour que le candidat juge. */
     messages: z.number().int(),
+    /**
+     * EF-VEI-39 (v1.33) : ce qu'a conclu la recherche des pages carrières — source vérifiée avec son nombre d'offres,
+     * à confirmer, ou rien trouvé ; null tant qu'elle n'a pas été lancée pour cette entreprise.
+     */
+    verification: z.enum(['verified', 'unconfirmed', 'not_found']).nullable(),
+    offerCount: z.number().int().nullable(),
+    discoveredAt: z.string().datetime().nullable(),
   })
   .openapi('SourceSuggestion');
 

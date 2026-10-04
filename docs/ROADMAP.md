@@ -218,6 +218,20 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
   connexion à l'écart (déconnexion en rouge, confirmée). *Exigences* : EF-CFG-05, EF-CFG-02 (retirée de l'écran),
   EF-CFG-01, EF-CFG-04, EF-GML-02, EF-GML-17, EF-GML-20.
 
+- [x] **T-312 Relance incarnée** — *demande du Business Owner du 01/10/2026 (cahier v1.34, BES-47) : « les mails
+  rédigés par l'IA sont plutôt impersonnels ».* Consigne système de `write_follow_up` réécrite : but affiché (que le
+  recruteur sente une personne qui tient à ce poste-là, dans cette entreprise-là), première personne, ton chaleureux,
+  formules de catalogue nommées et bannies, plan en trois paragraphes dont le deuxième porte la motivation.
+  La **description de l'offre enregistrée par le candidat** (EF-CAN-15) est transmise au rédacteur, bornée à
+  1 200 caractères, et devient la seule matière dont il peut tirer un motif d'intérêt ; la ligne est écrite
+  « (aucune) » quand elle manque, plutôt qu'omise. Flatterie sur ce que le modèle ignore de l'entreprise
+  (valeurs, réputation, « leader de son secteur ») explicitement interdite.
+  *Exigences* : EF-CAN-17 (v1.34), ENF-SEC-06, ENF-COU-01.
+  *Fini quand* : le prompt porte la description quand elle existe et le dit quand elle manque ; les consignes de ton
+  sont vérifiées par test ; bornes de 80 à 150 mots inchangées, contrôlées par le code.
+  *Choix assumé* : aucun fait nouveau n'est inventé pour « personnaliser » — sans description d'offre, la relance
+  reste sobre. C'est la saisie de la description (EF-CAN-15) qui rend le message personnel, pas le modèle.
+
 ## Lot 4 — Veille des offres
 
 - [x] **T-401 Client HTTP de collecte** — robots.txt (cache par origine), 3 s par hôte, agent identifiant,
@@ -340,9 +354,115 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
   *Reste à faire* : reconnaître l'ATS à l'empreinte laissée dans la page pour basculer sur son API (levier C de
   l'étude du 24/09/2026).
 
+### Veille élargie et gratuite (BES-46, cahier v1.33)
+
+*Demande du Business Owner du 01/10/2026*, après l'étude des sources du 30/09/2026 : services payants écartés, API
+officielles gratuites d'abord, logiciels de recrutement retrouvés depuis les entreprises des candidatures, rendu
+JavaScript reporté (Q-21). Ordre : les critères d'abord (ils nourrissent les requêtes et la notation), puis l'écran
+qui montre les offres, puis les sources, enfin l'économie de collecte.
+
+- [x] **T-410 Critères de recherche** — table `watch_criteria` (document par candidat, validé par zod), `GET/PUT
+  /api/watch/criteria`, recherche de commune (`GET /api/watch/places?q=`, service public du découpage administratif),
+  notation RG-09 sur les critères, profil de référence en secours ; écran « Vos critères » sur la page Sites.
+  *Exigences* : EF-VEI-29, EF-VEI-30, EF-VEI-31, RG-09 (v1.33), ENF-RGP-11, ENF-COL-05.
+  *Fini quand* : critères enregistrés et relus ; rayon hors bornes refusé ; commune simulée retrouvée ; prompt de
+  notation portant les cibles des critères ; veille refusée sans critères ni profil.
+  *Livré* : `modules/criteria/` (schéma, dépôt, service, routes ; migration 0016 `watch_criteria`), client des API
+  officielles `scraper/official/client.ts` (débit par API, 15 s, 3 Mo, un nouvel essai après un 429, sans robots.txt),
+  `scraper/official/geo.ts` (geo.api.gouv.fr, 5 requêtes par seconde retenues sur 50), passe de veille notée sur
+  les critères puis, à défaut, sur le profil ; critères inclus dans l'export des données (EF-AUT-12) ; carte « Ce
+  que vous recherchez » en tête de l'écran Sites (résumé, formulaire à la demande, commune choisie parmi celles du
+  service public, codes ROME repliés).
+  *Choix assumés* : un mot-clé en double, quelle que soit sa casse, est gardé une fois ; un document enregistré
+  devenu invalide est traité comme absent (journalisé), jamais transmis aux sources.
+- [x] **T-406 (étape 2) API et écran Offres** — `GET /api/offers` (score minimum, contrat, état, entreprise des
+  candidatures), `PATCH /api/offers/{id}`, « J'ai postulé » ; écran Offres.
+  *Exigences* : EF-VEI-16 à 20, 22, EF-VEI-35 (affichage, avec T-412).
+  *Livré* : `modules/offers/` (schémas, dépôt, service, routes) : `GET /api/offers` (vues à regarder, gardées,
+  écartées, postulées ; score minimum ; contrat ; pages de 50), `GET /api/offers/{id}` (texte de l'offre),
+  `PATCH /api/offers/{id}`, `POST /api/offers/{id}/apply` (candidature « Envoyée » créée dans la même transaction,
+  `createApplicationFromOffer`) ; écran `/offres` (vues, filtres, note sur 100 lisible sans couleur, garder,
+  écarter, « J'ai postulé », texte lu à la demande, « Afficher 50 de plus »).
+  *Choix assumés* : une offre postulée ne change plus d'état (409) ; un intitulé déjà présent à l'entreprise est
+  refusé plutôt que fusionné (RG-03), l'offre restant à regarder. Le lien vers le CV utilisé (EF-VEI-20) est sans
+  objet depuis v1.30 : aucun CV n'est conservé.
+- [x] **T-411 Client des API officielles et source France Travail** — client commun (délai, taille, débit par API,
+  sans robots.txt, ENF-COL-05), jeton OAuth en mémoire, identifiants en configuration (ENF-SEC-23), source unique
+  par candidat (`user_id` sur `watched_sites`, entreprise facultative), employeur enregistré sur l'offre, partenaires
+  exclus, contacts jamais lus ; guide de création des accès.
+  *Exigences* : EF-VEI-08, EF-VEI-32, EF-VEI-33, EF-VEI-37, ENF-COL-05, ENF-SEC-23, ENF-RGP-09, ENF-RGP-11.
+  *Fini quand* : API simulée — requête aux paramètres des critères, offres enregistrées sans contact, offre
+  « Indeed » écartée, identifiants absents signalés sur la seule source.
+  *Livré* : migration 0017 (`watched_sites.user_id` repris des entreprises, `company_id` facultatif pour une source
+  officielle, une seule par candidat, `job_offers.company_name`) ; `scraper/official/franceTravail.ts` (jeton OAuth
+  en mémoire, renouvelé une minute avant son échéance et une fois sur refus, 206/204 lus, refus lisibles) ;
+  `scraper/adapters/franceTravail.ts` (requêtes par métier et par type de contrat — CDI/CDD, apprentissage et
+  professionnalisation, temps partiel pour un job étudiant —, puis par codes ROME ; 12 requêtes et 300 offres au
+  plus ; offres publiées depuis la consultation précédente, une semaine à la première ; lien vers francetravail.fr ;
+  partenaires exclus) ; `FRANCE_TRAVAIL_CLIENT_ID/SECRET` (les deux ou aucune) ; carte « Sources officielles » et
+  mention « source : France Travail » sur chaque offre ; guide `docs/SOURCES_OFFICIELLES.md`.
+  *Choix assumés* : une semaine à la première consultation plutôt que 31 jours (un mois d'offres serait noté d'un
+  coup, ENF-COU-01) ; l'intérim, le saisonnier et le libéral valent « autre » (hors glossaire, EF-VEI-21), donc
+  écartés sans IA par RG-10 ; les partenaires autres que LinkedIn, Indeed et WTTJ (APEC, HelloWork…) sont gardés,
+  leur réutilisation passant par la licence France Travail.
+- [x] **T-412 La bonne alternance et SIREN des entreprises** — source La bonne alternance ; SIREN retrouvé par l'API
+  Recherche d'entreprises (sans dirigeants) ; offre signalée « Vous y avez postulé ».
+  *Exigences* : EF-VEI-34, EF-VEI-35, EF-VEI-36, ENF-RGP-09, ENF-RGP-11.
+  *Fini quand* : API simulées — offres en alternance enregistrées ; homonymes sans SIREN ; offre de « CAPGEMINI »
+  signalée pour une candidature chez « Capgemini ».
+  *Livré* : migration 0018 (`la_bonne_alternance`, `companies.siren` et `siren_checked_at`, `job_offers.company_siren`) ;
+  `scraper/official/laBonneAlternance.ts` (jeton en en-tête, une requête toutes les deux secondes) et
+  `scraper/adapters/laBonneAlternance.ts` (codes ROME autour de la commune, offres ouvertes, SIREN de l'employeur,
+  téléphone jamais lu) ; `scraper/official/companySearch.ts` et `modules/sites/sirens.ts` (dix entreprises par passe,
+  une seule active de même clé RG-26, rien pour deux homonymes, nouvelle tentative au bout d'un mois, échec sans
+  effet sur la veille) ; `companyKey` (RG-26, `lib/text.ts`, réutilisable par T-901) ; `isFromAppliedCompany` sur
+  chaque offre et badge « Vous y avez déjà postulé » ; `LBA_API_KEY` ; guide complété.
+  *Choix assumés* : La bonne alternance exige au moins un code ROME (l'API cherche par métier) et une cible en
+  alternance, refus dit dès l'activation ; le signalement se calcule à la lecture (quelques centaines d'entreprises au
+  plus) plutôt que d'être figé en base, pour suivre les candidatures ajoutées depuis.
+- [x] **T-413 Cinq logiciels de recrutement** — adaptateurs Cegid Talentsoft (RSS), Teamtailor (RSS), Personio (XML),
+  Workable et Ashby (JSON), lus sans dépendance nouvelle (`cheerio` en mode XML) ; migration de `site_adapter`.
+  *Exigences* : EF-VEI-08, RG-08 (v1.33), ENF-MAI-03, ENF-FIA-02.
+  *Fini quand* : un test par adaptateur sur fixture fictive fidèle au format réel ; identifiant invalide refusé.
+  *Livré* : `scraper/adapters/feed.ts` (lecture des flux XML par `cheerio` en mode XML, déjà installé), `talentsoft.ts`,
+  `teamtailor.ts`, `personio.ts`, `workable.ts`, `ashby.ts` et leur entrée au registre ; migration 0019 ; fixtures
+  fictives reproduisant les champs relevés le 01/10/2026 sur un flux public de chaque éditeur. Chaque requête passe par
+  le client poli (robots.txt, 3 s par hôte).
+  *Choix assumés* : le lieu d'une offre Talentsoft est sa troisième catégorie (ordre constant chez les clients vus, non
+  garanti ailleurs) ; « Full-time » ne vaut pas CDI (EF-VEI-22) ; le nom d'un board Ashby garde sa casse ; Flatchr et
+  les éditeurs sans flux public restent lus par la page carrières générique (JSON-LD d'abord, EF-VEI-28).
+- [x] **T-414 Recherche des pages carrières** — exécution `source_discovery` en file : accueil du site, un rebond,
+  empreintes RG-27, vérification par une consultation ; propositions « vérifiée » ou « à confirmer » à l'écran.
+  *Exigences* : EF-VEI-38, EF-VEI-39, EF-VEI-40, RG-19 (v1.33), RG-27, ENF-COL-01 à 04.
+  *Fini quand* : accueil liant un board Ashby → proposition Ashby vérifiée ; aucune source ajoutée d'office.
+  *Livré* : `scraper/atsFingerprint.ts` (RG-27 lu dans toutes les adresses de la page : liens, cadres, scripts,
+  configuration en ligne ; identifiant validé par RG-08 de son type) ; `modules/sites/discovery.ts` (accueil, puis
+  `www.`, puis la page carrières qu'il désigne ; vérification par une consultation ; 20 entreprises par exécution, les
+  jamais recherchées d'abord) ; table `discovered_sources` et exécution `source_discovery` (migration 0020) ;
+  `POST /api/sites/suggestions/discover` ; propositions portant `verification`, `offerCount`, `discoveredAt` ; bouton
+  « Rechercher leurs pages carrières » et verdict sur chaque proposition.
+  *Choix assumés* : la vérification n'appelle jamais l'IA — une page carrières sans offre balisée reste « à
+  confirmer » (ENF-COU-01) ; les sites carrières des éditeurs (`career.teamtailor.com`…) et `career`, `careers`, `jobs`
+  s'ajoutent aux sous-domaines techniques de RG-27 ; « Surveiller les N » reprend les sources trouvées.
+- [x] **T-415 Collecte économe et minimisation** — empreinte de la liste d'offres, consultation planifiée espacée
+  des sources inchangées ; coordonnées retirées du texte des offres ; purge quotidienne des offres de plus de
+  60 jours ; politique de confidentialité complétée.
+  *Exigences* : EF-VEI-41, EF-VEI-42, ENF-RGP-09, ENF-RGP-10, ENF-RGP-05 (v1.33).
+  *Fini quand* : source identique 3 fois écartée de la passe planifiée et lue par « Consulter maintenant » ;
+  e-mail et téléphone absents d'une offre enregistrée ; offre écartée de 61 jours supprimée, offre gardée conservée.
+  *Livré* : `modules/sites/pacing.ts` (empreinte SHA-256 des identifiants triés ; 8 h × 2^(n-1), 72 h au plus) ;
+  migration 0021 (`offers_fingerprint`, `unchanged_checks`, `next_check_at`, `job_offers.last_seen_at` et son index) ;
+  passe planifiée limitée aux sources dues, « Consulter maintenant » lisant tout ; `scraper/contacts.ts` appliqué par
+  le schéma commun des offres (toutes sources, avant l'enregistrement et avant l'IA) ; purge à chaque passe
+  planifiée (trois fois par jour) ; politique de confidentialité : données de la veille, sources consultées et ce
+  qu'elles reçoivent, conservation des offres.
+  *Choix assumé* : la purge compte à partir du dernier passage où la source publiait l'offre, et non de la première
+  lecture — supprimer une offre encore publiée la ferait revenir « nouvelle », même écartée (ENF-RGP-10 reformulée).
+  Les requêtes conditionnelles HTTP (ETag) restent à faire : peu d'API d'ATS les servent, l'empreinte suffit ici.
+
 - [ ] **T-405 Récapitulatif e-mail** — envoi via Gmail des offres de score ≥ S.
   *Exigences* : EF-VEI-15.
-- [~] **T-406 Écrans Sites et Offres** — ajout/suspension/retrait, liste triée, filtre score, garder/écarter,
+- [x] **T-406 Écrans Sites et Offres** — ajout/suspension/retrait, liste triée, filtre score, garder/écarter,
   « J'ai postulé ».
   *Exigences* : EF-VEI-01 à 05, 07, 10, 11 (écran Sites) ; EF-VEI-16 à 20, 22 (écran Offres).
   *Livré (étape 1, écran Sites)* : `pages/sites/SitesPage.tsx` et `NewSourceForm.tsx` — liste des sources avec
@@ -599,6 +719,17 @@ l'offre n'est écrite en base, sur disque ou dans les journaux (ENF-RGP-06).
   barres groupées valeurs inscrites, semaine en cours plus claire et marquée « en cours », les trois chiffres de la
   semaine comparés à la précédente (EF-TDB-10) servant aussi de légende et de bascule d'affichage, tableau pour
   lecteur d'écran, actualisation d'elle-même à la fin d'une synchronisation ou d'une relecture (EF-TDB-11).
+
+- [x] **T-603 Tableau de bord réordonné et liste à relancer repliée** — *demande du Business Owner du 01/10/2026
+  (cahier v1.34, BES-47) : « je ne veux pas que les relances soient en haut, il faut que le graphique soit avant ».*
+  Ordre des blocs : indicateurs clés, suivi des 5 dernières semaines, candidatures à relancer, répartitions
+  (EF-TDB-12). La liste à relancer n'affiche plus que ses 5 premières lignes ; « Afficher les N suivantes » déplie
+  les autres, le compteur et « et N autres. » restant visibles (EF-TDB-07 v1.34).
+  *Exigences* : EF-TDB-12, EF-TDB-07 (v1.34).
+  *Fini quand* : test d'ordre des blocs dans le document ; 5 lignes dépliées sur 8, puis 8 après l'action.
+  *Pourquoi* : avec 72 candidatures à relancer, 20 lignes séparaient les chiffres du graphique et des répartitions —
+  une page et demie de défilement avant la première information de synthèse. L'ancien ordre suivait Fogg (le
+  déclencheur là où l'œil se pose) ; le Business Owner tranche pour la vue d'ensemble d'abord.
 
 ## Lot 7 — Exploitation
 

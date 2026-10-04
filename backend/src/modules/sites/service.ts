@@ -9,9 +9,17 @@ import type { Logger } from '../../lib/logger.js';
 import type { LlmRouter } from '../../llm/router.js';
 import { adapterFor } from '../../scraper/adapters/index.js';
 import type { AdapterDeps } from '../../scraper/adapters/types.js';
+import type { SirenFinder } from '../../scraper/official/companySearch.js';
+import type { FranceTravailApi } from '../../scraper/official/franceTravail.js';
+import type { LaBonneAlternanceApi } from '../../scraper/official/laBonneAlternance.js';
 import { ensureCompany } from '../applications/service.js';
+import type { ScoringProfile } from '../../llm/prompts/scoreOffers.js';
 import type { ProfileService } from '../cv/service.js';
+import type { WatchCriteria } from '../criteria/schemas.js';
+import { type CriteriaService, scoringProfileOf } from '../criteria/service.js';
 import { createWatchPass } from './pass.js';
+import { createSourceDiscovery, type SourceDiscovery } from './discovery.js';
+import { createSirenResolver } from './sirens.js';
 import { createSuggestionReader } from './suggestions.js';
 import * as repository from './repository.js';
 import type { SourceRow } from './repository.js';
@@ -19,9 +27,12 @@ import type { CreateSourceBody, SourceSuggestion, SourceView, WatchReport } from
 
 const SOURCE_NOT_FOUND = 'Source surveillée introuvable';
 const ALREADY_WATCHED = 'Cette source est déjà surveillée pour cette entreprise';
-const NO_PROFILE =
-  'Renseignez votre profil de référence avant de lancer la veille : vos cibles servent à noter les offres.';
+const NO_CRITERIA =
+  'Renseignez vos critères de recherche avant de lancer la veille : vos cibles servent à noter les offres.';
 const CONFLICT = 409;
+const BAD_REQUEST = 400;
+/** ENF-RGP-10 (v1.33): an offer neither kept nor applied to is removed 60 days after its source stopped publishing it. */
+const OFFER_RETENTION_MS = 60 * 24 * 60 * 60 * 1000;
 /** EF-VEI-15: default threshold S, used while the candidate has no settings row. */
 const DEFAULT_THRESHOLD = 60;
 
@@ -47,16 +58,29 @@ export interface WatchService {
   suggestions: (userId: number) => Promise<SourceSuggestion[]>;
   /** @req EF-VEI-25 */
   dismissSuggestion: (userId: number, companyId: number) => Promise<void>;
+  /**
+   * Puts the search of the career pages of the proposed companies in the queue (EF-EXE-01).
+   * @returns the identifier of the execution, to follow it (EF-EXE-03).
+   * @req EF-VEI-38, EF-VEI-40
+   */
+  discoverSources: (userId: number) => Promise<number>;
 }
 
 export interface WatchServiceDeps {
   db: Database;
   clock: Clock;
+  /** EF-VEI-29: what the candidate looks for. */
+  criteria: CriteriaService;
+  /** EF-VEI-31: the reference profile, read only when the candidate has no criteria yet. */
   profiles: ProfileService;
   router: LlmRouter;
   queue: JobQueue;
   /** The responsible collector of T-401, shared by every adapter (rules/scraping.md). */
   collect: AdapterDeps['fetch'];
+  /** EF-VEI-36: the search of a company's SIREN; null to do without it. */
+  findSiren: SirenFinder | null;
+  /** EF-VEI-32, EF-VEI-37: the clients of the official APIs; null when the server has no credentials for one. */
+  officialApis: { franceTravail: FranceTravailApi | null; laBonneAlternance: LaBonneAlternanceApi | null };
   logger: Logger;
 }
 
@@ -83,7 +107,7 @@ const viewOf = (row: SourceRow): SourceView => ({
 });
 
 /** EF-VEI-01 to EF-VEI-05: the sources themselves, apart from the pass that reads them. */
-const createSourceCatalogue = (db: Database) => {
+const createSourceCatalogue = (db: Database, deps: { criteria: CriteriaService }) => {
   const readOwned = async (userId: number, id: number): Promise<SourceRow> => {
     const row = await repository.findSource(db, userId, id);
     if (!row) throw new NotFoundError(SOURCE_NOT_FOUND);
@@ -96,10 +120,23 @@ const createSourceCatalogue = (db: Database) => {
     },
 
     async add(userId: number, body: CreateSourceBody): Promise<SourceView> {
-      const companyId = await ensureCompany(db, { userId, name: body.companyName });
-      const identifier = adapterFor(body.adapter).identifierSchema.parse(body.identifier);
+      const adapter = adapterFor(body.adapter);
+      // EF-VEI-32: an official source has no company; the schema already required one for every other type.
+      const companyId =
+        adapter.isOfficial || body.companyName === undefined
+          ? null
+          : await ensureCompany(db, { userId, name: body.companyName });
+      const identifier = adapter.identifierSchema.parse(body.identifier);
+      // EF-VEI-34: a source the criteria cannot feed is refused now, not at its first check.
+      const refusal = adapter.refusalFor?.(await deps.criteria.read(userId)) ?? null;
+      if (refusal !== null) throw new HttpError(BAD_REQUEST, refusal);
       try {
-        const id = await repository.insertSource(db, { companyId, adapter: body.adapter, identifier });
+        const id = await repository.insertSource(db, {
+          userId,
+          companyId,
+          adapter: body.adapter,
+          identifier,
+        });
         return viewOf(await readOwned(userId, id));
       } catch (error) {
         if (isUniqueViolation(error)) throw new HttpError(CONFLICT, ALREADY_WATCHED);
@@ -120,15 +157,27 @@ const createSourceCatalogue = (db: Database) => {
   };
 };
 
+/** EF-VEI-40: the search of the career pages, as the queue runs it. */
+const discoveryWorkFor = (discovery: SourceDiscovery, userId: number) => ({
+  userId,
+  job: 'source_discovery' as const,
+  trigger: 'manual' as const,
+  run: (report: (counters: RunCounters) => void) => discovery.run(userId, report),
+});
+
 /**
  * Watch of the career sources of a candidate: the sources themselves, and the pass that reads them all.
  * @req EF-VEI-01 to EF-VEI-07, EF-AUT-06
  */
 export const createWatchService = (deps: WatchServiceDeps): WatchService => {
-  const { db, profiles, queue, logger } = deps;
-  const catalogue = createSourceCatalogue(db);
+  const { db, criteria, profiles, queue, logger } = deps;
+  const catalogue = createSourceCatalogue(db, { criteria });
   const pass = createWatchPass(deps);
   const suggestions = createSuggestionReader(db);
+  const discovery = createSourceDiscovery({ db, clock: deps.clock, collect: deps.collect, suggestions, logger });
+  const sirens = deps.findSiren
+    ? createSirenResolver({ db, clock: deps.clock, findSiren: deps.findSiren, logger })
+    : null;
 
   const thresholdOf = async (userId: number): Promise<number> => {
     const [row] = await db
@@ -139,17 +188,29 @@ export const createWatchService = (deps: WatchServiceDeps): WatchService => {
   };
 
   /**
-   * Nothing is collected before the targets are known: they are what a score is measured against (RG-09). A
-   * candidate who watches nothing is simply told so, rather than asked for a profile they do not need yet.
+   * EF-VEI-31: the criteria of the candidate, or the targets of the reference profile while they have none.
+   * @throws HttpError 409 when there is neither: the targets are what a score is measured against (RG-09).
    */
-  const runPass = async (userId: number): Promise<WatchReport> => {
-    const threshold = await thresholdOf(userId);
-    const sources = await repository.listActiveSources(db, userId);
-    if (sources.length === 0) return EMPTY_REPORT(threshold);
+  const scoringOf = async (userId: number, saved: WatchCriteria | null): Promise<ScoringProfile> => {
+    if (saved) return scoringProfileOf(saved);
     const profile = await profiles.read(userId).catch(() => {
-      throw new HttpError(CONFLICT, NO_PROFILE);
+      throw new HttpError(CONFLICT, NO_CRITERIA);
     });
-    return pass.run({ userId, profile, sources, threshold });
+    return { searchArea: profile.location.searchArea, targets: profile.targets };
+  };
+
+  /**
+   * Nothing is collected before the targets are known. A candidate who watches nothing is simply told so, rather
+   * than asked for criteria they do not need yet.
+   */
+  const runPass = async (userId: number, trigger: 'manual' | 'schedule'): Promise<WatchReport> => {
+    const threshold = await thresholdOf(userId);
+    // EF-VEI-42: a scheduled pass leaves the sources not due yet; the candidate's own request reads them all.
+    const sources = await repository.listActiveSources(db, userId, trigger === 'schedule' ? deps.clock() : null);
+    if (sources.length === 0) return EMPTY_REPORT(threshold);
+    const saved = await criteria.read(userId);
+    await sirens?.resolve(userId);
+    return pass.run({ userId, scoring: await scoringOf(userId, saved), criteria: saved, sources, threshold });
   };
 
   const countersOf = (report: WatchReport): RunCounters => ({
@@ -162,7 +223,7 @@ export const createWatchService = (deps: WatchServiceDeps): WatchService => {
     userId,
     job: 'scraper' as const,
     trigger,
-    run: async () => countersOf(await runPass(userId)),
+    run: async () => countersOf(await runPass(userId, trigger)),
   });
 
   return {
@@ -174,7 +235,12 @@ export const createWatchService = (deps: WatchServiceDeps): WatchService => {
 
     dismissSuggestion: (userId, companyId) => suggestions.dismiss(userId, companyId),
 
+    discoverSources: (userId) => queue.enqueue(discoveryWorkFor(discovery, userId)),
+
     async checkEverySource() {
+      // ENF-RGP-10: three times a day, so at least once a day.
+      const removed = await repository.purgeStaleOffers(db, new Date(deps.clock().getTime() - OFFER_RETENTION_MS));
+      if (removed > 0) logger.info('stale offers removed', { removed });
       for (const userId of await repository.listUsersWithActiveSources(db)) {
         // EF-GML-18: a candidate who already has a pass waiting or running is written off, not queued twice.
         const runId = await queue.enqueueUnlessPending(workFor(userId, 'schedule'));

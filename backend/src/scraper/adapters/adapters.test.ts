@@ -8,6 +8,9 @@ import { greenhouseAdapter } from './greenhouse.js';
 import { leverAdapter } from './lever.js';
 import { recruiteeAdapter } from './recruitee.js';
 import { smartrecruitersAdapter } from './smartrecruiters.js';
+import { personioAdapter } from './personio.js';
+import { teamtailorAdapter } from './teamtailor.js';
+import { workableAdapter } from './workable.js';
 import { workdayAdapter } from './workday.js';
 import { SourceFetchError, type AdapterDeps, type SourceAdapter } from './types.js';
 
@@ -47,7 +50,14 @@ describe('SOURCE_ADAPTERS', () => {
       'smartrecruiters',
       'recruitee',
       'workday',
+      'talentsoft',
+      'teamtailor',
+      'personio',
+      'workable',
+      'ashby',
       'generic',
+      'france_travail',
+      'la_bonne_alternance',
     ]);
     expect(adapterFor('greenhouse')).toBe(greenhouseAdapter);
     expect(adapterFor('generic')).toBe(genericAdapter);
@@ -70,6 +80,9 @@ const slugAdapters: readonly SourceAdapter[] = [
     leverAdapter,
     smartrecruitersAdapter,
     recruiteeAdapter,
+    teamtailorAdapter,
+    personioAdapter,
+    workableAdapter,
   ];
 
   it.each(slugAdapters)('[EF-VEI-02] $id refuses an identifier outside RG-08', (adapter) => {
@@ -81,7 +94,13 @@ const slugAdapters: readonly SourceAdapter[] = [
     expect(adapter.identifierSchema.parse('Atelier-Aurore.01')).toBe('atelier-aurore.01');
   });
 
-  it.each(SOURCE_ADAPTERS)(
+  /**
+   * The sources read on a company's site, through the responsible collector. An official source goes through its
+   * own API client instead; its failures are tested with it (`franceTravail.test.ts`).
+   */
+  const companyAdapters = SOURCE_ADAPTERS.filter((adapter) => !adapter.isOfficial);
+
+  it.each(companyAdapters)(
     '[ENF-FIA-02] $id turns a refusal of the source into a readable failure',
     async (adapter) => {
       const identifier = identifierOf(adapter.id);
@@ -92,8 +111,11 @@ const slugAdapters: readonly SourceAdapter[] = [
     },
   );
 
-  /** The generic page reads HTML, not JSON: what an unusable answer means there is tested in `generic.test.ts`. */
-  const jsonAdapters = SOURCE_ADAPTERS.filter((adapter) => adapter.id !== 'generic');
+  /**
+   * The generic page reads HTML, not JSON: what an unusable answer means there is tested in `generic.test.ts`. The
+   * feeds refuse it all the same: an HTML page is not their XML.
+   */
+  const jsonAdapters = companyAdapters.filter((adapter) => adapter.id !== 'generic');
 
   it.each(jsonAdapters)(
     '[ENF-FIA-02] $id refuses an answer that is not the expected JSON',

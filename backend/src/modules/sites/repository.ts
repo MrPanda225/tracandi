@@ -1,8 +1,9 @@
-import { and, count, eq, inArray, notExists, sql } from 'drizzle-orm';
+import { and, count, eq, exists, inArray, isNull, lt, lte, notExists, or, sql } from 'drizzle-orm';
 import type { Database } from '../../db/client.js';
 import {
   applications,
   companies,
+  discoveredSources,
   dismissedSourceSuggestions,
   emails,
   jobOffers,
@@ -10,6 +11,7 @@ import {
   watchedSites,
 } from '../../db/schema.js';
 import type { NormalizedOffer, SiteAdapterId } from '../../scraper/adapters/types.js';
+import type { Pace } from './pacing.js';
 
 type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0];
 /** Database or open transaction: repository functions work with both. */
@@ -18,18 +20,22 @@ export type Executor = Database | Transaction;
 /** A watched source with the name of its company and how many offers it has produced. */
 export interface SourceRow {
   id: number;
-  companyId: number;
-  companyName: string;
+  /** Null for an official source (EF-VEI-32), which has no company of its own. */
+  companyId: number | null;
+  companyName: string | null;
   adapter: SiteAdapterId;
   identifier: string;
   isActive: boolean;
   lastCheckedAt: Date | null;
   lastError: string | null;
   offerCount: number;
+  /** EF-VEI-41, EF-VEI-42: what the last check found, and how many checks in a row found the same. */
+  offersFingerprint: string | null;
+  unchangedChecks: number;
 }
 
-// EF-AUT-06: a source belongs to the user owning its company.
-const ownedBy = (userId: number) => eq(companies.userId, userId);
+// EF-AUT-06: a source carries its owner (v1.33), official sources included.
+const ownedBy = (userId: number) => eq(watchedSites.userId, userId);
 
 /**
  * ENF-PERF-04: counted by a correlated subquery rather than a join, which the planner serves from
@@ -50,37 +56,50 @@ const sourceColumns = {
   lastCheckedAt: watchedSites.lastCheckedAt,
   lastError: watchedSites.lastError,
   offerCount,
+  offersFingerprint: watchedSites.offersFingerprint,
+  unchangedChecks: watchedSites.unchangedChecks,
 };
 
 const selectSources = (db: Executor) =>
-  db
-    .select(sourceColumns)
-    .from(watchedSites)
-    .innerJoin(companies, eq(companies.id, watchedSites.companyId));
+  db.select(sourceColumns).from(watchedSites).leftJoin(companies, eq(companies.id, watchedSites.companyId));
 
 /**
  * The user's watched sources, company first then identifier, with their offer count.
  * @req EF-VEI-01, EF-AUT-06
  */
 export const listSources = async (db: Executor, userId: number): Promise<SourceRow[]> =>
-  selectSources(db).where(ownedBy(userId)).orderBy(companies.name, watchedSites.identifier);
+  selectSources(db)
+    .where(ownedBy(userId))
+    .orderBy(sql`${companies.name} nulls first`, watchedSites.identifier);
 
 /** One source of the user, or undefined when it is another user's or does not exist (EF-AUT-06). */
 export const findSource = async (db: Executor, userId: number, id: number): Promise<SourceRow | undefined> =>
   (await selectSources(db).where(and(ownedBy(userId), eq(watchedSites.id, id))))[0];
 
-/** The active sources of the user, as one pass of the watch reads them (EF-VEI-04, EF-VEI-07). */
-export const listActiveSources = async (db: Executor, userId: number): Promise<SourceRow[]> =>
+/**
+ * The active sources of the user, as one pass of the watch reads them (EF-VEI-04, EF-VEI-07) — for a scheduled pass,
+ * only those due at `dueAt` (EF-VEI-42).
+ */
+export const listActiveSources = async (
+  db: Executor,
+  userId: number,
+  dueAt: Date | null = null,
+): Promise<SourceRow[]> =>
   selectSources(db)
-    .where(and(ownedBy(userId), eq(watchedSites.isActive, true)))
+    .where(
+      and(
+        ownedBy(userId),
+        eq(watchedSites.isActive, true),
+        dueAt === null ? undefined : or(isNull(watchedSites.nextCheckAt), lte(watchedSites.nextCheckAt, dueAt)),
+      ),
+    )
     .orderBy(watchedSites.id);
 
 /** Every user whose watch has at least one active source, for the scheduled pass (EF-VEI-06). */
 export const listUsersWithActiveSources = async (db: Executor): Promise<number[]> => {
   const rows = await db
-    .selectDistinct({ userId: companies.userId })
+    .selectDistinct({ userId: watchedSites.userId })
     .from(watchedSites)
-    .innerJoin(companies, eq(companies.id, watchedSites.companyId))
     .where(eq(watchedSites.isActive, true));
   return rows.map((row) => row.userId);
 };
@@ -92,7 +111,7 @@ export const listUsersWithActiveSources = async (db: Executor): Promise<number[]
  */
 export const insertSource = async (
   db: Executor,
-  source: { companyId: number; adapter: SiteAdapterId; identifier: string },
+  source: { userId: number; companyId: number | null; adapter: SiteAdapterId; identifier: string },
 ): Promise<number> => {
   const [row] = await db.insert(watchedSites).values(source).returning({ id: watchedSites.id });
   if (!row) throw new Error('watched site insert returned no row');
@@ -107,34 +126,64 @@ export const setSourceActive = async (
   await db
     .update(watchedSites)
     .set({ isActive: change.isActive })
-    .where(
-      and(
-        eq(watchedSites.id, change.id),
-        inArray(watchedSites.companyId, ownedCompanyIds(db, change.userId)),
-      ),
-    );
+    .where(and(eq(watchedSites.id, change.id), ownedBy(change.userId)));
 };
-
-const ownedCompanyIds = (db: Executor, userId: number) =>
-  db.select({ id: companies.id }).from(companies).where(ownedBy(userId));
 
 /** EF-VEI-05: removes a source of the user; its offers go with it (`on delete cascade`). */
 export const deleteSource = async (db: Executor, userId: number, id: number): Promise<void> => {
-  await db
-    .delete(watchedSites)
-    .where(and(eq(watchedSites.id, id), inArray(watchedSites.companyId, ownedCompanyIds(db, userId))));
+  await db.delete(watchedSites).where(and(eq(watchedSites.id, id), ownedBy(userId)));
 };
 
-/** EF-VEI-10, EF-VEI-11: what the last check of a source left behind, kept whether it worked or not. */
+/**
+ * EF-VEI-10, EF-VEI-11, EF-VEI-42: what the last check of a source left behind, kept whether it worked or not. A
+ * failed check leaves the pace as it was: it says nothing about what the source publishes.
+ */
 export const recordCheck = async (
   db: Executor,
   id: number,
-  outcome: { checkedAt: Date; error: string | null },
+  outcome: { checkedAt: Date; error: string | null; pace?: Pace },
 ): Promise<void> => {
   await db
     .update(watchedSites)
-    .set({ lastCheckedAt: outcome.checkedAt, lastError: outcome.error })
+    .set({
+      lastCheckedAt: outcome.checkedAt,
+      lastError: outcome.error,
+      ...(outcome.pace
+        ? {
+            offersFingerprint: outcome.pace.fingerprint,
+            unchangedChecks: outcome.pace.unchangedChecks,
+            nextCheckAt: outcome.pace.nextCheckAt,
+          }
+        : {}),
+    })
     .where(eq(watchedSites.id, id));
+};
+
+/** ENF-RGP-10: the offers of a source found again by a check are still published; their date says so. */
+export const touchOffers = async (
+  db: Executor,
+  siteId: number,
+  { externalIds, seenAt }: { externalIds: readonly string[]; seenAt: Date },
+): Promise<void> => {
+  if (externalIds.length === 0) return;
+  await db
+    .update(jobOffers)
+    .set({ lastSeenAt: seenAt })
+    .where(and(eq(jobOffers.siteId, siteId), inArray(jobOffers.externalId, [...externalIds])));
+};
+
+/**
+ * ENF-RGP-10 (v1.33): removes the offers « nouvelle » or « écartée » that their source has not published since
+ * `before`; kept and applied offers stay. An offer still published is not removed: it would come back as new.
+ * @returns how many offers were removed.
+ * @req ENF-RGP-10
+ */
+export const purgeStaleOffers = async (db: Executor, before: Date): Promise<number> => {
+  const removed = await db
+    .delete(jobOffers)
+    .where(and(inArray(jobOffers.status, ['new', 'dismissed']), lt(jobOffers.lastSeenAt, before)))
+    .returning({ id: jobOffers.id });
+  return removed.length;
 };
 
 /** The identifiers a source has already produced, to leave its known offers alone (EF-VEI-09). */
@@ -162,7 +211,14 @@ export interface OfferToStore extends NormalizedOffer {
 export const insertOffers = async (
   db: Executor,
   siteId: number,
-  offers: readonly OfferToStore[],
+  {
+    offers,
+    seenAt,
+  }: {
+    offers: readonly OfferToStore[];
+    /** The check that found them: their first and, for now, last sight (ENF-RGP-10). */
+    seenAt: Date;
+  },
 ): Promise<number> => {
   if (offers.length === 0) return 0;
   const rows = await db
@@ -171,6 +227,8 @@ export const insertOffers = async (
       offers.map((offer) => ({
         siteId,
         externalId: offer.externalId,
+        companyName: offer.employerName ?? null,
+        companySiren: offer.employerSiren ?? null,
         title: offer.title,
         location: offer.location,
         contractType: offer.contractType,
@@ -180,6 +238,8 @@ export const insertOffers = async (
         relevanceScore: offer.relevanceScore,
         relevanceReason: offer.relevanceReason,
         matchedTarget: offer.matchedTarget,
+        firstSeenAt: seenAt,
+        lastSeenAt: seenAt,
       })),
     )
     .onConflictDoNothing({ target: [jobOffers.siteId, jobOffers.externalId] })
@@ -269,4 +329,85 @@ export const dismissSuggestion = async (db: Executor, userId: number, companyId:
     .values({ userId, companyId })
     .onConflictDoNothing({ target: [dismissedSourceSuggestions.userId, dismissedSourceSuggestions.companyId] });
   return true;
+};
+
+/**
+ * EF-VEI-36: the companies of the user's applications whose SIREN is unknown and was not looked for since `before`,
+ * the oldest looked for first — at most `limit`, so that one pass never asks about them all at once.
+ * @req EF-VEI-36, EF-AUT-06
+ */
+export const listCompaniesToIdentify = async (
+  db: Executor,
+  userId: number,
+  { before, limit }: { before: Date; limit: number },
+): Promise<{ id: number; name: string }[]> =>
+  db
+    .select({ id: companies.id, name: companies.name })
+    .from(companies)
+    .where(
+      and(
+        eq(companies.userId, userId),
+        isNull(companies.siren),
+        or(isNull(companies.sirenCheckedAt), lt(companies.sirenCheckedAt, before)),
+        exists(db.select({ id: applications.id }).from(applications).where(eq(applications.companyId, companies.id))),
+      ),
+    )
+    .orderBy(sql`${companies.sirenCheckedAt} asc nulls first`, companies.id)
+    .limit(limit);
+
+/** EF-VEI-36: what the search of a company's SIREN found — possibly nothing — and when. */
+export const recordSiren = async (
+  db: Executor,
+  companyId: number,
+  outcome: { siren: string | null; checkedAt: Date },
+): Promise<void> => {
+  await db
+    .update(companies)
+    .set({ siren: outcome.siren, sirenCheckedAt: outcome.checkedAt })
+    .where(eq(companies.id, companyId));
+};
+
+/** EF-VEI-39: what the search of a company's career page concluded. */
+export interface DiscoveryRow {
+  companyId: number;
+  status: (typeof discoveredSources.status.enumValues)[number];
+  adapter: SiteAdapterId | null;
+  identifier: string | null;
+  offerCount: number | null;
+  discoveredAt: Date;
+}
+
+/**
+ * EF-VEI-38, EF-VEI-39: the conclusions of the searches of career pages for the user's companies.
+ * @req EF-VEI-38, EF-AUT-06
+ */
+export const listDiscoveries = async (db: Executor, userId: number): Promise<DiscoveryRow[]> =>
+  db
+    .select({
+      companyId: discoveredSources.companyId,
+      status: discoveredSources.status,
+      adapter: discoveredSources.adapter,
+      identifier: discoveredSources.identifier,
+      offerCount: discoveredSources.offerCount,
+      discoveredAt: discoveredSources.discoveredAt,
+    })
+    .from(discoveredSources)
+    .innerJoin(companies, eq(companies.id, discoveredSources.companyId))
+    .where(eq(companies.userId, userId));
+
+/** EF-VEI-39: records — or replaces — what the search of this company's career page concluded. */
+export const saveDiscovery = async (db: Executor, discovery: DiscoveryRow): Promise<void> => {
+  await db
+    .insert(discoveredSources)
+    .values(discovery)
+    .onConflictDoUpdate({
+      target: discoveredSources.companyId,
+      set: {
+        status: discovery.status,
+        adapter: discovery.adapter,
+        identifier: discovery.identifier,
+        offerCount: discovery.offerCount,
+        discoveredAt: discovery.discoveredAt,
+      },
+    });
 };

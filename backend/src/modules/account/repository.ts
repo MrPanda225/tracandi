@@ -16,6 +16,7 @@ import {
   prefilterKeywords,
   processedMessages,
   users,
+  watchCriteria,
   watchedSites,
 } from '../../db/schema.js';
 
@@ -24,9 +25,9 @@ import {
  * (ENF-SEC-02). Shared reference data (platforms, AI prices) is not the user's and stays out.
  */
 
-/** The account, its settings, its Gmail connection (no token) and its profile. */
+/** The account, its settings, its Gmail connection (no token), its profile and its search criteria. */
 export const readAccountData = async (db: Database, userId: number) => {
-  const [account, settings, gmail, profile, keywords] = await Promise.all([
+  const [account, settings, gmail, profile, keywords, criteria] = await Promise.all([
     db.select({ email: users.email, createdAt: users.createdAt }).from(users).where(eq(users.id, userId)),
     db
       .select({
@@ -54,6 +55,11 @@ export const readAccountData = async (db: Database, userId: number) => {
       .select({ keyword: prefilterKeywords.keyword })
       .from(prefilterKeywords)
       .where(eq(prefilterKeywords.userId, userId)),
+    // EF-VEI-29 (v1.33)
+    db
+      .select({ document: watchCriteria.document, updatedAt: watchCriteria.updatedAt })
+      .from(watchCriteria)
+      .where(eq(watchCriteria.userId, userId)),
   ]);
   return {
     account: account[0] ?? null,
@@ -61,6 +67,7 @@ export const readAccountData = async (db: Database, userId: number) => {
     gmail: gmail[0] ?? null,
     profile: profile[0] ?? null,
     prefilterKeywords: keywords.map((row) => row.keyword),
+    watchCriteria: criteria[0] ?? null,
   };
 };
 
@@ -154,9 +161,8 @@ export const readMessages = async (db: Database, userId: number) => {
   return { emails: kept, processedMessages: processed };
 };
 
-/** The sources watched for these companies, and the offers read on them. */
-export const readWatch = async (db: Database, companyIds: readonly number[]) => {
-  if (companyIds.length === 0) return { watchedSites: [], jobOffers: [] };
+/** The sources the user watches — official ones included (v1.33) — and the offers read on them. */
+export const readWatch = async (db: Database, userId: number) => {
   const sites = await db
     .select({
       id: watchedSites.id,
@@ -168,7 +174,7 @@ export const readWatch = async (db: Database, companyIds: readonly number[]) => 
       createdAt: watchedSites.createdAt,
     })
     .from(watchedSites)
-    .where(inArray(watchedSites.companyId, [...companyIds]));
+    .where(eq(watchedSites.userId, userId));
   const siteIds = sites.map((site) => site.id);
   const offers =
     siteIds.length === 0
@@ -176,6 +182,7 @@ export const readWatch = async (db: Database, companyIds: readonly number[]) => 
       : await db
           .select({
             siteId: jobOffers.siteId,
+            companyName: jobOffers.companyName,
             title: jobOffers.title,
             location: jobOffers.location,
             url: jobOffers.url,

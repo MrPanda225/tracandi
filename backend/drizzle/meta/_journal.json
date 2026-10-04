@@ -113,6 +113,48 @@
       "when": 1790417570203,
       "tag": "0015_cv_diagnosis",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1790807131025,
+      "tag": "0016_watch_criteria",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1790809003756,
+      "tag": "0017_official_sources",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1790810964769,
+      "tag": "0018_work_study_and_siren",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1790812168589,
+      "tag": "0019_five_ats_adapters",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1790812573291,
+      "tag": "0020_career_page_discovery",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1790813722700,
+      "tag": "0021_sparing_collection",
+      "breakpoints": true
     }
   ]
 }

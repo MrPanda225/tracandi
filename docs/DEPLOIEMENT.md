@@ -58,6 +58,8 @@ Ordre de mise en place : **1. Neon → 2. Northflank → 3. Vercel → 4. Google
 | `TOKEN_ENCRYPTION_KEY` | `openssl rand -hex 32` — **à conserver** : la perdre rend les jetons Gmail illisibles |
 | `GROQ_API_KEY`, `GROQ_MODEL_1..3` / `GEMINI_*` / `ANTHROPIC_*` | au moins un fournisseur d'IA |
 | `ENABLED_FEATURES` | vide (périmètre de production, ENF-MAI-07) |
+| `FRANCE_TRAVAIL_CLIENT_ID`, `FRANCE_TRAVAIL_CLIENT_SECRET` | facultatives, les deux ou aucune : source France Travail de la veille (`docs/SOURCES_OFFICIELLES.md`) |
+| `LBA_API_KEY` | facultative : source La bonne alternance de la veille (`docs/SOURCES_OFFICIELLES.md`) |
 | `SCHEDULER_TIMEZONE` | `Europe/Paris` |
 | `CV_ANALYSES_PER_DAY` | facultatif, `5` par défaut : analyses de l'Atelier CV par candidat et par jour (EF-CVX-33, coût de l'IA). `0` lève la limite : à réserver aux tests |
 | `MAX_CONCURRENT_JOBS` | facultatif, `1` par défaut : traitements longs menés en même temps sur tout le serveur (EF-EXE-06). À relever seulement avec un plan plus grand que 256 Mo |

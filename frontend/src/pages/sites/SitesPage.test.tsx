@@ -49,6 +49,7 @@ const withSources = (...items: unknown[]): Record<string, Route> => ({
   'GET /sites/types': () => json(200, { items: TYPES }),
   'GET /sites': () => json(200, { items }),
   'GET /sites/suggestions': () => json(200, { items: [] }),
+  'GET /watch/criteria': () => json(200, { criteria: null }),
 });
 
 const SUGGESTION = {
@@ -58,6 +59,9 @@ const SUGGESTION = {
   adapter: 'generic',
   identifier: 'https://arkema.com',
   messages: 3,
+  verification: null,
+  offerCount: null,
+  discoveredAt: null,
 };
 
 const renderPage = () =>
@@ -87,6 +91,96 @@ describe('SitesPage', () => {
     expect(list.getByText(/Greenhouse/)).toBeInTheDocument();
     expect(list.getByText('atelieraurore')).toBeInTheDocument();
     expect(list.getByText(/4 offres repérées/)).toBeInTheDocument();
+  });
+
+  it('[EF-VEI-32] activates France Travail in one gesture, without company nor identifier', async () => {
+    let added = false;
+    const official = {
+      ...SOURCE,
+      id: 2,
+      companyName: null,
+      adapter: 'france_travail',
+      adapterLabel: 'France Travail',
+      identifier: 'criteres',
+    };
+    const sent = mockApi({
+      'GET /sites/types': () =>
+        json(200, {
+          items: [
+            ...TYPES,
+            {
+              id: 'france_travail',
+              label: 'France Travail',
+              identifierHint: 'Rien à saisir.',
+              isOfficial: true,
+            },
+          ],
+        }),
+      'GET /sites/suggestions': () => json(200, { items: [] }),
+      'GET /watch/criteria': () => json(200, { criteria: null }),
+      'GET /sites': () => json(200, { items: added ? [official] : [] }),
+      'POST /sites': () => {
+        added = true;
+        return json(201, official);
+      },
+    });
+    renderPage();
+    const user = userEvent.setup();
+
+    // An official source is never typed in the form: it has no company.
+    const type = await screen.findByLabelText('Type de source');
+    expect(within(type).queryByRole('option', { name: 'France Travail' })).not.toBeInTheDocument();
+    await user.click(await screen.findByRole('button', { name: 'Activer France Travail' }));
+
+    expect(sent.at(-1)).toEqual({ adapter: 'france_travail', identifier: 'criteres' });
+    const list = within(await screen.findByRole('list', { name: 'Sources surveillées' }));
+    expect(list.getByText('France Travail')).toBeInTheDocument();
+    expect(list.getByText('Interrogée selon vos critères de recherche')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Activer France Travail' })).not.toBeInTheDocument();
+  });
+
+  it('[EF-VEI-38] [EF-VEI-39] searches the career pages, then shows what was found on each proposal', async () => {
+    let searched = false;
+    const calls: string[] = [];
+    mockApi({
+      ...withSources(),
+      'GET /sites/suggestions': () =>
+        json(200, {
+          items: [
+            searched
+              ? {
+                  ...SUGGESTION,
+                  adapter: 'greenhouse',
+                  identifier: 'arkema',
+                  verification: 'verified',
+                  offerCount: 4,
+                  discoveredAt: '2026-10-01T08:00:00.000Z',
+                }
+              : SUGGESTION,
+          ],
+        }),
+      'POST /sites/suggestions/discover': () => {
+        calls.push('discover');
+        return json(202, { runId: 9 });
+      },
+    });
+    renderPage();
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: 'Rechercher leurs pages carrières' }));
+    expect(calls).toEqual(['discover']);
+    searched = true;
+    pushRun({
+      id: 9,
+      job: 'source_discovery',
+      trigger: 'manual',
+      outcome: 'success',
+      counters: { companies_searched: 1, sources_verified: 1 },
+      error: null,
+    });
+
+    expect(await screen.findByText('Greenhouse trouvé · 4 offres')).toBeInTheDocument();
+    expect(screen.getByText('1 entreprise examinée, 1 source vérifiée.')).toBeInTheDocument();
   });
 
   it('[EF-VEI-10] says so when a source has never been checked', async () => {
@@ -326,7 +420,9 @@ describe('SitesPage', () => {
       'GET /sites/types': () => json(200, { items: TYPES }),
       'GET /sites': () => json(200, { items: added ? [SOURCE] : [] }),
       'GET /sites/suggestions': () =>
-        json(200, { items: added ? [] : [SUGGESTION, { ...SUGGESTION, companyId: 13, companyName: 'Nova' }] }),
+        json(200, {
+          items: added ? [] : [SUGGESTION, { ...SUGGESTION, companyId: 13, companyName: 'Nova' }],
+        }),
       'POST /sites': () => {
         added = true;
         return json(201, SOURCE);

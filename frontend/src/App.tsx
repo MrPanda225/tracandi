@@ -7,7 +7,6 @@ import { ApplicationsPage } from './pages/applications/ApplicationsPage';
 import { ApplicationsCacheProvider } from './pages/applications/useApplications';
 import { DashboardCacheProvider } from './pages/dashboard/useDashboard';
 import { SettingsPage } from './pages/settings/SettingsPage';
-import { UpcomingPage } from './pages/UpcomingPage';
 import { CookieNotice } from './components/CookieNotice';
 import { ScreenLoading } from './components/ScreenLoading';
 import { FeaturesProvider, RequireFeature } from './features/FeaturesContext';
@@ -28,15 +27,7 @@ const LegalNoticePage = lazy(async () => ({ default: (await loadLegalPages()).Le
 const PrivacyPage = lazy(async () => ({ default: (await loadLegalPages()).PrivacyPage }));
 const CookiesPage = lazy(async () => ({ default: (await loadLegalPages()).CookiesPage }));
 const SitesPage = lazy(async () => ({ default: (await import('./pages/sites/SitesPage')).SitesPage }));
-
-/** The screens not built yet (T-003 shell), each stating what it will offer instead of an empty page. */
-const UPCOMING_SCREENS = [
-  {
-    path: '/offres',
-    title: 'Offres',
-    promise: 'Les offres détectées par la veille des sites carrières, triées par pertinence.',
-  },
-] as const;
+const OffersPage = lazy(async () => ({ default: (await import('./pages/offers/OffersPage')).OffersPage }));
 
 const LEGAL_ROUTES = [
   { path: '/mentions-legales', Page: LegalNoticePage },
@@ -118,14 +109,21 @@ export function App() {
               </RequireFeature>
             }
           />
+          <Route
+            path="/offres"
+            element={
+              <RequireFeature
+                feature="watch"
+                title="Offres"
+                promise="Les offres détectées par la veille des sites carrières, triées par pertinence."
+              >
+                <Suspense fallback={<ScreenLoading label="Chargement des offres…" />}>
+                  <OffersPage />
+                </Suspense>
+              </RequireFeature>
+            }
+          />
           <Route path="/reglages" element={<SettingsPage />} />
-          {UPCOMING_SCREENS.map((screen) => (
-            <Route
-              key={screen.path}
-              path={screen.path}
-              element={<UpcomingPage title={screen.title} promise={screen.promise} />}
-            />
-          ))}
         </Route>
         {/* EF-LEG-01: public, with or without a session. */}
         {LEGAL_ROUTES.map(({ path, Page }) => (

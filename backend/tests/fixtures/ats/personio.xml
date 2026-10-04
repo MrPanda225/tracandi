@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<workzag-jobs>
+  <position>
+    <id>1000001</id>
+    <subcompany>Exemplia SAS</subcompany>
+    <office>Paris</office>
+    <additionalOffices><office>Lille</office></additionalOffices>
+    <department>Tech</department>
+    <recruitingCategory>Engineering</recruitingCategory>
+    <name>Ingénieur données H/F</name>
+    <jobDescriptions>
+      <jobDescription><name>Vos missions</name><value><![CDATA[<p>Concevoir les flux de données.</p>]]></value></jobDescription>
+      <jobDescription><name>Votre profil</name><value><![CDATA[<ul><li>Python</li><li>SQL</li></ul>]]></value></jobDescription>
+    </jobDescriptions>
+    <employmentType>permanent</employmentType>
+    <seniority>experienced</seniority>
+    <schedule>full-time</schedule>
+    <yearsOfExperience>2-5</yearsOfExperience>
+    <keywords>python,sql</keywords>
+    <occupation>software_and_web_development</occupation>
+    <occupationCategory>it_software</occupationCategory>
+    <createdAt>2026-09-01T10:00:00+02:00</createdAt>
+  </position>
+  <position>
+    <id>1000002</id>
+    <office>Paris</office>
+    <name>Assistant commercial</name>
+    <jobDescriptions></jobDescriptions>
+    <employmentType>working_student</employmentType>
+    <schedule>part-time</schedule>
+    <createdAt>2026-09-10T09:00:00+0200</createdAt>
+  </position>
+</workzag-jobs>

@@ -1,0 +1,198 @@
+/* ---------- Filtres (EF-VEI-17, EF-VEI-18, EF-VEI-22) ---------- */
+
+.offers-filters {
+  display: grid;
+  gap: 0.75rem;
+  margin-bottom: clamp(1rem, 0.6rem + 1.5vw, 1.5rem);
+}
+
+.offers-views {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.offers-views__item {
+  min-height: 44px;
+  padding: 0 1rem;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  background: var(--color-canvas-raised);
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background var(--duration-fast) ease;
+}
+
+.offers-views__item:hover {
+  background: var(--color-accent-soft);
+}
+
+.offers-views__item[aria-pressed='true'] {
+  border-color: var(--color-accent-strong);
+  background: var(--color-accent-strong);
+  color: var(--color-canvas-raised);
+}
+
+.offers-filters__fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  max-width: 32rem;
+}
+
+/* ---------- Liste (EF-VEI-16) ---------- */
+
+.offers-count {
+  margin: 0 0 0.5rem;
+  color: var(--color-mauve-deep);
+  font-size: 0.875rem;
+}
+
+.offers-list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.offer {
+  display: grid;
+  gap: 0.5rem;
+  padding: clamp(0.9rem, 0.7rem + 0.6vw, 1.2rem);
+  border-radius: var(--radius-md);
+  background: var(--color-canvas-raised);
+  box-shadow: var(--shadow-soft);
+}
+
+.offer__head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 0.75rem;
+}
+
+.offer__main {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.offer__title {
+  color: var(--color-ink-deep);
+  font-weight: 600;
+  font-size: 1.02rem;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.offer__title:hover,
+.offer__title:focus-visible {
+  color: var(--color-accent-strong);
+  text-decoration: underline;
+}
+
+.offer__facts,
+.offer__reason,
+.offer__applied {
+  margin: 0;
+  color: var(--color-mauve-deep);
+  font-size: 0.875rem;
+}
+
+.offer__reason {
+  color: var(--color-ink);
+}
+
+/* La note se lit à son chiffre ; la couleur ne fait que le souligner (WCAG 1.4.1). */
+.offer__score {
+  margin: 0;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.offer__score-unit {
+  font-weight: 400;
+  font-size: 0.75rem;
+}
+
+.offer__score--high {
+  background: var(--status-interview-soft);
+  color: var(--status-interview);
+}
+
+.offer__score--medium {
+  background: var(--status-waiting-soft);
+  color: var(--status-waiting);
+}
+
+.offer__score--low {
+  background: var(--status-idle-soft);
+  color: var(--status-idle);
+}
+
+.offer__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.offer__toggle {
+  margin-left: auto;
+}
+
+.offer__description {
+  max-height: 22rem;
+  margin: 0;
+  overflow-y: auto;
+  color: var(--color-ink);
+  font-size: 0.9rem;
+  line-height: 1.55;
+  white-space: pre-line;
+}
+
+.offer__failure {
+  margin: 0;
+  color: var(--color-danger);
+  font-size: 0.875rem;
+}
+
+.offers-empty {
+  padding: 1.25rem;
+  border-radius: var(--radius-md);
+  background: var(--color-canvas-raised);
+  color: var(--color-mauve-deep);
+}
+
+.offers-empty p {
+  margin: 0.25rem 0;
+}
+
+.offers-more {
+  margin-top: 0.75rem;
+}
+
+.offers-loading {
+  display: grid;
+  gap: 0.5rem;
+}
+
+/* EF-VEI-35 : une entreprise déjà sollicitée, dite en texte (WCAG 1.4.1). */
+.offer__applied-company {
+  justify-self: start;
+  margin: 0.15rem 0 0;
+  padding: 0.1rem 0.55rem;
+  border-radius: 999px;
+  background: var(--color-accent-soft);
+  color: var(--color-accent-strong);
+  font-size: 0.8rem;
+  font-weight: 600;
+}

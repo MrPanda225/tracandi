@@ -24,16 +24,39 @@ const identifierFor = (adapter: SourceSuggestion['adapter'], domain: string, com
     : normalizeKey(companyName).replaceAll(' ', '');
 
 /**
+ * EF-VEI-24, EF-VEI-39 (v1.33) : la source proposée — celle que la recherche des pages carrières a trouvée quand elle
+ * a trouvé quelque chose, l'hypothèse tirée de l'expéditeur et du nom sinon.
+ */
+const proposedSource = (
+  company: { name: string; seen: SeenDomain[] },
+  domain: string,
+  discovery: repository.DiscoveryRow | undefined,
+): Pick<SourceSuggestion, 'adapter' | 'identifier' | 'verification' | 'offerCount' | 'discoveredAt'> => {
+  const search = {
+    verification: discovery?.status ?? null,
+    offerCount: discovery?.offerCount ?? null,
+    discoveredAt: discovery?.discoveredAt.toISOString() ?? null,
+  };
+  if (discovery?.adapter && discovery.identifier) {
+    return { adapter: discovery.adapter, identifier: discovery.identifier, ...search };
+  }
+  const adapter = chooseAdapter(company.seen);
+  return { adapter, identifier: identifierFor(adapter, domain, company.name), ...search };
+};
+
+/**
  * EF-VEI-23 à EF-VEI-25 : les sources que le candidat pourrait surveiller, déduites des entreprises auxquelles
  * il a déjà postulé. **Aucune requête sortante** : tout se lit dans ce que la synchronisation Gmail a enregistré,
  * et rien n'est ajouté d'office (RG-19).
  */
 export const createSuggestionReader = (db: Database): SuggestionReader => ({
   async list(userId) {
-    const [rows, platforms] = await Promise.all([
+    const [rows, platforms, discoveries] = await Promise.all([
       repository.listSuggestionDomains(db, userId),
       repository.listPlatformDomains(db),
+      repository.listDiscoveries(db, userId),
     ]);
+    const discovered = new Map(discoveries.map((discovery) => [discovery.companyId, discovery]));
     const byCompany = new Map<number, { name: string; seen: SeenDomain[] }>();
     for (const row of rows) {
       const company = byCompany.get(row.companyId) ?? { name: row.companyName, seen: [] };
@@ -46,13 +69,11 @@ export const createSuggestionReader = (db: Database): SuggestionReader => ({
       const domain = chooseCompanyDomain(company.seen, platforms);
       // RG-19 : sans domaine qui désigne l'entreprise, il n'y a rien à proposer.
       if (domain === null) continue;
-      const adapter = chooseAdapter(company.seen);
       suggested.push({
         companyId,
         companyName: company.name,
         domain,
-        adapter,
-        identifier: identifierFor(adapter, domain, company.name),
+        ...proposedSource(company, domain, discovered.get(companyId)),
         messages: company.seen.find((entry) => entry.domain === domain)?.count ?? 0,
       });
     }
