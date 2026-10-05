@@ -856,3 +856,136 @@ développeur l'active sur son poste (`ENABLED_FEATURES=watch,cv`) le temps d'y t
 - [ ] **T-906 Relance vers le recruteur** — adresses des plateformes écartées du contact (RG-20 v1.32).
   *Exigences* : RG-20.
 
+## Lot 10 — Veille automatique par utilisateur (BES-48, cahier v1.35)
+
+> *Demande du Business Owner du 02/10/2026* : CV types, offres choisies par niveau, trois passages par jour pour
+> chaque utilisateur, exécutés par le modèle d'IA local du homelab avec secours. La veille reste éteinte en
+> production (BES-29, ADR-14) : l'activer est une décision à part. Premier lot livrable seul : T-1001 et T-1002.
+
+- [ ] **T-1001 Fournisseur `local`** — valeur `local` de l'énumération `llm_provider` (migration `drizzle-kit`),
+  variables `LOCAL_LLM_BASE_URL`, `LOCAL_LLM_MODEL`, `LOCAL_LLM_API_KEY` (jeton) validées au démarrage (https hors
+  réseau privé, EF-IA-05 : le local suffit à démarrer), adaptateur `openaiCompatible.ts` avec URL de base propre
+  (`server.ts` ne fixe plus l'URL de Groq pour tout fournisseur), tarif nul pour `llm_model_prices`, `local` dans
+  `llm/assignments.ts`, ADR-16 dans `docs/ARCHITECTURE.md`. **Aucune route ne cite `local`** dans cette tâche.
+  *Exigences* : EF-IA-07, EF-IA-05, ENF-COU-02, ENF-SEC-24, ENF-SEC-25, ENF-MAI-09.
+  *Fini quand* : fournisseur simulé répondant au format existant (`fetchImpl`, jamais d'appel réel) ; démarrage
+  refusé sur `http://` public, délai négatif ou adresse malformée, avec le nom de la variable ; jeton fictif absent
+  des réponses, journaux et erreurs ; ligne `llm_calls` au fournisseur `local` ; `GET /api/settings/ai` liste `local`
+  sans adresse. Le critère « coût du mois inchangé » (ENF-COU-02) se vérifie avec T-705 ; d'ici là, test sur le
+  tarif nul. À vérifier à la compilation : `modules/emails/sync.ts` et l'énumération `classifier`.
+  *Dépend de* : —.
+- [ ] **T-1002 Délai et plafond de sortie par fournisseur** — chaque fournisseur porte son délai (60 s par défaut,
+  600 s pour le local) et son plafond de sortie (16 000 par défaut, 2 000 pour le local) ; le routeur les applique.
+  *Exigences* : EF-IA-10, EF-IA-11, EF-IA-02 (modifiée).
+  *Fini quand* : fournisseur simulé à 90 s abandonné s'il est hébergé, accepté s'il est local, abandonné à 601 s ;
+  `max_tokens` = 2 000 vers le local, inchangé ailleurs ; tests de bascule existants inchangés.
+  *Dépend de* : T-1001.
+- [ ] **T-1003 Routes par mode, lots réduits, bascule rapide** — route à deux modes (passage planifié ou demande
+  attendue) : le local en tête de `score_offers`, `extract_offers` et des tâches de profil **en passage planifié
+  seulement**, jamais en tête ailleurs ; lots de 5 offres et descriptions de 800 caractères quand le premier
+  fournisseur est local ; échec de connexion en 10 s au plus ; coupe-circuit après deux échecs de connexion.
+  *Exigences* : EF-IA-08, EF-IA-09, EF-IA-12, EF-IA-13, EF-IA-14, RG-13 (modifiée).
+  *Fini quand* : passage simulé : premier appel au local ; local injoignable : fournisseur suivant en moins de
+  10 s, puis plus aucun appel au local jusqu'à la fin du passage ; 12 offres : appels de 5, 5 et 2 ; routes de
+  `classify_emails`, `diagnose_cv`, `tailor_cv`, `write_follow_up` inchangées.
+  *Dépend de* : T-1001, T-1002.
+- [ ] **T-1004 Fenêtre depuis la dernière consultation réussie** — colonne « début de la dernière consultation
+  réussie » sur `watched_sites` (migration) ; la fenêtre de France Travail s'en sert ; une consultation échouée ne
+  l'avance pas ; ADR-18.
+  *Exigences* : EF-VEI-52, EF-VEI-53, EF-VEI-10 (modifiée), RG-30.
+  *Fini quand* : consultation de 7 h en échec : celle de 13 h demande depuis la dernière réussite ; première
+  consultation : 7 jours ; dernière réussite il y a 40 jours : 31 jours ; zéro doublon (EF-VEI-09).
+  *Dépend de* : —. *Corrige* le constat C-2.
+- [ ] **T-1005 Offres sans note, plafond par passage, durée maximale** — une offre lue est enregistrée même si
+  aucun fournisseur ne la note (note vide, compteur « en attente de note », migration de l'énumération des
+  compteurs) et notée au passage suivant, les plus récentes d'abord ; au plus N offres notées par passage ;
+  passage arrêté proprement à 45 minutes ; offres sans note à part dans les écrans qui trient par score.
+  *Exigences* : EF-VEI-54, EF-EXE-07, RG-31, ENF-FIA-11, ENF-PERF-09.
+  *Fini quand* : modèle local et secours simulés en échec : sources consultées, offres enregistrées sans note, puis
+  notées au passage suivant sans doublon ; 35 offres : 20 notées, 15 reprises ; horloge simulée : arrêt à 45 minutes.
+  *Dépend de* : T-1004.
+- [ ] **T-1006 Années d'expérience et niveau** — fonctions pures, sans IA : durée cumulée des périodes d'un CV
+  (chevauchements comptés une fois), années demandées par une offre (« 5 ans ou plus d'expérience »), niveau.
+  *Exigences* : RG-28, RG-29, EF-VEI-43 (calcul), EF-VEI-44.
+  *Fini quand* : tests aux bornes 2, 3, 7 et 8 ans ; « 2 à 3 ans » : 3 ; texte sans mention : aucune valeur ;
+  34 mois : 3 ans.
+  *Dépend de* : —.
+- [ ] **T-1007 Notation selon le niveau** — le document `watch_criteria` porte le niveau et les années ; le prompt de
+  `scoreOffers.ts` ne plafonne plus l'expérience à 3 ans mais la compare au niveau.
+  *Exigences* : EF-VEI-50, EF-VEI-31 (modifiée), RG-09 (modifiée).
+  *Fini quand* : même offre à 8 ans : mieux notée pour un senior que pour un junior (modèle simulé) ; prompt
+  portant le niveau ; critères sans niveau : comportement actuel (3 ans au plus).
+  *Dépend de* : T-1006.
+- [ ] **T-1008 Créneaux et passages par utilisateur (API)** — `job_runs` porte le créneau (migration), la veille
+  automatique et les créneaux choisis sont des réglages par utilisateur (`app_settings`), le planificateur lance un
+  passage par utilisateur actif et par créneau, refuse sans critères avec un message, ignore un passage dont le
+  précédent est en cours.
+  *Exigences* : EF-VEI-51, EF-VEI-55, EF-EXE-08, EF-VEI-06 (modifiée), EF-VEI-42 (modifiée), EF-CFG-07 (API).
+  *Fini quand* : horloge simulée : trois passages enregistrés par jour pour un utilisateur actif, aucun pour un
+  autre ; créneau « midi » décoché : pas de passage à 13 h ; zéro créneau activé : 400 ; passage de 7 h encore en
+  cours à 13 h : ligne « ignoré ».
+  *Dépend de* : T-1005.
+- [ ] **T-1009 CV types** — table des CV types (libellé, années, niveau ; jamais le fichier ni le texte, migration),
+  import de 1 à 4 PDF réutilisant `cvWorkshop` (format, taille, OCR, refus, coordonnées), remplacement, suppression ;
+  routes sous la fonctionnalité `watch`.
+  *Exigences* : EF-CVX-39, EF-CVX-40, EF-CVX-41, EF-CVX-42, ENF-RGP-14 (CV).
+  *Fini quand* : quatre CV acceptés, cinquième refusé ; DOCX et PDF protégé refusés sans appel IA ; suppression : zéro
+  ligne pour ce CV ; aucune colonne ne contient le texte.
+  *Dépend de* : — (réponse à Q-22).
+- [ ] **T-1010 Déduction du profil par le modèle** — tâche IA de profil (skill `add-llm-task` : entrée de route,
+  prompt, schéma, migration de `llm_task`) en file d'exécution ; années calculées par le code (T-1006), jamais par le
+  modèle ; 1 à 5 offres types déduites ; résultat en mémoire 30 minutes ; quota quotidien.
+  *Exigences* : EF-CVX-43, EF-CVX-44, EF-VEI-43, EF-VEI-45, ENF-RGP-13.
+  *Fini quand* : réponse en moins d'une seconde avec l'identifiant d'exécution ; modèle simulé inventant « 12 ans » :
+  le nombre affiché vient du calcul ; réponse hors schéma rejetée ; prompt capturé sans adresse e-mail ni téléphone ;
+  sixième déduction du jour : 429.
+  *Dépend de* : T-1001, T-1003, T-1006, T-1009.
+- [ ] **T-1011 Validation du profil et écriture des critères** — l'utilisateur corrige puis valide ; la validation
+  écrit les cibles dans `watch_criteria` ; tant que rien n'est validé, seuls les critères existants servent.
+  *Exigences* : EF-VEI-46, EF-VEI-47.
+  *Fini quand* : avant validation, la notation n'utilise pas le profil déduit ; années corrigées de 3 à 6 : niveau
+  recalculé ; valeur hors de 0 à 50 : 400.
+  *Dépend de* : T-1007, T-1010.
+- [ ] **T-1012 Offres choisies par niveau** — jusqu'à 3 offres par niveau (texte de 200 à 20 000 caractères), traits
+  extraits (intitulé, mots-clés, années, niveau) puis texte jeté, traits corrigeables ; tâche IA d'extraction.
+  *Exigences* : EF-VEI-48, EF-VEI-49, ENF-RGP-14 (offres).
+  *Fini quand* : quatrième offre d'un niveau refusée ; 199 et 20 001 caractères : 400 ; « 5 ans d'expérience
+  minimum » : 5 ans, niveau confirmé ; aucune colonne ne contient le texte.
+  *Dépend de* : T-1003, T-1006 (réponse à Q-23).
+- [ ] **T-1013 Réglages : CV types, profil, offres choisies** — section « Veille automatique » (frontend), règle
+  `frontend.md`, sur 1440 px et 390 px ; absente si `watch` est désactivée.
+  *Exigences* : EF-CFG-06.
+  *Fini quand* : captures aux deux largeurs ; aucune adresse de modèle ni réglage de serveur à l'écran ; tests
+  Testing Library.
+  *Dépend de* : T-1009 à T-1012.
+- [ ] **T-1014 Réglages : créneaux, état des passages, indicateur** — activer ou arrêter, choisir les créneaux, voir
+  l'état et les compteurs de chaque passage du jour, indicateur « modèle local » ou « secours ».
+  *Exigences* : EF-CFG-07, EF-CFG-08, EF-CFG-09.
+  *Fini quand* : passage simulé : état et compteurs affichés sans contenu ; libellé « secours » ; adresse et jeton
+  absents de l'API.
+  *Dépend de* : T-1008, T-1013.
+- [ ] **T-1015 Garde-fous transversaux de l'agent** — tests et corrections pour les trois garanties qui traversent
+  les tâches : aucune requête sortante vers une adresse venue du modèle, journaux sans contenu, prompts sans
+  coordonnées.
+  *Exigences* : ENF-COL-06, ENF-RGP-12, ENF-RGP-13.
+  *Fini quand* : réponse simulée contenant une adresse : aucune requête émise, aucune source créée ; textes fictifs
+  reconnaissables absents des journaux et de `job_runs`, `job_run_counters`, `llm_calls` ; prompt de déduction et de
+  notation sans e-mail ni téléphone.
+  *Dépend de* : T-1008, T-1010, T-1012.
+- [ ] **T-1016 Confidentialité, suppression du compte, documentation** — politique de confidentialité (destinataires
+  dont le modèle local, traitement des CV types), suppression du compte étendue aux nouvelles tables, `ENF-MAI-07`,
+  `.claude/rules/llm.md`, ligne « IA » de `CLAUDE.md`, `docs/TRACABILITE.md`.
+  *Exigences* : ENF-RGP-02, ENF-RGP-05, ENF-RGP-06, ENF-RGP-08, ENF-MAI-07.
+  *Fini quand* : suppression du compte : zéro ligne dans les nouvelles tables ; page Confidentialité mise à jour ;
+  export des données (EF-AUT-12) complété.
+  *Dépend de* : T-1009 à T-1012.
+- [ ] **T-1017 Chemin réseau vers le modèle local** — *tâche d'exploitation, sans code applicatif* : selon Q-25,
+  proxy à jeton et tunnel (option A), ou autre option ; ADR-17 ; journal de mise en place dans la documentation du homelab.
+  *Exigences* : ADR-17, ENF-SEC-24.
+  *Fini quand* : l'API hébergée atteint le modèle avec le jeton et le refuse sans ; le port du modèle n'est pas
+  ouvert sur Internet ; vérification faite à la main par le Business Owner.
+  *Dépend de* : Q-25.
+- [ ] **T-1018 (facultative) Tâche réservée au seul modèle local** — option de configuration.
+  *Exigences* : EF-IA-15.
+  *Fini quand* : tâche réservée et local éteint : erreur d'EF-IA-04, aucun fournisseur hébergé appelé.
+  *Dépend de* : T-1003.
