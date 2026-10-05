@@ -862,7 +862,7 @@ développeur l'active sur son poste (`ENABLED_FEATURES=watch,cv`) le temps d'y t
 > chaque utilisateur, exécutés par le modèle d'IA local du homelab avec secours. La veille reste éteinte en
 > production (BES-29, ADR-14) : l'activer est une décision à part. Premier lot livrable seul : T-1001 et T-1002.
 
-- [ ] **T-1001 Fournisseur `local`** — valeur `local` de l'énumération `llm_provider` (migration `drizzle-kit`),
+- [x] **T-1001 Fournisseur `local`** — valeur `local` de l'énumération `llm_provider` (migration `drizzle-kit`),
   variables `LOCAL_LLM_BASE_URL`, `LOCAL_LLM_MODEL`, `LOCAL_LLM_API_KEY` (jeton) validées au démarrage (https hors
   réseau privé, EF-IA-05 : le local suffit à démarrer), adaptateur `openaiCompatible.ts` avec URL de base propre
   (`server.ts` ne fixe plus l'URL de Groq pour tout fournisseur), tarif nul pour `llm_model_prices`, `local` dans
@@ -874,6 +874,16 @@ développeur l'active sur son poste (`ENABLED_FEATURES=watch,cv`) le temps d'y t
   sans adresse. Le critère « coût du mois inchangé » (ENF-COU-02) se vérifie avec T-705 ; d'ici là, test sur le
   tarif nul. À vérifier à la compilation : `modules/emails/sync.ts` et l'énumération `classifier`.
   *Dépend de* : —.
+  *Livré* : migration 0022 (valeur `local` des énumérations `llm_provider` et `classifier`, cette dernière pour que
+  `classified_by` suive `ProviderName` : aucune route ne donne `classify_emails` au local) ; `lib/privateNetwork.ts` ;
+  variables `LOCAL_LLM_BASE_URL`, `LOCAL_LLM_MODEL`, `LOCAL_LLM_API_KEY`, `LOCAL_LLM_TIMEOUT_MS` et
+  `LOCAL_LLM_MAX_OUTPUT_TOKENS` validées au démarrage (config `llm.local`) ; `connectLocal` dans `openaiCompatible.ts` ;
+  `llm/pricing.ts` (`FREE_PROVIDERS`, lu par T-705) ; `local` en tête de `PROVIDER_ORDER` ; `.env.example`.
+  *Choix assumé* : l'appel au local porte `reasoning_effort: "none"`. Mesuré le 02/10/2026 sur le homelab : sans lui,
+  `qwen3.5:4b` raisonne 333 s, épuise les 2 000 jetons et ne rend aucun contenu ; avec lui, 36 s et un JSON valide.
+  `think: false` est ignoré par l'interface `/v1`. Les services hébergés refusent cette valeur : elle n'est envoyée
+  qu'au local (ADR-16). Le délai et le plafond de sortie sont validés ici mais appliqués par T-1002.
+  *Reste à faire* : le test « coût du mois inchangé » (ENF-COU-02) avec T-705 ; aucun appel réel au homelab en test.
 - [ ] **T-1002 Délai et plafond de sortie par fournisseur** — chaque fournisseur porte son délai (60 s par défaut,
   600 s pour le local) et son plafond de sortie (16 000 par défaut, 2 000 pour le local) ; le routeur les applique.
   *Exigences* : EF-IA-10, EF-IA-11, EF-IA-02 (modifiée).

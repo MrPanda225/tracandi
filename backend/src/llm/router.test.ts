@@ -39,7 +39,8 @@ const setup = (providers: Partial<Record<ProviderName, LlmProvider>>) => {
   const journal: LlmCallRecord[] = [];
   const logged: LoggedEntry[] = [];
   const waits: number[] = [];
-  const record = (message: string, context: Record<string, unknown> = {}) => logged.push({ message, context });
+  const record = (message: string, context: Record<string, unknown> = {}) =>
+    logged.push({ message, context });
   const router = createLlmRouter({
     providers,
     journal: (entry) => {
@@ -66,8 +67,16 @@ afterEach(() => {
 describe('TASK_ROUTES', () => {
   it('[ENF-MAI-04] routes every task of the data model to every known provider, with fallbacks', () => {
     expect(Object.keys(TASK_ROUTES).sort()).toEqual([...llmTask.enumValues].sort());
+    // T-1001 (v1.35): the local model is a known provider that no route names yet; T-1003 routes it by mode.
+    const routed = llmProvider.enumValues.filter((provider) => provider !== 'local');
     for (const route of Object.values(TASK_ROUTES)) {
-      expect(new Set(route)).toEqual(new Set(llmProvider.enumValues));
+      expect(new Set(route)).toEqual(new Set(routed));
+    }
+  });
+
+  it('[EF-IA-07] [RG-13] gives no task to the local model before the routes by mode of T-1003', () => {
+    for (const route of Object.values(TASK_ROUTES)) {
+      expect(route).not.toContain('local');
     }
   });
 
@@ -321,10 +330,15 @@ describe('runTask', () => {
 
   it('[EF-IA-04] tells apart providers all out of reach from answers all refused', async () => {
     const gemini = fakeProvider('gemini', () => Promise.reject(apiFailure(503, 'high demand')));
-    const claude = fakeProvider('claude', () => Promise.reject(apiFailure(400, 'Your credit balance is too low')));
+    const claude = fakeProvider('claude', () =>
+      Promise.reject(apiFailure(400, 'Your credit balance is too low')),
+    );
     const { router } = setup({ gemini, claude });
 
-    await expect(router.runTask('tailor_cv', INPUT)).rejects.toMatchObject({ statusCode: 502, answerRejected: false });
+    await expect(router.runTask('tailor_cv', INPUT)).rejects.toMatchObject({
+      statusCode: 502,
+      answerRejected: false,
+    });
   });
 
   it('[EF-IA-05] works with a single configured provider, whatever its rank in the route', async () => {

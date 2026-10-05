@@ -9,7 +9,11 @@ import { createLogger } from './lib/logger.js';
 import { describeAssignments } from './llm/assignments.js';
 import { connectClaude } from './llm/providers/claude.js';
 import { connectGemini } from './llm/providers/gemini.js';
-import { createOpenAiCompatibleProvider, GROQ_BASE_URL } from './llm/providers/openaiCompatible.js';
+import {
+  connectLocal,
+  createOpenAiCompatibleProvider,
+  GROQ_BASE_URL,
+} from './llm/providers/openaiCompatible.js';
 import type { ProviderName } from './llm/types.js';
 import { createLlmJournal } from './llm/repository.js';
 import { createLlmRouter } from './llm/router.js';
@@ -84,25 +88,29 @@ const gmailService = createGmailConnectionService({
   logger,
 });
 
-// EF-IA-05: only the providers whose key is configured.
 // EF-IA-05: only the providers whose key and model are configured; each Groq model is a route entry of RG-13.
-const configuredProviders = Object.fromEntries(
-  Object.entries(config.llm).flatMap(([name, provider]) => {
-    if (name === 'claude') return [[name, connectClaude(provider)]];
-    if (name === 'gemini') return [[name, connectGemini(provider)]];
-    return [
-      [
-        name,
-        createOpenAiCompatibleProvider({
-          name: name as ProviderName,
-          model: provider.model,
-          baseUrl: GROQ_BASE_URL,
-          apiKey: provider.apiKey,
-        }),
-      ],
-    ];
-  }),
-);
+// EF-IA-07 (ADR-16): the local model of the operator has its own address; the Groq address serves the Groq slots only.
+const { local: localConfig, ...hostedConfig } = config.llm;
+const configuredProviders = {
+  ...(localConfig ? { local: connectLocal(localConfig) } : {}),
+  ...Object.fromEntries(
+    Object.entries(hostedConfig).flatMap(([name, provider]) => {
+      if (name === 'claude') return [[name, connectClaude(provider)]];
+      if (name === 'gemini') return [[name, connectGemini(provider)]];
+      return [
+        [
+          name,
+          createOpenAiCompatibleProvider({
+            name: name as ProviderName,
+            model: provider.model,
+            baseUrl: GROQ_BASE_URL,
+            apiKey: provider.apiKey,
+          }),
+        ],
+      ];
+    }),
+  ),
+};
 
 const llmRouter = createLlmRouter({
   providers: configuredProviders,
@@ -163,7 +171,10 @@ const officialApis = {
     ? createFranceTravailApi({ request: officialRequest, credentials: config.officialSources.franceTravail })
     : null,
   laBonneAlternance: config.officialSources.laBonneAlternance
-    ? createLaBonneAlternanceApi({ request: officialRequest, apiKey: config.officialSources.laBonneAlternance.apiKey })
+    ? createLaBonneAlternanceApi({
+        request: officialRequest,
+        apiKey: config.officialSources.laBonneAlternance.apiKey,
+      })
     : null,
 };
 

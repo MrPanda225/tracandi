@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { describeDatabaseUrlProblem } from '../db/url.js';
 import { parseEncryptionKey } from '../lib/crypto.js';
 import { type EnabledFeatures, OPTIONAL_FEATURES } from '../lib/features.js';
+import { isPrivateHost } from '../lib/privateNetwork.js';
 import type { ProviderName } from '../llm/types.js';
 
 const DEFAULT_HOST = '127.0.0.1';
@@ -19,6 +20,14 @@ const MAX_JOB_SLOTS = 5;
 const DEFAULT_CV_ANALYSES_PER_DAY = 5;
 const MAX_CV_ANALYSES_PER_DAY = 1_000;
 const MAX_PORT = 65_535;
+// EF-IA-10, EF-IA-11 (v1.35): defaults and bounds of the local model; a CPU-only server takes about 40 s per offer.
+const DEFAULT_LOCAL_TIMEOUT_MS = 600_000;
+const MIN_LOCAL_TIMEOUT_MS = 1_000;
+const MAX_LOCAL_TIMEOUT_MS = 3_600_000;
+const DEFAULT_LOCAL_MAX_OUTPUT_TOKENS = 2_000;
+const MAX_LOCAL_OUTPUT_TOKENS = 32_000;
+// Ollama ignores the key it is given; a private address needs none (ENF-SEC-24), a placeholder keeps the header.
+const PRIVATE_NETWORK_TOKEN = 'ollama';
 
 const isHttpOrigin = (value: string): boolean => {
   // Zod still runs refinements after a failed `url()` check: never let `new URL` throw here.
@@ -36,6 +45,24 @@ const isTimeZone = (value: string): boolean => {
     return false;
   }
 };
+
+/**
+ * ENF-SEC-24, ENF-MAI-09: why the address of the local model is refused, or null. The reason never quotes the value,
+ * which may carry a secret (ENF-SEC-25).
+ */
+const describeLocalUrlProblem = (value: string): string | null => {
+  if (!URL.canParse(value)) return 'must be an address such as http://192.168.1.54:11434/v1';
+  const url = new URL(value);
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return 'must start with http:// or https://';
+  if (url.username || url.password) return 'must not carry credentials: the token has its own variable';
+  if (url.search || url.hash) return 'must not carry a query string or a fragment';
+  if (url.protocol === 'http:' && !isPrivateHost(url.hostname)) {
+    return 'must use https unless the host is on a private network';
+  }
+  return null;
+};
+
+const withoutTrailingSlash = (value: string): string => value.replace(/\/+$/, '');
 
 // A line `KEY=` left empty in .env counts as absent.
 const optionalValue = z.preprocess((value) => (value === '' ? undefined : value), z.string().optional());
@@ -67,6 +94,26 @@ const EnvSchema = z.object({
   GROQ_MODEL_1: optionalValue,
   GROQ_MODEL_2: optionalValue,
   GROQ_MODEL_3: optionalValue,
+  /*
+   * EF-IA-07, ENF-SEC-24, ENF-MAI-09 (v1.35): the model of the operator, an OpenAI-compatible service such as Ollama.
+   * Its address, model and token are the server's, never a user's (Q-24); the others are optional with defaults.
+   */
+  LOCAL_LLM_BASE_URL: optionalValue,
+  LOCAL_LLM_MODEL: optionalValue,
+  LOCAL_LLM_API_KEY: optionalValue,
+  LOCAL_LLM_TIMEOUT_MS: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.coerce
+      .number()
+      .int()
+      .min(MIN_LOCAL_TIMEOUT_MS)
+      .max(MAX_LOCAL_TIMEOUT_MS)
+      .default(DEFAULT_LOCAL_TIMEOUT_MS),
+  ),
+  LOCAL_LLM_MAX_OUTPUT_TOKENS: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.coerce.number().int().min(1).max(MAX_LOCAL_OUTPUT_TOKENS).default(DEFAULT_LOCAL_MAX_OUTPUT_TOKENS),
+  ),
   // EF-GML-01: OAuth client of the Google Cloud project, for the Gmail connection from the interface.
   GOOGLE_CLIENT_ID: z.string().min(1),
   GOOGLE_CLIENT_SECRET: z.string().min(1),
@@ -113,7 +160,12 @@ const EnvSchema = z.object({
   // EF-EXE-06: long treatments run at once on the whole server; 1 keeps a small container within its memory.
   MAX_CONCURRENT_JOBS: z.coerce.number().int().min(1).max(MAX_JOB_SLOTS).default(1),
   // EF-CVX-33: analyses of the CV workshop per candidate and per day (AI cost, ENF-COU-01); 0 lifts it, for tests.
-  CV_ANALYSES_PER_DAY: z.coerce.number().int().min(0).max(MAX_CV_ANALYSES_PER_DAY).default(DEFAULT_CV_ANALYSES_PER_DAY),
+  CV_ANALYSES_PER_DAY: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .max(MAX_CV_ANALYSES_PER_DAY)
+    .default(DEFAULT_CV_ANALYSES_PER_DAY),
   // ENF-MAI-07: comma-separated optional features (watch, cv); none when absent, an unknown name stops the server.
   ENABLED_FEATURES: z
     .string()
@@ -137,13 +189,8 @@ const groqModelsOf = (env: Env): Partial<Record<ProviderName, string>> => ({
   ...(env.GROQ_MODEL_3 ? { groq_3: env.GROQ_MODEL_3 } : {}),
 });
 
-/** EF-IA-05: at least one key, and every configured key needs the name of the model it serves. */
-const requireAiProviders = (env: Env, context: z.RefinementCtx): void => {
-  const issue = (path: string, message: string) =>
-    context.addIssue({ code: z.ZodIssueCode.custom, path: [path], message });
-  if (!env.ANTHROPIC_API_KEY && !env.GEMINI_API_KEY && !env.GROQ_API_KEY) {
-    issue('ANTHROPIC_API_KEY, GEMINI_API_KEY or GROQ_API_KEY', 'at least one AI key is required');
-  }
+/** EF-IA-05: every configured key needs the name of the model it serves. */
+const requireModelsOfKeys = (env: Env, issue: (path: string, message: string) => void): void => {
   if (env.ANTHROPIC_API_KEY && !env.ANTHROPIC_MODEL) {
     issue('ANTHROPIC_MODEL', 'required with ANTHROPIC_API_KEY');
   }
@@ -151,6 +198,38 @@ const requireAiProviders = (env: Env, context: z.RefinementCtx): void => {
   if (env.GROQ_API_KEY && Object.keys(groqModelsOf(env)).length === 0) {
     issue('GROQ_MODEL_1, GROQ_MODEL_2 or GROQ_MODEL_3', 'at least one model is required with GROQ_API_KEY');
   }
+};
+
+/** ENF-SEC-24, ENF-MAI-09: the local model needs a valid address and a model, and a token off a private network. */
+const requireLocalModel = (env: Env, issue: (path: string, message: string) => void): void => {
+  if (!env.LOCAL_LLM_BASE_URL) {
+    if (env.LOCAL_LLM_MODEL) issue('LOCAL_LLM_BASE_URL', 'required with LOCAL_LLM_MODEL');
+    if (env.LOCAL_LLM_API_KEY) issue('LOCAL_LLM_BASE_URL', 'required with LOCAL_LLM_API_KEY');
+    return;
+  }
+  const problem = describeLocalUrlProblem(env.LOCAL_LLM_BASE_URL);
+  if (problem) issue('LOCAL_LLM_BASE_URL', problem);
+  if (!env.LOCAL_LLM_MODEL) issue('LOCAL_LLM_MODEL', 'required with LOCAL_LLM_BASE_URL');
+  if (!problem && !env.LOCAL_LLM_API_KEY && !isPrivateHost(new URL(env.LOCAL_LLM_BASE_URL).hostname)) {
+    issue('LOCAL_LLM_API_KEY', 'required for an address outside a private network');
+  }
+};
+
+/**
+ * EF-IA-05: at least one provider (a key, or the local model of v1.35), and every configured key needs the name of
+ * the model it serves; the local model has its own rules (requireLocalModel).
+ */
+const requireAiProviders = (env: Env, context: z.RefinementCtx): void => {
+  const issue = (path: string, message: string) =>
+    context.addIssue({ code: z.ZodIssueCode.custom, path: [path], message });
+  if (!env.ANTHROPIC_API_KEY && !env.GEMINI_API_KEY && !env.GROQ_API_KEY && !env.LOCAL_LLM_BASE_URL) {
+    issue(
+      'ANTHROPIC_API_KEY, GEMINI_API_KEY, GROQ_API_KEY or LOCAL_LLM_BASE_URL',
+      'at least one AI provider is required',
+    );
+  }
+  requireModelsOfKeys(env, issue);
+  requireLocalModel(env, issue);
 };
 
 /** ENF-SEC-23: half a pair of credentials is a typing slip, not a choice; the server says so at start. */
@@ -170,6 +249,23 @@ export interface LlmProviderConfig {
   model: string;
 }
 
+/**
+ * The local model of the operator (EF-IA-07, ADR-16). `apiKey` is the token it is presented with (ENF-SEC-24); the
+ * address and the token are never shown nor journaled (ENF-SEC-25). The delay and the ceiling are applied by the
+ * router (EF-IA-10, EF-IA-11).
+ */
+export interface LocalLlmConfig extends LlmProviderConfig {
+  /** Root of its OpenAI-compatible API, without a trailing slash. */
+  baseUrl: string;
+  timeoutMs: number;
+  maxOutputTokens: number;
+}
+
+/** Configured AI providers: the hosted ones by key and model, and the local model of the operator. */
+export type LlmConfig = Partial<Record<Exclude<ProviderName, 'local'>, LlmProviderConfig>> & {
+  local?: LocalLlmConfig;
+};
+
 /** ENF-SEC-23: credentials of an official API, read from the configuration only. */
 export interface OfficialCredentials {
   clientId: string;
@@ -184,7 +280,7 @@ export interface Config {
   databaseUrl: string;
   isCookieSecure: boolean;
   /** Configured AI providers only (EF-IA-05). */
-  llm: Partial<Record<ProviderName, LlmProviderConfig>>;
+  llm: LlmConfig;
   /** EF-GML-01, ENF-SEC-02 */
   gmail: GmailConfig;
   /** EF-GML-03 */
@@ -199,7 +295,10 @@ export interface Config {
   /** EF-CVX-33: CV analyses a candidate may launch per day; 0 lifts the limit. */
   cvAnalysesPerDay: number;
   /** EF-VEI-32, EF-VEI-34, ENF-SEC-23: null for each official API the server has no credentials for. */
-  officialSources: { franceTravail: OfficialCredentials | null; laBonneAlternance: { apiKey: string } | null };
+  officialSources: {
+    franceTravail: OfficialCredentials | null;
+    laBonneAlternance: { apiKey: string } | null;
+  };
 }
 
 /** Time zone of the cron expressions and schedule of each job. */
@@ -235,12 +334,26 @@ export class ConfigError extends Error {
   }
 }
 
+/** EF-IA-07: the local model of the operator, left out when no address and model are configured. */
+const localModelOf = (env: Env): { local?: LocalLlmConfig } =>
+  env.LOCAL_LLM_BASE_URL && env.LOCAL_LLM_MODEL
+    ? {
+        local: {
+          apiKey: env.LOCAL_LLM_API_KEY ?? PRIVATE_NETWORK_TOKEN,
+          model: env.LOCAL_LLM_MODEL,
+          baseUrl: withoutTrailingSlash(env.LOCAL_LLM_BASE_URL),
+          timeoutMs: env.LOCAL_LLM_TIMEOUT_MS,
+          maxOutputTokens: env.LOCAL_LLM_MAX_OUTPUT_TOKENS,
+        },
+      }
+    : {};
+
 /**
  * Validates the environment and returns the configuration, applying defaults (HOST 127.0.0.1, PORT 4000,
  * COOKIE_SECURE true, Paris time, Gmail every 30 minutes). Secrets are read from the environment only, never from the repository (ENF-SEC-03).
  * @throws ConfigError when a variable is missing or invalid, or when no AI key is set; the server must then stop.
  * No optional feature is enabled unless ENABLED_FEATURES names it.
- * @req ENF-SEC-03, ENF-SEC-08, ENF-SEC-11, ENF-SEC-15, EF-IA-05, EF-GML-03, ENF-MAI-07
+ * @req ENF-SEC-03, ENF-SEC-08, ENF-SEC-11, ENF-SEC-15, EF-IA-05, EF-IA-07, EF-GML-03, ENF-MAI-07, ENF-MAI-09, ENF-SEC-24
  */
 export const loadConfig = (env: Record<string, string | undefined>): Config => {
   const result = EnvSchema.superRefine(requireAiProviders).superRefine(requireCredentialPairs).safeParse(env);
@@ -249,13 +362,7 @@ export const loadConfig = (env: Record<string, string | undefined>): Config => {
     throw new ConfigError(`Invalid environment variables: ${reasons.join(', ')}`);
   }
   const { HOST, PORT, FRONTEND_ORIGIN, DATABASE_URL_APP, COOKIE_SECURE } = result.data;
-  const {
-    ANTHROPIC_API_KEY,
-    ANTHROPIC_MODEL,
-    GEMINI_API_KEY,
-    GEMINI_MODEL,
-    GROQ_API_KEY,
-  } = result.data;
+  const { ANTHROPIC_API_KEY, ANTHROPIC_MODEL, GEMINI_API_KEY, GEMINI_MODEL, GROQ_API_KEY } = result.data;
   const groqModels = groqModelsOf(result.data);
   return {
     host: HOST,
@@ -273,6 +380,7 @@ export const loadConfig = (env: Record<string, string | undefined>): Config => {
             Object.entries(groqModels).map(([name, model]) => [name, { apiKey: GROQ_API_KEY, model }]),
           )
         : {}),
+      ...localModelOf(result.data),
     },
     gmail: {
       clientId: result.data.GOOGLE_CLIENT_ID,
@@ -289,7 +397,10 @@ export const loadConfig = (env: Record<string, string | undefined>): Config => {
     officialSources: {
       franceTravail:
         result.data.FRANCE_TRAVAIL_CLIENT_ID && result.data.FRANCE_TRAVAIL_CLIENT_SECRET
-          ? { clientId: result.data.FRANCE_TRAVAIL_CLIENT_ID, clientSecret: result.data.FRANCE_TRAVAIL_CLIENT_SECRET }
+          ? {
+              clientId: result.data.FRANCE_TRAVAIL_CLIENT_ID,
+              clientSecret: result.data.FRANCE_TRAVAIL_CLIENT_SECRET,
+            }
           : null,
       laBonneAlternance: result.data.LBA_API_KEY ? { apiKey: result.data.LBA_API_KEY } : null,
     },

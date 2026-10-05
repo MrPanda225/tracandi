@@ -67,7 +67,9 @@ describe('loadConfig', () => {
     expect(loadConfig({ ...VALID_ENV, CV_ANALYSES_PER_DAY: '50' }).cvAnalysesPerDay).toBe(50);
     expect(loadConfig({ ...VALID_ENV, CV_ANALYSES_PER_DAY: '0' }).cvAnalysesPerDay).toBe(0);
     expect(() => loadConfig({ ...VALID_ENV, CV_ANALYSES_PER_DAY: '-1' })).toThrow(/CV_ANALYSES_PER_DAY/);
-    expect(() => loadConfig({ ...VALID_ENV, CV_ANALYSES_PER_DAY: 'illimité' })).toThrow(/CV_ANALYSES_PER_DAY/);
+    expect(() => loadConfig({ ...VALID_ENV, CV_ANALYSES_PER_DAY: 'illimité' })).toThrow(
+      /CV_ANALYSES_PER_DAY/,
+    );
   });
 
   it('[EF-VEI-37] [ENF-SEC-23] reads the France Travail credentials as a pair, or none', () => {
@@ -88,7 +90,9 @@ describe('loadConfig', () => {
   it('[EF-EXE-06] reads how many long treatments may run at once, and refuses anything else', () => {
     expect(loadConfig({ ...VALID_ENV, MAX_CONCURRENT_JOBS: '3' }).maxConcurrentJobs).toBe(3);
     expect(() => loadConfig({ ...VALID_ENV, MAX_CONCURRENT_JOBS: '0' })).toThrow(/MAX_CONCURRENT_JOBS/);
-    expect(() => loadConfig({ ...VALID_ENV, MAX_CONCURRENT_JOBS: 'beaucoup' })).toThrow(/MAX_CONCURRENT_JOBS/);
+    expect(() => loadConfig({ ...VALID_ENV, MAX_CONCURRENT_JOBS: 'beaucoup' })).toThrow(
+      /MAX_CONCURRENT_JOBS/,
+    );
   });
 
   it('[ENF-MAI-07] enables the optional features the configuration names, and only those', () => {
@@ -104,7 +108,11 @@ describe('loadConfig', () => {
   });
 
   it('[EF-GML-03] reads the time zone and the cron expression of the Gmail synchronisation', () => {
-    const config = loadConfig({ ...VALID_ENV, SCHEDULER_TIMEZONE: 'America/Montreal', CRON_GMAIL: '*/15 8-20 * * *' });
+    const config = loadConfig({
+      ...VALID_ENV,
+      SCHEDULER_TIMEZONE: 'America/Montreal',
+      CRON_GMAIL: '*/15 8-20 * * *',
+    });
 
     expect(config.scheduler).toEqual({
       timezone: 'America/Montreal',
@@ -191,7 +199,10 @@ describe('loadConfig', () => {
     const env = BASE_ENV;
 
     expect(() => loadConfig(env)).toThrow(ConfigError);
-    expect(() => loadConfig(env)).toThrow('ANTHROPIC_API_KEY, GEMINI_API_KEY or GROQ_API_KEY');
+    // EF-IA-05 (v1.35): the local model counts as a provider.
+    expect(() => loadConfig(env)).toThrow(
+      'ANTHROPIC_API_KEY, GEMINI_API_KEY, GROQ_API_KEY or LOCAL_LLM_BASE_URL',
+    );
   });
 
   it.each([
@@ -245,5 +256,153 @@ describe('loadConfig', () => {
     const insecure = NEON_URL.replace('verify-full', 'require');
 
     expect(() => loadConfig({ ...VALID_ENV, DATABASE_URL_APP: insecure })).toThrow(/verify-full/);
+  });
+});
+
+// T-1001 (v1.35, BES-48): the local model of the operator, an OpenAI-compatible service such as Ollama.
+const LOCAL = { LOCAL_LLM_BASE_URL: 'http://192.168.1.54:11434/v1', LOCAL_LLM_MODEL: 'qwen3.5:4b' };
+const errorOf = (env: Record<string, string | undefined>): string => {
+  try {
+    loadConfig(env);
+  } catch (error) {
+    return (error as Error).message;
+  }
+  throw new Error('the configuration was accepted');
+};
+
+describe('loadConfig, local model', () => {
+  it('[EF-IA-05] [EF-IA-07] starts with the local model alone, a private address needing no token', () => {
+    const config = loadConfig({ ...BASE_ENV, ...LOCAL });
+
+    expect(config.llm).toEqual({
+      local: {
+        apiKey: 'ollama',
+        model: 'qwen3.5:4b',
+        baseUrl: 'http://192.168.1.54:11434/v1',
+        timeoutMs: 600_000,
+        maxOutputTokens: 2_000,
+      },
+    });
+  });
+
+  it('[ENF-MAI-09] reads the delay, the output ceiling and the token from the configuration', () => {
+    const config = loadConfig({
+      ...BASE_ENV,
+      ...LOCAL,
+      LOCAL_LLM_API_KEY: 'local-test-token',
+      LOCAL_LLM_TIMEOUT_MS: '300000',
+      LOCAL_LLM_MAX_OUTPUT_TOKENS: '1500',
+    });
+
+    expect(config.llm.local).toMatchObject({
+      apiKey: 'local-test-token',
+      timeoutMs: 300_000,
+      maxOutputTokens: 1_500,
+    });
+  });
+
+  it('[EF-IA-07] keeps the other providers beside the local one, and drops a trailing slash of the address', () => {
+    const config = loadConfig({
+      ...VALID_ENV,
+      ...LOCAL,
+      LOCAL_LLM_BASE_URL: 'http://192.168.1.54:11434/v1/',
+    });
+
+    expect(Object.keys(config.llm).sort()).toEqual(['claude', 'gemini', 'local']);
+    expect(config.llm.local?.baseUrl).toBe('http://192.168.1.54:11434/v1');
+  });
+
+  it.each([
+    'http://localhost:11434/v1',
+    'http://127.0.0.1:11434/v1',
+    'http://10.0.0.5:11434/v1',
+    'http://172.20.1.9:11434/v1',
+    'http://192.168.1.54:11434/v1',
+    'http://100.88.1.2:11434/v1',
+    'http://ollama.homelab.lan:11434/v1',
+    'http://[::1]:11434/v1',
+  ])('[ENF-SEC-24] accepts %s over http: the address is on a private network', (address) => {
+    expect(loadConfig({ ...BASE_ENV, ...LOCAL, LOCAL_LLM_BASE_URL: address }).llm.local?.baseUrl).toBe(
+      address,
+    );
+  });
+
+  it.each(['http://llm.example.com/v1', 'http://8.8.8.8:11434/v1', 'http://172.32.0.1:11434/v1'])(
+    '[ENF-SEC-24] refuses %s over http: a public address needs https',
+    (address) => {
+      const message = errorOf({
+        ...BASE_ENV,
+        ...LOCAL,
+        LOCAL_LLM_BASE_URL: address,
+        LOCAL_LLM_API_KEY: 'tok',
+      });
+
+      expect(message).toContain('LOCAL_LLM_BASE_URL');
+      expect(message).toContain('https');
+      expect(message).not.toContain(address);
+    },
+  );
+
+  it('[ENF-SEC-24] accepts a public https address when a token is configured, and refuses it without one', () => {
+    const env = { ...BASE_ENV, ...LOCAL, LOCAL_LLM_BASE_URL: 'https://ia.example.com/v1' };
+
+    expect(loadConfig({ ...env, LOCAL_LLM_API_KEY: 'local-test-token' }).llm.local?.apiKey).toBe(
+      'local-test-token',
+    );
+    expect(errorOf(env)).toContain('LOCAL_LLM_API_KEY');
+  });
+
+  it.each([
+    ['text that is not an address', 'not an address'],
+    ['a scheme other than http(s)', 'ftp://192.168.1.54/v1'],
+    ['credentials in the address', 'http://user:pw@192.168.1.54:11434/v1'],
+    ['a query string', 'http://192.168.1.54:11434/v1?key=1'],
+    ['a fragment', 'http://192.168.1.54:11434/v1#x'],
+  ])('[ENF-MAI-09] refuses an address with %s, naming the variable', (_reason, address) => {
+    expect(errorOf({ ...BASE_ENV, ...LOCAL, LOCAL_LLM_BASE_URL: address })).toContain('LOCAL_LLM_BASE_URL');
+  });
+
+  it.each([['-1'], ['0'], ['abc'], ['3600001']])(
+    '[ENF-MAI-09] refuses the delay %s, naming the variable',
+    (delay) => {
+      expect(errorOf({ ...BASE_ENV, ...LOCAL, LOCAL_LLM_TIMEOUT_MS: delay })).toContain(
+        'LOCAL_LLM_TIMEOUT_MS',
+      );
+    },
+  );
+
+  it.each([['0'], ['-5'], ['100000']])(
+    '[ENF-MAI-09] refuses the output ceiling %s, naming the variable',
+    (ceiling) => {
+      expect(errorOf({ ...BASE_ENV, ...LOCAL, LOCAL_LLM_MAX_OUTPUT_TOKENS: ceiling })).toContain(
+        'LOCAL_LLM_MAX_OUTPUT_TOKENS',
+      );
+    },
+  );
+
+  it('[ENF-MAI-09] refuses an address without a model, and a model or a token without an address', () => {
+    expect(errorOf({ ...BASE_ENV, LOCAL_LLM_BASE_URL: LOCAL.LOCAL_LLM_BASE_URL })).toContain(
+      'LOCAL_LLM_MODEL',
+    );
+    expect(errorOf({ ...VALID_ENV, LOCAL_LLM_MODEL: 'qwen3.5:4b' })).toContain('LOCAL_LLM_BASE_URL');
+    expect(errorOf({ ...VALID_ENV, LOCAL_LLM_API_KEY: 'local-test-token' })).toContain('LOCAL_LLM_BASE_URL');
+  });
+
+  it('[ENF-SEC-25] never echoes the token nor the address of the local model in an error message', () => {
+    const message = errorOf({
+      ...BASE_ENV,
+      ...LOCAL,
+      LOCAL_LLM_API_KEY: 'local-secret-token',
+      LOCAL_LLM_TIMEOUT_MS: '-1',
+      LOCAL_LLM_BASE_URL: 'http://user:pw@llm.example.com/v1',
+    });
+
+    expect(message).not.toMatch(/local-secret-token|llm\.example\.com|user:pw/);
+  });
+
+  it('[EF-IA-05] leaves the local model out when its address is empty, as for the other optional variables', () => {
+    const config = loadConfig({ ...VALID_ENV, LOCAL_LLM_BASE_URL: '', LOCAL_LLM_MODEL: '' });
+
+    expect(Object.keys(config.llm)).toEqual(['claude', 'gemini']);
   });
 });

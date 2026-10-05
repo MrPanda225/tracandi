@@ -260,7 +260,11 @@ Commande de contrôle : `/project:check-req EF-CAN-07`.
 | EF-CAN-01 (v1.32), EF-CAN-20, EF-CAN-24 | T-905 | `backend/tests/integration/applications.test.ts` (plus récente d'abord par défaut, ordre inverse, par entreprise dans les deux sens, par statut ; période en jours de Paris, borne haute incluse ; jour inexistant, format faux, période inversée et tri inconnu refusés) ; `applications-query-plans.test.ts` (période sans parcours complet ; chaque tri de 1 000 candidatures en moins de 200 ms) ; `src/lib/parisTime.test.ts` (jours de 23 et 25 heures) ; `frontend/src/pages/applications/ApplicationsPage.test.tsx` (ordre par défaut demandé à l'API, ordre choisi, période, regroupement par entreprise dans ce seul tri) | couverte |
 | EF-CAN-22 | T-905 | — | à faire |
 | RG-20 (v1.32) | T-906 | — | à faire |
-| EF-IA-07, EF-IA-05, ENF-COU-02, ENF-SEC-24, ENF-SEC-25, ENF-MAI-09 (v1.35) | T-1001 | — | à faire |
+| EF-IA-07, EF-IA-05 (v1.35) | T-1001 | `llm/providers/openaiCompatible.test.ts` › connectLocal, `config/env.test.ts` › local model, `llm/assignments.test.ts`, `llm/router.test.ts` (aucune route ne cite `local`), `tests/integration/settings.test.ts`, `tests/integration/llm-journal.test.ts` | couverte |
+| ENF-COU-02 | T-1001 | `llm/pricing.test.ts` (tarif nul) ; critère « coût du mois inchangé » avec T-705 | partielle |
+| ENF-SEC-24 | T-1001 | `lib/privateNetwork.test.ts`, `config/env.test.ts` (http public refusé, https sans jeton refusé, jeton dans l'en-tête) | couverte |
+| ENF-SEC-25 | T-1001 | `openaiCompatible.test.ts` (échec réseau sans adresse ni jeton), `config/env.test.ts` (message sans valeur), `assignments.test.ts`, `settings.test.ts` | couverte |
+| ENF-MAI-09 | T-1001 | `config/env.test.ts` (adresse, délai, plafond, modèle) ; lots et plafond d'offres : T-1003, T-1005 | partielle |
 | EF-IA-10, EF-IA-11, EF-IA-02 (modifiée) (v1.35) | T-1002 | — | à faire |
 | EF-IA-08, EF-IA-09, EF-IA-12, EF-IA-13, EF-IA-14, RG-13 (modifiée) (v1.35) | T-1003 | — | à faire |
 | EF-VEI-52, EF-VEI-53, EF-VEI-10 (modifiée), RG-30 (v1.35) | T-1004 | — | à faire |
