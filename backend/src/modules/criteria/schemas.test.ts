@@ -47,3 +47,47 @@ describe('scoring profile (EF-VEI-31)', () => {
     expect(profile.searchArea).toBe('toute la France, ou en télétravail');
   });
 });
+
+describe('level and years of experience in the criteria (EF-VEI-50, EF-VEI-47)', () => {
+  it('[EF-VEI-50] keeps criteria without level or years as they are, so that the scoring stays as it was', () => {
+    const parsed = WatchCriteriaSchema.parse(CRITERIA);
+
+    expect(parsed).not.toHaveProperty('level');
+    expect(parsed).not.toHaveProperty('years');
+  });
+
+  it.each([
+    [0, 'junior'],
+    [2, 'junior'],
+    [6, 'confirme'],
+    [8, 'senior'],
+  ] as const)(
+    '[EF-VEI-47] [RG-28] reads %i years as the level %s, the level being worked out again from the years',
+    (years, level) => {
+      // A level given beside the years never wins over them: corrected years give a new level.
+      expect(WatchCriteriaSchema.parse({ ...CRITERIA, years, level: 'senior' })).toMatchObject({
+        years,
+        level,
+      });
+    },
+  );
+
+  it('[EF-VEI-50] accepts a level alone, without years', () => {
+    expect(WatchCriteriaSchema.parse({ ...CRITERIA, level: 'confirme' })).toMatchObject({
+      level: 'confirme',
+    });
+  });
+
+  it.each([[-1], [51], [2.5]])('[EF-VEI-47] refuses %s years of experience', (years) => {
+    expect(WatchCriteriaSchema.safeParse({ ...CRITERIA, years }).success).toBe(false);
+  });
+
+  it('[EF-VEI-50] refuses a level that is not junior, confirmé or senior', () => {
+    expect(WatchCriteriaSchema.safeParse({ ...CRITERIA, level: 'expert' }).success).toBe(false);
+  });
+
+  it('[EF-VEI-50] hands the level to the scoring profile, and none when the criteria have none', () => {
+    expect(scoringProfileOf(WatchCriteriaSchema.parse({ ...CRITERIA, years: 9 })).level).toBe('senior');
+    expect(scoringProfileOf(WatchCriteriaSchema.parse(CRITERIA)).level).toBeUndefined();
+  });
+});

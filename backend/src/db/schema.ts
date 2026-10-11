@@ -117,6 +117,10 @@ export const llmTask = pgEnum('llm_task', [
   'write_follow_up',
   // EF-CVX-24 (v1.30): diagnostic of an imported CV against an offer.
   'diagnose_cv',
+  // EF-VEI-43, EF-VEI-45 (v1.35): the experience periods and the offers a CV type points to.
+  'deduce_profile',
+  // EF-VEI-49 (v1.35): the title and keywords of an offer the candidate chose.
+  'extract_offer_traits',
 ]);
 export const llmOutcome = pgEnum('llm_outcome', ['success', 'error', 'timeout', 'invalid_output']);
 // EF-CVX-32 (v1.30): an analysis of the CV workshop runs in the queue like the other long treatments.
@@ -128,8 +132,15 @@ export const jobName = pgEnum('job_name', [
   'cv_analysis',
   // EF-VEI-40 (v1.33): the search of the career pages of the companies applied to.
   'source_discovery',
+  // EF-CVX-43 (v1.35): the reading of a CV type and what the model deduces from it.
+  'profile_deduction',
+  // EF-VEI-49 (v1.35): the extraction of the traits of an offer the candidate chose.
+  'offer_extraction',
 ]);
 export const triggerType = pgEnum('trigger_type', ['schedule', 'manual']);
+// EF-CFG-07, EF-VEI-51 (v1.35): the three moments of the day when the watch runs for a candidate, and the slot a
+// scheduled pass is recorded under.
+export const watchSlot = pgEnum('watch_slot', ['morning', 'noon', 'evening']);
 // EF-EXE-01 à 03 : une exécution attend son tour (`queued`) avant de tourner, de réussir, d'échouer ou d'être
 // écartée parce qu'une autre du même travail était déjà en file.
 export const runOutcome = pgEnum('run_outcome', ['queued', 'running', 'success', 'failure', 'skipped']);
@@ -143,6 +154,8 @@ export const runCounter = pgEnum('run_counter', [
   'sources_checked',
   'offers_new',
   'offers_relevant',
+  // EF-VEI-54 (v1.35): offers read and kept but not scored yet, because no model answered or the pass was cut short.
+  'offers_unscored',
   // EF-CVX-22: pages of an imported CV read by OCR (the CV itself is never journaled, ENF-RGP-06).
   'cv_pages_ocr',
   // EF-CVX-32: steps of an analysis done so far (1 read, 2 diagnosed), published as it goes.
@@ -150,6 +163,9 @@ export const runCounter = pgEnum('run_counter', [
   // EF-VEI-38, EF-VEI-39: companies whose career page was looked for, and sources found and verified.
   'companies_searched',
   'sources_verified',
+  // EF-CFG-09 (v1.35): calls a pass made to the local model, and to the providers that took over from it.
+  'model_calls_local',
+  'model_calls_fallback',
 ]);
 // EF-VEI-39 (v1.33): what the search of a career page concluded.
 export const discoveryStatus = pgEnum('discovery_status', ['verified', 'unconfirmed', 'not_found']);
@@ -188,12 +204,20 @@ export const appSettings = pgTable(
     coverageThreshold: smallint().notNull().default(60),
     gmailLookbackDays: smallint().notNull().default(30),
     gmailApplyLabels: boolean().notNull().default(true),
+    // EF-CFG-07 (v1.35): the watch of the candidate runs by itself only when they activated it, at the slots they chose.
+    watchAutoEnabled: boolean().notNull().default(false),
+    watchSlots: watchSlot()
+      .array()
+      .notNull()
+      .default(sql`ARRAY['morning', 'noon', 'evening']::watch_slot[]`),
   },
   (t) => [
     check('ck_app_settings_follow_up_days', sql`${t.followUpDays} between 1 and 365`),
     check('ck_app_settings_offer_alert_threshold', sql`${t.offerAlertThreshold} between 0 and 100`),
     check('ck_app_settings_coverage_threshold', sql`${t.coverageThreshold} between 0 and 100`),
     check('ck_app_settings_gmail_lookback_days', sql`${t.gmailLookbackDays} between 1 and 365`),
+    // EF-CFG-07: at least one slot when the watch is activated.
+    check('ck_app_settings_watch_slots', sql`not ${t.watchAutoEnabled} or cardinality(${t.watchSlots}) >= 1`),
   ],
 );
 
@@ -222,6 +246,59 @@ export const watchCriteria = pgTable('watch_criteria', {
   document: jsonb().notNull(),
   updatedAt: instant().notNull().defaultNow(),
 });
+
+// EF-VEI-44, RG-28 (v1.35): junior 0 to 2 years, confirmé 3 to 7, senior 8 and more.
+export const experienceLevel = pgEnum('experience_level', ['junior', 'confirme', 'senior']);
+
+/**
+ * EF-CVX-39 to EF-CVX-42, ENF-RGP-14 (v1.35): a CV type of the candidate. Only its label, the years of experience
+ * worked out from it and their level are kept — never the file, never its text. A row with no years yet is a CV
+ * type read but not deduced from.
+ */
+export const cvTypes = pgTable(
+  'cv_types',
+  {
+    id: integer().primaryKey().generatedAlwaysAsIdentity(),
+    userId: integer()
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    label: varchar({ length: 80 }).notNull(),
+    years: smallint(),
+    level: experienceLevel(),
+    createdAt: createdAt(),
+    updatedAt: createdAt(),
+  },
+  (t) => [
+    index('ix_cv_types_user').on(t.userId),
+    check('ck_cv_types_years', sql`${t.years} is null or ${t.years} between 0 and 50`),
+  ],
+);
+
+/**
+ * EF-VEI-48, EF-VEI-49, ENF-RGP-14 (v1.35): an offer the candidate chose as a model of their level — three at most per
+ * level. Only its traits are kept: its title, its keywords and the years of experience it demands. Never the text the
+ * candidate pasted, nor anything of the recruiter.
+ */
+export const chosenOffers = pgTable(
+  'chosen_offers',
+  {
+    id: integer().primaryKey().generatedAlwaysAsIdentity(),
+    userId: integer()
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    level: experienceLevel().notNull(),
+    title: varchar({ length: 80 }).notNull(),
+    keywords: text().array().notNull(),
+    years: smallint(),
+    createdAt: createdAt(),
+    updatedAt: createdAt(),
+  },
+  (t) => [
+    index('ix_chosen_offers_user_level').on(t.userId, t.level),
+    check('ck_chosen_offers_years', sql`${t.years} is null or ${t.years} between 0 and 50`),
+    check('ck_chosen_offers_keywords', sql`cardinality(${t.keywords}) between 1 and 15`),
+  ],
+);
 
 // ---------- Reference data ----------
 export const companies = pgTable(
@@ -290,7 +367,11 @@ export const watchedSites = pgTable(
     // RG-08: ATS slug (lower case) or https URL.
     identifier: varchar({ length: 500 }).notNull(),
     isActive: boolean().notNull().default(true),
+    // EF-VEI-10: when the source was last consulted, a failed consultation included.
     lastCheckedAt: instant(),
+    // EF-VEI-52, RG-30 (v1.35): when the last SUCCESSFUL consultation began; the window of the next one starts there,
+    // so that a failure never makes the offers published since the last success slip away.
+    lastSuccessStartedAt: instant(),
     lastError: varchar({ length: 500 }),
     // EF-VEI-41 (v1.33): SHA-256 of the sorted identifiers of the offers last read on the source.
     offersFingerprint: varchar({ length: 64 }),
@@ -576,6 +657,8 @@ export const jobRuns = pgTable(
       .references(() => users.id, { onDelete: 'cascade' }),
     job: jobName().notNull(),
     triggerType: triggerType().notNull(),
+    // EF-VEI-51 (v1.35): the slot of a scheduled pass of the watch; null for every other execution.
+    slot: watchSlot(),
     startedAt: createdAt(),
     finishedAt: instant(),
     outcome: runOutcome().notNull().default('running'),

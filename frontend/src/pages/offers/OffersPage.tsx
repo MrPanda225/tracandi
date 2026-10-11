@@ -106,14 +106,22 @@ function OfferCard({ offer, onChanged }: { offer: Offer; onChanged: (offer: Offe
           <p className="offer__facts">{factsOf(offer)}</p>
           {offer.isFromAppliedCompany && <p className="offer__applied-company">Vous y avez déjà postulé</p>}
         </div>
-        <p className={`offer__score offer__score--${tone}`}>
-          <span className="visually-hidden">Pertinence : </span>
-          {offer.relevanceScore === null ? '—' : offer.relevanceScore}
-          <span className="offer__score-unit" aria-hidden="true">
-            /100
-          </span>
-          <span className="visually-hidden"> sur 100</span>
-        </p>
+        {offer.relevanceScore === null ? (
+          // EF-VEI-54: read and kept, but no model has scored it yet; it comes after the scored ones.
+          <p className={`offer__score offer__score--${tone} offer__score--waiting`}>
+            <span className="visually-hidden">Pertinence : </span>
+            En attente de note
+          </p>
+        ) : (
+          <p className={`offer__score offer__score--${tone}`}>
+            <span className="visually-hidden">Pertinence : </span>
+            {offer.relevanceScore}
+            <span className="offer__score-unit" aria-hidden="true">
+              /100
+            </span>
+            <span className="visually-hidden"> sur 100</span>
+          </p>
+        )}
       </div>
 
       {offer.relevanceReason !== null && <p className="offer__reason">{offer.relevanceReason}</p>}

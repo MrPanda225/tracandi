@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { normalizeKey } from '../../lib/text.js';
+import { HOSTED_BATCH_LIMITS } from '../../llm/limits.js';
 import type { OfferContractType } from '../../scraper/adapters/types.js';
 
 /**
@@ -8,7 +9,7 @@ import type { OfferContractType } from '../../scraper/adapters/types.js';
  */
 export const PREFILTERED_SCORE = 5;
 /** ENF-COU-01: offers are scored fifteen at a time (rules/llm.md). */
-export const SCORING_BATCH_SIZE = 15;
+export const SCORING_BATCH_SIZE = HOSTED_BATCH_LIMITS.batchSize;
 /** EF-VEI-14: what the candidate reads beside an offer no model ever looked at. */
 export const PREFILTERED_REASON = 'Écartée sans appel à l’IA : aucun mot-clé de vos cibles (RG-10).';
 
@@ -61,10 +62,14 @@ export const matchedTargetOf = (offer: ScorableOffer, targets: readonly ScoringT
 export const isWorthScoring = (offer: ScorableOffer, targets: readonly ScoringTarget[]): boolean =>
   offer.contractType !== 'autre' && matchedTargetOf(offer, targets) !== null;
 
+/** A whole number a small model wrote as text — « 3 » for 3 — read as the number it says; anything else is left to the schema. */
+const wholeNumber = (value: unknown): unknown =>
+  typeof value === 'string' && /^\s*-?\d+\s*$/u.test(value) ? Number(value) : value;
+
 /** One offer of a batch, referenced by its position in the prompt (1, 2…). */
 export const ScoredOfferSchema = z.object({
-  ref: z.number().int().positive(),
-  score: z.number().int().min(MIN_SCORE).max(MAX_SCORE),
+  ref: z.preprocess(wholeNumber, z.number().int().positive()),
+  score: z.preprocess(wholeNumber, z.number().int().min(MIN_SCORE).max(MAX_SCORE)),
   /** EF-VEI-13: one sentence in French; a model that says nothing gives no reason, not an empty one. */
   reason: z
     .string()
@@ -83,6 +88,17 @@ export const ScoredOfferSchema = z.object({
  * @req EF-VEI-12, EF-VEI-13, EF-IA-03
  */
 export const ScoredOffersSchema = z.object({ offers: z.array(ScoredOfferSchema) });
+
+/**
+ * The answer for a batch of `batchSize` offers: it must score at least one of them. An answer with none — empty, or
+ * with references the batch does not have — is refused, so that the next provider is asked (EF-IA-03); the offers it
+ * leaves out wait for the next pass instead of being given a score nobody gave (EF-VEI-54).
+ * @req EF-IA-03, EF-VEI-54
+ */
+export const scoredOffersSchemaFor = (batchSize: number) =>
+  ScoredOffersSchema.refine((answer) => answer.offers.some(({ ref }) => ref <= batchSize), {
+    message: 'No offer of the batch is scored',
+  });
 
 export type ScoredOffer = z.infer<typeof ScoredOfferSchema>;
 export type ScoredOffers = z.infer<typeof ScoredOffersSchema>;

@@ -20,4 +20,11 @@ describe('contacts in an offer (ENF-RGP-09)', () => {
   ])('[ENF-RGP-09] keeps « %s » as it is', (text) => {
     expect(withoutContacts(text)).toBe(text);
   });
+
+  it('[ENF-RGP-09] removes the contacts of a very long text without freezing the server', () => {
+    const startedAt = performance.now();
+    withoutContacts(`${'a'.repeat(100_000)} contact@exemple.fr`);
+
+    expect(performance.now() - startedAt).toBeLessThan(500);
+  });
 });

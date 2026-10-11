@@ -1,4 +1,4 @@
-import { and, count, eq, exists, inArray, isNull, lt, lte, notExists, or, sql } from 'drizzle-orm';
+import { and, asc, count, eq, exists, inArray, isNull, lt, lte, notExists, or, sql } from 'drizzle-orm';
 import type { Database } from '../../db/client.js';
 import {
   applications,
@@ -27,6 +27,8 @@ export interface SourceRow {
   identifier: string;
   isActive: boolean;
   lastCheckedAt: Date | null;
+  /** EF-VEI-52, RG-30: where the window of the next consultation starts; null before the first success. */
+  lastSuccessStartedAt: Date | null;
   lastError: string | null;
   offerCount: number;
   /** EF-VEI-41, EF-VEI-42: what the last check found, and how many checks in a row found the same. */
@@ -54,6 +56,7 @@ const sourceColumns = {
   identifier: watchedSites.identifier,
   isActive: watchedSites.isActive,
   lastCheckedAt: watchedSites.lastCheckedAt,
+  lastSuccessStartedAt: watchedSites.lastSuccessStartedAt,
   lastError: watchedSites.lastError,
   offerCount,
   offersFingerprint: watchedSites.offersFingerprint,
@@ -90,19 +93,12 @@ export const listActiveSources = async (
       and(
         ownedBy(userId),
         eq(watchedSites.isActive, true),
-        dueAt === null ? undefined : or(isNull(watchedSites.nextCheckAt), lte(watchedSites.nextCheckAt, dueAt)),
+        dueAt === null
+          ? undefined
+          : or(isNull(watchedSites.nextCheckAt), lte(watchedSites.nextCheckAt, dueAt)),
       ),
     )
     .orderBy(watchedSites.id);
-
-/** Every user whose watch has at least one active source, for the scheduled pass (EF-VEI-06). */
-export const listUsersWithActiveSources = async (db: Executor): Promise<number[]> => {
-  const rows = await db
-    .selectDistinct({ userId: watchedSites.userId })
-    .from(watchedSites)
-    .where(eq(watchedSites.isActive, true));
-  return rows.map((row) => row.userId);
-};
 
 /**
  * Adds a source.
@@ -141,13 +137,15 @@ export const deleteSource = async (db: Executor, userId: number, id: number): Pr
 export const recordCheck = async (
   db: Executor,
   id: number,
-  outcome: { checkedAt: Date; error: string | null; pace?: Pace },
+  outcome: { checkedAt: Date; error: string | null; pace?: Pace; succeededFrom?: Date },
 ): Promise<void> => {
   await db
     .update(watchedSites)
     .set({
       lastCheckedAt: outcome.checkedAt,
       lastError: outcome.error,
+      // EF-VEI-53, RG-30: only a successful consultation moves the window; a failed one leaves it where it was.
+      ...(outcome.succeededFrom ? { lastSuccessStartedAt: outcome.succeededFrom } : {}),
       ...(outcome.pace
         ? {
             offersFingerprint: outcome.pace.fingerprint,
@@ -197,7 +195,8 @@ export const listKnownOfferIds = async (db: Executor, siteId: number): Promise<S
 
 /** An offer about to be stored: what the adapter read, plus what the scoring decided. */
 export interface OfferToStore extends NormalizedOffer {
-  relevanceScore: number;
+  /** Null while no model has scored the offer: it waits for the next pass (EF-VEI-54). */
+  relevanceScore: number | null;
   relevanceReason: string | null;
   matchedTarget: string | null;
 }
@@ -318,7 +317,11 @@ export const listPlatformDomains = async (db: Executor): Promise<Set<string>> =>
  * EF-VEI-25 : retient qu'une proposition a été écartée. Deux refus de suite ne sont pas une erreur.
  * @returns faux quand l'entreprise n'est pas celle du candidat (EF-AUT-06).
  */
-export const dismissSuggestion = async (db: Executor, userId: number, companyId: number): Promise<boolean> => {
+export const dismissSuggestion = async (
+  db: Executor,
+  userId: number,
+  companyId: number,
+): Promise<boolean> => {
   const owned = await db
     .select({ id: companies.id })
     .from(companies)
@@ -327,7 +330,9 @@ export const dismissSuggestion = async (db: Executor, userId: number, companyId:
   await db
     .insert(dismissedSourceSuggestions)
     .values({ userId, companyId })
-    .onConflictDoNothing({ target: [dismissedSourceSuggestions.userId, dismissedSourceSuggestions.companyId] });
+    .onConflictDoNothing({
+      target: [dismissedSourceSuggestions.userId, dismissedSourceSuggestions.companyId],
+    });
   return true;
 };
 
@@ -349,7 +354,12 @@ export const listCompaniesToIdentify = async (
         eq(companies.userId, userId),
         isNull(companies.siren),
         or(isNull(companies.sirenCheckedAt), lt(companies.sirenCheckedAt, before)),
-        exists(db.select({ id: applications.id }).from(applications).where(eq(applications.companyId, companies.id))),
+        exists(
+          db
+            .select({ id: applications.id })
+            .from(applications)
+            .where(eq(applications.companyId, companies.id)),
+        ),
       ),
     )
     .orderBy(sql`${companies.sirenCheckedAt} asc nulls first`, companies.id)
@@ -410,4 +420,69 @@ export const saveDiscovery = async (db: Executor, discovery: DiscoveryRow): Prom
         discoveredAt: discovery.discoveredAt,
       },
     });
+};
+
+/** An offer read and kept, still without a score (EF-VEI-54): what the scoring needs of it. */
+export interface UnscoredOffer {
+  id: number;
+  title: string;
+  location: string | null;
+  contractType: NormalizedOffer['contractType'];
+  description: string | null;
+}
+
+/**
+ * The offers of the candidate that wait for a score, in the order of RG-31: first the ones that waited from a
+ * previous pass, then the ones this pass found; in each group the most recently published first, and, for the same
+ * publication, the one seen first.
+ * @req EF-VEI-54, RG-31
+ */
+export const listUnscoredOffers = async (
+  db: Executor,
+  userId: number,
+  { passStartedAt, limit }: { passStartedAt: Date; limit: number },
+): Promise<UnscoredOffer[]> =>
+  db
+    .select({
+      id: jobOffers.id,
+      title: jobOffers.title,
+      location: jobOffers.location,
+      contractType: jobOffers.contractType,
+      description: jobOffers.description,
+    })
+    .from(jobOffers)
+    .innerJoin(watchedSites, eq(watchedSites.id, jobOffers.siteId))
+    .where(and(eq(watchedSites.userId, userId), isNull(jobOffers.relevanceScore)))
+    .orderBy(
+      sql`(${jobOffers.firstSeenAt} >= ${passStartedAt}) asc`,
+      sql`${jobOffers.postedAt} desc nulls last`,
+      asc(jobOffers.firstSeenAt),
+      asc(jobOffers.id),
+    )
+    .limit(limit);
+
+/** How many offers of the candidate still wait for a score (EF-VEI-54). */
+export const countUnscoredOffers = async (db: Executor, userId: number): Promise<number> => {
+  const [row] = await db
+    .select({ waiting: count() })
+    .from(jobOffers)
+    .innerJoin(watchedSites, eq(watchedSites.id, jobOffers.siteId))
+    .where(and(eq(watchedSites.userId, userId), isNull(jobOffers.relevanceScore)));
+  return row?.waiting ?? 0;
+};
+
+/** The scores a model gave to a batch of waiting offers; only an offer still without one is touched. */
+export const setScores = async (
+  db: Database,
+  scores: readonly { id: number; score: number; reason: string | null }[],
+): Promise<void> => {
+  if (scores.length === 0) return;
+  await db.transaction(async (tx) => {
+    for (const { id, score, reason } of scores) {
+      await tx
+        .update(jobOffers)
+        .set({ relevanceScore: score, relevanceReason: reason })
+        .where(and(eq(jobOffers.id, id), isNull(jobOffers.relevanceScore)));
+    }
+  });
 };

@@ -1,4 +1,5 @@
 import type { llmOutcome, llmProvider, llmTask } from '../db/schema.js';
+import type { BatchLimits } from './limits.js';
 
 /** AI tasks of RG-13, as stored in `llm_calls.task`. */
 export type LlmTaskName = (typeof llmTask.enumValues)[number];
@@ -10,7 +11,7 @@ export interface LlmRequest {
   system: string;
   prompt: string;
   maxOutputTokens: number;
-  /** Aborted by the router after 60 s (EF-IA-02). */
+  /** Aborted by the router after the delay of the provider (EF-IA-02, EF-IA-10). */
   signal: AbortSignal;
 }
 
@@ -28,6 +29,21 @@ export interface LlmCompletion {
 export interface LlmProvider {
   name: ProviderName;
   model: string;
+  /**
+   * EF-IA-10: delay after which the router abandons a call to this provider; the router's own (60 s) when absent. The
+   * local model is slower and has its own, 600 s by default.
+   */
+  timeoutMs?: number;
+  /**
+   * EF-IA-11: ceiling of output tokens asked of this provider, whatever a task asks for; none when absent. The local
+   * server has a context of a few thousand tokens, so its answers are bounded (2 000 by default).
+   */
+  maxOutputTokens?: number;
+  /**
+   * EF-IA-12: how many offers a batch holds and how much of each description it carries for this provider; the
+   * hosted limits (15 offers, 2 000 characters) when absent.
+   */
+  batchLimits?: BatchLimits;
   /** @throws on any failure (network, quota, refusal, empty answer): the router then tries the next provider. */
   complete: (request: LlmRequest) => Promise<LlmCompletion>;
 }

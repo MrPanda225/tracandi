@@ -47,7 +47,11 @@ const SYSTEM = [
  * meet `tailoredAnswerSchemaFor` (modules/cvWorkshop).
  * @req EF-CVX-25, EF-CVX-29, EF-CVX-37, RG-21, RG-24, ENF-SEC-06, ENF-COU-01
  */
-export const buildTailorCvPrompt = ({ cvText, offerText, diagnosis }: CvToTailor): { system: string; prompt: string } => ({
+export const buildTailorCvPrompt = ({
+  cvText,
+  offerText,
+  diagnosis,
+}: CvToTailor): { system: string; prompt: string } => ({
   system: SYSTEM,
   prompt: [
     frameUntrusted('cv', truncate(cvText, CV_PROMPT_MAX_LENGTH)),

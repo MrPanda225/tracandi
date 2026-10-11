@@ -1,11 +1,20 @@
 import { and, count, desc, eq, gte, inArray } from 'drizzle-orm';
 import type { Database } from '../db/client.js';
-import { type jobName, jobRunCounters, jobRuns, type runCounter, type runOutcome, type triggerType } from '../db/schema.js';
+import {
+  type jobName,
+  jobRunCounters,
+  jobRuns,
+  type runCounter,
+  type runOutcome,
+  type triggerType,
+  type watchSlot,
+} from '../db/schema.js';
 
 export type JobName = (typeof jobName.enumValues)[number];
 export type TriggerType = (typeof triggerType.enumValues)[number];
 export type RunOutcome = (typeof runOutcome.enumValues)[number];
 export type RunCounter = (typeof runCounter.enumValues)[number];
+export type WatchSlot = (typeof watchSlot.enumValues)[number];
 
 /** States an execution goes through before it is over (EF-EXE-02, EF-EXE-03). */
 export const PENDING_OUTCOMES = ['queued', 'running'] as const;
@@ -18,7 +27,17 @@ export const PENDING_OUTCOMES = ['queued', 'running'] as const;
  */
 export const insertJobRun = async (
   db: Database,
-  run: { userId: number; job: JobName; triggerType: TriggerType; startedAt: Date; outcome: RunOutcome },
+  run: {
+    userId: number;
+    job: JobName;
+    triggerType: TriggerType;
+    startedAt: Date;
+    outcome: RunOutcome;
+    /** EF-VEI-51: the slot of a scheduled pass of the watch. */
+    slot?: WatchSlot | null;
+    /** EF-VEI-55: why an execution was ignored. */
+    error?: string | null;
+  },
 ): Promise<number> => {
   const [row] = await db.insert(jobRuns).values(run).returning({ id: jobRuns.id });
   if (!row) throw new Error('job run insert returned no row');

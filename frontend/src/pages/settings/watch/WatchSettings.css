@@ -1,0 +1,411 @@
+/*
+ * « Veille automatique » (EF-CFG-06): the parts that sit inside the settings card — the lists, the forms, the waiting
+ * and the steps of a reading. Same tokens as the Gmail card; every state is told in words, never by colour alone.
+ */
+
+.watch-loading {
+  display: grid;
+}
+
+.watch-failure {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 0.9rem;
+}
+
+.watch-failure .flash {
+  margin: 0;
+}
+
+.watch-count {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+/* One row per CV type or per offer: what it is, the actions on it, and the form they open underneath. */
+.watch-items {
+  display: grid;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.watch-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  padding: 0.8rem 1rem;
+  border-radius: var(--radius-sm);
+  background: var(--color-canvas);
+}
+
+.watch-item > :not(.watch-item__main, .watch-item__actions) {
+  grid-column: 1 / -1;
+}
+
+.watch-item__main {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.watch-item__main p {
+  margin: 0;
+}
+
+.watch-item__title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.7rem;
+}
+
+.watch-item__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+@container shell-main (max-width: 34rem) {
+  .watch-item {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* The profile of a CV type waits for the candidate: said in words, the colour only backs it up. */
+.watch-tag {
+  display: inline-block;
+  padding: 0.15rem 0.65rem;
+  border-radius: 999px;
+  background: var(--status-waiting-soft);
+  color: var(--status-waiting);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.watch-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.85rem;
+}
+
+.watch-confirm {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.watch-confirm p {
+  margin: 0;
+}
+
+/* EF-CVX-43: the steps of a reading — the current one is bold, the done ones carry a tick and the word « fait ». */
+.watch-progress {
+  display: grid;
+  gap: 0.6rem;
+  padding: 1rem 1.1rem;
+  border-radius: var(--radius-sm);
+  background: var(--color-canvas);
+}
+
+.watch-progress p {
+  margin: 0;
+}
+
+.watch-progress__steps {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.watch-progress__step {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  color: var(--color-mauve-deep);
+}
+
+.watch-progress__step[aria-current='step'] {
+  color: var(--color-ink);
+  font-weight: 650;
+}
+
+.watch-progress__marker {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 50%;
+  background: var(--color-mist-soft);
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+.watch-progress__step[aria-current='step'] .watch-progress__marker {
+  background: var(--color-accent);
+  color: var(--color-canvas);
+}
+
+/* EF-VEI-46: the notice that nothing of the profile is used before the candidate validates it. */
+.watch-note {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  border-left: 3px solid var(--status-waiting);
+  border-radius: var(--radius-sm);
+  background: var(--status-waiting-soft);
+  color: var(--status-waiting);
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.watch-current {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.watch-current p {
+  margin: 0;
+}
+
+.watch-current__line {
+  font-weight: 600;
+}
+
+.watch-level-note {
+  margin: 0;
+  font-size: 0.875rem;
+}
+
+.watch-years {
+  max-width: 8rem;
+}
+
+.watch-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+}
+
+.watch-choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 44px;
+}
+
+/* An offer type the CV types proposed: kept, edited or left. */
+.watch-offer-type {
+  display: grid;
+  gap: 0.7rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+}
+
+.watch-offer-type[data-kept] {
+  border-color: var(--color-mist);
+}
+
+.watch-offer-type legend {
+  padding: 0 0.3rem;
+  font-weight: 600;
+}
+
+.watch-offer-type__source {
+  color: var(--color-mauve-deep);
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.watch-refusals {
+  margin: 0;
+  padding-left: 1.2rem;
+  color: var(--color-danger);
+  font-size: 0.875rem;
+}
+
+/* EF-VEI-48: one block per level, then the form that adds an offer. */
+.watch-levels {
+  display: grid;
+  gap: 1rem;
+}
+
+.watch-level {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.watch-level__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.8rem;
+}
+
+.watch-level__header p {
+  margin: 0;
+}
+
+.watch-level__title {
+  font-family: var(--font-body);
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.watch-offer {
+  display: grid;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.watch-offer strong {
+  overflow-wrap: anywhere;
+}
+
+.watch-offer p {
+  margin: 0;
+}
+
+.watch-keywords {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.watch-keywords li {
+  padding: 0.1rem 0.65rem;
+  border-radius: 999px;
+  background: var(--color-mist-soft);
+  font-size: 0.8125rem;
+  overflow-wrap: anywhere;
+}
+
+.watch-text-count {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* EF-CFG-07: the slots are ticked like chips, grouped by a fieldset the screen readers announce as « Créneaux ». */
+.watch-slots {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.watch-slots legend {
+  margin-bottom: 0.35rem;
+  padding: 0;
+}
+
+.watch-slots .gmail-card__hint {
+  margin: 0;
+}
+
+/* A slot ticked carries a tick as well as its tint: the choice does not rest on the colour alone (WCAG 1.4.1). */
+.watch-slots .chip input:checked + span::before {
+  margin-right: 0.4rem;
+  content: '✓';
+}
+
+/* EF-CFG-08, EF-CFG-09: the passes of the day. Each state is a word with a dot — never the colour alone (WCAG 1.4.1). */
+.watch-passes {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.watch-passes .gmail-card__hint {
+  margin: 0;
+}
+
+.watch-pass__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.7rem;
+}
+
+.watch-pass .gmail-card__hint,
+.watch-pass__counters,
+.watch-pass__message {
+  margin: 0;
+}
+
+.watch-pass__counters {
+  font-size: 0.9375rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.watch-pass__message {
+  padding-left: 0.7rem;
+  border-left: 3px solid var(--color-mist);
+  font-size: 0.9375rem;
+  overflow-wrap: anywhere;
+}
+
+.watch-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.15rem 0.65rem;
+  border-radius: 999px;
+  background: var(--status-idle-soft);
+  color: var(--status-idle);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.watch-state__dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.watch-state--success {
+  background: var(--status-interview-soft);
+  color: var(--status-interview);
+}
+
+.watch-state--failure {
+  background: var(--status-rejected-soft);
+  color: var(--status-rejected);
+}
+
+.watch-state--queued,
+.watch-state--running {
+  background: var(--status-waiting-soft);
+  color: var(--status-waiting);
+}
+
+.watch-state--running .watch-state__dot {
+  animation: gmail-badge-pulse 1.2s ease-in-out infinite;
+}
+
+/* What has not happened — a slot to come, not used, a watch stopped — is a ring, not a dot. */
+.watch-state--upcoming .watch-state__dot,
+.watch-state--unused .watch-state__dot,
+.watch-state--stopped .watch-state__dot {
+  background: transparent;
+  box-shadow: inset 0 0 0 2px currentColor;
+}
+
+/* EF-CFG-09: who led the pass — the local model or the fallback — as a small tag next to its state. */
+.watch-tag--model {
+  background: var(--color-accent-soft);
+  color: var(--color-accent-strong);
+}

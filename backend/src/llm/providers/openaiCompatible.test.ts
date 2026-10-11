@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import { connectLocal, createOpenAiCompatibleProvider, GROQ_BASE_URL } from './openaiCompatible.js';
+import {
+  CONNECT_TIMEOUT_MS,
+  connectLocal,
+  createOpenAiCompatibleProvider,
+  GROQ_BASE_URL,
+} from './openaiCompatible.js';
 
 const REQUEST = {
   system: 'Classe les messages.',
@@ -103,6 +108,17 @@ const LOCAL_CONFIG = {
   baseUrl: 'http://192.168.1.54:11434/v1',
   timeoutMs: 600_000,
   maxOutputTokens: 2_000,
+  batchSize: 5,
+  descriptionChars: 800,
+};
+
+/** The call to the chat completions endpoint: the local provider first asks whether the server is there. */
+const chatCall = (fetchImpl: ReturnType<typeof vi.fn>): [string, RequestInit] => {
+  const call = (fetchImpl.mock.calls as [string, RequestInit][]).find(([url]) =>
+    url.endsWith('/chat/completions'),
+  );
+  if (!call) throw new Error('no call to the chat completions endpoint');
+  return call;
 };
 
 describe('connectLocal', () => {
@@ -113,10 +129,23 @@ describe('connectLocal', () => {
     await provider.complete(REQUEST);
 
     expect(provider).toMatchObject({ name: 'local', model: 'qwen3.5:4b' });
-    const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
+    const [url, init] = chatCall(fetchImpl);
     expect(url).toBe('http://192.168.1.54:11434/v1/chat/completions');
     // ENF-SEC-24
     expect(init.headers).toMatchObject({ Authorization: 'Bearer local-secret-token' });
+  });
+
+  it('[EF-IA-10] [EF-IA-11] carries the delay and the output ceiling of the configuration, for the router to apply', () => {
+    const provider = connectLocal(LOCAL_CONFIG, vi.fn());
+
+    expect(provider).toMatchObject({ timeoutMs: 600_000, maxOutputTokens: 2_000 });
+  });
+
+  it('[EF-IA-10] leaves the hosted providers without a limit of their own: the router defaults apply', () => {
+    const provider = providerWith(vi.fn());
+
+    expect(provider).not.toHaveProperty('timeoutMs');
+    expect(provider).not.toHaveProperty('maxOutputTokens');
   });
 
   it('[EF-IA-07] asks the model not to reason: its reasoning would use up the output ceiling and leave no answer', async () => {
@@ -124,7 +153,7 @@ describe('connectLocal', () => {
 
     await connectLocal(LOCAL_CONFIG, fetchImpl).complete(REQUEST);
 
-    const [, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
+    const [, init] = chatCall(fetchImpl);
     expect(JSON.parse(String(init.body))).toMatchObject({
       model: 'qwen3.5:4b',
       response_format: { type: 'json_object' },
@@ -137,8 +166,62 @@ describe('connectLocal', () => {
 
     await providerWith(fetchImpl).complete(REQUEST);
 
-    const [, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
+    const [, init] = chatCall(fetchImpl);
     expect(JSON.parse(String(init.body))).not.toHaveProperty('reasoning_effort');
+  });
+
+  it('[EF-IA-07] asks the local model for a low temperature: a small model at its default one breaks the format two answers in three', async () => {
+    const fetchImpl = vi.fn(() => Promise.resolve(answer(completion)));
+
+    await connectLocal(LOCAL_CONFIG, fetchImpl).complete(REQUEST);
+
+    const [, init] = chatCall(fetchImpl);
+    expect(JSON.parse(String(init.body))).toMatchObject({ temperature: 0.2 });
+  });
+
+  it('[EF-IA-07] leaves the temperature of the hosted services to their own default', async () => {
+    const fetchImpl = vi.fn(() => Promise.resolve(answer(completion)));
+
+    await providerWith(fetchImpl).complete(REQUEST);
+
+    const [, init] = chatCall(fetchImpl);
+    expect(JSON.parse(String(init.body))).not.toHaveProperty('temperature');
+  });
+
+  it('[ENF-SEC-25] [ENF-RGP-12] refuses to follow a redirect: the request, with the text of a CV, goes to the address of the configuration only', async () => {
+    const fetchImpl = vi.fn(() => Promise.resolve(answer(completion)));
+
+    await connectLocal(LOCAL_CONFIG, fetchImpl).complete(REQUEST);
+    await providerWith(fetchImpl).complete(REQUEST);
+
+    for (const [, init] of fetchImpl.mock.calls as unknown as [string, RequestInit][]) {
+      expect(init.redirect).toBe('error');
+    }
+  });
+
+  it('[ENF-SEC-25] keeps the body of an error page out of the failure of the local model: it may name the public host of a tunnel', async () => {
+    const page = '<html><title>502 Bad Gateway — modele.tunnel.example.com</title></html>';
+    const fetchImpl = vi.fn((url: string) =>
+      Promise.resolve(url.endsWith('/models') ? answer({}) : new Response(page, { status: 502 })),
+    ) as unknown as typeof fetch;
+
+    const failure = (await connectLocal(LOCAL_CONFIG, fetchImpl)
+      .complete(REQUEST)
+      .catch((error: unknown) => error)) as Error & { status: number };
+
+    expect(failure).toMatchObject({ status: 502 });
+    expect(failure.message).not.toContain('tunnel.example.com');
+    expect(failure.message).toContain('502');
+  });
+
+  it('[EF-IA-02] still tells a hosted provider’s refusal in its own words, as the log of the router needs', async () => {
+    const fetchImpl = vi.fn(() => Promise.resolve(answer({ error: { message: 'Rate limit reached' } }, 429)));
+
+    const failure = (await providerWith(fetchImpl)
+      .complete(REQUEST)
+      .catch((error: unknown) => error)) as Error;
+
+    expect(failure.message).toContain('Rate limit reached');
   });
 
   it('[ENF-SEC-25] fails without the address nor the token when the server cannot be reached', async () => {
@@ -183,5 +266,85 @@ describe('connectLocal', () => {
       .catch((error: unknown) => error);
 
     expect(failure).toMatchObject({ status: 503 });
+  });
+
+  it('[EF-IA-13] asks first whether the server is there, with the same token, then sends the request', async () => {
+    const fetchImpl = vi.fn(() => Promise.resolve(answer(completion)));
+
+    await connectLocal(LOCAL_CONFIG, fetchImpl).complete(REQUEST);
+
+    const calls = fetchImpl.mock.calls as unknown as [string, RequestInit][];
+    expect(calls.map(([url, init]) => `${init.method ?? 'GET'} ${url}`)).toEqual([
+      'GET http://192.168.1.54:11434/v1/models',
+      'POST http://192.168.1.54:11434/v1/chat/completions',
+    ]);
+    expect(calls[0]?.[1].headers).toMatchObject({ Authorization: 'Bearer local-secret-token' });
+  });
+
+  it('[EF-IA-13] counts any answer of the server as « reachable », even a refusal of the question', async () => {
+    const fetchImpl = vi.fn((url: string) =>
+      Promise.resolve(url.endsWith('/models') ? answer({ error: 'not found' }, 404) : answer(completion)),
+    );
+
+    await expect(
+      connectLocal(LOCAL_CONFIG, fetchImpl as unknown as typeof fetch).complete(REQUEST),
+    ).resolves.toMatchObject({ text: '{"messages":[]}' });
+  });
+
+  it('[EF-IA-13] fails as a connection failure, without the address, when the server cannot be reached; the request is not sent', async () => {
+    const fetchImpl = vi.fn(() => Promise.reject(new TypeError('connect ECONNREFUSED 192.168.1.54:11434')));
+
+    const failure = await connectLocal(LOCAL_CONFIG, fetchImpl)
+      .complete(REQUEST)
+      .catch((error: unknown) => error);
+
+    expect(failure).toMatchObject({ connection: true });
+    expect(String(failure)).not.toMatch(/192\.168\.1\.54/);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it('[EF-IA-13] gives up after 10 seconds on a server that does not answer, whatever the delay of the call', async () => {
+    vi.useFakeTimers();
+    const fetchImpl = vi.fn(
+      (_url: string, init: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')));
+        }),
+    );
+
+    const pending = connectLocal(LOCAL_CONFIG, fetchImpl as unknown as typeof fetch)
+      .complete(REQUEST)
+      .catch((error: unknown) => error);
+    await vi.advanceTimersByTimeAsync(CONNECT_TIMEOUT_MS - 1);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+
+    expect(await pending).toMatchObject({ connection: true });
+    expect(CONNECT_TIMEOUT_MS).toBe(10_000);
+    vi.useRealTimers();
+  });
+
+  it('[EF-IA-14] marks a failure of the request itself as a connection failure, and never a refusal of the server', async () => {
+    const down = vi.fn((url: string) =>
+      url.endsWith('/models') ? Promise.resolve(answer({})) : Promise.reject(new TypeError('fetch failed')),
+    );
+    const refusing = vi.fn(() => Promise.resolve(answer({ error: { message: 'model is loading' } }, 503)));
+
+    const lost = await connectLocal(LOCAL_CONFIG, down as unknown as typeof fetch)
+      .complete(REQUEST)
+      .catch((error: unknown) => error);
+    const refused = await connectLocal(LOCAL_CONFIG, refusing)
+      .complete(REQUEST)
+      .catch((error: unknown) => error);
+
+    expect(lost).toMatchObject({ connection: true });
+    expect(refused).not.toHaveProperty('connection');
+  });
+
+  it('[EF-IA-12] carries the size of its batches and the length of its descriptions, for the router to read', () => {
+    expect(connectLocal(LOCAL_CONFIG, vi.fn())).toMatchObject({
+      batchLimits: { batchSize: 5, descriptionChars: 800 },
+    });
+    expect(providerWith(vi.fn())).not.toHaveProperty('batchLimits');
   });
 });

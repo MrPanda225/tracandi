@@ -3,7 +3,7 @@ import { createSlots } from '../lib/async.js';
 import type { Clock } from '../lib/clock.js';
 import type { Logger } from '../lib/logger.js';
 import * as repository from './repository.js';
-import type { JobName, JobRunView, RunCounter, TriggerType } from './repository.js';
+import type { JobName, JobRunView, RunCounter, TriggerType, WatchSlot } from './repository.js';
 
 export type RunCounters = Partial<Record<RunCounter, number>>;
 
@@ -22,6 +22,8 @@ export interface QueuedWork {
   userId: number;
   job: JobName;
   trigger: TriggerType;
+  /** EF-VEI-51: the slot of the day a scheduled pass of the watch is recorded under. */
+  slot?: WatchSlot;
   /**
    * The treatment itself. `report` publishes what is done so far, as often as it likes; the counters it returns
    * are the ones journaled at the end. `runId` identifies the execution, for a treatment that hands a result back
@@ -53,6 +55,14 @@ export interface JobQueue {
    * @returns the identifier, or null when nothing was queued.
    */
   enqueueUnlessPending: (work: QueuedWork) => Promise<number | null>;
+  /**
+   * Journals an execution that is not run, with the reason the candidate can read (EF-VEI-55): « ignoré » is a
+   * state of its own (EF-EXE-03), and nothing waits in the queue.
+   */
+  recordSkipped: (
+    work: Pick<QueuedWork, 'userId' | 'job' | 'trigger' | 'slot'>,
+    reason: string | null,
+  ) => Promise<void>;
   /** State of an execution: the one in memory while it runs, the journaled one afterwards (EF-EXE-03). */
   stateOf: (userId: number, runId: number) => Promise<RunState | null>;
   /** EF-EXE-04: every change of state of the executions of this user, until `stop` is called. */
@@ -72,6 +82,16 @@ const viewOf = (run: JobRunView): RunState => ({
   outcome: run.outcome,
   counters: run.counters,
   error: run.error,
+});
+
+/** The state of an execution that has just been journaled and waits its turn (EF-EXE-03). */
+const queuedStateOf = (runId: number, work: QueuedWork): RunState => ({
+  id: runId,
+  job: work.job,
+  trigger: work.trigger,
+  outcome: 'queued',
+  counters: {},
+  error: null,
 });
 
 /** What is waiting or running, with its owner, and who follows it (EF-EXE-03, EF-EXE-04). */
@@ -168,12 +188,12 @@ const createLanes = (slotCount: number) => {
   const lanes = new Map<number, Promise<void>>();
   const slots = createSlots(slotCount);
   return {
-    add(userId: number, task: () => Promise<void>): void {
+    add(userId: number, task: () => Promise<void>, { background = false } = {}): void {
       const previous = lanes.get(userId) ?? Promise.resolve();
       // EF-EXE-02: each execution waits for the previous one of the same candidate, and none is dropped. The lane
       // holds the promise that is stored, so the last one of a candidate clears its own entry.
       const chained: Promise<void> = previous
-        .then(() => slots.run(task))
+        .then(() => slots.run(task, { background }))
         .finally(() => {
           if (lanes.get(userId) === chained) lanes.delete(userId);
         });
@@ -204,31 +224,36 @@ export const createJobQueue = (deps: QueueDeps): JobQueue => {
       triggerType: work.trigger,
       startedAt: clock(),
       outcome: 'queued',
+      slot: work.slot ?? null,
     });
-    followers.publish(work.userId, {
-      id: runId,
-      job: work.job,
-      trigger: work.trigger,
-      outcome: 'queued',
-      counters: {},
-      error: null,
+    followers.publish(work.userId, queuedStateOf(runId, work));
+    // The pass of the clock gives way to what a candidate asked for and waits for (EF-EXE-06).
+    lanes.add(work.userId, () => executeRun({ ...deps, followers }, runId, work), {
+      background: work.trigger === 'schedule',
     });
-    lanes.add(work.userId, () => executeRun({ ...deps, followers }, runId, work));
     return runId;
+  };
+
+  const recordSkipped: JobQueue['recordSkipped'] = async (work, reason) => {
+    await repository.insertJobRun(db, {
+      userId: work.userId,
+      job: work.job,
+      triggerType: work.trigger,
+      startedAt: clock(),
+      outcome: 'skipped',
+      slot: work.slot ?? null,
+      error: reason,
+    });
   };
 
   return {
     enqueue: queue,
 
+    recordSkipped,
+
     async enqueueUnlessPending(work) {
       if (await repository.hasPendingRun(db, work.userId, work.job)) {
-        await repository.insertJobRun(db, {
-          userId: work.userId,
-          job: work.job,
-          triggerType: work.trigger,
-          startedAt: clock(),
-          outcome: 'skipped',
-        });
+        await recordSkipped(work, null);
         return null;
       }
       return queue(work);

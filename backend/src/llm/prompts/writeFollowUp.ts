@@ -30,7 +30,12 @@ const STATUS_WORDING: Readonly<Record<FollowUpToWrite['status'], string>> = {
   acknowledged: 'accusé de réception reçu',
 };
 
-const dateFormat = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
+const dateFormat = new Intl.DateTimeFormat('fr-FR', {
+  day: 'numeric',
+  month: 'long',
+  year: 'numeric',
+  timeZone: 'UTC',
+});
 
 // EF-CAN-17 (v1.34, BES-47): the first version produced letters that would have fit any company. Warmth is asked
 // for here, but it is fenced in: the only thing the model may be enthusiastic *about* is the offer the candidate
@@ -69,7 +74,9 @@ const SYSTEM = [
  * Expected answer: `FollowUpDraftSchema` (modules/emails), whose length the code checks, not the model.
  * @req EF-CAN-17, ENF-SEC-06, ENF-COU-01
  */
-export const buildWriteFollowUpPrompt = (application: FollowUpToWrite): { system: string; prompt: string } => ({
+export const buildWriteFollowUpPrompt = (
+  application: FollowUpToWrite,
+): { system: string; prompt: string } => ({
   system: SYSTEM,
   prompt: frameUntrusted(
     'application',

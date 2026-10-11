@@ -18,6 +18,9 @@ const MAX_PROXY_HOPS = 5;
 const MAX_JOB_SLOTS = 5;
 // EF-CVX-33: 5 a day by default; a bound keeps a typo from meaning « unlimited » in production.
 const DEFAULT_CV_ANALYSES_PER_DAY = 5;
+const DEFAULT_PROFILE_DEDUCTIONS_PER_DAY = 5;
+const DEFAULT_OFFER_EXTRACTIONS_PER_DAY = 20;
+const MAX_PROFILE_DEDUCTIONS_PER_DAY = 1_000;
 const MAX_CV_ANALYSES_PER_DAY = 1_000;
 const MAX_PORT = 65_535;
 // EF-IA-10, EF-IA-11 (v1.35): defaults and bounds of the local model; a CPU-only server takes about 40 s per offer.
@@ -26,6 +29,15 @@ const MIN_LOCAL_TIMEOUT_MS = 1_000;
 const MAX_LOCAL_TIMEOUT_MS = 3_600_000;
 const DEFAULT_LOCAL_MAX_OUTPUT_TOKENS = 2_000;
 const MAX_LOCAL_OUTPUT_TOKENS = 32_000;
+// EF-IA-12 (v1.35): five offers of 800 characters fit a context of 8 192 tokens with their answer.
+// EF-EXE-07 (v1.35): offers scored by one pass for one candidate; the rest waits for the next pass.
+const DEFAULT_MAX_SCORED_OFFERS = 20;
+const MAX_SCORED_OFFERS = 1_000;
+const DEFAULT_LOCAL_BATCH_SIZE = 5;
+const MAX_LOCAL_BATCH_SIZE = 50;
+const DEFAULT_LOCAL_DESCRIPTION_CHARS = 800;
+const MIN_LOCAL_DESCRIPTION_CHARS = 200;
+const MAX_LOCAL_DESCRIPTION_CHARS = 5_000;
 // Ollama ignores the key it is given; a private address needs none (ENF-SEC-24), a placeholder keeps the header.
 const PRIVATE_NETWORK_TOKEN = 'ollama';
 
@@ -113,6 +125,44 @@ const EnvSchema = z.object({
   LOCAL_LLM_MAX_OUTPUT_TOKENS: z.preprocess(
     (value) => (value === '' ? undefined : value),
     z.coerce.number().int().min(1).max(MAX_LOCAL_OUTPUT_TOKENS).default(DEFAULT_LOCAL_MAX_OUTPUT_TOKENS),
+  ),
+  LOCAL_LLM_BATCH_SIZE: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.coerce.number().int().min(1).max(MAX_LOCAL_BATCH_SIZE).default(DEFAULT_LOCAL_BATCH_SIZE),
+  ),
+  LOCAL_LLM_DESCRIPTION_CHARS: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.coerce
+      .number()
+      .int()
+      .min(MIN_LOCAL_DESCRIPTION_CHARS)
+      .max(MAX_LOCAL_DESCRIPTION_CHARS)
+      .default(DEFAULT_LOCAL_DESCRIPTION_CHARS),
+  ),
+  // EF-EXE-07: offers scored per pass and per candidate (AI cost and duration); 0 lifts the limit, for the tests.
+  MAX_SCORED_OFFERS_PER_PASS: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.coerce.number().int().min(0).max(MAX_SCORED_OFFERS).default(DEFAULT_MAX_SCORED_OFFERS),
+  ),
+  // EF-CVX-44: deductions of a profile (reading a CV type) per candidate and per day, Paris time; 0 lifts it.
+  PROFILE_DEDUCTIONS_PER_DAY: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.coerce
+      .number()
+      .int()
+      .min(0)
+      .max(MAX_PROFILE_DEDUCTIONS_PER_DAY)
+      .default(DEFAULT_PROFILE_DEDUCTIONS_PER_DAY),
+  ),
+  // ENF-COU-01: extractions of the traits of a chosen offer per candidate and per day, Paris time; 0 lifts it.
+  CHOSEN_OFFER_EXTRACTIONS_PER_DAY: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.coerce
+      .number()
+      .int()
+      .min(0)
+      .max(MAX_PROFILE_DEDUCTIONS_PER_DAY)
+      .default(DEFAULT_OFFER_EXTRACTIONS_PER_DAY),
   ),
   // EF-GML-01: OAuth client of the Google Cloud project, for the Gmail connection from the interface.
   GOOGLE_CLIENT_ID: z.string().min(1),
@@ -259,6 +309,9 @@ export interface LocalLlmConfig extends LlmProviderConfig {
   baseUrl: string;
   timeoutMs: number;
   maxOutputTokens: number;
+  /** EF-IA-12: offers per batch and characters of each description while the local model serves the scoring. */
+  batchSize: number;
+  descriptionChars: number;
 }
 
 /** Configured AI providers: the hosted ones by key and model, and the local model of the operator. */
@@ -294,6 +347,12 @@ export interface Config {
   maxConcurrentJobs: number;
   /** EF-CVX-33: CV analyses a candidate may launch per day; 0 lifts the limit. */
   cvAnalysesPerDay: number;
+  /** EF-EXE-07: ceilings of a pass of the watch; 0 offers lifts the limit. */
+  watch: {
+    maxScoredOffersPerPass: number;
+    profileDeductionsPerDay: number;
+    chosenOfferExtractionsPerDay: number;
+  };
   /** EF-VEI-32, EF-VEI-34, ENF-SEC-23: null for each official API the server has no credentials for. */
   officialSources: {
     franceTravail: OfficialCredentials | null;
@@ -344,6 +403,8 @@ const localModelOf = (env: Env): { local?: LocalLlmConfig } =>
           baseUrl: withoutTrailingSlash(env.LOCAL_LLM_BASE_URL),
           timeoutMs: env.LOCAL_LLM_TIMEOUT_MS,
           maxOutputTokens: env.LOCAL_LLM_MAX_OUTPUT_TOKENS,
+          batchSize: env.LOCAL_LLM_BATCH_SIZE,
+          descriptionChars: env.LOCAL_LLM_DESCRIPTION_CHARS,
         },
       }
     : {};
@@ -408,5 +469,10 @@ export const loadConfig = (env: Record<string, string | undefined>): Config => {
     trustProxyHops: result.data.TRUST_PROXY,
     maxConcurrentJobs: result.data.MAX_CONCURRENT_JOBS,
     cvAnalysesPerDay: result.data.CV_ANALYSES_PER_DAY,
+    watch: {
+      maxScoredOffersPerPass: result.data.MAX_SCORED_OFFERS_PER_PASS,
+      profileDeductionsPerDay: result.data.PROFILE_DEDUCTIONS_PER_DAY,
+      chosenOfferExtractionsPerDay: result.data.CHOSEN_OFFER_EXTRACTIONS_PER_DAY,
+    },
   };
 };

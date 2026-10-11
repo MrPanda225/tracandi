@@ -32,6 +32,8 @@ interface Draft {
   radiusKm: number;
   acceptsRemote: boolean;
   romeCodes: string;
+  /** EF-VEI-47 : le profil validé dans les Réglages ; pas modifiable ici, mais à renvoyer — l'API remplace tout. */
+  profile: Pick<WatchCriteria, 'years' | 'level'>;
 }
 
 let lastKey = 0;
@@ -56,6 +58,7 @@ const draftOf = (criteria: WatchCriteria | null): Draft =>
         radiusKm: DEFAULT_RADIUS_KM,
         acceptsRemote: true,
         romeCodes: '',
+        profile: {},
       }
     : {
         targets: criteria.targets.map((target) => ({
@@ -68,9 +71,14 @@ const draftOf = (criteria: WatchCriteria | null): Draft =>
         radiusKm: criteria.radiusKm,
         acceptsRemote: criteria.acceptsRemote,
         romeCodes: criteria.romeCodes.join(', '),
+        profile: {
+          ...(criteria.years === undefined ? {} : { years: criteria.years }),
+          ...(criteria.level === undefined ? {} : { level: criteria.level }),
+        },
       };
 
 const criteriaOf = (draft: Draft): WatchCriteria => ({
+  ...draft.profile,
   targets: draft.targets.map((target) => ({
     label: target.label.trim(),
     keywords: listOf(target.keywords),

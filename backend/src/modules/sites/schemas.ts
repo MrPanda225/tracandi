@@ -1,4 +1,5 @@
 import { z } from '../../lib/openapi.js';
+import { idParam } from '../../lib/ids.js';
 import { siteAdapter } from '../../db/schema.js';
 import { adapterFor } from '../../scraper/adapters/index.js';
 
@@ -41,7 +42,7 @@ export const CreateSourceSchema = z
 /** EF-VEI-04: the only thing a source lets the candidate change once it is watched. */
 export const UpdateSourceSchema = z.object({ isActive: z.boolean() }).openapi('UpdateSource');
 
-export const SourceIdSchema = z.object({ id: z.coerce.number().int().positive() });
+export const SourceIdSchema = z.object({ id: idParam() });
 
 /** One watched source as the screen shows it (EF-VEI-10, EF-VEI-11). */
 export const SourceViewSchema = z
@@ -110,7 +111,7 @@ export const SourceSuggestionListSchema = z
   .object({ items: z.array(SourceSuggestionSchema) })
   .openapi('SourceSuggestionList');
 
-export const CompanyIdSchema = z.object({ companyId: z.coerce.number().int().positive() });
+export const CompanyIdSchema = z.object({ companyId: idParam() });
 
 export const WatchReportSchema = z
   .object({
@@ -120,6 +121,11 @@ export const WatchReportSchema = z
     offersNew: z.number().int(),
     /** Offers scored at or above the threshold of EF-VEI-15. */
     offersRelevant: z.number().int(),
+    /** EF-VEI-54: offers kept but still waiting for a score after this pass. */
+    offersUnscored: z.number().int(),
+    /** EF-CFG-09: how many calls the pass made to the local model, and to the providers that took over from it. */
+    modelCallsLocal: z.number().int(),
+    modelCallsFallback: z.number().int(),
     threshold: z.number().int(),
   })
   .openapi('WatchReport');

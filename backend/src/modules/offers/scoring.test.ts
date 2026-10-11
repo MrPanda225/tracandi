@@ -4,6 +4,7 @@ import {
   matchedTargetOf,
   PREFILTERED_SCORE,
   ScoredOffersSchema,
+  scoredOffersSchemaFor,
   type ScorableOffer,
   type ScoringTarget,
 } from './scoring.js';
@@ -75,6 +76,31 @@ describe('ScoredOffersSchema — EF-IA-03', () => {
     expect(parsed.offers[0]).toEqual({ ref: 1, score: 78, reason: 'Poste de data analyst en CDI à Paris.' });
   });
 
+  it('[EF-IA-03] [EF-IA-07] reads a reference and a score the local model wrote as text, « "3" » for 3: its batches of five do it every time', () => {
+    const parsed = ScoredOffersSchema.parse({
+      offers: [
+        { ref: '1', score: '85', reason: 'Poste de data engineer à Paris.' },
+        { ref: ' 2 ', score: 40 },
+      ],
+    });
+
+    expect(parsed.offers.map(({ ref, score }) => [ref, score])).toEqual([
+      [1, 85],
+      [2, 40],
+    ]);
+  });
+
+  it.each([
+    ['a reference that is a word', { ref: 'premier', score: 70 }],
+    ['a reference with a decimal', { ref: '1.5', score: 70 }],
+    ['an empty reference', { ref: '', score: 70 }],
+    ['a score with a unit', { ref: 1, score: '85/100' }],
+    ['a text score above 100', { ref: 1, score: '140' }],
+    ['a text reference of zero', { ref: '0', score: 70 }],
+  ])('[EF-IA-03] still refuses %s', (_case, scored) => {
+    expect(ScoredOffersSchema.safeParse({ offers: [scored] }).success).toBe(false);
+  });
+
   it('[EF-VEI-13] reads an empty reason as no reason at all', () => {
     const parsed = ScoredOffersSchema.parse({ offers: [{ ref: 1, score: 40, reason: '   ' }] });
 
@@ -88,5 +114,21 @@ describe('ScoredOffersSchema — EF-IA-03', () => {
     ['a reference that is not one', { ref: 0, score: 70 }],
   ])('[EF-IA-03] refuses %s', (_case, scored) => {
     expect(ScoredOffersSchema.safeParse({ offers: [scored] }).success).toBe(false);
+  });
+});
+
+describe('scoredOffersSchemaFor — a batch of a given size (review of the lot 10)', () => {
+  const answer = (...refs: number[]) => ({ offers: refs.map((ref) => ({ ref, score: 70 })) });
+
+  it('[EF-IA-03] accepts an answer that scores at least one offer of the batch, the others being left out', () => {
+    expect(scoredOffersSchemaFor(5).safeParse(answer(1, 3)).success).toBe(true);
+    expect(scoredOffersSchemaFor(5).safeParse(answer(5)).success).toBe(true);
+  });
+
+  it.each([
+    ['no offer at all', answer()],
+    ['only references that are not in the batch', answer(6, 7)],
+  ])('[EF-IA-03] refuses an answer with %s, so that the next provider is asked', (_name, given) => {
+    expect(scoredOffersSchemaFor(5).safeParse(given).success).toBe(false);
   });
 });

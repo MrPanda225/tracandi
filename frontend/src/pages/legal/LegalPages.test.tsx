@@ -81,6 +81,24 @@ describe('legal pages (EF-LEG-01)', () => {
     expect(within(main).queryByText(/à compléter|\[/)).not.toBeInTheDocument();
   });
 
+  it('[ENF-RGP-05] [ENF-RGP-14] names the local model among the recipients, and what is kept of a CV type and of a chosen offer', async () => {
+    renderAt('/confidentialite');
+
+    const main = await screen.findByRole('main');
+    // The model the publisher runs himself, which reads first, and the others that follow it.
+    expect(within(main).getByText(/Modèle d’IA local de l’éditeur/)).toBeInTheDocument();
+    expect(within(main).getByText(/ne transmet rien à un tiers/)).toBeInTheDocument();
+    // CV types and chosen offers: what is kept, and what never is.
+    expect(within(main).getByText(/Votre veille automatique/)).toBeInTheDocument();
+    expect(within(main).getByText(/Jamais le fichier, jamais son texte/)).toBeInTheDocument();
+    expect(within(main).getByText(/ne restent que 30 minutes en mémoire/)).toBeInTheDocument();
+    // What the models are sent, and what they never are.
+    expect(within(main).getByText(/sans vos coordonnées \(ni nom, ni adresse e-mail/)).toBeInTheDocument();
+    expect(
+      within(main).getByText(/Jamais votre adresse e-mail de compte, vos messages Gmail ni vos candidatures/),
+    ).toBeInTheDocument();
+  });
+
   it('[EF-LEG-01] [ENF-RGP-04] describes the only cookie on the cookies page', async () => {
     renderAt('/cookies');
 

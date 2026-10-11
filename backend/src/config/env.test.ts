@@ -54,6 +54,7 @@ describe('loadConfig', () => {
       maxConcurrentJobs: 1,
       // EF-CVX-33: five analyses of the CV workshop a day, unless the deployment says otherwise.
       cvAnalysesPerDay: 5,
+      watch: { maxScoredOffersPerPass: 20, profileDeductionsPerDay: 5, chosenOfferExtractionsPerDay: 20 },
     });
   });
 
@@ -281,6 +282,8 @@ describe('loadConfig, local model', () => {
         baseUrl: 'http://192.168.1.54:11434/v1',
         timeoutMs: 600_000,
         maxOutputTokens: 2_000,
+        batchSize: 5,
+        descriptionChars: 800,
       },
     });
   });
@@ -380,6 +383,16 @@ describe('loadConfig, local model', () => {
     },
   );
 
+  it.each([
+    ['LOCAL_LLM_BATCH_SIZE', '0'],
+    ['LOCAL_LLM_BATCH_SIZE', '51'],
+    ['LOCAL_LLM_BATCH_SIZE', 'x'],
+    ['LOCAL_LLM_DESCRIPTION_CHARS', '199'],
+    ['LOCAL_LLM_DESCRIPTION_CHARS', '5001'],
+  ])('[ENF-MAI-09] [EF-IA-12] refuses %s = %s, naming the variable', (variable, value) => {
+    expect(errorOf({ ...BASE_ENV, ...LOCAL, [variable]: value })).toContain(variable);
+  });
+
   it('[ENF-MAI-09] refuses an address without a model, and a model or a token without an address', () => {
     expect(errorOf({ ...BASE_ENV, LOCAL_LLM_BASE_URL: LOCAL.LOCAL_LLM_BASE_URL })).toContain(
       'LOCAL_LLM_MODEL',
@@ -405,4 +418,80 @@ describe('loadConfig, local model', () => {
 
     expect(Object.keys(config.llm)).toEqual(['claude', 'gemini']);
   });
+});
+
+describe('loadConfig, scored offers per pass', () => {
+  it('[EF-EXE-07] scores 20 offers per pass by default, and reads the ceiling from the configuration', () => {
+    expect(loadConfig(VALID_ENV).watch).toEqual({
+      maxScoredOffersPerPass: 20,
+      profileDeductionsPerDay: 5,
+      chosenOfferExtractionsPerDay: 20,
+    });
+    expect(loadConfig({ ...VALID_ENV, MAX_SCORED_OFFERS_PER_PASS: '35' }).watch.maxScoredOffersPerPass).toBe(
+      35,
+    );
+  });
+
+  it('[EF-EXE-07] lifts the ceiling with 0, and counts an empty line as absent', () => {
+    expect(loadConfig({ ...VALID_ENV, MAX_SCORED_OFFERS_PER_PASS: '0' }).watch.maxScoredOffersPerPass).toBe(
+      0,
+    );
+    expect(loadConfig({ ...VALID_ENV, MAX_SCORED_OFFERS_PER_PASS: '' }).watch.maxScoredOffersPerPass).toBe(
+      20,
+    );
+  });
+
+  it.each([['-1'], ['abc'], ['1001']])('[EF-EXE-07] refuses the ceiling %s, naming the variable', (value) => {
+    expect(errorOf({ ...VALID_ENV, MAX_SCORED_OFFERS_PER_PASS: value })).toContain(
+      'MAX_SCORED_OFFERS_PER_PASS',
+    );
+  });
+});
+
+describe('loadConfig, deductions of a profile per day', () => {
+  it('[EF-CVX-44] allows 5 a day by default, reads the allowance from the configuration, and lifts it with 0', () => {
+    expect(loadConfig(VALID_ENV).watch.profileDeductionsPerDay).toBe(5);
+    expect(loadConfig({ ...VALID_ENV, PROFILE_DEDUCTIONS_PER_DAY: '12' }).watch.profileDeductionsPerDay).toBe(
+      12,
+    );
+    expect(loadConfig({ ...VALID_ENV, PROFILE_DEDUCTIONS_PER_DAY: '0' }).watch.profileDeductionsPerDay).toBe(
+      0,
+    );
+    expect(loadConfig({ ...VALID_ENV, PROFILE_DEDUCTIONS_PER_DAY: '' }).watch.profileDeductionsPerDay).toBe(
+      5,
+    );
+  });
+
+  it.each([['-1'], ['abc'], ['1001']])(
+    '[EF-CVX-44] refuses the allowance %s, naming the variable',
+    (value) => {
+      expect(errorOf({ ...VALID_ENV, PROFILE_DEDUCTIONS_PER_DAY: value })).toContain(
+        'PROFILE_DEDUCTIONS_PER_DAY',
+      );
+    },
+  );
+});
+
+describe('loadConfig, extractions of a chosen offer per day', () => {
+  it('[ENF-COU-01] allows 20 a day by default, reads the allowance from the configuration, and lifts it with 0', () => {
+    expect(loadConfig(VALID_ENV).watch.chosenOfferExtractionsPerDay).toBe(20);
+    expect(
+      loadConfig({ ...VALID_ENV, CHOSEN_OFFER_EXTRACTIONS_PER_DAY: '40' }).watch.chosenOfferExtractionsPerDay,
+    ).toBe(40);
+    expect(
+      loadConfig({ ...VALID_ENV, CHOSEN_OFFER_EXTRACTIONS_PER_DAY: '0' }).watch.chosenOfferExtractionsPerDay,
+    ).toBe(0);
+    expect(
+      loadConfig({ ...VALID_ENV, CHOSEN_OFFER_EXTRACTIONS_PER_DAY: '' }).watch.chosenOfferExtractionsPerDay,
+    ).toBe(20);
+  });
+
+  it.each([['-1'], ['abc'], ['1001']])(
+    '[ENF-COU-01] refuses the allowance %s, naming the variable',
+    (value) => {
+      expect(errorOf({ ...VALID_ENV, CHOSEN_OFFER_EXTRACTIONS_PER_DAY: value })).toContain(
+        'CHOSEN_OFFER_EXTRACTIONS_PER_DAY',
+      );
+    },
+  );
 });

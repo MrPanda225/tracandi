@@ -13,7 +13,9 @@ export interface SeparatedCv {
   contacts: CvContacts;
 }
 
-const EMAIL = /[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g;
+// Starts only at the beginning of a run of address characters: one that goes on without an « @ » costs one pass,
+// not one per letter (ENF-SEC-22).
+const EMAIL = /(?<![\w.+-])[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g;
 // French numbers (06 12 34 56 78, 06.12.34.56.78) and international ones (+33 6 12 34 56 78).
 const PHONE = /(?:\+\d{1,3}[\s.-]?\d(?:[\s.-]?\d{2}){4}|\b0\d(?:[\s.-]?\d{2}){4})\b/g;
 const LINK = /\b(?:https?:\/\/\S+|(?:www\.)?(?:linkedin\.com|github\.com|gitlab\.com)\/\S+)/gi;
@@ -43,17 +45,44 @@ const unique = (values: readonly string[]): string[] => [...new Set(values.map((
 
 const escapeRegExp = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+// The separators a removed detail leaves behind, at the edge of a line (« | », « , », « : », dashes).
+const SEPARATORS = '|•·,;:–-';
+const isSpace = (character: string): boolean => /\s/u.test(character);
+const isEdgeCharacter = (character: string): boolean => isSpace(character) || SEPARATORS.includes(character);
+
+/** The line without the separators and spaces at either end, in one pass each: no pattern to backtrack on. */
+const withoutEdgeSeparators = (line: string): string => {
+  let start = 0;
+  let end = line.length;
+  while (start < end && isEdgeCharacter(line[start] ?? '')) start += 1;
+  while (end > start && isEdgeCharacter(line[end - 1] ?? '')) end -= 1;
+  return line.slice(start, end);
+};
+
+/** Two or more pipes with nothing but spaces between them are one pipe, spaced: « a | | b » and « a || b » are « a | b ». */
+const collapsePipes = (line: string): string => {
+  const segments = line.split('|');
+  const out: string[] = [segments[0] ?? ''];
+  let pipe = 1;
+  while (pipe < segments.length) {
+    let last = pipe;
+    while (last < segments.length - 1 && (segments[last] ?? '').trim() === '') last += 1;
+    if (last === pipe) {
+      out.push('|', segments[pipe] ?? '');
+    } else {
+      out[out.length - 1] = (out[out.length - 1] ?? '').trimEnd();
+      out.push(' | ', (segments[last] ?? '').trimStart());
+    }
+    pipe = last + 1;
+  }
+  return out.join('');
+};
+
 /** Removes the separators a detail leaves behind (« | », « , », « : ») and the lines left empty. */
 const tidy = (text: string): string =>
   text
     .split('\n')
-    .map((line) =>
-      line
-        .replace(/(?:\s*[|•·,;:–-]\s*)+$/u, '')
-        .replace(/^(?:\s*[|•·,;:–-]\s*)+/u, '')
-        .replace(/\s*\|\s*(?:\|\s*)+/g, ' | ')
-        .trim(),
-    )
+    .map((line) => collapsePipes(withoutEdgeSeparators(line)).trim())
     .filter((line) => line !== '' && !/^[\p{L}\s'’]+:$/u.test(line))
     .join('\n');
 

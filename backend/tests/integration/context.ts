@@ -6,8 +6,8 @@ import { createApp } from '../../src/app.js';
 import { emails, processedMessages } from '../../src/db/schema.js';
 import { connectDatabase, type DatabaseHandle } from '../../src/db/client.js';
 import { createJobQueue, type JobQueue } from '../../src/jobs/queue.js';
-import { createPdfOcr } from '../../src/modules/cvWorkshop/ocr.js';
-import { createAnalysisResults } from '../../src/modules/cvWorkshop/results.js';
+import { createPdfOcr, type PdfOcr } from '../../src/modules/cvWorkshop/ocr.js';
+import { type AnalysisResults, createAnalysisResults } from '../../src/modules/cvWorkshop/results.js';
 import { createCvWorkshopModule } from '../../src/modules/cvWorkshop/routes.js';
 import { type CvAnalysis, createCvWorkshopService } from '../../src/modules/cvWorkshop/service.js';
 import { type EnabledFeatures, OPTIONAL_FEATURES, onlyIf } from '../../src/lib/features.js';
@@ -36,7 +36,14 @@ import { createGmailSync, type GmailSync } from '../../src/modules/emails/sync.j
 import { createSettingsModule } from '../../src/modules/settings/routes.js';
 import { createStatsModule } from '../../src/modules/stats/routes.js';
 import { createStatsService } from '../../src/modules/stats/service.js';
+import { createAutomaticWatchModule } from '../../src/modules/autowatch/routes.js';
+import { createAutomaticWatchService } from '../../src/modules/autowatch/service.js';
+import { createChosenOffersModule } from '../../src/modules/chosenOffers/routes.js';
+import { createChosenOffersService } from '../../src/modules/chosenOffers/service.js';
 import { createCriteriaModule } from '../../src/modules/criteria/routes.js';
+import { createCvTypesModule } from '../../src/modules/cvTypes/routes.js';
+import type { ProfileDeduction } from '../../src/modules/cvTypes/deduction.js';
+import { createCvTypesService } from '../../src/modules/cvTypes/service.js';
 import { createOffersModule } from '../../src/modules/offers/routes.js';
 import { createOffersService } from '../../src/modules/offers/service.js';
 import { createCriteriaService } from '../../src/modules/criteria/service.js';
@@ -58,6 +65,8 @@ export interface TestClock {
   now: () => Date;
   set: (instant: Date) => void;
   advanceDays: (days: number) => void;
+  /** ENF-PERF-09: a long pass, simulated. */
+  advanceMinutes: (minutes: number) => void;
 }
 
 const createTestClock = (start: Date): TestClock => {
@@ -69,6 +78,9 @@ const createTestClock = (start: Date): TestClock => {
     },
     advanceDays: (days) => {
       current = new Date(current.getTime() + days * 24 * 60 * 60 * 1000);
+    },
+    advanceMinutes: (minutes) => {
+      current = new Date(current.getTime() + minutes * 60 * 1000);
     },
   };
 };
@@ -85,6 +97,11 @@ export interface TestContext {
   queue: JobQueue;
   /** The watch behind the routes, for the scheduled pass (EF-VEI-06). */
   watch: WatchService;
+  /** What the application holds in memory for 30 minutes: the results of the CV workshop, the profiles deduced. */
+  memory: {
+    analyses: AnalysisResults<CvAnalysis>;
+    deductions: AnalysisResults<ProfileDeduction>;
+  };
 }
 
 /** Google that must never be reached: tests needing Google pass their own fake. */
@@ -155,11 +172,24 @@ export interface ExternalServices {
    * without SIREN search, the watch does without it.
    */
   official?: Partial<OfficialDoubles>;
+  /** ENF-RGP-12: where the lines of the log go, to check what a pass writes in it; nowhere by default. */
+  logWrite?: (line: string) => void;
+  /** EF-CVX-22: the OCR of the scanned pages of an imported CV; the real one (tesseract on this machine) by default. */
+  ocr?: PdfOcr;
   /** ENF-MAI-07: the optional features of this deployment; every one by default. */
   features?: EnabledFeatures;
   /** BES-39: proxies in front of the API (Vercel, Northflank); none by default. */
   trustProxyHops?: number;
+  /** EF-EXE-07, ENF-PERF-09: ceilings of a pass of the watch; those of the server by default. */
+  watchLimits?: { maxScoredOffersPerPass?: number; maxPassMinutes?: number };
 }
+
+/** Where a test sends the log: its own sink, or nowhere. */
+const writerOf = (write: ((line: string) => void) | undefined): ((line: string) => void) =>
+  write ?? (() => undefined);
+
+/** The OCR a test passes, or the real one (tesseract on this machine). */
+const ocrOf = (ocr: PdfOcr | undefined): PdfOcr => ocr ?? createPdfOcr();
 
 /** Real application on the local test database, with an injectable clock and fake external services. */
 export const createTestContext = (
@@ -171,18 +201,30 @@ export const createTestContext = (
     collect = unreachableCollector,
     places = knownPlaces,
     official = {},
+    ocr,
+    logWrite,
     features = new Set(OPTIONAL_FEATURES),
     trustProxyHops = 0,
+    watchLimits,
   }: ExternalServices = {},
 ): TestContext => {
   const clock = createTestClock(new Date('2026-09-22T08:00:00.000Z'));
-  const logger = createLogger({ write: () => undefined });
+  const logger = createLogger({ write: writerOf(logWrite) });
   const encryptionKey = randomBytes(32);
+  const memory = {
+    analyses: createAnalysisResults<CvAnalysis>(),
+    deductions: createAnalysisResults<ProfileDeduction>(),
+  };
   const authService = createAuthService({
     db: database.db,
     clock: clock.now,
     passwordParams: TEST_PASSWORD_PARAMS,
     revokeExternalAccess: (userId) => gmailService.disconnect(userId),
+    // ENF-RGP-02: what is held in memory for a candidate goes with their account.
+    eraseMemoryOf: (userId) => {
+      memory.analyses.eraseAll(userId);
+      memory.deductions.eraseAll(userId);
+    },
   });
   const queue = createJobQueue({ db: database.db, clock: clock.now, logger });
   const gmailService = createGmailConnectionService({
@@ -223,6 +265,8 @@ export const createTestContext = (
     },
     findSiren: officialDoubles.findSiren,
     logger,
+    limits: watchLimits,
+    timezone: 'Europe/Paris',
   });
   const app = createApp({
     config: { frontendOrigin: FRONTEND_ORIGIN, trustProxyHops },
@@ -255,9 +299,9 @@ export const createTestContext = (
         createCvWorkshopModule(
           createCvWorkshopService({
             queue,
-            ocr: createPdfOcr(),
+            ocr: ocrOf(ocr),
             router: llmRouter,
-            results: createAnalysisResults<CvAnalysis>(),
+            results: memory.analyses,
             clock: clock.now,
             analysesPerDay: 5,
           }),
@@ -270,10 +314,31 @@ export const createTestContext = (
         createSitesModule(watch),
         createOffersModule(createOffersService({ db: database.db, clock: clock.now })),
         createCriteriaModule(criteria),
+        createCvTypesModule(
+          createCvTypesService({
+            db: database.db,
+            clock: clock.now,
+            queue,
+            ocr: ocrOf(ocr),
+            router: llmRouter,
+            deductions: memory.deductions,
+            deductionsPerDay: 5,
+          }),
+        ),
+        createChosenOffersModule(
+          createChosenOffersService({
+            db: database.db,
+            clock: clock.now,
+            queue,
+            router: llmRouter,
+            extractionsPerDay: 20,
+          }),
+        ),
+        createAutomaticWatchModule(createAutomaticWatchService({ db: database.db, clock: clock.now })),
       ),
     ],
   });
-  return { app, database, clock, encryptionKey, gmailSync: sync, queue, watch };
+  return { app, database, clock, encryptionKey, gmailSync: sync, queue, watch, memory };
 };
 
 export const openTestDatabase = (): DatabaseHandle =>
@@ -331,4 +396,26 @@ export const giveContact = async (
     .returning({ id: emails.id });
   if (!row) throw new Error('contact message not stored');
   return row.id;
+};
+
+/**
+ * ENF-RGP-14: the tables of the database that hold this text somewhere in a row, whatever the column. Every table of
+ * the application is read as text, so that a column added later is covered without anyone remembering it.
+ */
+export const tablesHolding = async (
+  database: DatabaseHandle,
+  needle: string,
+  only?: readonly string[],
+): Promise<string[]> => {
+  const tables = await database.db.execute<{ table_name: string }>(
+    sql`SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE'`,
+  );
+  const holding: string[] = [];
+  for (const { table_name: name } of tables.rows.filter((row) => !only || only.includes(row.table_name))) {
+    const hit = await database.db.execute(
+      sql`SELECT 1 FROM ${sql.identifier(name)} AS t WHERE position(${needle} in t::text) > 0 LIMIT 1`,
+    );
+    if (hit.rows.length > 0) holding.push(name);
+  }
+  return holding;
 };

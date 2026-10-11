@@ -40,7 +40,14 @@ import { createFollowUpDrafts } from './modules/emails/followUp.js';
 import { createGmailModules } from './modules/emails/routes.js';
 import { createGmailSync } from './modules/emails/sync.js';
 import { createSettingsModule } from './modules/settings/routes.js';
+import { createAutomaticWatchModule } from './modules/autowatch/routes.js';
+import { createAutomaticWatchService } from './modules/autowatch/service.js';
+import { createChosenOffersModule } from './modules/chosenOffers/routes.js';
+import { createChosenOffersService } from './modules/chosenOffers/service.js';
 import { createCriteriaModule } from './modules/criteria/routes.js';
+import { createCvTypesModule } from './modules/cvTypes/routes.js';
+import type { ProfileDeduction } from './modules/cvTypes/deduction.js';
+import { createCvTypesService } from './modules/cvTypes/service.js';
 import { createOffersModule } from './modules/offers/routes.js';
 import { createOffersService } from './modules/offers/service.js';
 import { createCriteriaService } from './modules/criteria/service.js';
@@ -71,12 +78,20 @@ const readConfigOrExit = (): Config => {
 
 const config = readConfigOrExit();
 const database = connectDatabase(config.databaseUrl, logger);
+// ENF-RGP-06: what is held in memory for 30 minutes — the results of the CV workshop, the profiles deduced.
+const analysisResults = createAnalysisResults<CvAnalysis>();
+const deductionResults = createAnalysisResults<ProfileDeduction>();
 const authService = createAuthService({
   db: database.db,
   clock: systemClock,
   passwordParams: OWASP_SCRYPT_PARAMS,
   // EF-AUT-11: a deleted account leaves no Gmail access behind (revocation at Google, best effort).
   revokeExternalAccess: (userId) => gmailService.disconnect(userId),
+  // ENF-RGP-02: nor anything held in memory for the candidate.
+  eraseMemoryOf: (userId) => {
+    analysisResults.eraseAll(userId);
+    deductionResults.eraseAll(userId);
+  },
 });
 
 const gmailService = createGmailConnectionService({
@@ -190,6 +205,10 @@ const watchService = createWatchService({
   // EF-VEI-36: free and without account, always available.
   findSiren: createSirenFinder(officialRequest),
   logger,
+  // EF-EXE-07: offers scored per pass and per candidate.
+  limits: { maxScoredOffersPerPass: config.watch.maxScoredOffersPerPass },
+  // EF-VEI-51: the hour of a scheduled pass is read in the time zone of the scheduler.
+  timezone: config.scheduler.timezone,
 });
 
 // EF-EXE-05: an execution the previous run left waiting or running is closed before anything else starts.
@@ -231,7 +250,7 @@ const app = createApp({
           queue: jobQueue,
           ocr: createPdfOcr(),
           router: llmRouter,
-          results: createAnalysisResults<CvAnalysis>(),
+          results: analysisResults,
           clock: systemClock,
           analysesPerDay: config.cvAnalysesPerDay,
         }),
@@ -244,6 +263,30 @@ const app = createApp({
       createSitesModule(watchService),
       createOffersModule(createOffersService({ db: database.db, clock: systemClock })),
       createCriteriaModule(criteriaService),
+      // EF-CVX-39 to EF-CVX-43
+      createCvTypesModule(
+        createCvTypesService({
+          db: database.db,
+          clock: systemClock,
+          queue: jobQueue,
+          ocr: createPdfOcr(),
+          router: llmRouter,
+          deductions: deductionResults,
+          deductionsPerDay: config.watch.profileDeductionsPerDay,
+        }),
+      ),
+      // EF-VEI-48, EF-VEI-49
+      createChosenOffersModule(
+        createChosenOffersService({
+          db: database.db,
+          clock: systemClock,
+          queue: jobQueue,
+          router: llmRouter,
+          extractionsPerDay: config.watch.chosenOfferExtractionsPerDay,
+        }),
+      ),
+      // EF-CFG-07, EF-CFG-08
+      createAutomaticWatchModule(createAutomaticWatchService({ db: database.db, clock: systemClock })),
     ),
   ],
 });
@@ -261,7 +304,7 @@ const server = app.listen(config.port, config.host, () => {
 const scheduler = startScheduler({
   jobs: [
     { name: 'gmail_sync', cron: config.scheduler.gmailCron, run: () => gmailSync.synchroniseEveryMailbox() },
-    // EF-VEI-06: every active source of every candidate, at 7, 13 and 19 o'clock Paris time — when the watch runs.
+    // EF-VEI-06, EF-VEI-51: the watch of every candidate who activated it, at 7, 13 and 19 o'clock Paris time.
     ...onlyIf(config.features, 'watch', {
       name: 'scraper',
       cron: config.scheduler.watchCron,

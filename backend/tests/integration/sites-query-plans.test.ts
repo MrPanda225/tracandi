@@ -2,6 +2,7 @@ import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import * as schema from '../../src/db/schema.js';
+import * as automaticWatch from '../../src/modules/autowatch/repository.js';
 import * as repository from '../../src/modules/sites/repository.js';
 import { openTestDatabase, truncateAll } from './context.js';
 import { seedLoadDataset } from './load-dataset.js';
@@ -85,7 +86,15 @@ describe('watch queries on the load of ENF-PERF-01', () => {
     ['listSources', (db: never) => repository.listSources(db, userId)],
     ['listActiveSources', (db: never) => repository.listActiveSources(db, userId)],
     ['listKnownOfferIds', (db: never) => repository.listKnownOfferIds(db, siteId)],
-    ['listUsersWithActiveSources', (db: never) => repository.listUsersWithActiveSources(db)],
+    // EF-VEI-51 (v1.35): who the clock watches for at a slot, and the passes of the day the settings show.
+    ['listUsersAtSlot', (db: never) => automaticWatch.listUsersAtSlot(db, 'noon')],
+    ['listPassesSince', (db: never) => automaticWatch.listPassesSince(db, { userId, since: NOW })],
+    // EF-VEI-54, RG-31 (v1.35): the offers waiting for a score, and how many.
+    [
+      'listUnscoredOffers',
+      (db: never) => repository.listUnscoredOffers(db, userId, { passStartedAt: NOW, limit: 20 }),
+    ],
+    ['countUnscoredOffers', (db: never) => repository.countUnscoredOffers(db, userId)],
   ])('[ENF-PERF-04] %s never reads a large table whole', async (_name, work) => {
     const queries = await capture(work as (db: ReturnType<typeof drizzle>) => Promise<unknown>);
     expect(queries.length).toBeGreaterThan(0);
@@ -114,7 +123,9 @@ describe('suggestion of sources on the load of ENF-PERF-01', () => {
         `EXPLAIN (ANALYZE, FORMAT JSON) ${query.text}`,
         query.params,
       );
-      expect(result.rows[0]?.['QUERY PLAN'][0]?.['Execution Time'] ?? Infinity).toBeLessThan(MAX_EXECUTION_MS);
+      expect(result.rows[0]?.['QUERY PLAN'][0]?.['Execution Time'] ?? Infinity).toBeLessThan(
+        MAX_EXECUTION_MS,
+      );
     }
   });
 });

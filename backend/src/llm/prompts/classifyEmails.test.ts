@@ -94,9 +94,7 @@ describe('buildClassifyEmailsPrompt', () => {
   });
 
   it('[ENF-COU-01] cuts an overlong subject to bound the cost of a batch', () => {
-    const { prompt } = buildClassifyEmailsPrompt([
-      { ...SENT, subject: 'x'.repeat(SUBJECT_MAX_LENGTH + 50) },
-    ]);
+    const { prompt } = buildClassifyEmailsPrompt([{ ...SENT, subject: 'x'.repeat(SUBJECT_MAX_LENGTH + 50) }]);
 
     expect(prompt).not.toContain('x'.repeat(SUBJECT_MAX_LENGTH));
     expect(prompt).toContain('…');

@@ -10,6 +10,9 @@ const MIN_PAGE_CHARS = 20;
 // Below this, what was read is no CV (a blank scan, noise).
 const MIN_CV_CHARS = 40;
 
+/** ENF-SEC-22: the text kept of a CV, whatever the PDF holds — a CV of three pages has a tenth of that. */
+export const MAX_CV_TEXT_CHARS = 60_000;
+
 /** An imported CV once read: its text without the contact details, and those details (ENF-RGP-07). */
 export interface ReadCv {
   text: string;
@@ -38,7 +41,8 @@ export const readCv = async (pdf: Buffer, { ocr }: { ocr: PdfOcr }): Promise<Rea
       return ocrIndex === -1 ? text : (ocrTexts[ocrIndex] ?? '');
     })
     .join('\n')
-    .trim();
+    .trim()
+    .slice(0, MAX_CV_TEXT_CHARS);
   if (meaningfulLength(fullText) < MIN_CV_CHARS) throw new CvUnreadableError('noText');
   return { ...separateContacts(fullText), ocrPageCount: scanned.length };
 };

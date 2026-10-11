@@ -1,4 +1,5 @@
 import { contractType, offerStatus, siteAdapter } from '../../db/schema.js';
+import { idParam } from '../../lib/ids.js';
 import { z } from '../../lib/openapi.js';
 
 const MAX_PAGE_SIZE = 100;
@@ -20,7 +21,7 @@ export const OfferQuerySchema = z.object({
   offset: z.coerce.number().int().min(0).default(0),
 });
 
-export const OfferIdSchema = z.object({ id: z.coerce.number().int().positive() });
+export const OfferIdSchema = z.object({ id: idParam() });
 
 /** EF-VEI-18: the states the candidate sets by hand; « postulée » only comes from EF-VEI-19. */
 export const UpdateOfferSchema = z

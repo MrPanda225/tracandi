@@ -1,0 +1,11 @@
+{
+  "years": 12,
+  "periods": [
+    { "start": "2022-09", "end": "2024-08" },
+    { "start": "2024-09", "end": "2025-06" }
+  ],
+  "targets": [
+    { "label": "Data analyst", "keywords": ["sql", "power bi", "python"], "contractTypes": ["cdi"], "level": "confirme" },
+    { "label": "Analytics engineer", "keywords": ["dbt", "sql"], "contractTypes": ["cdi", "cdd"], "level": "confirme" }
+  ]
+}

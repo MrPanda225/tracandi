@@ -88,6 +88,22 @@ describe('CriteriaCard', () => {
     ]);
   });
 
+  it('[EF-VEI-47] keeps the validated years and level when the criteria are saved again', async () => {
+    const user = userEvent.setup();
+    const sent = mockApi({
+      'GET /watch/criteria': () => json(200, { criteria: { ...SAVED, years: 4, level: 'confirme' } }),
+      'PUT /watch/criteria': () => json(200, { criteria: { ...SAVED, years: 4, level: 'confirme' } }),
+    });
+    render(<CriteriaCard />);
+
+    await user.click(await screen.findByRole('button', { name: 'Modifier' }));
+    await user.click(screen.getByRole('button', { name: 'Enregistrer mes critères' }));
+
+    await waitFor(() => expect(sent).toHaveLength(1));
+    // The API replaces the whole document: leaving them out would erase the profile the candidate validated.
+    expect(sent[0]).toMatchObject({ years: 4, level: 'confirme' });
+  });
+
   it('[EF-VEI-29] [ENF-SEC-04] shows what the API refused and keeps the form', async () => {
     const user = userEvent.setup();
     mockApi({

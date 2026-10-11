@@ -26,6 +26,11 @@ export interface Place {
   longitude: number;
 }
 
+/** RG-28 : le niveau d'expérience du candidat, tiré de ses années (schéma `WatchCriteria` dans /api/docs). */
+export type ExperienceLevel = 'junior' | 'confirme' | 'senior';
+
+export const EXPERIENCE_LEVELS: readonly ExperienceLevel[] = ['junior', 'confirme', 'senior'];
+
 /** EF-VEI-29 : ce que le candidat recherche. Sans commune : toute la France. */
 export interface WatchCriteria {
   targets: CriteriaTarget[];
@@ -33,6 +38,9 @@ export interface WatchCriteria {
   radiusKm: number;
   acceptsRemote: boolean;
   romeCodes: string[];
+  /** EF-VEI-47 : années d'expérience du profil validé ; absentes tant que seul le niveau est connu. */
+  years?: number;
+  level?: ExperienceLevel;
 }
 
 /** Les critères enregistrés, ou null tant que le candidat n'en a aucun. */
@@ -51,4 +59,24 @@ export const saveCriteria = (criteria: WatchCriteria) =>
 export const findPlaces = (query: string, signal?: AbortSignal) =>
   request<{ items: Place[] }>(`/watch/places?q=${encodeURIComponent(query)}`, { signal }).then(
     (answer) => answer.items,
+  );
+
+/**
+ * EF-VEI-46, EF-VEI-47 : le profil que le candidat valide après l'avoir corrigé — de 1 à 5 offres types, et ses années
+ * ou son niveau. Avec des années, l'API en tire le niveau (RG-28) et il l'emporte sur un niveau donné à côté : on
+ * n'envoie donc que l'un des deux.
+ */
+export interface ProfileValidation {
+  targets: CriteriaTarget[];
+  years?: number;
+  level?: ExperienceLevel;
+}
+
+/**
+ * EF-VEI-46 : remplace les cibles, les années et le niveau des critères ; la commune, le rayon, le télétravail et les
+ * codes ROME restent ceux du candidat. La valeur rendue est celle que l'API a retenue.
+ */
+export const validateProfile = (profile: ProfileValidation) =>
+  request<{ criteria: WatchCriteria }>('/watch/criteria/validation', { method: 'POST', body: profile }).then(
+    (answer) => answer.criteria,
   );

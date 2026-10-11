@@ -884,13 +884,19 @@ développeur l'active sur son poste (`ENABLED_FEATURES=watch,cv`) le temps d'y t
   `think: false` est ignoré par l'interface `/v1`. Les services hébergés refusent cette valeur : elle n'est envoyée
   qu'au local (ADR-16). Le délai et le plafond de sortie sont validés ici mais appliqués par T-1002.
   *Reste à faire* : le test « coût du mois inchangé » (ENF-COU-02) avec T-705 ; aucun appel réel au homelab en test.
-- [ ] **T-1002 Délai et plafond de sortie par fournisseur** — chaque fournisseur porte son délai (60 s par défaut,
+- [x] **T-1002 Délai et plafond de sortie par fournisseur** — chaque fournisseur porte son délai (60 s par défaut,
   600 s pour le local) et son plafond de sortie (16 000 par défaut, 2 000 pour le local) ; le routeur les applique.
   *Exigences* : EF-IA-10, EF-IA-11, EF-IA-02 (modifiée).
   *Fini quand* : fournisseur simulé à 90 s abandonné s'il est hébergé, accepté s'il est local, abandonné à 601 s ;
   `max_tokens` = 2 000 vers le local, inchangé ailleurs ; tests de bascule existants inchangés.
   *Dépend de* : T-1001.
-- [ ] **T-1003 Routes par mode, lots réduits, bascule rapide** — route à deux modes (passage planifié ou demande
+  *Livré* : `timeoutMs` et `maxOutputTokens` facultatifs sur `LlmProvider` ; le routeur applique le délai du
+  fournisseur (60 s sinon) et coupe `max_tokens` à son plafond (`outputCeilingOf`) ; `connectLocal` porte les valeurs
+  de `LOCAL_LLM_TIMEOUT_MS` et `LOCAL_LLM_MAX_OUTPUT_TOKENS` ; `routes` injectable dans `createLlmRouter` (défaut
+  `TASK_ROUTES`) pour tester le local avant que T-1003 ne le route.
+  *Écart* : le délai des fournisseurs hébergés reste la constante de 60 s (injectable au routeur) ; EF-IA-10 le prévoit
+  « fixé par la configuration », ce qui n'est demandé par aucun critère de la tâche.
+- [x] **T-1003 Routes par mode, lots réduits, bascule rapide** — route à deux modes (passage planifié ou demande
   attendue) : le local en tête de `score_offers`, `extract_offers` et des tâches de profil **en passage planifié
   seulement**, jamais en tête ailleurs ; lots de 5 offres et descriptions de 800 caractères quand le premier
   fournisseur est local ; échec de connexion en 10 s au plus ; coupe-circuit après deux échecs de connexion.
@@ -899,14 +905,34 @@ développeur l'active sur son poste (`ENABLED_FEATURES=watch,cv`) le temps d'y t
   10 s, puis plus aucun appel au local jusqu'à la fin du passage ; 12 offres : appels de 5, 5 et 2 ; routes de
   `classify_emails`, `diagnose_cv`, `tailor_cv`, `write_follow_up` inchangées.
   *Dépend de* : T-1001, T-1002.
-- [ ] **T-1004 Fenêtre depuis la dernière consultation réussie** — colonne « début de la dernière consultation
+  *Livré* : `RunMode` et `SCHEDULED_ROUTES` (le local devant `score_offers` et `extract_offers`, les autres routes
+  inchangées) ; `forMode(mode)` : un routeur par passage, avec son propre compte d'échecs de connexion
+  (coupe-circuit après deux échecs consécutifs, le passage suivant retente) ; `limitsFor(task)` : lots et longueur de
+  description du premier fournisseur disponible, relus avant chaque lot ; sonde `GET /models` de 10 s avant chaque appel
+  au local (`CONNECT_TIMEOUT_MS`) et erreur marquée `connection` ; `LOCAL_LLM_BATCH_SIZE` et
+  `LOCAL_LLM_DESCRIPTION_CHARS` ; `PassContext.mode` (`schedule` → `scheduled`, « Consulter maintenant » →
+  `attended`) ; `llm/limits.ts`.
+  *Choix assumé* : la sonde interroge `/models`, point d'entrée commun aux services compatibles OpenAI, plutôt qu'une
+  commande propre à Ollama ; une réponse quelconque (même 404) compte comme « le serveur est là ».
+  *Reste à faire* : l'extraction des pages carrières par le local (`extract_offers`) envoie jusqu'à 12 000 caractères
+  de texte et 120 liens : avec un contexte de 8 192 jetons et 2 000 jetons de sortie, c'est à surveiller (non couvert
+  par EF-IA-12, qui ne vise que la notation) ; les tâches de profil seront ajoutées à `SCHEDULED_ROUTES` par T-1010.
+- [x] **T-1004 Fenêtre depuis la dernière consultation réussie** — colonne « début de la dernière consultation
   réussie » sur `watched_sites` (migration) ; la fenêtre de France Travail s'en sert ; une consultation échouée ne
   l'avance pas ; ADR-18.
   *Exigences* : EF-VEI-52, EF-VEI-53, EF-VEI-10 (modifiée), RG-30.
   *Fini quand* : consultation de 7 h en échec : celle de 13 h demande depuis la dernière réussite ; première
   consultation : 7 jours ; dernière réussite il y a 40 jours : 31 jours ; zéro doublon (EF-VEI-09).
   *Dépend de* : —. *Corrige* le constat C-2.
-- [ ] **T-1005 Offres sans note, plafond par passage, durée maximale** — une offre lue est enregistrée même si
+  *Livré* : migration 0023 (`watched_sites.last_success_started_at`, avec reprise des sources déjà lues : leur dernière
+  consultation réussie, moins une heure) ; `recordCheck(..., { succeededFrom })` n'avance la colonne que sur un succès ;
+  le passage note l'heure où la consultation commence (et non celle où elle finit) ; la fenêtre de France Travail part
+  de cette colonne (`since: source.lastSuccessStartedAt`) au lieu de `last_checked_at`, qui note aussi les échecs.
+  `last_checked_at` garde son rôle d'EF-VEI-10 (dernière consultation, échec compris).
+  *Constat corrigé* : après un échec, la fenêtre de France Travail repartait de l'heure de l'échec, et les offres
+  publiées entre la dernière réussite et l'échec n'étaient jamais lues.
+  *Reste à faire* : l'export des données (EF-AUT-12) ne porte pas encore la nouvelle colonne (T-1016).
+- [x] **T-1005 Offres sans note, plafond par passage, durée maximale** — une offre lue est enregistrée même si
   aucun fournisseur ne la note (note vide, compteur « en attente de note », migration de l'énumération des
   compteurs) et notée au passage suivant, les plus récentes d'abord ; au plus N offres notées par passage ;
   passage arrêté proprement à 45 minutes ; offres sans note à part dans les écrans qui trient par score.
@@ -914,19 +940,45 @@ développeur l'active sur son poste (`ENABLED_FEATURES=watch,cv`) le temps d'y t
   *Fini quand* : modèle local et secours simulés en échec : sources consultées, offres enregistrées sans note, puis
   notées au passage suivant sans doublon ; 35 offres : 20 notées, 15 reprises ; horloge simulée : arrêt à 45 minutes.
   *Dépend de* : T-1004.
-- [ ] **T-1006 Années d'expérience et niveau** — fonctions pures, sans IA : durée cumulée des périodes d'un CV
+  *Livré* : migration 0024 (compteur `offers_unscored`) ; `modules/sites/scorer.ts` : la notation devient une étape
+  **après** la lecture des sources ; une offre lue est enregistrée sans note (`relevance_score` vide) si aucun modèle
+  ne répond, et reprise au passage suivant ; ordre de RG-31 (celles qui ont attendu d'abord, puis les plus récemment
+  publiées, `listUnscoredOffers`) ; `MAX_SCORED_OFFERS_PER_PASS` (20, 0 lève la limite) ; arrêt à 45 minutes
+  (`deadlineOf` : plus aucun lot ni aucune source commencés) ; rapport et compteurs `offersUnscored` /
+  `offers_unscored` ; écran des offres : « En attente de note » à la place du score (le tri `desc nulls last` mettait
+  déjà ces offres en dernier) ; contrôle `EXPLAIN` des deux nouvelles requêtes sur le jeu de charge, sans `Seq Scan`.
+  *Écart* : le délai de 45 minutes est une constante (injectable, `limits.maxPassMinutes`), non une variable
+  d'environnement : ENF-PERF-09 ne demande pas de réglage.
+  *Changement de comportement* : une indisponibilité de tous les fournisseurs ne fait plus échouer la source ; la
+  source est lue, ses offres sont gardées, et la passe se termine en succès avec `offers_unscored` > 0.
+- [x] **T-1006 Années d'expérience et niveau** — fonctions pures, sans IA : durée cumulée des périodes d'un CV
   (chevauchements comptés une fois), années demandées par une offre (« 5 ans ou plus d'expérience »), niveau.
   *Exigences* : RG-28, RG-29, EF-VEI-43 (calcul), EF-VEI-44.
   *Fini quand* : tests aux bornes 2, 3, 7 et 8 ans ; « 2 à 3 ans » : 3 ; texte sans mention : aucune valeur ;
   34 mois : 3 ans.
   *Dépend de* : —.
-- [ ] **T-1007 Notation selon le niveau** — le document `watch_criteria` porte le niveau et les années ; le prompt de
+  *Livré* : `modules/criteria/experience.ts` — `experienceYearsOfPeriods` (mois couverts, un mois commun à deux
+  périodes compté une fois, période sans fin = jusqu'à maintenant, arrondi à l'entier le plus proche, de 0 à 50),
+  `PeriodSchema` (mois `AAAA-MM`, une date fausse est refusée plutôt que mal comptée), `levelOfYears` (0-2 junior,
+  3-7 confirmé, 8 et plus senior), `requiredYearsOf` (le plus grand nombre d'années d'une expression « n ans
+  d'expérience », « n+ ans », « n à m ans », le mot « expérience » à moins de 90 caractères, pour ne pas prendre
+  l'âge d'une entreprise pour une exigence), `levelOfTitle`, `levelOfOffer`.
+  *Choix assumé* : le format des périodes est `AAAA-MM` ; T-1010 y convertira ce que le modèle lit d'un CV. Les
+  nombres écrits en lettres (« trois ans ») ne sont pas lus : RG-29 vise les chiffres.
+- [x] **T-1007 Notation selon le niveau** — le document `watch_criteria` porte le niveau et les années ; le prompt de
   `scoreOffers.ts` ne plafonne plus l'expérience à 3 ans mais la compare au niveau.
   *Exigences* : EF-VEI-50, EF-VEI-31 (modifiée), RG-09 (modifiée).
   *Fini quand* : même offre à 8 ans : mieux notée pour un senior que pour un junior (modèle simulé) ; prompt
   portant le niveau ; critères sans niveau : comportement actuel (3 ans au plus).
   *Dépend de* : T-1006.
-- [ ] **T-1008 Créneaux et passages par utilisateur (API)** — `job_runs` porte le créneau (migration), la veille
+  *Livré* : le document `watch_criteria` accepte `years` (0 à 50) et `level` (pas de migration : c'est un document
+  validé par zod) ; avec des années, le niveau est recalculé par RG-28 (un niveau donné à côté ne l'emporte pas :
+  EF-VEI-47) ; `scoringProfileOf` transmet le niveau ; le prompt de `scoreOffers.ts` compare l'expérience exigée au
+  niveau du candidat (« autant ou moins ne pénalise pas, davantage abaisse le score ») au lieu de la limiter à trois
+  ans ; sans niveau, le texte d'avant (trois ans) est conservé.
+  *Reste à faire* : les traits des offres choisies du niveau (EF-VEI-50) dans le prompt, avec T-1012 ; l'écran qui
+  saisit les années, avec T-1013.
+- [x] **T-1008 Créneaux et passages par utilisateur (API)** — `job_runs` porte le créneau (migration), la veille
   automatique et les créneaux choisis sont des réglages par utilisateur (`app_settings`), le planificateur lance un
   passage par utilisateur actif et par créneau, refuse sans critères avec un message, ignore un passage dont le
   précédent est en cours.
@@ -935,14 +987,27 @@ développeur l'active sur son poste (`ENABLED_FEATURES=watch,cv`) le temps d'y t
   autre ; créneau « midi » décoché : pas de passage à 13 h ; zéro créneau activé : 400 ; passage de 7 h encore en
   cours à 13 h : ligne « ignoré ».
   *Dépend de* : T-1005.
-- [ ] **T-1009 CV types** — table des CV types (libellé, années, niveau ; jamais le fichier ni le texte, migration),
+  *Livré* : migration `0025_watch_slots` (`job_runs.slot`, `app_settings.watch_auto_enabled` et `watch_slots`, au moins
+  un créneau si activée ; les candidats qui avaient une source active gardent leur veille) ; `GET` et `PUT
+  /api/watch/automatic` (réglages, créneaux dans l'ordre de la journée, 400 sans créneau, passages du jour de Paris
+  avec état, compteurs et message, jamais de contenu) ; l'horloge lance un passage par candidat activé et par créneau
+  (heure de Paris : avant 10 h matin, jusqu'à 16 h midi, ensuite soir), un passage de critères absents est enregistré
+  « ignoré » avec son message (EF-VEI-55), un passage dont le précédent tourne encore l'est aussi (EF-EXE-08) ;
+  `modules/sites/scheduled.ts`. *Reste à faire* : l'écran (T-1013, T-1014) et le libellé « modèle local » ou
+  « secours » (EF-CFG-09, T-1014).
+- [x] **T-1009 CV types** — table des CV types (libellé, années, niveau ; jamais le fichier ni le texte, migration),
   import de 1 à 4 PDF réutilisant `cvWorkshop` (format, taille, OCR, refus, coordonnées), remplacement, suppression ;
   routes sous la fonctionnalité `watch`.
   *Exigences* : EF-CVX-39, EF-CVX-40, EF-CVX-41, EF-CVX-42, ENF-RGP-14 (CV).
   *Fini quand* : quatre CV acceptés, cinquième refusé ; DOCX et PDF protégé refusés sans appel IA ; suppression : zéro
   ligne pour ce CV ; aucune colonne ne contient le texte.
   *Dépend de* : — (réponse à Q-22).
-- [ ] **T-1010 Déduction du profil par le modèle** — tâche IA de profil (skill `add-llm-task` : entrée de route,
+  *Livré* : migration `0026_cv_types` (table `cv_types` : libellé, années, niveau ; type d'exécution
+  `profile_deduction`) ; `GET`, `POST`, `PUT /{id}`, `DELETE /{id}` sous `/api/cv-types`, fonctionnalité `watch` ;
+  la lecture réutilise `decodeCvUpload` et `readCv` de l'Atelier CV (OCR, coordonnées à part, refus motivés) ; les
+  imports en file comptent dans les quatre places ; un fichier illisible ne laisse rien (import) ou laisse le CV type
+  tel qu'il était (remplacement). *Reste à faire* : les années et le niveau, avec la déduction (T-1010).
+- [x] **T-1010 Déduction du profil par le modèle** — tâche IA de profil (skill `add-llm-task` : entrée de route,
   prompt, schéma, migration de `llm_task`) en file d'exécution ; années calculées par le code (T-1006), jamais par le
   modèle ; 1 à 5 offres types déduites ; résultat en mémoire 30 minutes ; quota quotidien.
   *Exigences* : EF-CVX-43, EF-CVX-44, EF-VEI-43, EF-VEI-45, ENF-RGP-13.
@@ -950,31 +1015,105 @@ développeur l'active sur son poste (`ENABLED_FEATURES=watch,cv`) le temps d'y t
   le nombre affiché vient du calcul ; réponse hors schéma rejetée ; prompt capturé sans adresse e-mail ni téléphone ;
   sixième déduction du jour : 429.
   *Dépend de* : T-1001, T-1003, T-1006, T-1009.
-- [ ] **T-1011 Validation du profil et écriture des critères** — l'utilisateur corrige puis valide ; la validation
+  *Livré* : tâche `deduce_profile` (migration `0027`, `llm/prompts/deduceProfile.ts`, route : le local en tête pour
+  une exécution en file, les hébergés sinon) ; `ProfileDeductionAnswerSchema` (périodes AAAA-MM, « présent » lu comme
+  une expérience en cours, 1 à 5 offres au format des cibles avec leur niveau, aucune place pour des années) ; les
+  années sont comptées par le code (RG-29) et le niveau suit (RG-28), gardés sur le CV type ; les offres proposées
+  restent 30 minutes en mémoire, `GET /api/cv-types/{id}/deduction` ; quota `PROFILE_DEDUCTIONS_PER_DAY` (5, 0 lève,
+  429, un échec n'est pas compté) ; l'import et le remplacement lisent puis déduisent, les étapes 1 et 2 sont publiées ;
+  `deductionReady` dans la liste. *Reste à faire* : la validation (T-1011).
+  *Correctif après essai réel sur le modèle local (02/10/2026)* : sur qwen3.5:4b, quatre réponses sur six de la déduction
+  étaient refusées par un schéma trop strict (niveau « junor », contrat « cdn », fin « null », objet tronqué). Température
+  du local fixée à 0,2 (six sur six valides) et schémas tolérants sur la forme : `modules/cvTypes/deduction.ts`,
+  `leniency.ts`, et l'extraction des traits d'une offre (T-1012) ; tests dans `deduction.test.ts`, `traits.test.ts`,
+  `openaiCompatible.test.ts`, `profile-deduction.test.ts`.
+  Un essai de bout en bout (compte réel de test, passage planifié, modèle local) a de plus montré que, pour un lot de cinq
+  offres, le modèle écrit toujours les références en texte (`"ref":"1"`) : le lot entier était refusé, les offres restaient
+  « en attente de note ». `ScoredOfferSchema` lit désormais un entier écrit en texte (`"3"`), et refuse tout le reste
+  (`"premier"`, `"1.5"`, `"85/100"`) ; tests dans `modules/offers/scoring.test.ts`.
+- [x] **T-1011 Validation du profil et écriture des critères** — l'utilisateur corrige puis valide ; la validation
   écrit les cibles dans `watch_criteria` ; tant que rien n'est validé, seuls les critères existants servent.
   *Exigences* : EF-VEI-46, EF-VEI-47.
   *Fini quand* : avant validation, la notation n'utilise pas le profil déduit ; années corrigées de 3 à 6 : niveau
   recalculé ; valeur hors de 0 à 50 : 400.
   *Dépend de* : T-1007, T-1010.
-- [ ] **T-1012 Offres choisies par niveau** — jusqu'à 3 offres par niveau (texte de 200 à 20 000 caractères), traits
+  *Livré* : `POST /api/watch/criteria/validation` (corps : 1 à 5 offres, années de 0 à 50 ou niveau, rien d'autre) ;
+  les cibles, les années et le niveau remplacent ceux des critères, la commune, le rayon, le télétravail et les codes
+  ROME restent ceux du candidat (toute la France, 30 km, télétravail accepté à défaut) ; le niveau est recalculé à
+  partir des années (RG-28). Le profil déduit n'écrit rien : avant validation, seuls les critères enregistrés servent.
+- [x] **T-1012 Offres choisies par niveau** — jusqu'à 3 offres par niveau (texte de 200 à 20 000 caractères), traits
   extraits (intitulé, mots-clés, années, niveau) puis texte jeté, traits corrigeables ; tâche IA d'extraction.
   *Exigences* : EF-VEI-48, EF-VEI-49, ENF-RGP-14 (offres).
   *Fini quand* : quatrième offre d'un niveau refusée ; 199 et 20 001 caractères : 400 ; « 5 ans d'expérience
   minimum » : 5 ans, niveau confirmé ; aucune colonne ne contient le texte.
   *Dépend de* : T-1003, T-1006 (réponse à Q-23).
-- [ ] **T-1013 Réglages : CV types, profil, offres choisies** — section « Veille automatique » (frontend), règle
+  *Livré* : migration `0028` (table `chosen_offers` : niveau, intitulé, mots-clés, années ; tâche `extract_offer_traits` ;
+  type d'exécution `offer_extraction`) ; `GET`, `POST`, `PATCH /{id}`, `DELETE /{id}` sous `/api/chosen-offers` ; le
+  texte collé (200 à 20 000 caractères) est lu en file : coordonnées du recruteur retirées (`withoutContacts`),
+  intitulé et mots-clés par le modèle (le local en premier), années par le code (`requiredYearsOf`, RG-29), niveau
+  indiqué d'après les années puis l'intitulé (RG-28) ; seuls ces traits sont gardés, corrigeables (`years: null` : l'offre
+  n'en exige pas) ; trois par niveau, y compris les lectures en file ; les intitulés et mots-clés des offres du niveau
+  du candidat entrent dans le profil encadré de la notation (EF-VEI-50). Ajout de prudence (ENF-COU-01), hors cahier
+  des charges : au plus `CHOSEN_OFFER_EXTRACTIONS_PER_DAY` lectures par jour (20, 0 lève ; un échec n'est pas compté).
+  *Reste à faire* : l'écran (T-1013).
+- [x] **T-1013 Réglages : CV types, profil, offres choisies** — section « Veille automatique » (frontend), règle
   `frontend.md`, sur 1440 px et 390 px ; absente si `watch` est désactivée.
   *Exigences* : EF-CFG-06.
   *Fini quand* : captures aux deux largeurs ; aucune adresse de modèle ni réglage de serveur à l'écran ; tests
   Testing Library.
   *Dépend de* : T-1009 à T-1012.
-- [ ] **T-1014 Réglages : créneaux, état des passages, indicateur** — activer ou arrêter, choisir les créneaux, voir
+  *Livré* : `pages/settings/watch/` — `WatchSettings` (la carte), `CvTypesPanel`, `ProfilePanel`, `ChosenOffersPanel` ;
+  `SettingsPage` ne la charge (`lazy`) que si `useFeature('watch')` est vrai, après la carte Gmail et avant « Mes
+  données » : sans la fonctionnalité, ni le code ni les routes ne sont demandés (ENF-MAI-07, ENF-PERF-01). *CV types* :
+  liste (libellé, années, niveau, « Profil à valider »), invitation à en fournir 3 ou 4, quatre au plus, import (libellé de
+  1 à 80 caractères, PDF de 5 Mo au plus lu en base64 par `lib/cvFile.ts`, partagé avec l'Atelier CV), remplacement,
+  suppression confirmée ; l'API répond `202 {runId}`, `useRunFollower` suit l'exécution (flux partagé `runFeed.tsx` et
+  contrôle toutes les 2 s, le premier aussitôt) : étapes « lecture » puis « déduction » (`cv_steps_done`), boutons
+  désactivés, `error` de l'exécution ou message de l'API (400, 409, 413, 429) affichés. *Profil déduit* : les offres
+  proposées par tous les CV types qui en ont un, cinq gardées au plus ; années corrigeables (entier de 0 à 50, 51
+  refusé) et niveau recalculé en direct (`lib/experience.ts`, RG-28) ; un niveau choisi à la main que les années ne
+  donnent pas part seul (l'API fait passer les années avant un niveau envoyé à côté) ; « rien n'est utilisé avant la
+  validation » (EF-VEI-46) ; critères en vigueur (années, niveau) relus de `GET /api/watch/criteria` ; 404 d'un profil
+  effacé : le message de l'API. *Offres choisies* : trois par niveau (un niveau complet n'est plus proposé, le 409 de l'API
+  reste affiché), texte de 200 à 20 000 caractères avec son compteur et la mention qu'il n'est pas conservé, traits
+  corrigeables (années ou « l'offre n'en précise pas » = `null`), retrait confirmé. Aucune adresse, jeton ni réglage de
+  serveur à l'écran (EF-CFG-06).
+  *Constat corrigé* : l'enregistrement des critères de la page « Sites surveillés » les renvoyait sans `years` ni `level` ;
+  l'API remplaçant tout le document, il effaçait le profil validé. `CriteriaCard` les garde désormais (EF-VEI-47).
+  *Écart* : la section forme une carte à part, après la carte Gmail, et non entre les « Préférences » et l'« Entretien » de
+  celle-ci (EF-CFG-05) : ces deux parties sont celles de la boîte Gmail, et la veille se règle sans boîte connectée.
+  *Constat d'API* : `deductionReady` reste vrai après la validation (le profil déduit n'est effacé qu'au bout de 30
+  minutes) ; l'écran ne peut pas distinguer un profil déjà validé d'un profil à valider.
+  *Reste à faire* : les captures aux deux largeurs, à joindre à la pull request (les créneaux et l'état des passages
+  viennent avec T-1014).
+- [x] **T-1014 Réglages : créneaux, état des passages, indicateur** — activer ou arrêter, choisir les créneaux, voir
   l'état et les compteurs de chaque passage du jour, indicateur « modèle local » ou « secours ».
   *Exigences* : EF-CFG-07, EF-CFG-08, EF-CFG-09.
   *Fini quand* : passage simulé : état et compteurs affichés sans contenu ; libellé « secours » ; adresse et jeton
   absents de l'API.
   *Dépend de* : T-1008, T-1013.
-- [ ] **T-1015 Garde-fous transversaux de l'agent** — tests et corrections pour les trois garanties qui traversent
+  *Livré (API, première partie)* : migration `0029` (compteurs `model_calls_local` et `model_calls_fallback`) ; le
+  passage compte quel type de fournisseur a répondu à chacun de ses appels ; `GET /api/watch/automatic` donne pour chaque
+  passage du jour `ledBy` (`local`, `fallback` ou `null`) et, au premier niveau, `lastSuccessAt` (dernier passage
+  planifié réussi, de n'importe quel jour).
+  *Livré (écran)* : `AutomaticWatchPanel`, en tête de la section « Veille automatique » (`pages/settings/watch/`, l'état
+  d'abord comme dans EF-CFG-05) : un interrupteur pour activer ou arrêter ; les trois créneaux (matin 7 h, midi 13 h, soir
+  19 h, heure de Paris) cochés comme des pastilles, au moins un tant que la veille est activée — le dernier créneau ne se
+  décoche pas, l'activation n'est pas offerte sans créneau, le 400 de l'API reste affiché si elle le refuse — ; puis les
+  trois passages du jour, chacun avec son état en toutes lettres (« À venir », « En file », « En cours », « Réussi »,
+  « En échec », « Ignoré » et, pour un créneau sans passage, « Aucun passage », « Non utilisé » ou « Veille arrêtée »),
+  ses compteurs (sources consultées, offres nouvelles, au-dessus du seuil, en attente de note), l'heure de sa fin, la
+  raison d'un passage ignoré ou en échec (`message`, EF-VEI-55) et l'indicateur « Modèle local » ou « Secours »
+  (`ledBy`) ; la date du dernier passage réussi (`lastSuccessAt`). Les passages se relisent quand un passage planifié
+  change d'état (flux des exécutions partagé par la section). Ni adresse, ni jeton, ni nombre d'appels au modèle à
+  l'écran, ni contenu d'offre.
+  *Écart* : EF-CFG-08 cite des offres « lues » et « notées », que l'API ne compte pas : elle donne `sources_checked`,
+  `offers_new`, `offers_relevant` et `offers_unscored`. L'écran les dit « sources consultées », « offres nouvelles », « au-dessus
+  de votre seuil » (les mots de la page « Sites surveillés ») et « en attente de note ».
+  *Constat d'API* : un créneau sans passage n'a pas de ligne : « à venir » se tire de l'heure de Paris du navigateur ;
+  `ledBy` n'est donné que pour les passages du jour, l'indicateur manque donc pour le `lastSuccessAt` d'un autre jour.
+  *Reste à faire* : les captures aux deux largeurs, à joindre à la pull request.
+- [x] **T-1015 Garde-fous transversaux de l'agent** — tests et corrections pour les trois garanties qui traversent
   les tâches : aucune requête sortante vers une adresse venue du modèle, journaux sans contenu, prompts sans
   coordonnées.
   *Exigences* : ENF-COL-06, ENF-RGP-12, ENF-RGP-13.
@@ -982,13 +1121,25 @@ développeur l'active sur son poste (`ENABLED_FEATURES=watch,cv`) le temps d'y t
   reconnaissables absents des journaux et de `job_runs`, `job_run_counters`, `llm_calls` ; prompt de déduction et de
   notation sans e-mail ni téléphone.
   *Dépend de* : T-1008, T-1010, T-1012.
-- [ ] **T-1016 Confidentialité, suppression du compte, documentation** — politique de confidentialité (destinataires
+  *Livré* : trois garanties prouvées par `tests/integration/agent-guards.test.ts`. Une correction : le routeur écrivait le
+  message d'erreur d'un fournisseur dans le journal, et un service peut y citer ce qu'il a reçu (le JSON qu'il n'a pas pu
+  lire) ; `llm/quoted.ts` retient désormais tout message qui reprend vingt-quatre caractères de la demande, et garde le
+  type de l'échec et son statut. Vérifié par mutation : sans cette correction, le test du journal échoue.
+- [x] **T-1016 Confidentialité, suppression du compte, documentation** — politique de confidentialité (destinataires
   dont le modèle local, traitement des CV types), suppression du compte étendue aux nouvelles tables, `ENF-MAI-07`,
   `.claude/rules/llm.md`, ligne « IA » de `CLAUDE.md`, `docs/TRACABILITE.md`.
   *Exigences* : ENF-RGP-02, ENF-RGP-05, ENF-RGP-06, ENF-RGP-08, ENF-MAI-07.
   *Fini quand* : suppression du compte : zéro ligne dans les nouvelles tables ; page Confidentialité mise à jour ;
   export des données (EF-AUT-12) complété.
   *Dépend de* : T-1009 à T-1012.
+  *Livré* : l'export (EF-AUT-12) donne les CV types, les offres choisies, les réglages de la veille et le créneau de chaque
+  passage ; la suppression du compte efface tout par cascade et, ce que la base ne voit pas, les résultats gardés
+  30 minutes en mémoire (`eraseAll`, branché sur `deleteAccount`) — y compris ceux de l'Atelier CV, que rien n'effaçait
+  avec le compte ; la page de confidentialité nomme le modèle local de l'éditeur parmi les destinataires, dit ce qui est
+  gardé d'un CV type et d'une offre choisie et ce que les modèles reçoivent ; `.claude/rules/llm.md` et `CLAUDE.md`
+  décrivent le fournisseur local, les deux tables de routes et ce que le modèle ne fait ni ne reçoit jamais.
+  *À confirmer par le Business Owner* : le pays d'hébergement du modèle local et, selon Q-25, le service de tunnel
+  (T-1017) à nommer dans la même page.
 - [ ] **T-1017 Chemin réseau vers le modèle local** — *tâche d'exploitation, sans code applicatif* : selon Q-25,
   proxy à jeton et tunnel (option A), ou autre option ; ADR-17 ; journal de mise en place dans la documentation du homelab.
   *Exigences* : ADR-17, ENF-SEC-24.
@@ -999,3 +1150,37 @@ développeur l'active sur son poste (`ENABLED_FEATURES=watch,cv`) le temps d'y t
   *Exigences* : EF-IA-15.
   *Fini quand* : tâche réservée et local éteint : erreur d'EF-IA-04, aucun fournisseur hébergé appelé.
   *Dépend de* : T-1003.
+
+**Revue indépendante du backend du lot 10 (02/10/2026)** — relue par un second agent, en lecture seule, sur
+`dev..fix/T-1010-tolerant-local-answers` ; chaque point ci-dessous a été vérifié dans le code avant d'être corrigé.
+*Corrigés* (tests écrits d'abord, `fix/lot-10-review-findings`) :
+- **grave** : l'Atelier CV (T-510) comportait deux expressions régulières à retour arrière — l'une exponentielle sur une
+  ligne de séparateurs (`- - - … Paris`, 26 paires : 2 s, 40 paires : des heures), l'autre quadratique sur un mot de 200 000
+  caractères — que la lecture d'un CV type (`/api/cv-types`) rendait atteignables par tout compte : elles figent tout le
+  processus. Réécrites en lecture linéaire (comparées à l'ancienne version sur 20 000 chaînes tirées au hasard : zéro
+  différence), texte d'un CV borné à 60 000 caractères, même correction pour `EMAILS` (offres) ;
+- une offre que le modèle ne note pas gardait la note d'une offre écartée et n'était plus jamais renotée : elle reste
+  désormais sans note et repart au passage suivant ; une réponse qui ne note aucune offre du lot est refusée (le fournisseur
+  suivant est interrogé) ;
+- un passage dont aucune source n'était due ne notait pas le retard et annonçait 0 offre en attente ;
+- les demandes d'un candidat (lecture d'un CV, d'une offre) passent avant les passages de l'horloge dans la file ;
+- plusieurs requêtes envoyées ensemble ne contournent plus le quota du jour (file d'attente par candidat), ni les trois
+  places d'un niveau (verrou consultatif en base) ;
+- `requiredYearsOf` : « 1,5 an » n'est plus 5 ans, « 100 ans » plus 0 ; temps linéaire sur 20 000 espaces ;
+- modèle local : le corps d'une page d'erreur (proxy, tunnel) n'entre plus dans le journal ; aucune redirection suivie ;
+  attente de `Retry-After` plafonnée à 60 s ;
+- identifiant d'URL hors de ce que la base contient : 400 et non 500 (toutes les routes à identifiant) ; l'analyseur JSON de
+  6,7 Mo ne couvre plus que les routes qui reçoivent un fichier ;
+- l'échec de la purge des vieilles offres n'empêche plus les passages ; une panne de base n'est plus enregistrée comme
+  « pas de critères ».
+
+*Limites connues, non corrigées* (à décider) :
+- **sources France Travail** : une requête lit une page de 150 offres, 12 requêtes et 300 offres au plus, sans pagination
+  (T-411) ; au-delà, des offres anciennes de la fenêtre ne sont jamais lues alors que la consultation compte comme
+  réussie. Rare avec trois passages par jour, possible après une longue interruption ;
+- EF-IA-10 : le délai (60 s) et le plafond de sortie (16 000) des fournisseurs hébergés sont des constantes, seuls ceux du
+  local sont configurables ;
+- la migration 0025 active la veille automatique des candidats qui avaient déjà une source active (comportement d'avant,
+  sans effet en production où `watch` est éteinte) ;
+- avec `MAX_CONCURRENT_JOBS=1`, une demande de candidat attend la fin du passage en cours (jusqu'à 45 minutes) ; le
+  modèle local ne traite qu'une demande à la fois, deux emplacements n'y changeraient rien.
