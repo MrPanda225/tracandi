@@ -26,6 +26,7 @@ afterAll(async () => {
 });
 
 const EXPECTED_TABLES = [
+  'account_activations',
   'app_settings',
   'application_status_history',
   'applications',
@@ -92,6 +93,8 @@ describe('migrations', () => {
       [
         'GET /health',
         'POST /auth/register',
+        'POST /auth/activate',
+        'POST /auth/activate/resend',
         'POST /auth/login',
         'POST /auth/logout',
         'GET /auth/session',

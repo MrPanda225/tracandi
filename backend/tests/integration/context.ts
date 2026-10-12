@@ -174,8 +174,6 @@ export const createFakeMailer = (): FakeMailer => {
   };
 };
 
-const defaultMailer = createFakeMailer();
-
 /** The public service of the communes, simulated: it knows Nanterre and nothing else. */
 export const NANTERRE: Place = {
   code: '92050',
@@ -246,7 +244,7 @@ export const createTestContext = (
     features = new Set(OPTIONAL_FEATURES),
     trustProxyHops = 0,
     watchLimits,
-    mailer = defaultMailer,
+    mailer = createFakeMailer(),
   }: ExternalServices = {},
 ): TestContext => {
   const clock = createTestClock(new Date('2026-09-22T08:00:00.000Z'));
