@@ -15,17 +15,25 @@ export interface FieldIssue {
 
 /**
  * Failed API call. `status` is 0 when the API could not be reached. `message` is always readable French,
- * ready to display (api-conventions: one entry point handles errors).
+ * ready to display (api-conventions: one entry point handles errors). `code` is the machine-readable reason the
+ * API gives for some failures (EF-AUT-14: `account_not_activated`, `activation_code_expired`…), for a caller that
+ * must branch on something more precise than the status.
  */
 export class ApiError extends Error {
   readonly status: number;
   readonly details: readonly FieldIssue[];
+  readonly code: string | undefined;
 
-  constructor(status: number, message: string, details: readonly FieldIssue[] = []) {
+  constructor(
+    status: number,
+    message: string,
+    { details = [], code }: { details?: readonly FieldIssue[]; code?: string } = {},
+  ) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.details = details;
+    this.code = code;
   }
 }
 
@@ -42,7 +50,7 @@ interface RequestOptions {
   signal?: AbortSignal;
 }
 
-const isErrorBody = (value: unknown): value is { error: string; details?: FieldIssue[] } =>
+const isErrorBody = (value: unknown): value is { error: string; details?: FieldIssue[]; code?: string } =>
   typeof value === 'object' && value !== null && typeof (value as { error?: unknown }).error === 'string';
 
 const readJson = async (response: Response): Promise<unknown> => {
@@ -80,7 +88,7 @@ export async function request<T>(
   const payload = await readJson(response);
   if (!response.ok) {
     throw isErrorBody(payload)
-      ? new ApiError(response.status, payload.error, payload.details ?? [])
+      ? new ApiError(response.status, payload.error, { details: payload.details ?? [], code: payload.code })
       : new ApiError(response.status, GENERIC_MESSAGE);
   }
   return payload as T;

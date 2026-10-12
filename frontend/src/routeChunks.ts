@@ -1,6 +1,8 @@
 // ENF-PERF-01: the screens fetched on demand. App.tsx and the preloading below share these loaders, so that a screen
 // started early is the very module its route waits for.
 export const loadAuthPage = () => import('./pages/auth/AuthPage');
+// EF-AUT-14: reached straight from the activation e-mail link, so it is worth preloading like the login page.
+export const loadActivationPage = () => import('./pages/auth/ActivationPage');
 export const loadLegalPages = () => import('./pages/legal/LegalPages');
 export const loadLandingPage = () => import('./pages/landing/LandingPage');
 export const loadDashboardPage = () => import('./pages/dashboard/DashboardPage');
@@ -13,6 +15,7 @@ export const loadDashboardPage = () => import('./pages/dashboard/DashboardPage')
 const ENTRY_CHUNKS: Record<string, () => Promise<unknown>> = {
   '/': () => Promise.all([loadLandingPage(), loadDashboardPage()]),
   '/connexion': loadAuthPage,
+  '/activation': loadActivationPage,
   '/mentions-legales': loadLegalPages,
   '/confidentialite': loadLegalPages,
   '/cookies': loadLegalPages,

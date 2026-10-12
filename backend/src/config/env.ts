@@ -40,6 +40,8 @@ const MIN_LOCAL_DESCRIPTION_CHARS = 200;
 const MAX_LOCAL_DESCRIPTION_CHARS = 5_000;
 // Ollama ignores the key it is given; a private address needs none (ENF-SEC-24), a placeholder keeps the header.
 const PRIVATE_NETWORK_TOKEN = 'ollama';
+// C-11: Resend's own sandbox sender, usable before the Business Owner verifies a domain (Q-27, ROADMAP T-1019).
+const DEFAULT_RESEND_FROM_EMAIL = 'onboarding@resend.dev';
 
 const isHttpOrigin = (value: string): boolean => {
   // Zod still runs refinements after a failed `url()` check: never let `new URL` throw here.
@@ -163,6 +165,16 @@ const EnvSchema = z.object({
       .min(0)
       .max(MAX_PROFILE_DEDUCTIONS_PER_DAY)
       .default(DEFAULT_OFFER_EXTRACTIONS_PER_DAY),
+  ),
+  /*
+   * EF-AUT-14, ENF-COU-03, C-11 (v1.36): the activation e-mail is now load-bearing — without it, no account can ever
+   * log in — so the key is required, not optional like the AI providers. The sender address defaults to Resend's own
+   * sandbox address, usable before the Business Owner verifies a domain (ROADMAP T-1019 "Point d'attention").
+   */
+  RESEND_API_KEY: z.string().min(1),
+  RESEND_FROM_EMAIL: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.string().email().default(DEFAULT_RESEND_FROM_EMAIL),
   ),
   // EF-GML-01: OAuth client of the Google Cloud project, for the Gmail connection from the interface.
   GOOGLE_CLIENT_ID: z.string().min(1),
@@ -336,6 +348,8 @@ export interface Config {
   llm: LlmConfig;
   /** EF-GML-01, ENF-SEC-02 */
   gmail: GmailConfig;
+  /** EF-AUT-14, ENF-RGP-15, C-11: the activation (and future login code) e-mails, sent through Resend. */
+  resend: ResendConfig;
   /** EF-GML-03 */
   scheduler: SchedulerConfig;
   scraper: ScraperConfig;
@@ -380,6 +394,12 @@ export interface GmailConfig {
   clientSecret: string;
   redirectUri: string;
   tokenEncryptionKey: Buffer;
+}
+
+/** EF-AUT-14, C-11: Resend API key and verified sender address. */
+export interface ResendConfig {
+  apiKey: string;
+  fromEmail: string;
 }
 
 /**
@@ -449,6 +469,7 @@ export const loadConfig = (env: Record<string, string | undefined>): Config => {
       redirectUri: result.data.GOOGLE_REDIRECT_URI,
       tokenEncryptionKey: result.data.TOKEN_ENCRYPTION_KEY,
     },
+    resend: { apiKey: result.data.RESEND_API_KEY, fromEmail: result.data.RESEND_FROM_EMAIL },
     scheduler: {
       timezone: result.data.SCHEDULER_TIMEZONE,
       gmailCron: result.data.CRON_GMAIL,

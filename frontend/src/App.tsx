@@ -10,11 +10,19 @@ import { SettingsPage } from './pages/settings/SettingsPage';
 import { CookieNotice } from './components/CookieNotice';
 import { ScreenLoading } from './components/ScreenLoading';
 import { FeaturesProvider, RequireFeature } from './features/FeaturesContext';
-import { loadAuthPage, loadDashboardPage, loadLandingPage, loadLegalPages } from './routeChunks';
+import {
+  loadActivationPage,
+  loadAuthPage,
+  loadDashboardPage,
+  loadLandingPage,
+  loadLegalPages,
+} from './routeChunks';
 
 // ENF-PERF-01: these two screens carry what weighs on the first load — the dashboard (its chart apart), and the
 // fonts, animations and decor of the login page. They are fetched when their route is opened, or preloaded at entry.
 const AuthPage = lazy(async () => ({ default: (await loadAuthPage()).AuthPage }));
+// EF-AUT-14: reached straight from the activation e-mail link, outside any session.
+const ActivationPage = lazy(async () => ({ default: (await loadActivationPage()).ActivationPage }));
 const DashboardPage = lazy(async () => ({ default: (await loadDashboardPage()).DashboardPage }));
 // L'Atelier CV et son suivi d'analyse voyagent avec leur écran (ENF-PERF-01).
 const CvWorkshopPage = lazy(async () => ({
@@ -51,6 +59,15 @@ export function App() {
                 <AuthPage />
               </Suspense>
             </RedirectIfAuthenticated>
+          }
+        />
+        {/* EF-AUT-14: public, reached from the activation e-mail whether or not a session is open. */}
+        <Route
+          path="/activation"
+          element={
+            <Suspense fallback={<ScreenLoading label="Chargement de la page d’activation…" />}>
+              <ActivationPage />
+            </Suspense>
           }
         />
         <Route

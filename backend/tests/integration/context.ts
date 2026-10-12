@@ -21,6 +21,7 @@ import { createJobsModule } from '../../src/modules/jobs/routes.js';
 import { createProfileModule } from '../../src/modules/cv/routes.js';
 import { createProfileService } from '../../src/modules/cv/service.js';
 import { createApplicationsService } from '../../src/modules/applications/service.js';
+import type { Mailer } from '../../src/modules/auth/resendClient.js';
 import { createAuthModules } from '../../src/modules/auth/routes.js';
 import { createAccountModule } from '../../src/modules/account/routes.js';
 import { createAccountService } from '../../src/modules/account/service.js';
@@ -102,6 +103,8 @@ export interface TestContext {
     analyses: AnalysisResults<CvAnalysis>;
     deductions: AnalysisResults<ProfileDeduction>;
   };
+  /** EF-AUT-14, ENF-RGP-15: the fake mailer behind this context's activation e-mails, to inspect what was sent. */
+  mailer: FakeMailer;
 }
 
 /** Google that must never be reached: tests needing Google pass their own fake. */
@@ -137,6 +140,41 @@ const unreachableAi: Partial<Record<ProviderName, LlmProvider>> = {
 /** Career sites that must never be reached: tests reading one pass their own collector. */
 const unreachableCollector: AdapterDeps['fetch'] = () =>
   Promise.reject(new Error('No career site must be reached in this test'));
+
+/** One e-mail recorded by a fake mailer, for the tests that check what was sent (ENF-RGP-15). */
+export interface SentMail {
+  to: string;
+  subject: string;
+  html: string;
+}
+
+/** A fake mailer records every e-mail; the real Resend API is never reached in a test (testing.md). */
+export interface FakeMailer extends Mailer {
+  sentEmails: SentMail[];
+}
+
+const ACTIVATION_CODE_PATTERN = /code=([^"&\s]+)/;
+// EF-AUT-14, EF-AUT-15: the activation code last "sent" to an address, however many fake mailer instances exist in
+// the same test file — `registerUser` only has the Express app, not the service's own mailer, to read it from.
+const lastActivationCodes = new Map<string, string>();
+
+/** The activation code `registerUser` (or a test) last had "sent" to this address by a fake mailer, if any. */
+export const lastActivationCodeSentTo = (email: string): string | undefined => lastActivationCodes.get(email);
+
+/** New fake mailer: real network never reached; every send is recorded and its activation code captured. */
+export const createFakeMailer = (): FakeMailer => {
+  const sentEmails: SentMail[] = [];
+  return {
+    sentEmails,
+    async send(email) {
+      sentEmails.push(email);
+      const match = ACTIVATION_CODE_PATTERN.exec(email.html);
+      if (match?.[1]) lastActivationCodes.set(email.to, decodeURIComponent(match[1]));
+    },
+  };
+};
+
+const defaultMailer = createFakeMailer();
 
 /** The public service of the communes, simulated: it knows Nanterre and nothing else. */
 export const NANTERRE: Place = {
@@ -182,6 +220,8 @@ export interface ExternalServices {
   trustProxyHops?: number;
   /** EF-EXE-07, ENF-PERF-09: ceilings of a pass of the watch; those of the server by default. */
   watchLimits?: { maxScoredOffersPerPass?: number; maxPassMinutes?: number };
+  /** EF-AUT-14, ENF-RGP-15: the mailer behind the activation e-mails, simulated; shared fake by default. */
+  mailer?: FakeMailer;
 }
 
 /** Where a test sends the log: its own sink, or nowhere. */
@@ -206,6 +246,7 @@ export const createTestContext = (
     features = new Set(OPTIONAL_FEATURES),
     trustProxyHops = 0,
     watchLimits,
+    mailer = defaultMailer,
   }: ExternalServices = {},
 ): TestContext => {
   const clock = createTestClock(new Date('2026-09-22T08:00:00.000Z'));
@@ -219,6 +260,9 @@ export const createTestContext = (
     db: database.db,
     clock: clock.now,
     passwordParams: TEST_PASSWORD_PARAMS,
+    mailer,
+    frontendOrigin: FRONTEND_ORIGIN,
+    logger,
     revokeExternalAccess: (userId) => gmailService.disconnect(userId),
     // ENF-RGP-02: what is held in memory for a candidate goes with their account.
     eraseMemoryOf: (userId) => {
@@ -338,7 +382,7 @@ export const createTestContext = (
       ),
     ],
   });
-  return { app, database, clock, encryptionKey, gmailSync: sync, queue, watch, memory };
+  return { app, database, clock, encryptionKey, gmailSync: sync, queue, watch, memory, mailer };
 };
 
 export const openTestDatabase = (): DatabaseHandle =>
@@ -358,14 +402,32 @@ export const sessionCookieOf = (response: request.Response): string => {
   return session.split(';')[0] ?? '';
 };
 
-/** Creates an account and returns its session cookie. */
+/** Password `registerUser` creates every account with (also `PASSWORD` in auth.test.ts). */
+export const TEST_USER_PASSWORD = 'une phrase de passe longue';
+
+/**
+ * Creates an account, activates it with the code the fake mailer "sent" (EF-AUT-14), logs in and returns the
+ * session cookie — register alone no longer opens one (v1.36).
+ */
 export const registerUser = async (app: Express, email: string): Promise<string> => {
-  const response = await request(app)
+  const register = await request(app)
     .post('/api/auth/register')
     .set('Content-Type', 'application/json')
-    .send({ email, password: 'une phrase de passe longue' });
-  if (response.status !== 201) throw new Error(`register failed with ${response.status}`);
-  return sessionCookieOf(response);
+    .send({ email, password: TEST_USER_PASSWORD });
+  if (register.status !== 201) throw new Error(`register failed with ${register.status}`);
+  const code = lastActivationCodeSentTo(email);
+  if (!code) throw new Error(`no activation code captured for ${email}`);
+  const activate = await request(app)
+    .post('/api/auth/activate')
+    .set('Content-Type', 'application/json')
+    .send({ code });
+  if (activate.status !== 204) throw new Error(`activate failed with ${activate.status}`);
+  const login = await request(app)
+    .post('/api/auth/login')
+    .set('Content-Type', 'application/json')
+    .send({ email, password: TEST_USER_PASSWORD });
+  if (login.status !== 200) throw new Error(`login failed with ${login.status}`);
+  return sessionCookieOf(login);
 };
 
 /**

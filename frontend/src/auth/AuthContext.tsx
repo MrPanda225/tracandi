@@ -1,13 +1,5 @@
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import {
-  type Account,
-  type Credentials,
-  fetchAccount,
-  fetchSession,
-  logIn,
-  logOut,
-  registerAccount,
-} from '../api/auth';
+import { type Account, type Credentials, fetchSession, logIn, logOut, registerAccount } from '../api/auth';
 import { ApiError } from '../api/client';
 
 export type AuthMode = 'login' | 'register';
@@ -17,7 +9,11 @@ type AuthState =
 
 interface AuthContextValue {
   state: AuthState;
-  /** Logs in or creates the account, then loads it. Rejects with an ApiError carrying a French message. */
+  /**
+   * Logs in, or creates the account (EF-AUT-14: inactive, no session opened — the caller shows its own
+   * "check your e-mail" state instead of waiting for `state` to change). Rejects with an ApiError carrying a
+   * French message.
+   */
   authenticate: (mode: AuthMode, credentials: Credentials) => Promise<void>;
   signOut: () => Promise<void>;
   /** EF-AUT-11: the account was deleted by the API — its session with it: the interface forgets it too. */
@@ -42,8 +38,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const authenticate = useCallback(async (mode: AuthMode, credentials: Credentials) => {
-    if (mode === 'register') await registerAccount(credentials);
-    const account = mode === 'login' ? await logIn(credentials) : await fetchAccount();
+    // EF-AUT-14: registering no longer opens a session — the account stays inactive until its e-mail is confirmed.
+    if (mode === 'register') {
+      await registerAccount(credentials);
+      return;
+    }
+    const account = await logIn(credentials);
     setState({ status: 'authenticated', account });
   }, []);
 

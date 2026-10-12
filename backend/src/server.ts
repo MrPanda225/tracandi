@@ -27,6 +27,7 @@ import { createCvWorkshopModule } from './modules/cvWorkshop/routes.js';
 import { type CvAnalysis, createCvWorkshopService } from './modules/cvWorkshop/service.js';
 import { createApplicationsService } from './modules/applications/service.js';
 import { OWASP_SCRYPT_PARAMS } from './modules/auth/password.js';
+import { createResendClient } from './modules/auth/resendClient.js';
 import { createAuthModules } from './modules/auth/routes.js';
 import { createAccountModule } from './modules/account/routes.js';
 import { createAccountService } from './modules/account/service.js';
@@ -85,6 +86,10 @@ const authService = createAuthService({
   db: database.db,
   clock: systemClock,
   passwordParams: OWASP_SCRYPT_PARAMS,
+  // EF-AUT-14, ENF-RGP-15, C-11: Resend, the Business Owner's free-tier account.
+  mailer: createResendClient({ apiKey: config.resend.apiKey, from: config.resend.fromEmail }),
+  frontendOrigin: config.frontendOrigin,
+  logger,
   // EF-AUT-11: a deleted account leaves no Gmail access behind (revocation at Google, best effort).
   revokeExternalAccess: (userId) => gmailService.disconnect(userId),
   // ENF-RGP-02: nor anything held in memory for the candidate.

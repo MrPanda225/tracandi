@@ -28,13 +28,14 @@ const BODY_PARSER_MESSAGES: Record<string, string> = {
 
 interface ErrorResponse {
   status: number;
-  body: { error: string; details?: readonly unknown[] };
+  body: { error: string; details?: readonly unknown[]; code?: string };
 }
 
 const toErrorResponse = (error: unknown): ErrorResponse | undefined => {
   if (error instanceof HttpError) {
     const details = error.details.length > 0 ? { details: error.details } : {};
-    return { status: error.statusCode, body: { error: error.message, ...details } };
+    const code = error.code ? { code: error.code } : {};
+    return { status: error.statusCode, body: { error: error.message, ...details, ...code } };
   }
   if (isBodyParserError(error)) {
     return { status: error.status, body: { error: BODY_PARSER_MESSAGES[error.type] ?? 'Requête invalide' } };

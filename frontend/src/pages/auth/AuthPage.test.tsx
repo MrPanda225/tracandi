@@ -175,23 +175,56 @@ describe('AuthPage', () => {
     expect(fetchMock.mock.calls.some(([url]) => url === '/api/auth/login')).toBe(false);
   });
 
-  it('[EF-AUT-01] creates an account and lands on the dashboard', async () => {
-    const fetchMock = mockApi({ '/auth/session': () => json(200, { account: null }) });
+  it('[EF-AUT-01] [EF-AUT-14] creates an inactive account and shows the "check your e-mail" message', async () => {
+    mockApi({ '/auth/session': () => json(200, { account: null }) });
     renderAt('/connexion');
     const user = userEvent.setup();
     await user.click(await screen.findByRole('tab', { name: 'Créer un compte' }));
     expect(screen.getByRole('heading', { name: 'Commençons.' })).toBeInTheDocument();
-    mockApi({
-      '/auth/register': () => json(201, { id: ACCOUNT.id }),
-      '/auth/me': () => json(200, ACCOUNT),
-      '/stats/dashboard': () => json(200, EMPTY_DASHBOARD),
-    });
-    fetchMock.mockClear();
+    const fetchMock = mockApi({ '/auth/register': () => json(201, { id: ACCOUNT.id }) });
 
     await fillCredentials(ACCOUNT.email, PASSWORD);
     await user.click(screen.getByRole('button', { name: 'Créer mon compte' }));
 
-    expect(await screen.findByRole('heading', { name: 'Tableau de bord' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Vérifiez votre boîte mail' })).toBeInTheDocument();
+    expect(screen.getByText(ACCOUNT.email)).toBeInTheDocument();
+    // EF-AUT-01: no session opened — the screens of the application never asked for.
+    expect(fetchMock.mock.calls.some(([url]) => url === '/api/auth/me')).toBe(false);
+    const registerCall = fetchMock.mock.calls.find(([url]) => url === '/api/auth/register');
+    expect(JSON.parse(String(registerCall?.[1]?.body))).toEqual({ email: ACCOUNT.email, password: PASSWORD });
+  });
+
+  it('[EF-AUT-15] resends the activation e-mail from the "check your e-mail" screen', async () => {
+    mockApi({ '/auth/session': () => json(200, { account: null }) });
+    renderAt('/connexion');
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('tab', { name: 'Créer un compte' }));
+    mockApi({ '/auth/register': () => json(201, { id: ACCOUNT.id }) });
+    await fillCredentials(ACCOUNT.email, PASSWORD);
+    await user.click(screen.getByRole('button', { name: 'Créer mon compte' }));
+    await screen.findByRole('heading', { name: 'Vérifiez votre boîte mail' });
+    const fetchMock = mockApi({ '/auth/activate/resend': () => json(204) });
+
+    await user.click(screen.getByRole('button', { name: 'Renvoyer l’e-mail d’activation' }));
+
+    expect(await screen.findByText(/Si cette adresse a un compte en attente d’activation/)).toBeInTheDocument();
+    const resendCall = fetchMock.mock.calls.find(([url]) => url === '/api/auth/activate/resend');
+    expect(JSON.parse(String(resendCall?.[1]?.body))).toEqual({ email: ACCOUNT.email });
+  });
+
+  it('[EF-AUT-14] refuses an inactive account at login with a message and a resend button', async () => {
+    mockApi({
+      '/auth/session': () => json(200, { account: null }),
+      '/auth/login': () => json(403, { error: 'Ce compte n’est pas encore activé.', code: 'account_not_activated' }),
+    });
+    renderAt('/connexion');
+    await screen.findByRole('heading', { name: 'Bon retour.' });
+
+    const user = await fillCredentials(ACCOUNT.email, PASSWORD);
+    await user.click(screen.getByRole('button', { name: 'Se connecter' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Ce compte n’est pas encore activé.');
+    expect(screen.getByRole('button', { name: 'Renvoyer l’e-mail d’activation' })).toBeInTheDocument();
   });
 
   it('[EF-AUT-02] refuses a password shorter than 12 characters when creating an account', async () => {

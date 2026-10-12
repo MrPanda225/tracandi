@@ -1,18 +1,28 @@
 /**
  * Operational error carrying an HTTP status and a message safe to show to the user (in French).
- * The central error handler exposes `message` and `details` as-is; anything that is not an HttpError
+ * The central error handler exposes `message`, `details` and `code` as-is; anything that is not an HttpError
  * is masked behind a generic 500 (ENF-SEC-08).
  * @req ENF-SEC-04, ENF-SEC-08
  */
 export class HttpError extends Error {
   readonly statusCode: number;
   readonly details: readonly ValidationIssue[];
+  /**
+   * Machine-readable reason, for a caller that must branch on something more precise than the HTTP status (for
+   * example `account_not_activated`, EF-AUT-14). Left out of the response body when absent.
+   */
+  readonly code: string | undefined;
 
-  constructor(statusCode: number, message: string, details: readonly ValidationIssue[] = []) {
+  constructor(
+    statusCode: number,
+    message: string,
+    { details = [], code }: { details?: readonly ValidationIssue[]; code?: string } = {},
+  ) {
     super(message);
     this.name = new.target.name;
     this.statusCode = statusCode;
     this.details = details;
+    this.code = code;
   }
 }
 
@@ -38,7 +48,7 @@ export class NotFoundError extends HttpError {
  */
 export class ValidationError extends HttpError {
   constructor(details: readonly ValidationIssue[]) {
-    super(400, 'Données invalides', details);
+    super(400, 'Données invalides', { details });
   }
 }
 
