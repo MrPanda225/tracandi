@@ -232,6 +232,15 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
   *Choix assumé* : aucun fait nouveau n'est inventé pour « personnaliser » — sans description d'offre, la relance
   reste sobre. C'est la saisie de la description (EF-CAN-15) qui rend le message personnel, pas le modèle.
 
+- [x] **T-313 Refus élidé et alerte qui refuse** — *demande du Business Owner du 13/10/2026 (cahier v1.37, BES-50) :
+  un refus « Merci pour votre candidature […] nous n'y donnerons pas suite » était classé « Alertes emploi ».*
+  *Exigences* : RG-17 (précisée, v1.37).
+  *Fini quand* : la lettre anonymisée est classée refusée quelle que soit la catégorie de l'IA (accusé de réception,
+  hors sujet, alerte emploi) ; chaque forme élidée est reconnue et ignorée après une condition ; une alerte listant un
+  poste pourvu reste une alerte, avec ou sans formule d'accusé de réception sans refus.
+  *Livré* : six formes élidées ajoutées à `REJECTION_CUES` ; `applyCategoryCues` corrige une alerte emploi en refus
+  seulement si `hasRejectionCue` et `hasAcknowledgementCue` sont vrais ensemble ; autres règles inchangées.
+
 ## Lot 4 — Veille des offres
 
 - [x] **T-401 Client HTTP de collecte** — robots.txt (cache par origine), 3 s par hôte, agent identifiant,
