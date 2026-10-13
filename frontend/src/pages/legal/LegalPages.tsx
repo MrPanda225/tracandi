@@ -100,6 +100,12 @@ const RECIPIENTS: { name: string; role: string; place: string }[] = [
   },
   { name: 'Anthropic (Claude)', role: 'prend le relais en dernier recours', place: 'États-Unis' },
   {
+    // ENF-RGP-05 (v1.36), ENF-RGP-15: only the address and the message prepared by the server.
+    name: 'Resend',
+    role: 'envoie les e-mails d’activation de votre compte et les codes de connexion : il reçoit votre adresse e-mail et le message (le lien d’activation ou le code à six chiffres), jamais votre mot de passe ni une autre donnée de votre compte',
+    place: 'États-Unis',
+  },
+  {
     // ENF-RGP-05 (v1.35): the model the publisher runs himself, which leads the automatic watch.
     name: 'Modèle d’IA local de l’éditeur',
     role: 'lit en premier vos CV types (sans vos coordonnées), les offres à noter et celles que vous choisissez, avant de passer la main aux prestataires ci-dessus s’il est indisponible ; il tourne sur un serveur de l’éditeur et ne transmet rien à un tiers',
@@ -229,7 +235,7 @@ export function PrivacyPage() {
 
       <h2>Transferts hors de l’Union européenne</h2>
       <p>
-        Vercel, Google et les fournisseurs d’intelligence artificielle peuvent traiter certaines données aux
+        Vercel, Google, Resend et les fournisseurs d’intelligence artificielle peuvent traiter certaines données aux
         États-Unis. Ces transferts sont encadrés par les garanties prévues par chacun d’eux : clauses
         contractuelles types de la Commission européenne ou adhésion au Data Privacy Framework. Le serveur de
         l’application fonctionne au Royaume-Uni, pays reconnu par une décision d’adéquation de la Commission

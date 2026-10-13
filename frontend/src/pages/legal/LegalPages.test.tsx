@@ -99,6 +99,16 @@ describe('legal pages (EF-LEG-01)', () => {
     ).toBeInTheDocument();
   });
 
+  it('[ENF-RGP-05] [ENF-RGP-15] names Resend among the recipients and says it never receives the password', async () => {
+    renderAt('/confidentialite');
+
+    const main = await screen.findByRole('main');
+    const resend = (await within(main).findByText('Resend')).closest('li');
+    expect(resend).toHaveTextContent('États-Unis');
+    expect(resend).toHaveTextContent(/jamais votre mot de passe/);
+    expect(within(main).getByText(/Vercel, Google, Resend et les fournisseurs/)).toBeInTheDocument();
+  });
+
   it('[EF-LEG-01] [ENF-RGP-04] describes the only cookie on the cookies page', async () => {
     renderAt('/cookies');
 

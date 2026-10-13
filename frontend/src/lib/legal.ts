@@ -11,4 +11,4 @@ export const LEGAL = {
 } as const;
 
 /** Date of the version of the legal pages, shown on each of them. */
-export const LEGAL_UPDATED_ON = '24 septembre 2026';
+export const LEGAL_UPDATED_ON = '13 octobre 2026';
