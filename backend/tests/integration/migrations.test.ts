@@ -26,6 +26,7 @@ afterAll(async () => {
 });
 
 const EXPECTED_TABLES = [
+  'account_activations',
   'app_settings',
   'application_status_history',
   'applications',
@@ -45,6 +46,7 @@ const EXPECTED_TABLES = [
   'job_runs',
   'llm_calls',
   'llm_model_prices',
+  'login_challenges',
   'platform_domains',
   'platforms',
   'prefilter_keywords',
@@ -92,7 +94,11 @@ describe('migrations', () => {
       [
         'GET /health',
         'POST /auth/register',
+        'POST /auth/activate',
+        'POST /auth/activate/resend',
         'POST /auth/login',
+        'POST /auth/login/verify',
+        'POST /auth/login/resend',
         'POST /auth/logout',
         'GET /auth/session',
         'GET /auth/me',

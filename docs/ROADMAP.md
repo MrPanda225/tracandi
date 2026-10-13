@@ -1197,7 +1197,7 @@ développeur l'active sur son poste (`ENABLED_FEATURES=watch,cv`) le temps d'y t
   interne échappe aux horloges simulées des tests.
   *Reste à faire* : tests d'intégration écrits mais non exécutés (`docker compose up -d db` indisponible dans cet
   environnement) ; captures aux deux largeurs, à joindre à la pull request.
-- [ ] **T-1020 Connexion confirmée par un code à usage unique** — après une adresse et un mot de passe corrects,
+- [x] **T-1020 Connexion confirmée par un code à usage unique** — après une adresse et un mot de passe corrects,
   envoi par Resend d'un code à six chiffres ; la session ne s'ouvre qu'après sa confirmation ; nouvel envoi possible,
   limité en fréquence. Côté écran (`AuthPage`) : une étape de saisie du code remplace l'ouverture immédiate de
   session après un mot de passe correct, avec son message d'erreur (code faux ou expiré) et un bouton pour renvoyer
@@ -1209,6 +1209,26 @@ développeur l'active sur son poste (`ENABLED_FEATURES=watch,cv`) le temps d'y t
   code : invalidé ; quatrième demande de renvoi en une minute : 429 ; écran testé (Testing Library) et vérifié à
   l'œil aux largeurs 1440 px et 390 px.
   *Dépend de* : T-1019.
+  *Livré* : migration `0032_login-challenges` : table `login_challenges` (`tokenHash` unique = empreinte du jeton de
+  défi, `codeHash` = SHA-256 du jeton brut **et** du code — le jeton brut n'est jamais stocké, donc une base fuitée ne
+  permet pas d'essayer les 10^6 codes hors ligne —, `expiresAt` 10 min, `failedAttempts`). `token.ts` : jeton de défi,
+  code à six chiffres (`randomInt`), `digestsEqual` (`timingSafeEqual`). `loginCodeEmail.ts` (français, code seul).
+  `service.ts` : `login` envoie le code et répond `{ challenge }` sans cookie (502 et défi supprimé si Resend refuse) ;
+  `verifyLogin` (401 `login_code_invalid` / `login_code_locked` à la cinquième erreur consécutive, qui supprime le défi /
+  `login_code_expired`, aussi pour un défi inconnu) ; `resendLoginCode` (toujours 204 ; remplace le code et prolonge de 10 min sans jamais dépasser 30 min après la
+  vérification du mot de passe, `LOGIN_CHALLENGE_MAX_LIFETIME_MS` ; ne remet PAS les tentatives à zéro : cinq codes faux
+  au total, renvois compris ; rien n'est envoyé pour un défi expiré ou au-delà de sa durée absolue). `repository.ts` : `checkLoginCode` sous verrou `FOR UPDATE`. `routes.ts` :
+  `POST /auth/login/verify` (limite par IP distincte de celle du mot de passe), `POST /auth/login/resend` (limite par IP
+  puis 3 par minute et par défi). Frontend : étape « Entrez votre code » dans `AuthForm.tsx` (champ numérique
+  `one-time-code`, renvoi, retour), `AuthContext` ne passe à « connecté » qu'après `confirmLoginCode`. Tests :
+  `credentials.test.ts`, `loginCodeEmail.test.ts`, `tests/integration/auth.test.ts` (étendu), `AuthPage.test.tsx`,
+  `AppShell.test.tsx` ; `registerUser()` des tests d'intégration fait les deux étapes (`logInUser`).
+  *Écarts* : `verify` a son propre limiteur par IP (10 par 15 min) plutôt que celui du mot de passe, pour qu'un
+  code tapé ne consomme pas les essais de mot de passe ; un code mal formé compte comme un code faux (401), seul un
+  champ absent donne 400 ; un renvoi sur un défi expiré ou au-delà de 30 minutes n'envoie rien. Test de migrations : `account_activations`
+  (oubli de T-1019) ajoutée à la liste des tables.
+  *Reste à faire* : tests d'intégration écrits mais non exécutés (Docker indisponible) ; captures aux largeurs 1440 px et
+  390 px, à joindre à la pull request.
 - [ ] **T-1021 Session raccourcie à 24 heures** — `EF-AUT-07` : la session expire 24 heures après son ouverture au
   lieu de 7 jours.
   *Exigences* : EF-AUT-07 (modifiée).

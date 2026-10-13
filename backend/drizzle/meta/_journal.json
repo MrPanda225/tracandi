@@ -225,6 +225,13 @@
       "when": 1791822667956,
       "tag": "0031_backfill-activated-at",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1791824270447,
+      "tag": "0032_login-challenges",
+      "breakpoints": true
     }
   ]
 }

@@ -197,6 +197,29 @@ export const accountActivations = pgTable('account_activations', {
   createdAt: createdAt(),
 });
 
+/**
+ * EF-AUT-16, ENF-SEC-26: a login waiting for its one-time code. `tokenHash` is the SHA-256 digest of the opaque
+ * challenge token handed to the browser; `codeHash` digests that raw token together with the six-digit code, and the
+ * raw token is never stored, so a leaked table cannot be used to guess the 10^6 codes offline. A row is deleted once
+ * confirmed, after the fifth consecutive wrong attempt, or when a failed e-mail is rolled back.
+ */
+export const loginChallenges = pgTable(
+  'login_challenges',
+  {
+    id: integer().primaryKey().generatedAlwaysAsIdentity(),
+    userId: integer()
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    tokenHash: bytea().notNull().unique('uq_login_challenges_token_hash'),
+    codeHash: bytea().notNull(),
+    expiresAt: instant().notNull(),
+    failedAttempts: integer().notNull().default(0),
+    createdAt: createdAt(),
+  },
+  // Cascade deletion of an account (EF-AUT-11) looks the challenges up by owner.
+  (t) => [index('ix_login_challenges_user').on(t.userId)],
+);
+
 export const sessions = pgTable(
   'sessions',
   {

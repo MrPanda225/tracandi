@@ -208,7 +208,8 @@ describe('AppShell', () => {
       '/stats/dashboard': () => json(200, EMPTY_DASHBOARD),
       [FIRST_PAGE]: () => answerApplications(),
       '/auth/logout': () => new Response(null, { status: 204 }),
-      '/auth/login': () => json(200, OTHER_ACCOUNT),
+      '/auth/login': () => json(200, { challenge: 'challenge-opaque' }),
+      '/auth/login/verify': () => json(200, OTHER_ACCOUNT),
     });
     render(
       <MemoryRouter initialEntries={['/candidatures']} future={ROUTER_FUTURE}>
@@ -224,6 +225,8 @@ describe('AppShell', () => {
     await user.type(screen.getByLabelText('Adresse e-mail'), OTHER_ACCOUNT.email);
     await user.type(screen.getByLabelText('Mot de passe'), 'another-long-password');
     await user.click(screen.getByRole('button', { name: 'Se connecter' }));
+    await user.type(await screen.findByLabelText('Code de connexion'), '042517');
+    await user.click(screen.getByRole('button', { name: 'Valider' }));
     await user.click(await screen.findByRole('link', { name: /Candidatures/ }));
 
     expect(await screen.findByText('Chargement des candidatures…')).toBeInTheDocument();
@@ -237,7 +240,8 @@ describe('AppShell', () => {
       '/auth/session': () => json(200, { account: ACCOUNT }),
       '/stats/dashboard': () => answerDashboard(),
       '/auth/logout': () => new Response(null, { status: 204 }),
-      '/auth/login': () => json(200, OTHER_ACCOUNT),
+      '/auth/login': () => json(200, { challenge: 'challenge-opaque' }),
+      '/auth/login/verify': () => json(200, OTHER_ACCOUNT),
     });
     render(
       <MemoryRouter initialEntries={['/']} future={ROUTER_FUTURE}>
@@ -249,14 +253,14 @@ describe('AppShell', () => {
     expect(await kpis.findByText('12')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Se déconnecter' }));
-    await user.click(
-      within(await screen.findByRole('banner')).getByRole('link', { name: 'Se connecter' }),
-    );
+    await user.click(within(await screen.findByRole('banner')).getByRole('link', { name: 'Se connecter' }));
     await screen.findByRole('heading', { name: 'Bon retour.' });
     answerDashboard = () => new Promise<Response>(() => undefined);
     await user.type(screen.getByLabelText('Adresse e-mail'), OTHER_ACCOUNT.email);
     await user.type(screen.getByLabelText('Mot de passe'), 'another-long-password');
     await user.click(screen.getByRole('button', { name: 'Se connecter' }));
+    await user.type(await screen.findByLabelText('Code de connexion'), '042517');
+    await user.click(screen.getByRole('button', { name: 'Valider' }));
 
     expect(await screen.findByText('Chargement du tableau de bord…')).toBeInTheDocument();
     expect(screen.queryByRole('group', { name: 'Indicateurs clés' })).not.toBeInTheDocument();

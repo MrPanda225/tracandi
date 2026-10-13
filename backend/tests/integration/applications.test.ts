@@ -12,9 +12,9 @@ import {
 import {
   createTestContext,
   giveContact,
+  logInUser,
   openTestDatabase,
   registerUser,
-  sessionCookieOf,
   type TestContext,
   truncateAll,
 } from './context.js';
@@ -289,12 +289,9 @@ describe('GET /api/applications', () => {
     await giveContact(database, { userId, applicationId: await idOf('Équipier'), address: 'rh@mcdonalds.example' });
     context.clock.advanceDays(11);
     // The 7-day session has expired meanwhile (EF-AUT-07): log in again, as the user would.
-    const login = await request(context.app)
-      .post('/api/auth/login')
-      .set('Content-Type', 'application/json')
-      .send({ email: 'alice@example.com', password: 'une phrase de passe longue' });
+    const cookie = await logInUser(context.app, 'alice@example.com');
 
-    const response = await api(sessionCookieOf(login)).get('/api/applications?status=sent');
+    const response = await api(cookie).get('/api/applications?status=sent');
 
     expect(response.body.items).toEqual(
       expect.arrayContaining([expect.objectContaining({ jobTitle: 'Équipier', isFollowUpDue: true })]),
@@ -303,12 +300,9 @@ describe('GET /api/applications', () => {
 
   it('[RG-06] [BES-34] never flags an application nobody can be written to', async () => {
     context.clock.advanceDays(11);
-    const login = await request(context.app)
-      .post('/api/auth/login')
-      .set('Content-Type', 'application/json')
-      .send({ email: 'alice@example.com', password: 'une phrase de passe longue' });
+    const cookie = await logInUser(context.app, 'alice@example.com');
 
-    const response = await api(sessionCookieOf(login)).get('/api/applications?status=sent');
+    const response = await api(cookie).get('/api/applications?status=sent');
 
     // Axa and McDonald's are both sent and silent for 11 days; neither holds an address to write to.
     expect((response.body.items as { isFollowUpDue: boolean }[]).every((item) => !item.isFollowUpDue)).toBe(true);

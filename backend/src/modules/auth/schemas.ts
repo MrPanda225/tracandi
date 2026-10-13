@@ -64,3 +64,28 @@ export const ResendActivationBodySchema = z
   .object({ email: EmailSchema })
   .strict()
   .openapi('ResendActivationBody');
+
+// Base64url of 32 random bytes is 43 characters (`token.ts`).
+const CHALLENGE_MAX_LENGTH = 100;
+// A code of the wrong shape is a wrong code (counted, 401), not a cheap 400 that would probe for free.
+const LOGIN_CODE_MAX_LENGTH = 12;
+
+/** EF-AUT-16: the challenge returned by the login and the code received by e-mail. */
+export const LoginVerifyBodySchema = z
+  .object({
+    challenge: z.string().max(CHALLENGE_MAX_LENGTH),
+    code: z.string().max(LOGIN_CODE_MAX_LENGTH).openapi({ example: '042517' }),
+  })
+  .strict()
+  .openapi('LoginVerifyBody');
+
+/** EF-AUT-17: a new code for a pending login. */
+export const LoginResendBodySchema = z
+  .object({ challenge: z.string().max(CHALLENGE_MAX_LENGTH) })
+  .strict()
+  .openapi('LoginResendBody');
+
+/** EF-AUT-03, EF-AUT-16: correct credentials; the session opens only once the code is confirmed. */
+export const LoginChallengeSchema = z
+  .object({ challenge: z.string().openapi({ example: 'k3J...opaque' }) })
+  .openapi('LoginChallenge');

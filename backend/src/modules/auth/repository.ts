@@ -1,6 +1,6 @@
-import { and, eq, gt, isNull } from 'drizzle-orm';
+import { and, eq, gt, isNull, lte, sql } from 'drizzle-orm';
 import type { Database } from '../../db/client.js';
-import { accountActivations, appSettings, sessions, users } from '../../db/schema.js';
+import { accountActivations, appSettings, loginChallenges, sessions, users } from '../../db/schema.js';
 
 /** Stored user needed to check a password and whether the account may open a session yet (EF-AUT-14). */
 export interface UserCredentials {
@@ -174,3 +174,121 @@ export const findPasswordHashById = async (db: Database, userId: number): Promis
 export const deleteUser = async (db: Database, userId: number): Promise<void> => {
   await db.delete(users).where(eq(users.id, userId));
 };
+
+/**
+ * Stores a login waiting for its code (EF-AUT-16), after dropping this user's challenges that already expired so
+ * abandoned logins do not pile up. A challenge still valid, on another device, is left alone.
+ * @req EF-AUT-16, ENF-SEC-26
+ */
+export const insertLoginChallenge = async (
+  db: Database,
+  challenge: { userId: number; tokenHash: Buffer; codeHash: Buffer; expiresAt: Date; now: Date },
+): Promise<void> => {
+  const { now, ...row } = challenge;
+  await db.transaction(async (tx) => {
+    await tx
+      .delete(loginChallenges)
+      .where(and(eq(loginChallenges.userId, row.userId), lte(loginChallenges.expiresAt, now)));
+    await tx.insert(loginChallenges).values(row);
+  });
+};
+
+/** Deletes a challenge; no effect when it does not exist. */
+export const deleteLoginChallenge = async (db: Database, tokenHash: Buffer): Promise<void> => {
+  await db.delete(loginChallenges).where(eq(loginChallenges.tokenHash, tokenHash));
+};
+
+/**
+ * Replaces the code of a challenge and pushes its expiry to `now + lifetimeMs`, never past `createdAt +
+ * maxLifetimeMs`. The failed attempts are kept: a challenge allows `maxFailedAttempts` wrong codes in total, resends
+ * included. Returns the e-mail address of its owner, or null when the challenge is unknown, expired, or past its
+ * absolute lifetime — nothing is renewed then (EF-AUT-17, ENF-SEC-26). The row is locked for the read-then-write.
+ * @req EF-AUT-17, ENF-SEC-26
+ */
+export const renewLoginChallenge = async (
+  db: Database,
+  {
+    tokenHash,
+    codeHash,
+    now,
+    lifetimeMs,
+    maxLifetimeMs,
+  }: { tokenHash: Buffer; codeHash: Buffer; now: Date; lifetimeMs: number; maxLifetimeMs: number },
+): Promise<string | null> => {
+  const userId = await db.transaction(async (tx) => {
+    const [challenge] = await tx
+      .select({
+        id: loginChallenges.id,
+        userId: loginChallenges.userId,
+        createdAt: loginChallenges.createdAt,
+        expiresAt: loginChallenges.expiresAt,
+      })
+      .from(loginChallenges)
+      .where(eq(loginChallenges.tokenHash, tokenHash))
+      .for('update');
+    if (!challenge) return null;
+    const lastInstant = challenge.createdAt.getTime() + maxLifetimeMs;
+    if (challenge.expiresAt <= now || lastInstant <= now.getTime()) return null;
+    const expiresAt = new Date(Math.min(now.getTime() + lifetimeMs, lastInstant));
+    await tx.update(loginChallenges).set({ codeHash, expiresAt }).where(eq(loginChallenges.id, challenge.id));
+    return challenge.userId;
+  });
+  if (userId === null) return null;
+  return (await findAccountById(db, userId))?.email ?? null;
+};
+
+/** What checking a login code found, for the service to turn into the right answer (EF-AUT-16). */
+export type LoginCodeOutcome =
+  { status: 'verified'; userId: number } | { status: 'invalid' | 'locked' | 'expired' };
+
+/**
+ * Checks a login code against its challenge. The row is locked (`for('update')`, database.md) for the transaction, so
+ * parallel guesses cannot dodge the count. A right code deletes the challenge (single use); the `maxFailedAttempts`-th
+ * consecutive wrong one deletes it too (ENF-SEC-26); an unknown challenge answers like an expired one.
+ * @req EF-AUT-16, ENF-SEC-26
+ */
+export const checkLoginCode = async (
+  db: Database,
+  {
+    tokenHash,
+    matches,
+    now,
+    maxFailedAttempts,
+  }: {
+    tokenHash: Buffer;
+    matches: (storedCodeHash: Buffer) => boolean;
+    now: Date;
+    maxFailedAttempts: number;
+  },
+): Promise<LoginCodeOutcome> =>
+  db.transaction(async (tx) => {
+    const [challenge] = await tx
+      .select({
+        id: loginChallenges.id,
+        userId: loginChallenges.userId,
+        codeHash: loginChallenges.codeHash,
+        expiresAt: loginChallenges.expiresAt,
+      })
+      .from(loginChallenges)
+      .where(eq(loginChallenges.tokenHash, tokenHash))
+      .for('update');
+    if (!challenge) return { status: 'expired' };
+    if (challenge.expiresAt <= now) {
+      await tx.delete(loginChallenges).where(eq(loginChallenges.id, challenge.id));
+      return { status: 'expired' };
+    }
+    if (matches(challenge.codeHash)) {
+      await tx.delete(loginChallenges).where(eq(loginChallenges.id, challenge.id));
+      return { status: 'verified', userId: challenge.userId };
+    }
+    const [updated] = await tx
+      .update(loginChallenges)
+      .set({ failedAttempts: sql`${loginChallenges.failedAttempts} + 1` })
+      .where(eq(loginChallenges.id, challenge.id))
+      .returning({ failedAttempts: loginChallenges.failedAttempts });
+    if ((updated?.failedAttempts ?? maxFailedAttempts) >= maxFailedAttempts) {
+      await tx.delete(loginChallenges).where(eq(loginChallenges.id, challenge.id));
+      return { status: 'locked' };
+    }
+    return { status: 'invalid' };
+  });
