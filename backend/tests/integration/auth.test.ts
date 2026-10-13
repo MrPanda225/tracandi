@@ -663,13 +663,20 @@ describe('POST /api/auth/login/resend', () => {
       context.clock.advanceMinutes(minutes);
       await post('/api/auth/login/resend', { challenge });
     }
-    context.clock.advanceMinutes(6);
-    context.mailer.sentEmails.length = 0;
+    // The 31st minute is reached through a fresh application: its in-memory limiter (3 resends a minute, real time)
+    // starts empty, as if the minute had passed. Every test clock starts at the same instant, so advancing the
+    // fresh one by 31 minutes puts it where the first one is.
+    const mailer = createFakeMailer();
+    const later = createTestContext(database, { mailer });
+    later.clock.advanceMinutes(31);
 
-    const response = await post('/api/auth/login/resend', { challenge });
+    const response = await request(later.app)
+      .post('/api/auth/login/resend')
+      .set('Content-Type', 'application/json')
+      .send({ challenge });
 
     expect(response.status).toBe(204);
-    expect(context.mailer.sentEmails).toHaveLength(0);
+    expect(mailer.sentEmails).toHaveLength(0);
   });
 
   it('[EF-AUT-17] answers 204 and sends nothing for an unknown or expired challenge', async () => {

@@ -189,7 +189,8 @@ export const insertLoginChallenge = async (
     await tx
       .delete(loginChallenges)
       .where(and(eq(loginChallenges.userId, row.userId), lte(loginChallenges.expiresAt, now)));
-    await tx.insert(loginChallenges).values(row);
+    // createdAt from the injected clock, not the database default: the 30-minute cap of a resend counts from it.
+    await tx.insert(loginChallenges).values({ ...row, createdAt: now });
   });
 };
 
