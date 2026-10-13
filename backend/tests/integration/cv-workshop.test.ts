@@ -6,7 +6,7 @@ import { CV_MAX_BYTES, NOT_A_PDF } from '../../src/modules/cvWorkshop/upload.js'
 import type { LlmProvider } from '../../src/llm/types.js';
 import { buildLockedPdf, buildTextPdf, FICTITIOUS_CV_LINES } from '../fixtures/cv/pdf.js';
 import { readParagraphs } from '../fixtures/docx/readDocx.js';
-import { createTestContext, openTestDatabase, registerUser, type TestContext, truncateAll } from './context.js';
+import { createTestContext, logInUser, openTestDatabase, registerUser, type TestContext, truncateAll } from './context.js';
 
 const database = openTestDatabase();
 let context: TestContext;
@@ -99,6 +99,7 @@ describe('POST /api/cv-workshop/analyses', () => {
 
     expect(sixth.status).toBe(429);
     context.clock.advanceDays(1);
+    alice = await logInUser(context.app, 'alice@example.com'); // EF-AUT-07: the session lasts 24 hours
     expect((await startAnalysis(alice, analysisOf(cvBase64()))).status).toBe(202);
     await context.queue.drain();
   });

@@ -288,7 +288,7 @@ describe('GET /api/applications', () => {
     const userId = await userIdOf('alice@example.com');
     await giveContact(database, { userId, applicationId: await idOf('Équipier'), address: 'rh@mcdonalds.example' });
     context.clock.advanceDays(11);
-    // The 7-day session has expired meanwhile (EF-AUT-07): log in again, as the user would.
+    // The 24-hour session has expired meanwhile (EF-AUT-07): log in again, as the user would.
     const cookie = await logInUser(context.app, 'alice@example.com');
 
     const response = await api(cookie).get('/api/applications?status=sent');
@@ -324,6 +324,7 @@ describe('GET/PATCH/DELETE /api/applications/:id', () => {
 
   it('[EF-CAN-07] updates the status (204), records it and counts it as activity', async () => {
     context.clock.advanceDays(3);
+    alice = await logInUser(context.app, 'alice@example.com'); // EF-AUT-07: the session lasts 24 hours
 
     const response = await api(alice).patch(`/api/applications/${applicationId}`, { status: 'interview' });
 

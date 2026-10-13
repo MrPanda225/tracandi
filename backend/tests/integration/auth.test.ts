@@ -764,12 +764,12 @@ describe('POST /api/auth/logout', () => {
 });
 
 describe('session lifetime', () => {
-  it('[EF-AUT-07] accepts the session just before 7 days and rejects it at 7 days', async () => {
+  it('[EF-AUT-07] accepts the session at 23 h 59 and rejects it at 24 h', async () => {
     const cookie = await registerUser(context.app, 'alex@example.com');
 
-    context.clock.advanceDays(6.99);
+    context.clock.advanceMinutes(24 * 60 - 1);
     const before = await request(context.app).get('/api/auth/me').set('Cookie', cookie);
-    context.clock.advanceDays(0.01);
+    context.clock.advanceMinutes(1);
     const after = await request(context.app).get('/api/auth/me').set('Cookie', cookie);
 
     expect(before.status).toBe(200);
@@ -814,7 +814,7 @@ describe('GET /api/auth/session', () => {
     const expired = await registerUser(context.app, 'alex@example.com');
     const orphan = await registerUser(context.app, 'sam@example.com');
     await database.db.delete(users).where(eq(users.email, 'sam@example.com'));
-    context.clock.advanceDays(7);
+    context.clock.advanceDays(1);
 
     const afterExpiry = await request(context.app).get('/api/auth/session').set('Cookie', expired);
     const afterDeletion = await request(context.app).get('/api/auth/session').set('Cookie', orphan);

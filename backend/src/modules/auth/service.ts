@@ -21,8 +21,8 @@ import {
   hashSessionToken,
 } from './token.js';
 
-// EF-AUT-07
-export const SESSION_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
+// EF-AUT-07 (v1.36): a session expires 24 hours after it was opened (it was 7 days before).
+export const SESSION_LIFETIME_MS = 24 * 60 * 60 * 1000;
 /**
  * ENF-PERF-01: every request resolves its cookie, so each one paid a round trip to the hosted database before doing
  * any work of its own. A session already resolved is kept in memory for this long; a logout drops it at once

@@ -8,6 +8,7 @@ import {
   createTestContext,
   NANTERRE,
   openTestDatabase,
+  logInUser,
   registerUser,
   type TestContext,
   truncateAll,
@@ -124,6 +125,7 @@ describe('sparing collection (EF-VEI-41, EF-VEI-42)', () => {
     expect((await source())?.lastCheckedAt).toEqual(checkedAt);
 
     context.clock.advanceDays(1);
+    alice = await logInUser(context.app, 'alice@example.com'); // EF-AUT-07: the session lasts 24 hours
     expect(await checkNow()).toMatchObject({ outcome: 'success', counters: { sources_checked: 1 } });
   });
 
@@ -184,6 +186,7 @@ describe('minimisation (ENF-RGP-09, ENF-RGP-10)', () => {
     // Offers 1, 2 and 3 leave the source; offer 4 is still published.
     board = { jobs: [job(4, 'Data manager')] };
     context.clock.advanceDays(61);
+    alice = await logInUser(context.app, 'alice@example.com'); // EF-AUT-07: the session lasts 24 hours
     await checkNow();
     await scheduledPass();
 

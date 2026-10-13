@@ -106,6 +106,13 @@ describe('legal pages (EF-LEG-01)', () => {
     expect(screen.getByText('tracandi_session')).toBeInTheDocument();
   });
 
+  it('[EF-AUT-07] states on the cookies page that the session lasts 24 hours at most', async () => {
+    renderAt('/cookies');
+
+    expect(await screen.findByText(/24 heures au plus/)).toBeInTheDocument();
+    expect(screen.queryByText(/7 jours/)).not.toBeInTheDocument();
+  });
+
   it('[EF-LEG-01] links the privacy policy from the login page', async () => {
     renderAt('/connexion');
 

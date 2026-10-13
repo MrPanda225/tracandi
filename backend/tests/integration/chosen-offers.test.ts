@@ -8,6 +8,7 @@ import {
   createTestContext,
   NANTERRE,
   openTestDatabase,
+  logInUser,
   registerUser,
   tablesHolding,
   type TestContext,
@@ -459,6 +460,7 @@ describe('what is kept of a chosen offer (T-1012, ENF-RGP-14)', () => {
     expect((await choose('junior', OFFER())).status).toBe(429);
     expect((await choose('junior', OFFER(), bob)).status).toBe(202);
     context.clock.advanceDays(1);
+    alice = await logInUser(context.app, 'alice@example.com'); // EF-AUT-07: the session lasts 24 hours
     expect((await choose('junior', OFFER())).status).toBe(202);
     await context.queue.drain();
   });

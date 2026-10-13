@@ -115,7 +115,7 @@ Commande de contrôle : `/project:check-req EF-CAN-07`.
 | EF-AUT-04 | T-004 | `auth.test.ts` | couverte |
 | EF-AUT-05 | T-004 | `src/app.test.ts` › session guard ; `applications.test.ts` | couverte |
 | EF-AUT-06 | T-004 | `applications.test.ts` (404 pour chaque méthode, messages) | couverte |
-| EF-AUT-07 | T-004 | `auth.test.ts` (horloge simulée à J+7) | couverte |
+| EF-AUT-07 | T-004, T-1021 | `auth.test.ts` (horloge simulée à H+23h59 puis H+24), `LegalPages.test.tsx` (cookie : 24 heures) | couverte |
 | EF-AUT-08 | T-004 | `auth.test.ts` | couverte |
 | ENF-SEC-18 | T-004 | `src/modules/auth/credentials.test.ts`, `auth.test.ts` | couverte |
 | ENF-SEC-19 | T-004 | `auth.test.ts` (réponse identique, 429 à la 11e tentative) | couverte |

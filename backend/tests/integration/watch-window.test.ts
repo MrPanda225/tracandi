@@ -8,6 +8,7 @@ import {
   createTestContext,
   NANTERRE,
   openTestDatabase,
+  logInUser,
   registerUser,
   type TestContext,
   truncateAll,
@@ -88,6 +89,7 @@ describe('window of a check (T-1004, RG-30)', () => {
   it('[EF-VEI-52] asks for a week at the first check, then for the time since the start of the last successful one', async () => {
     await checkNow();
     context.clock.advanceDays(2);
+    alice = await logInUser(context.app, 'alice@example.com'); // EF-AUT-07: the session lasts 24 hours
     await checkNow();
 
     expect(daysAsked()[0]).toBe('7');
@@ -99,9 +101,11 @@ describe('window of a check (T-1004, RG-30)', () => {
     await checkNow();
     const success = await source();
     context.clock.advanceDays(1);
+    alice = await logInUser(context.app, 'alice@example.com'); // EF-AUT-07: the session lasts 24 hours
     search.mockRejectedValueOnce(new Error('service unavailable'));
     const failed = await checkNow();
     context.clock.advanceDays(1);
+    alice = await logInUser(context.app, 'alice@example.com'); // EF-AUT-07: the session lasts 24 hours
 
     await checkNow();
 
@@ -115,6 +119,7 @@ describe('window of a check (T-1004, RG-30)', () => {
     await checkNow();
     const before = await source();
     context.clock.advanceDays(1);
+    alice = await logInUser(context.app, 'alice@example.com'); // EF-AUT-07: the session lasts 24 hours
     search.mockRejectedValueOnce(new Error('service unavailable'));
 
     await checkNow();
@@ -129,6 +134,7 @@ describe('window of a check (T-1004, RG-30)', () => {
   it('[EF-VEI-52] [RG-30] never asks for more than 31 days, however long ago the last success was', async () => {
     await checkNow();
     context.clock.advanceDays(40);
+    alice = await logInUser(context.app, 'alice@example.com'); // EF-AUT-07: the session lasts 24 hours
 
     await checkNow();
 
@@ -140,8 +146,10 @@ describe('window of a check (T-1004, RG-30)', () => {
     const first = await database.db.select({ id: jobOffers.id }).from(jobOffers);
     search.mockRejectedValueOnce(new Error('service unavailable'));
     context.clock.advanceDays(1);
+    alice = await logInUser(context.app, 'alice@example.com'); // EF-AUT-07: the session lasts 24 hours
     await checkNow();
     context.clock.advanceDays(1);
+    alice = await logInUser(context.app, 'alice@example.com'); // EF-AUT-07: the session lasts 24 hours
 
     await checkNow();
 

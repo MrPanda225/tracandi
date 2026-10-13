@@ -249,7 +249,7 @@ export function PrivacyPage() {
       <h2>Combien de temps</h2>
       <ul>
         <li>Vos données sont conservées tant que votre compte existe, et supprimées avec lui.</li>
-        <li>Une session de connexion dure 7 jours au plus.</li>
+        <li>Une session de connexion dure 24 heures au plus.</li>
         <li>
           Une offre que vous n’avez ni gardée ni postulée est supprimée 60 jours après que sa source a cessé
           de la publier.
@@ -326,7 +326,7 @@ export function CookiesPage() {
                 Maintenir votre session ouverte. Il est inaccessible aux scripts de la page et n’est jamais
                 transmis à un autre site.
               </td>
-              <td>7 jours au plus ; supprimé dès que vous vous déconnectez</td>
+              <td>24 heures au plus ; supprimé dès que vous vous déconnectez</td>
             </tr>
           </tbody>
         </table>
