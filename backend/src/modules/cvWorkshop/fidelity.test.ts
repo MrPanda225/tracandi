@@ -20,6 +20,11 @@ const rejectedPaths = (answer: Answer): string[] => {
   const result = schema.safeParse(answer);
   return result.success ? [] : result.error.issues.map((issue) => issue.path.join('.'));
 };
+// What the candidate would see of a list: the items the CV does not cite are gone (RG-21, v1.38).
+const kept = (answer: Answer, key: 'skills' | 'certifications' | 'interests' | 'languages'): string[] => {
+  const result = schema.safeParse(answer);
+  return result.success ? (result.data.cv[key] as string[]) : ['REJECTED'];
+};
 
 describe('tailoredAnswerSchemaFor (RG-21)', () => {
   it('[RG-21] accepts an adapted CV that rephrases, with the words of the offer, only what the CV says', () => {
@@ -55,27 +60,73 @@ describe('tailoredAnswerSchemaFor (RG-21)', () => {
     expect(rejectedPaths(withCv({ profile: 'Trois ans d’expérience, 98 % de satisfaction.' }))).toEqual(['cv.profile']);
   });
 
-  it('[EF-CVX-27] [RG-21] rejects a skill, tool, certification or interest the CV does not cite', () => {
-    expect(rejectedPaths(withCv({ skills: ['SQL', 'dbt'] }))).toEqual(['cv.skills.1']);
-    expect(rejectedPaths(withCv({ certifications: ['AWS Certified Data Engineer'] }))).toEqual(['cv.certifications.0']);
-    expect(rejectedPaths(withCv({ interests: ['Parapente'] }))).toEqual(['cv.interests.0']);
+  it('[EF-CVX-27] [RG-21] removes a skill, tool, certification or interest the CV does not cite', () => {
+    expect(kept(withCv({ skills: ['SQL', 'dbt'] }), 'skills')).toEqual(['SQL']);
+    expect(kept(withCv({ certifications: ['AWS Certified Data Engineer'] }), 'certifications')).toEqual([]);
+    expect(kept(withCv({ interests: ['Parapente'] }), 'interests')).toEqual([]);
   });
 
   it('[RG-21] checks each skill of a grouped line, whatever the punctuation around them', () => {
     // The CV says « COMPETENCES » then « SQL, Python, Power BI »: the model regroups them under a heading.
     expect(rejectedPaths(withCv({ skills: ['Compétences : Python, SQL', 'Power BI / SQL', 'SQL · Python'] }))).toEqual([]);
-    expect(rejectedPaths(withCv({ skills: ['Compétences : Python, dbt'] }))).toEqual(['cv.skills.0']);
-    expect(rejectedPaths(withCv({ skills: ['Outils : Power BI'] }))).toEqual(['cv.skills.0']);
+    expect(kept(withCv({ skills: ['Compétences : Python, dbt'] }), 'skills')).toEqual([]);
+    expect(kept(withCv({ skills: ['Outils : Power BI'] }), 'skills')).toEqual([]);
   });
 
-  it('[RG-21] accepts a language the CV cites, its level reworded, and rejects one it does not', () => {
+  it('[RG-21] accepts a language the CV cites, its level reworded, and removes one it does not', () => {
     expect(rejectedPaths(withCv({ languages: ['Anglais : niveau professionnel'] }))).toEqual([]);
-    expect(rejectedPaths(withCv({ languages: ['Espagnol : courant'] }))).toEqual(['cv.languages.0']);
+    expect(kept(withCv({ languages: ['Espagnol : courant'] }), 'languages')).toEqual([]);
   });
 
   it('[RG-21] reads the CV whatever its case, accents and dashes', () => {
     expect(rejectedPaths(withCv({ skills: ['power bi', 'PYTHON'] }))).toEqual([]);
     expect(rejectedPaths(withExperience({ dates: '09/2024 - 08/2026' }))).toEqual([]);
+  });
+
+  it('[RG-21] reads a CV whose PDF text has ligatures, invisible characters and typographic variants', () => {
+    const pdfSchema = tailoredAnswerSchemaFor(
+      `${SOURCE}\nCompétences\nConﬁguration, Certi\u00ADﬁcation\u200B Cloud\nCertiﬁcation Scrum`,
+    );
+    const answer = withCv({ skills: ['Configuration', 'Certification Cloud'], certifications: ['Certification Scrum'] });
+
+    expect(pdfSchema.safeParse(answer).success).toBe(true);
+  });
+
+  it('[RG-21] [EF-CVX-26] removes a skill the CV does not cite, and the change that announces it, instead of rejecting the CV', () => {
+    const change = (after: string) => ({ section: 'Compétences', before: '', after, reason: 'Pour l’offre.' });
+    const answer: Answer = {
+      ...FAITHFUL,
+      cv: { ...FAITHFUL.cv, skills: ['SQL', 'dbt', 'Python'], certifications: ['AWS Certified Data Engineer'], interests: ['Parapente'] },
+      changes: [...FAITHFUL.changes, change('Ajout de dbt à vos compétences.'), change('Compétences : SQL, Python')],
+    };
+
+    const result = schema.safeParse(answer);
+
+    expect(result.success).toBe(true);
+    const data = result.data as Answer & { cv: { skills: string[]; certifications: string[]; interests: string[] } };
+    expect(data.cv.skills).toEqual(['SQL', 'Python']);
+    expect(data.cv.certifications).toEqual([]);
+    expect(data.cv.interests).toEqual([]);
+    const shown = JSON.stringify(data.changes);
+    expect(shown).not.toContain('dbt');
+    expect(shown).toContain('Compétences : SQL, Python');
+    expect(data.changes).toHaveLength(FAITHFUL.changes.length + 1);
+  });
+
+  it('[RG-21] removes a grouped line and a language when one of their parts is not in the CV', () => {
+    const result = schema.safeParse(withCv({ skills: ['Langages : Python, dbt', 'SQL'], languages: ['Espagnol : courant', 'Anglais : courant'] }));
+
+    expect(result.success).toBe(true);
+    expect((result.data as { cv: { skills: string[]; languages: string[] } }).cv).toMatchObject({
+      skills: ['SQL'],
+      languages: ['Anglais : courant'],
+    });
+  });
+
+  it('[RG-21] still rejects an invented company next to a removable skill', () => {
+    expect(rejectedPaths(withCv({ skills: ['dbt'], experiences: [{ ...FAITHFUL.cv.experiences[0], organization: 'Groupe Imaginaire' }] }))).toEqual([
+      'cv.experiences.0.organization',
+    ]);
   });
 
   it('[EF-CVX-29] requires each change to give its section, before, after and reason', () => {

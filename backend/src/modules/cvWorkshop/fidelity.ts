@@ -36,6 +36,37 @@ const partsOf = (item: string): string[] =>
     .map((part) => part.trim())
     .filter((part) => part !== '');
 
+const LIST_KEYS = ['skills', 'certifications', 'interests', 'languages'] as const;
+
+/** The pieces of a list item that must be cited: each part of a grouped line, the language before its level. */
+const checkedPartsOf = (key: (typeof LIST_KEYS)[number], item: string): string[] =>
+  key === 'languages' ? [languageOf(item)] : partsOf(item);
+
+/**
+ * RG-21 (v1.38): the answer without the skills, certifications, interests and languages the imported CV does not cite,
+ * and without the changes whose new text cites one of them — so nothing invented is ever shown. The rest of the answer
+ * is left as it is, for the faithfulness check to accept or reject.
+ * @req RG-21, EF-CVX-26
+ */
+const withoutUncitedItems = (answer: TailoredAnswer, sourceText: string): TailoredAnswer => {
+  const source = foldText(sourceText);
+  const absentPhrases: string[] = [];
+  const cv = { ...answer.cv };
+  for (const key of LIST_KEYS) {
+    cv[key] = cv[key].filter((item) => {
+      const absent = checkedPartsOf(key, item).filter((part) => !cites(source, part));
+      absentPhrases.push(...absent);
+      return absent.length === 0;
+    });
+  }
+  if (absentPhrases.length === 0) return answer;
+  const changes = answer.changes.filter((change) => {
+    const after = foldText(change.after);
+    return !absentPhrases.some((phrase) => cites(after, phrase));
+  });
+  return { cv, changes };
+};
+
 /**
  * RG-21: the fields of an adapted CV that say something the imported CV does not. Companies, schools, job titles,
  * degrees, places and dates must be cited as they are; skills, tools, certifications, languages and interests must be
@@ -72,23 +103,23 @@ const unfaithfulPaths = (cv: AdaptedCv, sourceText: string): FieldPath[] => {
     mustCite(entry.dates, [...at, 'dates']);
     addsNoFigure(entry.detail, [...at, 'detail']);
   });
-  for (const key of ['skills', 'certifications', 'interests'] as const) {
+  for (const key of LIST_KEYS) {
     cv[key].forEach((item, index) => {
-      if (!partsOf(item).every((part) => cites(source, part))) paths.push([key, index]);
+      if (!checkedPartsOf(key, item).every((part) => cites(source, part))) paths.push([key, index]);
     });
   }
-  cv.languages.forEach((item, index) => mustCite(languageOf(item), ['languages', index]));
   return paths;
 };
 
 /**
  * The schema the answer of `tailor_cv` must meet for this CV: well formed (EF-IA-03) and faithful to the imported CV
  * (RG-21). An unfaithful answer is rejected like a malformed one, so the router asks the next provider (EF-IA-02) and
- * the candidate never sees it (EF-CVX-26).
+ * the candidate never sees it (EF-CVX-26). The one exception: a skill, certification, interest or language the CV does
+ * not cite is removed from the answer, with the changes that announce it, instead of rejecting the whole CV.
  * @req EF-CVX-26, EF-CVX-29, RG-21
  */
 export const tailoredAnswerSchemaFor = (sourceText: string) =>
-  TailoredAnswerSchema.superRefine((answer, context) => {
+  TailoredAnswerSchema.transform((answer) => withoutUncitedItems(answer, sourceText)).superRefine((answer, context) => {
     for (const path of unfaithfulPaths(answer.cv, sourceText)) {
       context.addIssue({ code: z.ZodIssueCode.custom, path: ['cv', ...path], message: 'Not in the imported CV (RG-21)' });
     }
