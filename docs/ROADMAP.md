@@ -718,6 +718,31 @@ l'offre n'est écrite en base, sur disque ou dans les journaux (ENF-RGP-06).
   gardé ; entreprise, intitulé, dates, diplôme et chiffre inventés rejettent toujours la réponse.
   *Livré (14/10/2026)* : `foldText` en NFKD, caractères de format retirés, apostrophes et tirets étendus ;
   `tailoredAnswerSchemaFor` filtre les listes avant la vérification ; `npm run check` vert.
+- [ ] **T-519 Lecture du CV à colonnes** — *demande du Business Owner du 14/10/2026 (cahier v1.39, BES-52).* Texte de
+  la couche PDF lu par `pdftotext` (poppler, déjà dans l'image) qui rétablit l'ordre des colonnes et recolle les
+  césures, pdf.js en secours ; coordonnées retirées sans le reste de la ligne ; OCR à 300 ppp, y compris pour les
+  couches de texte illisibles ; fixtures de CV à deux colonnes.
+  *Exigences* : EF-CVX-45, EF-CVX-22 (v1.39).
+  *Fini quand* : CV sur deux colonnes dont la barre latérale partage ses lignes avec le corps : chaque intitulé,
+  entreprise, date et diplôme se retrouve entier dans le texte lu ; « Dévelop- / pement » lu « Développement » ; une
+  adresse sur la même ligne qu'une réalisation : la réalisation reste dans le texte ; les CV de test à colonnes
+  entremêlées sont lus dans l'ordre.
+  *Dépend de* : T-518.
+- [ ] **T-520 Structuration ancrée du CV** — tâche IA `parse_cv` (skill `add-llm-task` : prompt, schéma, route,
+  migration de `llm_task`), lignes numérotées, faits désignés par ligne, ancrage par le code (correspondance
+  tolérante, dates comparées comme des périodes).
+  *Exigences* : EF-CVX-46, RG-21 (v1.39).
+  *Fini quand* : réponse simulée désignant une ligne inexistante ou un texte absent de la ligne : le fait est écarté,
+  le reste de la structure est conservé ; aucune coordonnée dans la requête capturée.
+  *Dépend de* : T-519 (le texte lu), mais peut être développée en parallèle.
+- [ ] **T-521 Adaptation par références et page tenue** — `tailor_cv` reçoit la structure, désigne les faits, rédige
+  accroche, profil et réalisations ; le code remplit les faits, retire ce qui cite un chiffre absent, rétablit une
+  expérience omise, ramène à une page ; message d'erreur seulement pour une réponse inexploitable.
+  *Exigences* : EF-CVX-47, RG-21, RG-24 (v1.39).
+  *Fini quand* : réponse simulée qui écrit « 5 ans d'expérience » absent du CV : la phrase est retirée, le CV est
+  livré ; une réponse qui omet une expérience : l'expérience est rétablie avec son intitulé, son entreprise et ses
+  dates ; le CV de la testeuse type (deux colonnes) est adapté sans erreur avec des réponses simulées fidèles.
+  *Dépend de* : T-520.
 
 - [ ] **T-515 Retrait de l'ancien atelier** — code du profil de référence et du modèle Word (T-501, T-502, T-507),
   LibreOffice retiré de l'image, migration de suppression de `candidate_profiles` et `cv_versions`, politique de
