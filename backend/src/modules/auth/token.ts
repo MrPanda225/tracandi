@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from 'node:crypto';
+import { createHash, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
 
 const TOKEN_BYTES = 32;
 
@@ -32,3 +32,43 @@ export const generateActivationToken = (): string => createRandomToken();
  * @req ENF-SEC-26
  */
 export const hashActivationToken = (token: string): Buffer => digestOf(token);
+
+const LOGIN_CODE_DIGITS = 6;
+
+/**
+ * New login challenge token, handed to the browser while it waits for the code: same construction as the session
+ * token. Only its digest is stored.
+ * @req ENF-SEC-26
+ */
+export const generateChallengeToken = (): string => createRandomToken();
+
+/**
+ * SHA-256 digest of a challenge token, the only form kept in the database.
+ * @req ENF-SEC-26
+ */
+export const hashChallengeToken = (token: string): Buffer => digestOf(token);
+
+/**
+ * New six-digit login code, uniform over 000000-999999 (`randomInt` draws from a CSPRNG without modulo bias).
+ * @req EF-AUT-16, ENF-SEC-26
+ */
+export const generateLoginCode = (): string =>
+  randomInt(0, 10 ** LOGIN_CODE_DIGITS)
+    .toString()
+    .padStart(LOGIN_CODE_DIGITS, '0');
+
+/**
+ * Digest stored for a login code: SHA-256 of the raw challenge token and the code together. The token is never
+ * stored, so a leaked table cannot be used to try the 10^6 possible codes offline, which a bare digest of a six-digit
+ * code would allow.
+ * @req ENF-SEC-26
+ */
+export const hashLoginCode = (challengeToken: string, code: string): Buffer =>
+  digestOf(`${challengeToken}:${code}`);
+
+/**
+ * Constant-time comparison of two digests.
+ * @req ENF-SEC-26
+ */
+export const digestsEqual = (left: Buffer, right: Buffer): boolean =>
+  left.length === right.length && timingSafeEqual(left, right);

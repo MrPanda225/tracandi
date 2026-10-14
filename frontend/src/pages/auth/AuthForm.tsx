@@ -1,9 +1,9 @@
 import { animate, stagger } from 'animejs';
 import { type FormEvent, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { resendActivation } from '../../api/auth';
+import { resendActivation, resendLoginCode } from '../../api/auth';
 import { ApiError } from '../../api/client';
-import { type AuthMode, useAuth } from '../../auth/AuthContext';
+import { useAuth } from '../../auth/AuthContext';
 import { ClickSpark } from '../../components/reactbits/ClickSpark';
 import { Magnet } from '../../components/reactbits/Magnet';
 import { prefersReducedMotion } from '../../lib/motion';
@@ -16,7 +16,16 @@ export const PASSWORD_MIN_LENGTH = 12;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // EF-AUT-14: the API itself never says whether the address exists; the interface echoes that same wording.
 const ACTIVATION_NOT_ACTIVATED_CODE = 'account_not_activated';
-const RESEND_SENT_MESSAGE = 'Si cette adresse a un compte en attente d’activation, un nouvel e-mail vient d’être envoyé.';
+const RESEND_SENT_MESSAGE =
+  'Si cette adresse a un compte en attente d’activation, un nouvel e-mail vient d’être envoyé.';
+
+type AuthMode = 'login' | 'register';
+
+// EF-AUT-16: six digits, as sent by the API.
+const CODE_LENGTH = 6;
+const CODE_PATTERN = /^\d{6}$/;
+const CODE_INVALID = 'login_code_invalid';
+const CODE_RESENT_MESSAGE = 'Un nouveau code vient d’être envoyé à votre adresse.';
 
 const COPY: Record<AuthMode, { title: string; subtitle: string; submit: string; pending: string }> = {
   login: {
@@ -83,7 +92,10 @@ function ResendActivationButton({ email }: { email: string }) {
         {isSending ? 'Envoi…' : 'Renvoyer l’e-mail d’activation'}
       </button>
       {feedback && (
-        <p role={feedback.kind === 'error' ? 'alert' : 'status'} className={`auth-form__resend-${feedback.kind}`}>
+        <p
+          role={feedback.kind === 'error' ? 'alert' : 'status'}
+          className={`auth-form__resend-${feedback.kind}`}
+        >
           {feedback.message}
         </p>
       )}
@@ -101,7 +113,8 @@ function PendingActivation({ email }: { email: string }) {
       <header className="auth-form__header">
         <h2 className="auth-form__title">Vérifiez votre boîte mail</h2>
         <p className="auth-form__subtitle">
-          Nous avons envoyé un lien d’activation à <strong>{email}</strong>. Ouvrez-le pour activer votre compte.
+          Nous avons envoyé un lien d’activation à <strong>{email}</strong>. Ouvrez-le pour activer votre
+          compte.
         </p>
       </header>
       <ResendActivationButton email={email} />
@@ -110,12 +123,136 @@ function PendingActivation({ email }: { email: string }) {
 }
 
 /**
- * Login and account creation form (EF-AUT-01, EF-AUT-02, EF-AUT-03, EF-AUT-14). Validates locally with the API's
+ * EF-AUT-16, EF-AUT-17: second step of the login. The password was right and a code was e-mailed; the session opens
+ * only once it is confirmed. A wrong code with attempts left stays here; a locked or expired one sends the user back
+ * to the password step with the reason (`onBack`).
+ */
+function LoginCodeStep({
+  email,
+  challenge,
+  onBack,
+}: {
+  email: string;
+  challenge: string;
+  onBack: (message?: string) => void;
+}) {
+  const { confirmLoginCode } = useAuth();
+  const [code, setCode] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isResending, setIsResending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const ids = { code: useId(), error: useId() };
+  const isBusy = isSubmitting || isResending;
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setNotice(null);
+    if (!CODE_PATTERN.test(code)) {
+      setError(`Saisissez les ${CODE_LENGTH} chiffres du code reçu par e-mail.`);
+      return;
+    }
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      await confirmLoginCode(challenge, code);
+    } catch (failure) {
+      if (failure instanceof ApiError && failure.code === CODE_INVALID) {
+        setError(failure.message);
+        setCode('');
+        setIsSubmitting(false);
+        return;
+      }
+      // Locked, expired, or anything else: the challenge cannot be reused — start again from the password.
+      onBack(messageOf(failure));
+    }
+  };
+
+  const handleResend = async () => {
+    setIsResending(true);
+    setError(null);
+    setNotice(null);
+    try {
+      await resendLoginCode(challenge);
+      setCode('');
+      setNotice(CODE_RESENT_MESSAGE);
+    } catch (failure) {
+      setError(messageOf(failure));
+    } finally {
+      setIsResending(false);
+    }
+  };
+
+  return (
+    <form
+      className="auth-form__panel auth-form__code"
+      onSubmit={(event) => void handleSubmit(event)}
+      noValidate
+    >
+      <header className="auth-form__header">
+        <h2 className="auth-form__title">Entrez votre code</h2>
+        <p className="auth-form__subtitle">
+          Nous avons envoyé un code à {CODE_LENGTH} chiffres à <strong>{email}</strong>. Il est valable 10
+          minutes.
+        </p>
+      </header>
+
+      <div className={`field ${error ? 'field--invalid' : ''}`}>
+        <input
+          id={ids.code}
+          type="text"
+          name="code"
+          inputMode="numeric"
+          autoComplete="one-time-code"
+          maxLength={CODE_LENGTH}
+          placeholder=" "
+          value={code}
+          onChange={(event) => setCode(event.target.value.replace(/\D/g, ''))}
+          aria-invalid={Boolean(error)}
+          aria-describedby={error ? ids.error : undefined}
+          disabled={isBusy}
+        />
+        <label htmlFor={ids.code}>Code de connexion</label>
+      </div>
+
+      {error && (
+        <p id={ids.error} role="alert" className="auth-form__error">
+          {error}
+        </p>
+      )}
+      {notice && (
+        <p role="status" className="auth-form__resend-sent">
+          {notice}
+        </p>
+      )}
+
+      <button type="submit" className="button-primary" disabled={isBusy} aria-busy={isSubmitting}>
+        {isSubmitting && <span className="button-primary__spinner" aria-hidden="true" />}
+        <span>{isSubmitting ? 'Vérification…' : 'Valider'}</span>
+      </button>
+      <button
+        type="button"
+        className="button-secondary"
+        onClick={() => void handleResend()}
+        disabled={isBusy}
+        aria-busy={isResending}
+      >
+        {isResending ? 'Envoi…' : 'Renvoyer le code'}
+      </button>
+      <button type="button" className="auth-form__back" onClick={() => onBack()} disabled={isBusy}>
+        Retour à la connexion
+      </button>
+    </form>
+  );
+}
+
+/**
+ * Login and account creation form (EF-AUT-01, EF-AUT-02, EF-AUT-03, EF-AUT-14, EF-AUT-16). A correct password hands off to `LoginCodeStep`. Validates locally with the API's
  * rules, shows a waiting state during the request (ENF-UTI-03) and any failure as a readable message. Registering
  * no longer opens a session: it hands off to `PendingActivation` until the e-mail is confirmed.
  */
 export function AuthForm() {
-  const { authenticate } = useAuth();
+  const { register, requestLoginCode } = useAuth();
   const [searchParams] = useSearchParams();
   const [mode, setMode] = useState<AuthMode>(() =>
     searchParams.get('mode') === REGISTER_MODE_PARAM ? 'register' : 'login',
@@ -130,6 +267,8 @@ export function AuthForm() {
   const [pendingActivationEmail, setPendingActivationEmail] = useState<string | null>(null);
   // EF-AUT-14: the login attempt that found an inactive account — offers a resend right where it was refused.
   const [notActivatedEmail, setNotActivatedEmail] = useState<string | null>(null);
+  // EF-AUT-16: set once the password is right; swaps the form for the code step.
+  const [loginChallenge, setLoginChallenge] = useState<string | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const tabsRef = useRef<HTMLDivElement>(null);
   const ids = { email: useId(), password: useId(), hint: useId(), error: useId() };
@@ -148,7 +287,7 @@ export function AuthForm() {
         width: `${target.width}px`,
       });
     else animate(indicator, { ...target, duration: 520, ease: 'outExpo' });
-  }, [mode]);
+  }, [mode, loginChallenge]);
 
   // Re-enters the form content when the mode changes.
   useEffect(() => {
@@ -192,8 +331,14 @@ export function AuthForm() {
     setIsSubmitting(true);
     const trimmedEmail = email.trim();
     try {
-      await authenticate(mode, { email: trimmedEmail, password });
-      if (mode === 'register') setPendingActivationEmail(trimmedEmail);
+      if (mode === 'register') {
+        await register({ email: trimmedEmail, password });
+        setPendingActivationEmail(trimmedEmail);
+      } else {
+        setLoginChallenge(await requestLoginCode({ email: trimmedEmail, password }));
+        setPassword('');
+        setIsSubmitting(false);
+      }
     } catch (error) {
       setFormError(messageOf(error));
       if (error instanceof ApiError && error.code === ACTIVATION_NOT_ACTIVATED_CODE) {
@@ -205,6 +350,18 @@ export function AuthForm() {
   };
 
   if (pendingActivationEmail) return <PendingActivation email={pendingActivationEmail} />;
+  if (loginChallenge) {
+    return (
+      <LoginCodeStep
+        email={email.trim()}
+        challenge={loginChallenge}
+        onBack={(message) => {
+          setLoginChallenge(null);
+          setFormError(message ?? null);
+        }}
+      />
+    );
+  }
 
   const passwordProgress = Math.min(password.length / PASSWORD_MIN_LENGTH, 1);
 

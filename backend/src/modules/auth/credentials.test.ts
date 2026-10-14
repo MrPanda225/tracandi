@@ -1,9 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { hashPassword, OWASP_SCRYPT_PARAMS, verifyPassword } from './password.js';
 import {
+  digestsEqual,
   generateActivationToken,
+  generateChallengeToken,
+  generateLoginCode,
   generateSessionToken,
   hashActivationToken,
+  hashChallengeToken,
+  hashLoginCode,
   hashSessionToken,
 } from './token.js';
 
@@ -95,5 +100,35 @@ describe('OWASP_SCRYPT_PARAMS', () => {
     const { cost, blockSize } = OWASP_SCRYPT_PARAMS;
 
     expect(128 * cost * blockSize).toBeLessThanOrEqual(32 * MIB);
+  });
+});
+
+describe('login code helpers', () => {
+  it('[EF-AUT-16] generates six digits, zero-padded, over many draws', () => {
+    const codes = Array.from({ length: 2000 }, () => generateLoginCode());
+
+    expect(codes.every((code) => /^\d{6}$/.test(code))).toBe(true);
+    expect(new Set(codes).size).toBeGreaterThan(1900);
+  });
+
+  it('[ENF-SEC-26] challenge tokens carry 256 random bits and hash to a stable 32-byte digest', () => {
+    const token = generateChallengeToken();
+
+    expect(token).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(token).not.toBe(generateChallengeToken());
+    expect(hashChallengeToken(token)).toHaveLength(32);
+    expect(hashChallengeToken(token).equals(hashChallengeToken(token))).toBe(true);
+  });
+
+  it('[ENF-SEC-26] binds the code digest to the challenge token', () => {
+    const first = hashLoginCode('token-a', '123456');
+
+    expect(digestsEqual(first, hashLoginCode('token-a', '123456'))).toBe(true);
+    expect(digestsEqual(first, hashLoginCode('token-b', '123456'))).toBe(false);
+    expect(digestsEqual(first, hashLoginCode('token-a', '123457'))).toBe(false);
+  });
+
+  it('[ENF-SEC-26] compares digests of different lengths without throwing', () => {
+    expect(digestsEqual(Buffer.alloc(32), Buffer.alloc(8))).toBe(false);
   });
 });

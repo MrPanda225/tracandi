@@ -1,8 +1,14 @@
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { type Account, type Credentials, fetchSession, logIn, logOut, registerAccount } from '../api/auth';
+import {
+  type Account,
+  type Credentials,
+  confirmLoginCode,
+  fetchSession,
+  logOut,
+  registerAccount,
+  requestLoginCode,
+} from '../api/auth';
 import { ApiError } from '../api/client';
-
-export type AuthMode = 'login' | 'register';
 
 type AuthState =
   { status: 'loading' } | { status: 'anonymous' } | { status: 'authenticated'; account: Account };
@@ -10,11 +16,17 @@ type AuthState =
 interface AuthContextValue {
   state: AuthState;
   /**
-   * Logs in, or creates the account (EF-AUT-14: inactive, no session opened — the caller shows its own
-   * "check your e-mail" state instead of waiting for `state` to change). Rejects with an ApiError carrying a
-   * French message.
+   * EF-AUT-14: creates the account, inactive and without a session — the caller shows its own "check your e-mail"
+   * state instead of waiting for `state` to change. Rejects with an ApiError carrying a French message.
    */
-  authenticate: (mode: AuthMode, credentials: Credentials) => Promise<void>;
+  register: (credentials: Credentials) => Promise<void>;
+  /**
+   * EF-AUT-16: login step one. Resolves with the challenge to send back with the e-mailed code; the session state is
+   * unchanged. Rejects with an ApiError carrying a French message.
+   */
+  requestLoginCode: (credentials: Credentials) => Promise<string>;
+  /** EF-AUT-16: login step two. The state only becomes authenticated once the code is accepted. */
+  confirmLoginCode: (challenge: string, code: string) => Promise<void>;
   signOut: () => Promise<void>;
   /** EF-AUT-11: the account was deleted by the API — its session with it: the interface forgets it too. */
   forgetAccount: () => void;
@@ -37,13 +49,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => controller.abort();
   }, []);
 
-  const authenticate = useCallback(async (mode: AuthMode, credentials: Credentials) => {
-    // EF-AUT-14: registering no longer opens a session — the account stays inactive until its e-mail is confirmed.
-    if (mode === 'register') {
-      await registerAccount(credentials);
-      return;
-    }
-    const account = await logIn(credentials);
+  const register = useCallback(async (credentials: Credentials) => {
+    await registerAccount(credentials);
+  }, []);
+
+  const startLogin = useCallback(
+    async (credentials: Credentials) => (await requestLoginCode(credentials)).challenge,
+    [],
+  );
+
+  const finishLogin = useCallback(async (challenge: string, code: string) => {
+    const account = await confirmLoginCode(challenge, code);
     setState({ status: 'authenticated', account });
   }, []);
 
@@ -60,8 +76,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const forgetAccount = useCallback(() => setState({ status: 'anonymous' }), []);
 
   const value = useMemo(
-    () => ({ state, authenticate, signOut, forgetAccount }),
-    [state, authenticate, signOut, forgetAccount],
+    () => ({
+      state,
+      register,
+      requestLoginCode: startLogin,
+      confirmLoginCode: finishLogin,
+      signOut,
+      forgetAccount,
+    }),
+    [state, register, startLogin, finishLogin, signOut, forgetAccount],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

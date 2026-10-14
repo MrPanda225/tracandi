@@ -158,6 +158,13 @@ const ACTIVATION_CODE_PATTERN = /code=([^"&\s]+)/;
 // the same test file — `registerUser` only has the Express app, not the service's own mailer, to read it from.
 const lastActivationCodes = new Map<string, string>();
 
+const LOGIN_CODE_PATTERN = /<strong>(\d{6})<\/strong>/;
+// EF-AUT-16: the login code last "sent" to an address, read back by `logInUser` and the tests of the code step.
+const lastLoginCodes = new Map<string, string>();
+
+/** The login code a fake mailer last had "sent" to this address, if any. */
+export const lastLoginCodeSentTo = (email: string): string | undefined => lastLoginCodes.get(email);
+
 /** The activation code `registerUser` (or a test) last had "sent" to this address by a fake mailer, if any. */
 export const lastActivationCodeSentTo = (email: string): string | undefined => lastActivationCodes.get(email);
 
@@ -170,6 +177,8 @@ export const createFakeMailer = (): FakeMailer => {
       sentEmails.push(email);
       const match = ACTIVATION_CODE_PATTERN.exec(email.html);
       if (match?.[1]) lastActivationCodes.set(email.to, decodeURIComponent(match[1]));
+      const loginCode = LOGIN_CODE_PATTERN.exec(email.html);
+      if (loginCode?.[1]) lastLoginCodes.set(email.to, loginCode[1]);
     },
   };
 };
@@ -218,7 +227,7 @@ export interface ExternalServices {
   trustProxyHops?: number;
   /** EF-EXE-07, ENF-PERF-09: ceilings of a pass of the watch; those of the server by default. */
   watchLimits?: { maxScoredOffersPerPass?: number; maxPassMinutes?: number };
-  /** EF-AUT-14, ENF-RGP-15: the mailer behind the activation e-mails, simulated; shared fake by default. */
+  /** EF-AUT-14, ENF-RGP-15: the mailer behind the activation e-mails, simulated; a fresh fake per context by default. */
   mailer?: FakeMailer;
 }
 
@@ -404,7 +413,7 @@ export const sessionCookieOf = (response: request.Response): string => {
 export const TEST_USER_PASSWORD = 'une phrase de passe longue';
 
 /**
- * Creates an account, activates it with the code the fake mailer "sent" (EF-AUT-14), logs in and returns the
+ * Creates an account, activates it with the code the fake mailer "sent" (EF-AUT-14), logs in (both steps, EF-AUT-16) and returns the
  * session cookie — register alone no longer opens one (v1.36).
  */
 export const registerUser = async (app: Express, email: string): Promise<string> => {
@@ -420,12 +429,31 @@ export const registerUser = async (app: Express, email: string): Promise<string>
     .set('Content-Type', 'application/json')
     .send({ code });
   if (activate.status !== 204) throw new Error(`activate failed with ${activate.status}`);
+  return logInUser(app, email);
+};
+
+/**
+ * Logs an activated account in through both steps (EF-AUT-16): password, then the code the fake mailer "sent".
+ * Returns the session cookie.
+ */
+export const logInUser = async (
+  app: Express,
+  email: string,
+  password = TEST_USER_PASSWORD,
+): Promise<string> => {
   const login = await request(app)
     .post('/api/auth/login')
     .set('Content-Type', 'application/json')
-    .send({ email, password: TEST_USER_PASSWORD });
+    .send({ email, password });
   if (login.status !== 200) throw new Error(`login failed with ${login.status}`);
-  return sessionCookieOf(login);
+  const code = lastLoginCodeSentTo(email);
+  if (!code) throw new Error(`no login code captured for ${email}`);
+  const verify = await request(app)
+    .post('/api/auth/login/verify')
+    .set('Content-Type', 'application/json')
+    .send({ challenge: (login.body as { challenge: string }).challenge, code });
+  if (verify.status !== 200) throw new Error(`login verification failed with ${verify.status}`);
+  return sessionCookieOf(verify);
 };
 
 /**

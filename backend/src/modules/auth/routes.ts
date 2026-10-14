@@ -18,6 +18,9 @@ import {
   ActivateBodySchema,
   DeleteAccountBodySchema,
   LoginBodySchema,
+  LoginChallengeSchema,
+  LoginResendBodySchema,
+  LoginVerifyBodySchema,
   RegisterBodySchema,
   ResendActivationBodySchema,
 } from './schemas.js';
@@ -58,15 +61,42 @@ const registerDocs = (registry: OpenAPIRegistry): void => {
     method: 'post',
     path: '/auth/login',
     tags: ['Comptes'],
-    summary: 'Se connecter',
+    summary: 'Se connecter (étape 1 : mot de passe)',
     description:
-      'EF-AUT-03, EF-AUT-14, ENF-SEC-19. Réponse identique (401) pour une adresse inconnue et un mot de passe faux. ' +
-      'Un compte existant mais non activé répond 403 avec `code: "account_not_activated"`.',
+      'EF-AUT-03, EF-AUT-14, EF-AUT-16, ENF-SEC-19. Réponse identique (401) pour une adresse inconnue et un mot de passe faux. ' +
+      'Un compte existant mais non activé répond 403 avec `code: "account_not_activated"`. Un mot de passe correct ' +
+      'n’ouvre aucune session : un code à six chiffres est envoyé par e-mail et un jeton de défi est renvoyé.',
     request: { body: jsonBody(LoginBodySchema) },
     responses: {
-      200: jsonResponse('Session ouverte (cookie posé)', AccountSchema),
-      ...errorResponses(400, 401, 403, 415, 429),
+      200: jsonResponse('Code envoyé par e-mail, aucun cookie posé', LoginChallengeSchema),
+      ...errorResponses(400, 401, 403, 415, 429, 502),
     },
+  });
+  registry.registerPath({
+    method: 'post',
+    path: '/auth/login/verify',
+    tags: ['Comptes'],
+    summary: 'Se connecter (étape 2 : code reçu par e-mail)',
+    description:
+      'EF-AUT-16, ENF-SEC-26. Un code correct et non expiré (10 minutes) ouvre la session (cookie posé). Sinon 401 ' +
+      'avec `code` : `login_code_invalid`, `login_code_locked` (cinquième code erroné consécutif : code invalidé) ou ' +
+      '`login_code_expired` (aussi pour un défi inconnu).',
+    request: { body: jsonBody(LoginVerifyBodySchema) },
+    responses: {
+      200: jsonResponse('Session ouverte (cookie posé)', AccountSchema),
+      ...errorResponses(400, 401, 415, 429),
+    },
+  });
+  registry.registerPath({
+    method: 'post',
+    path: '/auth/login/resend',
+    tags: ['Comptes'],
+    summary: 'Renvoyer le code de connexion',
+    description:
+      'EF-AUT-17, ENF-COU-03. Remplace le code et remet les tentatives à zéro. Réponse identique (204) pour un défi ' +
+      'inconnu. Limité à 3 demandes par minute pour le même défi ; la quatrième répond 429.',
+    request: { body: jsonBody(LoginResendBodySchema) },
+    responses: { 204: { description: 'Code renvoyé si le défi existe' }, ...errorResponses(400, 415, 429) },
   });
   registry.registerPath({
     method: 'post',
@@ -163,7 +193,7 @@ const mountAccountDeletion = (
  * session (EF-AUT-03). Registering never opens one (EF-AUT-14): the account stays inactive until its activation
  * e-mail is confirmed.
  * @req EF-AUT-01, EF-AUT-02, EF-AUT-03, EF-AUT-04, EF-AUT-08, EF-AUT-11, EF-AUT-13, EF-AUT-14, EF-AUT-15,
- * ENF-SEC-19, ENF-SEC-26, ENF-RGP-15
+ * EF-AUT-16, EF-AUT-17, ENF-SEC-19, ENF-SEC-26, ENF-RGP-15
  */
 export const createAuthModules = ({ service, isCookieSecure }: AuthModuleDeps): ApiModule[] => {
   const cookieOptions: CookieOptions = {
@@ -175,13 +205,17 @@ export const createAuthModules = ({ service, isCookieSecure }: AuthModuleDeps): 
   const setSessionCookie = (res: Response, session: OpenedSession) => {
     res.cookie(SESSION_COOKIE_NAME, session.token, { ...cookieOptions, expires: session.expiresAt });
   };
-  const limitAttempts = rateLimit({
-    windowMs: LOGIN_WINDOW_MS,
-    limit: LOGIN_MAX_ATTEMPTS,
-    standardHeaders: 'draft-7',
-    legacyHeaders: false,
-    message: { error: 'Trop de tentatives, réessayez dans 15 minutes' },
-  });
+  const createAttemptsLimiter = () =>
+    rateLimit({
+      windowMs: LOGIN_WINDOW_MS,
+      limit: LOGIN_MAX_ATTEMPTS,
+      standardHeaders: 'draft-7',
+      legacyHeaders: false,
+      message: { error: 'Trop de tentatives, réessayez dans 15 minutes' },
+    });
+  const limitAttempts = createAttemptsLimiter();
+  // EF-AUT-16: codes typed get their own count per IP, so confirming a login does not eat the password attempts.
+  const limitCodeAttempts = createAttemptsLimiter();
   // EF-AUT-15: keyed by the address itself, not the caller's IP — the limit is "for the same address" and must hold
   // even if the abuse is spread over many addresses from one visitor, or one address probed from many.
   const limitResendAttempts = rateLimit({
@@ -192,6 +226,19 @@ export const createAuthModules = ({ service, isCookieSecure }: AuthModuleDeps): 
     keyGenerator: (req) => {
       const email = (req.body as { email?: unknown } | undefined)?.email;
       return typeof email === 'string' ? email.trim().toLowerCase() : UNKNOWN_RESEND_KEY;
+    },
+    message: { error: 'Trop de demandes, réessayez dans une minute' },
+  });
+
+  // EF-AUT-17: keyed by the challenge, so a new code is limited for the pending login whatever the caller's address.
+  const limitLoginResendAttempts = rateLimit({
+    windowMs: RESEND_WINDOW_MS,
+    limit: RESEND_MAX_ATTEMPTS,
+    standardHeaders: 'draft-7',
+    legacyHeaders: false,
+    keyGenerator: (req) => {
+      const challenge = (req.body as { challenge?: unknown } | undefined)?.challenge;
+      return typeof challenge === 'string' ? challenge : UNKNOWN_RESEND_KEY;
     },
     message: { error: 'Trop de demandes, réessayez dans une minute' },
   });
@@ -211,9 +258,27 @@ export const createAuthModules = ({ service, isCookieSecure }: AuthModuleDeps): 
     limitAttempts,
     asyncHandler(async (req, res) => {
       const { body } = validate(req, { body: LoginBodySchema });
-      const session = await service.login(body);
+      res.status(200).json(await service.login(body));
+    }),
+  );
+  publicRouter.post(
+    '/auth/login/verify',
+    limitCodeAttempts,
+    asyncHandler(async (req, res) => {
+      const { body } = validate(req, { body: LoginVerifyBodySchema });
+      const session = await service.verifyLogin(body.challenge, body.code);
       setSessionCookie(res, session);
       res.status(200).json(await service.getAccount(session.userId));
+    }),
+  );
+  publicRouter.post(
+    '/auth/login/resend',
+    limitAttempts,
+    limitLoginResendAttempts,
+    asyncHandler(async (req, res) => {
+      const { body } = validate(req, { body: LoginResendBodySchema });
+      await service.resendLoginCode(body.challenge);
+      res.status(204).end();
     }),
   );
   publicRouter.post(

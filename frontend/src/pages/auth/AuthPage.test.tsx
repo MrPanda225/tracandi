@@ -7,6 +7,7 @@ import { App } from '../../App';
 
 const ACCOUNT = { id: 1, email: 'alex.martin@example.com' };
 const PASSWORD = 'une phrase de passe longue';
+const CHALLENGE = 'challenge-opaque';
 
 // Empty dashboard: enough for the shell to render past its loading state in tests unrelated to its content.
 const EMPTY_DASHBOARD = {
@@ -54,6 +55,21 @@ const fillCredentials = async (email: string, password: string) => {
   await user.type(screen.getByLabelText('Adresse e-mail'), email);
   await user.type(screen.getByLabelText('Mot de passe'), password);
   return user;
+};
+
+/** Fills the login form with a correct password and waits for the code step; `extra` adds or overrides routes. */
+const toCodeStep = async (extra: Record<string, Handler> = {}) => {
+  const fetchMock = mockApi({
+    '/auth/session': () => json(200, { account: null }),
+    '/auth/login': () => json(200, { challenge: CHALLENGE }),
+    ...extra,
+  });
+  renderAt('/connexion');
+  await screen.findByRole('heading', { name: 'Bon retour.' });
+  const user = await fillCredentials(ACCOUNT.email, PASSWORD);
+  await user.click(screen.getByRole('button', { name: 'Se connecter' }));
+  await screen.findByRole('heading', { name: 'Entrez votre code' });
+  return fetchMock;
 };
 
 beforeEach(() => {
@@ -104,14 +120,16 @@ describe('AuthPage', () => {
   it('[EF-AUT-10] opens on account creation when asked by the address', async () => {
     renderAt('/connexion?mode=inscription');
 
-    expect(await screen.findByRole('tab', { name: 'Créer un compte' })).toHaveAttribute('aria-selected', 'true');
+    expect(await screen.findByRole('tab', { name: 'Créer un compte' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
   });
 
-  it('[EF-AUT-03] logs in and lands on the dashboard', async () => {
+  it('[EF-AUT-03] [EF-AUT-16] asks for the e-mailed code after the password, and opens no session yet', async () => {
     const fetchMock = mockApi({
       '/auth/session': () => json(200, { account: null }),
-      '/auth/login': () => json(200, ACCOUNT),
-      '/stats/dashboard': () => json(200, EMPTY_DASHBOARD),
+      '/auth/login': () => json(200, { challenge: CHALLENGE }),
     });
     renderAt('/connexion');
     await screen.findByRole('heading', { name: 'Bon retour.' });
@@ -119,13 +137,130 @@ describe('AuthPage', () => {
     const user = await fillCredentials('Alex.Martin@example.com ', PASSWORD);
     await user.click(screen.getByRole('button', { name: 'Se connecter' }));
 
-    expect(await screen.findByRole('heading', { name: 'Tableau de bord' })).toBeInTheDocument();
-    expect(screen.getByText(ACCOUNT.email)).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Entrez votre code' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Tableau de bord' })).not.toBeInTheDocument();
+    const code = screen.getByLabelText('Code de connexion');
+    expect(code).toHaveAttribute('inputmode', 'numeric');
+    expect(code).toHaveAttribute('autocomplete', 'one-time-code');
+    expect(code).toHaveAttribute('maxlength', '6');
     const loginCall = fetchMock.mock.calls.find(([url]) => url === '/api/auth/login');
     expect(JSON.parse(String(loginCall?.[1]?.body))).toEqual({
       email: 'Alex.Martin@example.com',
       password: PASSWORD,
     });
+  });
+
+  it('[EF-AUT-16] logs in and lands on the dashboard once the code is confirmed', async () => {
+    const fetchMock = mockApi({
+      '/auth/session': () => json(200, { account: null }),
+      '/auth/login': () => json(200, { challenge: CHALLENGE }),
+      '/auth/login/verify': () => json(200, ACCOUNT),
+      '/stats/dashboard': () => json(200, EMPTY_DASHBOARD),
+    });
+    renderAt('/connexion');
+    await screen.findByRole('heading', { name: 'Bon retour.' });
+    const user = await fillCredentials(ACCOUNT.email, PASSWORD);
+    await user.click(screen.getByRole('button', { name: 'Se connecter' }));
+    await screen.findByRole('heading', { name: 'Entrez votre code' });
+
+    await user.type(screen.getByLabelText('Code de connexion'), '04a2517');
+    await user.click(screen.getByRole('button', { name: 'Valider' }));
+
+    expect(await screen.findByRole('heading', { name: 'Tableau de bord' })).toBeInTheDocument();
+    expect(screen.getByText(ACCOUNT.email)).toBeInTheDocument();
+    const verifyCall = fetchMock.mock.calls.find(([url]) => url === '/api/auth/login/verify');
+    expect(JSON.parse(String(verifyCall?.[1]?.body))).toEqual({ challenge: CHALLENGE, code: '042517' });
+  });
+
+  it('[EF-AUT-16] checks locally that the code holds six digits before calling the API', async () => {
+    const fetchMock = await toCodeStep();
+    const user = userEvent.setup();
+
+    await user.type(screen.getByLabelText('Code de connexion'), '123');
+    await user.click(screen.getByRole('button', { name: 'Valider' }));
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Saisissez les 6 chiffres');
+    expect(fetchMock.mock.calls.some(([url]) => url === '/api/auth/login/verify')).toBe(false);
+  });
+
+  it('[EF-AUT-16] shows a wrong code with attempts left and stays on the code step', async () => {
+    await toCodeStep({
+      '/auth/login/verify': () =>
+        json(401, { error: 'Code incorrect. Vérifiez-le et réessayez.', code: 'login_code_invalid' }),
+    });
+    const user = userEvent.setup();
+
+    await user.type(screen.getByLabelText('Code de connexion'), '111111');
+    await user.click(screen.getByRole('button', { name: 'Valider' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Code incorrect');
+    expect(screen.getByRole('heading', { name: 'Entrez votre code' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Code de connexion')).toHaveValue('');
+    expect(screen.getByRole('button', { name: 'Valider' })).toBeEnabled();
+  });
+
+  it.each([
+    ['login_code_locked', 'Trop de codes incorrects : ce code n’est plus valable.'],
+    ['login_code_expired', 'Ce code a expiré.'],
+  ])('[EF-AUT-16] [ENF-SEC-26] goes back to the password step with a message on %s', async (code, error) => {
+    await toCodeStep({ '/auth/login/verify': () => json(401, { error, code }) });
+    const user = userEvent.setup();
+
+    await user.type(screen.getByLabelText('Code de connexion'), '111111');
+    await user.click(screen.getByRole('button', { name: 'Valider' }));
+
+    expect(await screen.findByRole('heading', { name: 'Bon retour.' })).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent(error);
+    expect(screen.getByLabelText('Adresse e-mail')).toHaveValue(ACCOUNT.email);
+    expect(screen.getByLabelText('Mot de passe')).toHaveValue('');
+  });
+
+  it('[EF-AUT-17] asks for a new code with the resend button and confirms it', async () => {
+    const fetchMock = await toCodeStep({ '/auth/login/resend': () => json(204) });
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('button', { name: 'Renvoyer le code' }));
+
+    expect(await screen.findByRole('status')).toHaveTextContent('Un nouveau code vient d’être envoyé');
+    const resendCall = fetchMock.mock.calls.find(([url]) => url === '/api/auth/login/resend');
+    expect(JSON.parse(String(resendCall?.[1]?.body))).toEqual({ challenge: CHALLENGE });
+  });
+
+  it('[EF-AUT-17] shows the rate limit message when the API refuses a fourth resend', async () => {
+    await toCodeStep({
+      '/auth/login/resend': () => json(429, { error: 'Trop de demandes, réessayez dans une minute' }),
+    });
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('button', { name: 'Renvoyer le code' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Trop de demandes');
+    expect(screen.getByRole('heading', { name: 'Entrez votre code' })).toBeInTheDocument();
+  });
+
+  it('[ENF-UTI-03] disables the buttons and shows a waiting state while the code is checked', async () => {
+    let answer: (response: Response) => void = () => undefined;
+    await toCodeStep({ '/auth/login/verify': () => new Promise<Response>((resolve) => (answer = resolve)) });
+    const user = userEvent.setup();
+
+    await user.type(screen.getByLabelText('Code de connexion'), '042517');
+    await user.click(screen.getByRole('button', { name: 'Valider' }));
+
+    const pending = await screen.findByRole('button', { name: 'Vérification…' });
+    expect(pending).toBeDisabled();
+    expect(pending).toHaveAttribute('aria-busy', 'true');
+    expect(screen.getByRole('button', { name: 'Renvoyer le code' })).toBeDisabled();
+    answer(json(401, { error: 'Code incorrect.', code: 'login_code_invalid' }));
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
+  });
+
+  it('[EF-AUT-16] lets the user go back from the code step to the password step', async () => {
+    await toCodeStep();
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('button', { name: 'Retour à la connexion' }));
+
+    expect(await screen.findByRole('heading', { name: 'Bon retour.' })).toBeInTheDocument();
   });
 
   it('[EF-AUT-03] shows the API message when the credentials are refused, and stays on the page', async () => {
@@ -207,7 +342,9 @@ describe('AuthPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'Renvoyer l’e-mail d’activation' }));
 
-    expect(await screen.findByText(/Si cette adresse a un compte en attente d’activation/)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/Si cette adresse a un compte en attente d’activation/),
+    ).toBeInTheDocument();
     const resendCall = fetchMock.mock.calls.find(([url]) => url === '/api/auth/activate/resend');
     expect(JSON.parse(String(resendCall?.[1]?.body))).toEqual({ email: ACCOUNT.email });
   });
@@ -215,7 +352,8 @@ describe('AuthPage', () => {
   it('[EF-AUT-14] refuses an inactive account at login with a message and a resend button', async () => {
     mockApi({
       '/auth/session': () => json(200, { account: null }),
-      '/auth/login': () => json(403, { error: 'Ce compte n’est pas encore activé.', code: 'account_not_activated' }),
+      '/auth/login': () =>
+        json(403, { error: 'Ce compte n’est pas encore activé.', code: 'account_not_activated' }),
     });
     renderAt('/connexion');
     await screen.findByRole('heading', { name: 'Bon retour.' });

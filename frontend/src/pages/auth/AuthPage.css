@@ -576,6 +576,30 @@
   font-size: 0.85rem;
 }
 
+/* ---------- Login code (EF-AUT-16, EF-AUT-17) ---------- */
+
+.auth-form__code input {
+  letter-spacing: 0.35em;
+  font-variant-numeric: tabular-nums;
+}
+
+.auth-form__back {
+  align-self: center;
+  padding: 0.5rem 0.75rem;
+  border: 0;
+  background: transparent;
+  color: var(--color-mauve-deep);
+  font: inherit;
+  font-size: 0.9rem;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.auth-form__back:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
 /* ---------- Session check ---------- */
 
 .session-pending {
@@ -605,4 +629,3 @@
   justify-content: center;
   margin-top: 0.75rem;
 }
-

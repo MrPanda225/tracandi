@@ -16,11 +16,24 @@ export const registerAccount = (credentials: Credentials) =>
   request<{ id: number }>('/auth/register', { method: 'POST', body: credentials });
 
 /**
- * EF-AUT-03: opens a session.
+ * EF-AUT-03, EF-AUT-16: step one of the login. A correct password opens no session: the API e-mails a six-digit code
+ * and returns the opaque challenge to send back with it.
  * @throws ApiError with `code: 'account_not_activated'` (status 403) for an existing, still inactive account.
  */
-export const logIn = (credentials: Credentials) =>
-  request<Account>('/auth/login', { method: 'POST', body: credentials });
+export const requestLoginCode = (credentials: Credentials) =>
+  request<{ challenge: string }>('/auth/login', { method: 'POST', body: credentials });
+
+/**
+ * EF-AUT-16: step two of the login. Opens the session (cookie set by the API) when the code is right.
+ * @throws ApiError with `code` one of `login_code_invalid` (attempts remain), `login_code_locked`,
+ * `login_code_expired` (status 401).
+ */
+export const confirmLoginCode = (challenge: string, code: string) =>
+  request<Account>('/auth/login/verify', { method: 'POST', body: { challenge, code } });
+
+/** EF-AUT-17: asks for a new code for a pending login; the API answers 429 past three requests a minute. */
+export const resendLoginCode = (challenge: string) =>
+  request<undefined>('/auth/login/resend', { method: 'POST', body: { challenge } });
 
 /**
  * EF-AUT-14: consumes the activation code from the e-mail link.
