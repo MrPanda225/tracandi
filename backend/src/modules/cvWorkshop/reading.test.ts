@@ -6,6 +6,7 @@ import {
   buildTextPdf,
   FICTITIOUS_CV_LINES,
 } from '../../../tests/fixtures/cv/pdf.js';
+import { createPdftotext } from './pdftotext.js';
 import { MAX_CV_TEXT_CHARS, MAX_OCR_PAGES, readCv } from './reading.js';
 
 const fakeOcr = (texts: (page: number) => string = () => [...FICTITIOUS_CV_LINES].join('\n')) => ({
@@ -68,5 +69,47 @@ describe('readCv', () => {
       statusCode: 422,
       message: expect.stringContaining('aucun texte') as string,
     });
+  });
+
+  it('[EF-CVX-45] reads the text from pdf.js when pdftotext fails', async () => {
+    const textLayer = createPdftotext({ runCommand: () => Promise.reject(new Error('absent')) });
+
+    const cv = await readCv(buildTextPdf([[...FICTITIOUS_CV_LINES]]), { ocr: fakeOcr(), textLayer });
+
+    expect(cv.text).toContain('Data Analyst - Atelier Nova');
+  });
+
+  it('[EF-CVX-45] reads the text from pdf.js when pdftotext counts other pages than the document', async () => {
+    const textLayer = { readPages: () => Promise.resolve(['one', 'two', 'three']) };
+
+    const cv = await readCv(buildTextPdf([[...FICTITIOUS_CV_LINES]]), { ocr: fakeOcr(), textLayer });
+
+    expect(cv.text).toContain('Data Analyst - Atelier Nova');
+  });
+
+  it('[EF-CVX-22] sends to the OCR a page whose text layer is mostly private-use characters', async () => {
+    const garbage = '\uF0E0'.repeat(30);
+    const textLayer = {
+      readPages: () =>
+        Promise.resolve([`${[...FICTITIOUS_CV_LINES].join('\n')}\n\uF0E0`, `${garbage} ab`]),
+    };
+    const ocr = fakeOcr(() => 'COMPETENCES\nSQL, Python, Power BI, Tableau, dbt et Airflow');
+
+    const cv = await readCv(buildTextPdf([[...FICTITIOUS_CV_LINES], [...FICTITIOUS_CV_LINES]]), {
+      ocr,
+      textLayer,
+    });
+
+    expect(ocr.readPages).toHaveBeenCalledWith(expect.anything(), [2]);
+    expect(cv.text).toContain('dbt et Airflow');
+  });
+
+  it('[EF-CVX-22] keeps a text layer with a few icon glyphs among real words', async () => {
+    const ocr = fakeOcr();
+    const textLayer = { readPages: () => Promise.resolve([`\uF0E0 ${[...FICTITIOUS_CV_LINES].join('\n')}`]) };
+
+    await readCv(buildTextPdf([[...FICTITIOUS_CV_LINES]]), { ocr, textLayer });
+
+    expect(ocr.readPages).not.toHaveBeenCalled();
   });
 });
