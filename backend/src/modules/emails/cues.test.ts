@@ -236,6 +236,54 @@ describe('applyCategoryCues — refusals', () => {
   });
 });
 
+describe('applyCategoryCues — elided refusal wording (T-313)', () => {
+  const thanks = message(
+    'Merci pour votre candidature Maison Lumen !',
+    'Bonjour Alex, Nous apprécions l’intérêt que vous portez à Maison Lumen ainsi qu’à notre offre d’emploi. ' +
+      'Nous avons pris le temps d’étudier votre candidature et malheureusement nous n’y donnerons pas suite. ' +
+      'Mais n’hésitez pas à consulter régulièrement nos offres d’emplois. En vous souhaitant pleine réussite.',
+  );
+
+  it.each(['acknowledged', 'off_topic', 'job_alert'] as const)(
+    '[RG-17] files the « n’y donnerons pas suite » letter as a refusal when the AI said %s',
+    (category) => {
+      expect(applyCategoryCues(thanks, classified(category)).category).toBe('rejected');
+    },
+  );
+
+  it.each([
+    ['n’y donnerons pas suite', 'Nous n’y donnerons pas suite.'],
+    ['n’y donnons pas suite', 'Nous n’y donnons pas suite.'],
+    ['n’y donnerons aucune suite', 'Nous n’y donnerons aucune suite.'],
+    ['n’y donnons aucune suite', 'Nous n’y donnons aucune suite.'],
+    ['ne pourrons y donner suite', 'Nous ne pourrons y donner suite.'],
+    ['ne pouvons y donner suite', 'Nous ne pouvons y donner suite.'],
+  ])('[RG-17] recognizes the elided wording « %s »', (_label, snippet) => {
+    expect(hasRejectionCue({ subject: null, snippet })).toBe(true);
+  });
+
+  it('[RG-17] ignores an elided wording that follows a condition', () => {
+    expect(
+      hasRejectionCue({ subject: null, snippet: 'Si nous n’y donnons pas suite, vous en serez informé.' }),
+    ).toBe(false);
+  });
+
+  it('[RG-17] keeps a job alert listing a filled position as a job alert', () => {
+    const alert = message(
+      'Nouvelles offres',
+      'Le poste de Data Analyst a été pourvu. Découvrez nos nouvelles offres',
+    );
+
+    expect(applyCategoryCues(alert, classified('job_alert')).category).toBe('job_alert');
+  });
+
+  it('[RG-17] keeps a job alert without acknowledgement wording, even with an elided refusal wording', () => {
+    const alert = message('Offres de la semaine', 'Le poste de chargé de projet : nous n’y donnerons pas suite.');
+
+    expect(applyCategoryCues(alert, classified('job_alert')).category).toBe('job_alert');
+  });
+});
+
 describe('applyCategoryCues — acknowledgements', () => {
   it('[RG-17] files an acknowledgement the AI took for an off-topic message', () => {
     const acknowledgement = message(

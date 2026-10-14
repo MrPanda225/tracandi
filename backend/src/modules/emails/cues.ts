@@ -27,6 +27,12 @@ const REJECTION_CUES: readonly string[] = [
   'ne pouvons donner suite',
   'ne pouvons pas donner suite',
   'ne pouvons y donner',
+  'ne pourrons y donner suite',
+  // Elided « n'y » (« nous n'y donnerons pas suite »), reported 13/10/2026.
+  'n y donnerons pas suite',
+  'n y donnons pas suite',
+  'n y donnerons aucune suite',
+  'n y donnons aucune suite',
   'ne pourrons pas donner suite',
   'sans suite',
   'ne pas poursuivre',
@@ -224,8 +230,10 @@ export const hasAcknowledgementCue = (message: MessageWording): boolean =>
   sentencesOf(message).some((sentence) => ACKNOWLEDGEMENT_CUES.some((cue) => sentence.includes(cue)));
 
 /**
- * Categories a refusal wording may correct. A job alert is left out: such a letter lists positions, and one of them
- * being filled would turn the whole alert into a refusal attached to an application.
+ * Categories a refusal wording alone may correct. A job alert is left out: such a letter lists positions, and one
+ * of them being filled would turn the whole alert into a refusal attached to an application. It is corrected only
+ * when an acknowledgement wording comes with the refusal (RG-17 v1.37): thanking for the candidature and refusing
+ * it is a letter about the candidate's own application.
  */
 const CORRECTED_BY_REJECTION: readonly ClassifiedMessage['category'][] = [
   'acknowledged',
@@ -244,8 +252,8 @@ const CORRECTED_BY_ACKNOWLEDGEMENT: readonly ClassifiedMessage['category'][] = [
 /**
  * RG-17: files a received message from its own wording when the AI read it otherwise. A refusal wins over an
  * acknowledgement, since a refusal usually opens with one. A job offer the AI recognised is never replaced, an
- * interview is never downgraded to an acknowledgement, a job alert is never turned into a refusal, and a message
- * the candidate sent is never corrected.
+ * interview is never downgraded to an acknowledgement, a job alert is turned into a refusal only when the message
+ * both thanks for the candidature and refuses it, and a message the candidate sent is never corrected.
  * @returns the classification, unchanged when no wording decides.
  * @req RG-17, EF-GML-08, EF-GML-11
  */
@@ -255,8 +263,11 @@ export const applyCategoryCues = (
 ): ClassifiedMessage => {
   if (message.direction !== 'inbound') return classification;
   const { category } = classification;
-  if (CORRECTED_BY_REJECTION.includes(category) && hasRejectionCue(message)) {
-    return { ...classification, category: 'rejected' };
+  if (hasRejectionCue(message)) {
+    const refusesOwnApplication = category === 'job_alert' && hasAcknowledgementCue(message);
+    if (CORRECTED_BY_REJECTION.includes(category) || refusesOwnApplication) {
+      return { ...classification, category: 'rejected' };
+    }
   }
   if (CORRECTED_BY_ACKNOWLEDGEMENT.includes(category) && hasAcknowledgementCue(message)) {
     return { ...classification, category: 'acknowledged' };
