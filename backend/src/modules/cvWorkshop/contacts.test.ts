@@ -103,3 +103,50 @@ describe('separateContacts, an adversarial text (review of the lot 10)', () => {
     expect(text).toBe('Data Analyst | Lyon\nSQL, Python');
   });
 });
+
+describe('separateContacts, contacts cut out of their line (EF-CVX-45)', () => {
+  it('[EF-CVX-45] removes only the address from a line it shares with a bullet of the main column', () => {
+    const { text, contacts } = separateContacts(
+      'Lucie Marchand\n3 rue des Pins, 44000 Nantes • Supervision Prometheus de 40 services.\nAutre ligne',
+    );
+
+    expect(contacts.address).toBe('3 rue des Pins, 44000 Nantes');
+    expect(text).toBe('Supervision Prometheus de 40 services.\nAutre ligne');
+  });
+
+  it('[EF-CVX-45] removes only the e-mail and the phone from a line shared with other words', () => {
+    const { text } = separateContacts('Lucie Marchand\nSQL lucie@example.com Python 06 12 34 56 78 Docker');
+
+    expect(text).toBe('SQL  Python  Docker');
+  });
+
+  it('[EF-CVX-45] does not take « 20000 factures » in a sentence for the address', () => {
+    const { text, contacts } = separateContacts(
+      'Traitement de 20000 factures par mois.\nGestion de 12500 Clients',
+    );
+
+    expect(contacts.address).toBeNull();
+    expect(text).toContain('Traitement de 20000 factures par mois.');
+    expect(text).toContain('Gestion de 12500 Clients');
+  });
+
+  it('[EF-CVX-45] still reads a postal code and town on a line of their own, or after a label', () => {
+    expect(separateContacts('69003 Lyon').contacts.address).toBe('69003 Lyon');
+    expect(separateContacts('Adresse : 12 Rue des Lilas, 69003 Lyon').contacts.address).toBe(
+      '12 Rue des Lilas, 69003 Lyon',
+    );
+  });
+
+  it('[EF-CVX-45] does not take dates written « 09 2022 06 2023 » for a phone number', () => {
+    const { text, contacts } = separateContacts('Ingénieure 09 2022 06 2023 Nordwave\n06 12 34 56 78');
+
+    expect(contacts.phones).toEqual(['06 12 34 56 78']);
+    expect(text).toContain('09 2022 06 2023');
+  });
+
+  it('[EF-CVX-45] reads numbers written without separators, with dots or with dashes', () => {
+    expect(separateContacts('0612345678').contacts.phones).toEqual(['0612345678']);
+    expect(separateContacts('06.12.34.56.78').contacts.phones).toEqual(['06.12.34.56.78']);
+    expect(separateContacts('06-12-34-56-78').contacts.phones).toEqual(['06-12-34-56-78']);
+  });
+});

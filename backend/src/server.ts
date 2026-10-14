@@ -22,6 +22,7 @@ import { createJobsModule } from './modules/jobs/routes.js';
 import { createProfileModule } from './modules/cv/routes.js';
 import { createProfileService } from './modules/cv/service.js';
 import { createPdfOcr } from './modules/cvWorkshop/ocr.js';
+import { createPdftotext } from './modules/cvWorkshop/pdftotext.js';
 import { createAnalysisResults } from './modules/cvWorkshop/results.js';
 import { createCvWorkshopModule } from './modules/cvWorkshop/routes.js';
 import { type CvAnalysis, createCvWorkshopService } from './modules/cvWorkshop/service.js';
@@ -254,6 +255,7 @@ const app = createApp({
         createCvWorkshopService({
           queue: jobQueue,
           ocr: createPdfOcr(),
+          textLayer: createPdftotext({ logger }),
           router: llmRouter,
           results: analysisResults,
           clock: systemClock,
@@ -275,6 +277,7 @@ const app = createApp({
           clock: systemClock,
           queue: jobQueue,
           ocr: createPdfOcr(),
+          textLayer: createPdftotext({ logger }),
           router: llmRouter,
           deductions: deductionResults,
           deductionsPerDay: config.watch.profileDeductionsPerDay,

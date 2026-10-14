@@ -7,6 +7,7 @@ import { startOfParisDay } from '../../lib/parisTime.js';
 import { buildDeduceProfilePrompt } from '../../llm/prompts/deduceProfile.js';
 import type { LlmRouter } from '../../llm/router.js';
 import type { PdfOcr } from '../cvWorkshop/ocr.js';
+import type { PdfTextLayer } from '../cvWorkshop/pdftotext.js';
 import { readCv } from '../cvWorkshop/reading.js';
 import type { AnalysisResults } from '../cvWorkshop/results.js';
 import { decodeCvUpload } from '../cvWorkshop/upload.js';
@@ -58,6 +59,8 @@ export interface CvTypesServiceDeps {
   clock: Clock;
   queue: JobQueue;
   ocr: PdfOcr;
+  /** EF-CVX-45: poppler's reading of the text layer; pdf.js alone when left out. */
+  textLayer?: PdfTextLayer;
   router: LlmRouter;
   /** The deductions waiting for the candidate's validation, by CV type: in memory only (ENF-RGP-14). */
   deductions: AnalysisResults<ProfileDeduction>;
@@ -70,11 +73,11 @@ export interface CvTypesServiceDeps {
  * are the code's (RG-28, RG-29). The local model leads: nobody waits at the screen for this run (EF-IA-08).
  */
 const deduceFrom = async (
-  { ocr, router, clock }: CvTypesServiceDeps,
+  { ocr, textLayer, router, clock }: CvTypesServiceDeps,
   { userId, pdf }: { userId: number; pdf: Buffer },
   report: (counters: RunCounters) => void,
 ): Promise<{ deduction: ProfileDeduction; counters: RunCounters }> => {
-  const reading = await readCv(pdf, { ocr });
+  const reading = await readCv(pdf, { ocr, textLayer });
   report({ cv_steps_done: STEP_READ, cv_pages_ocr: reading.ocrPageCount });
   const { data } = await (router.forMode?.('scheduled') ?? router).runTask('deduce_profile', {
     userId,
