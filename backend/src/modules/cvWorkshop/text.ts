@@ -1,14 +1,17 @@
 /**
- * Text as compared by the workshop: accents and case ignored, dashes made one, spaces collapsed — so that « Août »
- * and « aout », « 09/2024 – 08/2026 » and « 09/2024 - 08/2026 » read the same.
+ * Text as compared by the workshop: accents and case ignored, ligatures spelled out (« ﬁ » read « fi », as PDF text
+ * yields them), invisible characters (soft hyphen, zero-width space…) dropped, dashes and apostrophes made one, spaces
+ * collapsed — so that « Août » and « aout », « 09/2024 – 08/2026 » and « 09/2024 − 08/2026 » read the same.
  */
 export const foldText = (text: string): string =>
   text
-    .normalize('NFD')
-    .replace(/\p{M}/gu, '')
+    // Before the normalization, which would turn « ´ » into a space and an accent.
+    .replace(/´/gu, "'")
+    .normalize('NFKD')
+    .replace(/[\p{M}\p{Cf}]/gu, '')
     .toLowerCase()
-    .replace(/[‐‑‒–—―]/gu, '-')
-    .replace(/[’`]/gu, "'")
+    .replace(/[‐‑‒–—―−]/gu, '-')
+    .replace(/[’‘ʼ´′`]/gu, "'")
     .replace(/\s+/gu, ' ')
     .trim();
 

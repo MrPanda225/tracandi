@@ -709,6 +709,15 @@ l'offre n'est écrite en base, sur disque ou dans les journaux (ENF-RGP-06).
   passent avant le détail ; aperçu en page A4 (proportions 21 × 29,7, marges de 1,75 cm, tailles rapportées à la
   largeur de la page, texte réduit jusqu'à 80 % si la page déborde). Vérifié par captures à 1440 × 900 (score, CV et
   téléchargement sans défiler) et à 390 px (page A4 en vignette, lisible en zoomant).
+- [x] **T-518 Fidélité du CV adapté : ligatures et compétences en trop** — *demande du Business Owner du 14/10/2026
+  (cahier v1.38, BES-51).* Un CV adapté fidèle n'est plus refusé à cause d'une ligature ou d'un caractère invisible du
+  texte du PDF ; une compétence, certification, centre d'intérêt ou langue absents du CV est retiré de la réponse (avec
+  les modifications qui l'annoncent) au lieu de la faire rejeter.
+  *Exigences* : RG-21 (précisée), EF-CVX-26, EF-CVX-27.
+  *Fini quand* : « Conﬁguration » du PDF cite « Configuration » ; une compétence en trop est retirée, le reste est
+  gardé ; entreprise, intitulé, dates, diplôme et chiffre inventés rejettent toujours la réponse.
+  *Livré (14/10/2026)* : `foldText` en NFKD, caractères de format retirés, apostrophes et tirets étendus ;
+  `tailoredAnswerSchemaFor` filtre les listes avant la vérification ; `npm run check` vert.
 
 - [ ] **T-515 Retrait de l'ancien atelier** — code du profil de référence et du modèle Word (T-501, T-502, T-507),
   LibreOffice retiré de l'image, migration de suppression de `candidate_profiles` et `cv_versions`, politique de

@@ -127,6 +127,16 @@ describe('createCvWorkshopService', () => {
     expect(results.size()).toBe(0);
   });
 
+  it('[RG-21] keeps the adapted CV without the skill the CV does not cite, instead of failing the adaptation', async () => {
+    const extra = { ...TAILORED, cv: { ...TAILORED.cv, skills: ['SQL', 'dbt', 'Python'] } };
+    const { router } = scriptedRouter({ diagnose_cv: ANSWER, tailor_cv: extra });
+    const { service } = serviceWith({ router });
+
+    await service.startAnalysis(7, request());
+
+    expect(service.findAnalysis(7, 41).adapted.cv.skills).toEqual(['SQL', 'Python']);
+  });
+
   it('[EF-CVX-37] [RG-24] never shows an adapted CV longer than one A4 page, faithful as it may be', async () => {
     const [experience] = TAILORED.cv.experiences as { bullets: string[] }[];
     const tooLong = {
