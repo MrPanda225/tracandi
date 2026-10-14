@@ -65,7 +65,7 @@ const WORD = /[\p{L}\p{N}]+/gu;
 const NOT_WORD = /[^\p{L}\p{N}]+/u;
 
 /** The tokens of a text as compared: folded (case, accents, ligatures), punctuation and dashes ignored. */
-const keysOf = (text: string): string[] => foldText(text).split(NOT_WORD).filter((key) => key !== '');
+export const keysOf = (text: string): string[] => foldText(text).split(NOT_WORD).filter((key) => key !== '');
 
 const tokensOfLine = (text: string, line: number): Omit<Token, 'pos'>[] =>
   [...text.matchAll(WORD)].flatMap((match) => {

@@ -295,6 +295,20 @@ describe('CvWorkshopPage — the result', () => {
     expect(preview).toHaveTextContent('SQL, Python, Power BI');
   });
 
+  it('[EF-CVX-47] [RG-24] shows an entry whose company and dates the CV does not give, with no stray dash', async () => {
+    const cv = {
+      ...ANALYSIS.adapted.cv,
+      experiences: [{ title: 'Développeuse', organization: null, place: null, dates: null, bullets: [] }],
+      education: [{ degree: 'Licence', school: null, place: null, dates: '2012', detail: null }],
+    };
+    await showResult({ ...ANALYSIS, adapted: { ...ANALYSIS.adapted, cv } });
+
+    const preview = screen.getByRole('article', { name: 'Aperçu de votre CV adapté' });
+    expect(within(preview).getByText('Développeuse')).toHaveTextContent(/^Développeuse$/);
+    expect(within(preview).getByText('Licence')).toHaveTextContent(/^Licence$/);
+    expect(preview).toHaveTextContent('2012');
+  });
+
   it('[EF-CVX-25] lays the adapted CV out as a sheet: contact details on top, grouped skills side by side', async () => {
     const cv = {
       ...ANALYSIS.adapted.cv,

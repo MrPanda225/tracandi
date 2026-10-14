@@ -354,6 +354,7 @@ export const createTestContext = (
             router: llmRouter,
             results: memory.analyses,
             clock: clock.now,
+            logger,
             analysesPerDay: 5,
           }),
         ),

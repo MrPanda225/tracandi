@@ -96,6 +96,18 @@ describe('renderAtsDocx', () => {
     );
   });
 
+  it('[EF-CVX-47] [RG-22] writes an entry whose company, place or dates the CV does not give, with no stray separator', async () => {
+    const cv: AdaptedCv = {
+      ...CV,
+      experiences: [{ title: 'Développeuse', organization: null, place: null, dates: '2020', bullets: [] }],
+      education: [{ degree: 'Licence', school: null, place: null, dates: null, detail: 'Mention bien' }],
+    };
+
+    const paragraphs = readParagraphs(await render({ cv }));
+
+    expect(paragraphs).toEqual(expect.arrayContaining(['Développeuse | 2020', 'Licence', 'Mention bien']));
+  });
+
   it('[EF-CVX-36] [RG-24] sets a long CV tighter, never below 10 pt and 1.5 cm margins', async () => {
     const comfortable = readZip(await render()).get('word/document.xml') ?? '';
     const tight = readZip(await render({ cv: longCv(1), addedSkills: TICKED_SKILLS })).get('word/document.xml') ?? '';

@@ -4,6 +4,7 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { jobRuns } from '../../src/db/schema.js';
 import { CV_MAX_BYTES, NOT_A_PDF } from '../../src/modules/cvWorkshop/upload.js';
 import type { LlmProvider } from '../../src/llm/types.js';
+import { FICTITIOUS_STRUCTURE } from '../fixtures/cv/structure.js';
 import { buildLockedPdf, buildTextPdf, FICTITIOUS_CV_LINES } from '../fixtures/cv/pdf.js';
 import { readParagraphs } from '../fixtures/docx/readDocx.js';
 import { createTestContext, logInUser, openTestDatabase, registerUser, type TestContext, truncateAll } from './context.js';
@@ -13,17 +14,20 @@ let context: TestContext;
 let alice: string;
 
 const DIAGNOSIS = readFileSync(new URL('../fixtures/llm/diagnose_cv.json', import.meta.url), 'utf8');
+const STRUCTURE = JSON.stringify(FICTITIOUS_STRUCTURE);
 const TAILORED = readFileSync(new URL('../fixtures/llm/tailor_cv.json', import.meta.url), 'utf8');
 const OFFER = 'Data Analyst en CDI à Lyon. Vous maîtrisez SQL, Python, dbt et Airflow. '.repeat(4);
 
-/** The AI of the test: it answers the diagnostic or the adapted CV of the fixtures, and remembers what it was sent. */
+/** The AI of the test: it answers the structure, the diagnostic or the adapted CV of the fixtures, and remembers what it was sent. */
 const prompts: string[] = [];
 const diagnosingAi: LlmProvider = {
   name: 'gemini',
   model: 'gemini-test',
   complete: (llmRequest) => {
     prompts.push(llmRequest.prompt);
-    const text = llmRequest.system.includes('Tu adaptes le CV') ? TAILORED : DIAGNOSIS;
+    let text = DIAGNOSIS;
+    if (llmRequest.system.includes('Tu structures un CV')) text = STRUCTURE;
+    else if (llmRequest.system.includes('Tu adaptes le CV')) text = TAILORED;
     return Promise.resolve({ text, inputTokens: 900, outputTokens: 300 });
   },
 };

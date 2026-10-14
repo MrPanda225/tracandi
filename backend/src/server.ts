@@ -257,6 +257,7 @@ const app = createApp({
           router: llmRouter,
           results: analysisResults,
           clock: systemClock,
+          logger,
           analysesPerDay: config.cvAnalysesPerDay,
         }),
       ),
