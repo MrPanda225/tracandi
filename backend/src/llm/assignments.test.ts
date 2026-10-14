@@ -26,6 +26,7 @@ describe('describeAssignments', () => {
         { task: 'write_motivation', providers: ['groq_1', 'groq_3', 'claude', 'gemini'] },
         { task: 'write_follow_up', providers: ['groq_1', 'groq_3', 'claude', 'gemini'] },
         { task: 'diagnose_cv', providers: ['groq_1', 'groq_3', 'gemini', 'claude'] },
+        { task: 'parse_cv', providers: ['groq_1', 'groq_3', 'gemini', 'claude'] },
         { task: 'deduce_profile', providers: ['groq_1', 'groq_3', 'gemini', 'claude'] },
         { task: 'extract_offer_traits', providers: ['groq_1', 'groq_3', 'gemini', 'claude'] },
       ],

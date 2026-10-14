@@ -1,0 +1,1 @@
+ALTER TYPE "public"."llm_task" ADD VALUE 'parse_cv';

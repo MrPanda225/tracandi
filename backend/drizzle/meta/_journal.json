@@ -232,6 +232,13 @@
       "when": 1791824270447,
       "tag": "0032_login-challenges",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1792002683967,
+      "tag": "0033_parse_cv_task",
+      "breakpoints": true
     }
   ]
 }
