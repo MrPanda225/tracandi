@@ -53,6 +53,8 @@ const LINE_SLACK = 1;
 
 interface Token {
   key: string;
+  /** Position in the flattened tokens searched. */
+  pos: number;
   /** Index in the array of lines. */
   line: number;
   start: number;
@@ -65,7 +67,7 @@ const NOT_WORD = /[^\p{L}\p{N}]+/u;
 /** The tokens of a text as compared: folded (case, accents, ligatures), punctuation and dashes ignored. */
 const keysOf = (text: string): string[] => foldText(text).split(NOT_WORD).filter((key) => key !== '');
 
-const tokensOfLine = (text: string, line: number): Token[] =>
+const tokensOfLine = (text: string, line: number): Omit<Token, 'pos'>[] =>
   [...text.matchAll(WORD)].flatMap((match) => {
     const key = keysOf(match[0]).join('');
     return key === '' ? [] : [{ key, line, start: match.index, end: match.index + match[0].length }];
@@ -97,9 +99,10 @@ const findRun = (tokens: readonly Token[], wanted: readonly string[], maxGap: nu
   return null;
 };
 
-const sourceOf = (run: readonly Token[], lines: readonly CvLine[]): string => {
-  const first = run[0] as Token;
-  const last = run[run.length - 1] as Token;
+/** The source text of tokens that follow each other (a fact wrapped over lines is joined with one space). */
+const sourceOfGroup = (group: readonly Token[], lines: readonly CvLine[]): string => {
+  const first = group[0] as Token;
+  const last = group[group.length - 1] as Token;
   if (first.line === last.line) return (lines[first.line] as CvLine).text.slice(first.start, last.end);
   return lines
     .slice(first.line, last.line + 1)
@@ -108,6 +111,17 @@ const sourceOf = (run: readonly Token[], lines: readonly CvLine[]): string => {
       return first.line + offset === last.line ? line.text.slice(0, last.end) : line.text;
     })
     .join(' ');
+};
+
+/** Only the matched tokens are copied: runs of consecutive ones as in the source, joined by one space where foreign tokens were skipped. */
+const sourceOf = (run: readonly Token[], lines: readonly CvLine[]): string => {
+  const groups: Token[][] = [];
+  for (const token of run) {
+    const group = groups[groups.length - 1];
+    if (group && (group[group.length - 1] as Token).pos + 1 === token.pos) group.push(token);
+    else groups.push([token]);
+  }
+  return groups.map((group) => sourceOfGroup(group, lines)).join(' ');
 };
 
 /** The lines of the reference, with one more on each side, as indexes into the array of lines. */
@@ -148,7 +162,9 @@ const anchorRef = (ref: CvRef, lines: readonly CvLine[], isDate: boolean): strin
   const near = windowOf(ref, lines.length);
   for (const indexes of [near, everyLine]) {
     if (indexes.length === 0) continue;
-    const tokens = indexes.flatMap((index) => tokensOfLine((lines[index] as CvLine).text, index));
+    const tokens = indexes
+      .flatMap((index) => tokensOfLine((lines[index] as CvLine).text, index))
+      .map((token, pos) => ({ ...token, pos }));
     const text = alignTokens(wanted, tokens, lines) ?? (isDate ? alignPeriod(ref.text, indexes, lines) : null);
     if (text !== null) return text;
   }

@@ -72,9 +72,23 @@ describe('anchorParsedCv', () => {
       numberCvLines('Data analyst A B C senior'),
     );
 
-    expect(two.headline).toBe('Data analyst Atelier Nova senior');
+    expect(two.headline).toBe('Data analyst senior');
     expect(three.headline).toBeNull();
     expect(three.dropped).toBe(1);
+  });
+
+  it('[EF-CVX-46] [RG-21] never carries the foreign words skipped inside a fact, on one line or across two', () => {
+    const one = anchorParsedCv(
+      answerWith({ headline: ref(1, 'Ingénieure DevOps') }),
+      numberCvLines('Ingénieure CONTACT DevOps'),
+    );
+    const two = anchorParsedCv(
+      answerWith({ headline: ref(1, 'Ingénieure DevOps Senior', 2) }),
+      numberCvLines('Ingénieure DevOps\nLANGUES Senior'),
+    );
+
+    expect(one.headline).toBe('Ingénieure DevOps');
+    expect(two.headline).toBe('Ingénieure DevOps Senior');
   });
 
   it('[RG-21] drops a reference to a line that does not exist or to text absent from the CV, and keeps the rest', () => {
