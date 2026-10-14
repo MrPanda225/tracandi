@@ -175,6 +175,25 @@ export const users = pgTable('users', {
   id: integer().primaryKey().generatedAlwaysAsIdentity(),
   email: varchar({ length: 254 }).notNull().unique('uq_users_email'),
   passwordHash: text().notNull(),
+  // EF-AUT-01, EF-AUT-14 (v1.36): null until the activation e-mail is confirmed; login is refused until then.
+  activatedAt: instant(),
+  createdAt: createdAt(),
+});
+
+/**
+ * EF-AUT-14, EF-AUT-15, ENF-SEC-26 (v1.36): the single-use activation token of a newly created account, one row per
+ * user (`userId` primary key: a resend replaces the pending row rather than accumulating one per attempt). Only the
+ * SHA-256 digest of the token is stored (ENF-SEC-26, "comme ENF-SEC-20"). `consumedAt` — rather than deleting the row
+ * on success — is what lets the activation screen tell a token already used from one that never existed, without
+ * leaking anything else (ROADMAP T-1019: success / expired / already used / invalid).
+ */
+export const accountActivations = pgTable('account_activations', {
+  userId: integer()
+    .primaryKey()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  tokenHash: bytea().notNull().unique('uq_account_activations_token_hash'),
+  expiresAt: instant().notNull(),
+  consumedAt: instant(),
   createdAt: createdAt(),
 });
 

@@ -194,6 +194,7 @@ des candidatures, la veille des offres et la production de CV adaptés.
 | EXM-10 | Le système doit répartir les traitements automatisés entre deux fournisseurs IA, avec continuité de service si l'un est indisponible. | BES-09 |
 | EXM-11 | Le système doit distinguer les offres et les candidatures selon le type de contrat recherché : CDI, CDD, alternance ou job étudiant. | BES-12 |
 | EXM-17 | Le système doit relever, pour chaque utilisateur et en trois passages par jour, les offres publiées depuis le passage précédent qui correspondent à ce que l'utilisateur a validé à partir de ses CV et de ses offres choisies, en s'appuyant sur un modèle d'IA gratuit hébergé par l'exploitant. | BES-48 |
+| EXM-18 | Le système doit vérifier l'adresse e-mail d'un compte à sa création et confirmer l'identité du candidat par un code à usage unique envoyé par e-mail à chaque connexion. | BES-49 |
 
 ## 5. Périmètre
 
@@ -440,13 +441,13 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 
 | ID | Exigence | Prio | Source | Vérif. | Critère d'acceptation |
 |---|---|---|---|---|---|
-| EF-AUT-01 | Une personne peut créer un compte avec une adresse e-mail et un mot de passe. | M | EXM-13 | T | Réponse 201 et session ouverte ; adresse déjà utilisée : réponse 409. |
+| EF-AUT-01 | Une personne peut créer un compte avec une adresse e-mail et un mot de passe ; le compte est créé inactif et n'ouvre pas de session tant que l'adresse n'est pas confirmée (EF-AUT-14). (v1.36, BES-49 modifiée) | M | EXM-13, EXM-18 | T | Réponse 201 sans cookie de session ; adresse déjà utilisée : réponse 409. |
 | EF-AUT-02 | Le système doit refuser un mot de passe de moins de 12 ou de plus de 128 caractères. | M | EXM-13 | T | Mot de passe de 11 caractères : réponse 400. |
-| EF-AUT-03 | L'utilisateur peut se connecter avec son adresse et son mot de passe. | M | EXM-13 | T | Réponse 200 et cookie de session `HttpOnly`, `SameSite=Strict`. |
+| EF-AUT-03 | L'utilisateur peut se connecter avec son adresse et son mot de passe ; la session ne s'ouvre qu'après confirmation du code à usage unique envoyé à son adresse (EF-AUT-16). (v1.36, BES-49 modifiée) | M | EXM-13, EXM-18 | T | Adresse et mot de passe corrects : réponse 200 sans cookie de session, le code est demandé ; code confirmé dans le délai : cookie de session `HttpOnly`, `SameSite=Strict`. |
 | EF-AUT-04 | L'utilisateur peut se déconnecter ; sa session est alors invalidée côté serveur. | M | EXM-13 | T | Requête suivante avec l'ancien cookie : réponse 401. |
-| EF-AUT-05 | Le système doit refuser avec le code 401 toute requête sans session valide, à l'exception de la création de compte, de la connexion, de l'état de santé et de la documentation. | M | EXM-13 | T | `GET /api/applications` sans cookie : 401. |
+| EF-AUT-05 | Le système doit refuser avec le code 401 toute requête sans session valide, à l'exception de la création de compte, de la connexion, de l'activation, du code à usage unique, de l'état de santé et de la documentation. (v1.36, BES-49 modifiée) | M | EXM-13 | T | `GET /api/applications` sans cookie : 401. |
 | EF-AUT-06 | Le système doit limiter chaque lecture et chaque modification aux données de l'utilisateur connecté. | M | EXM-13 | T | Candidature d'un autre utilisateur : réponse 404, jamais 403 (pas de divulgation d'existence). |
-| EF-AUT-07 | Une session doit expirer 7 jours après son ouverture. | M | EXM-13 | T | Horloge simulée à J+7 : réponse 401. |
+| EF-AUT-07 | Une session doit expirer 24 heures après son ouverture. (v1.36, BES-49 modifiée ; remplace les 7 jours de v1.2, retour d'une testeuse du 11/10/2026 sur un poste partagé) | M | EXM-13 | T | Horloge simulée à H+24 : réponse 401. |
 | EF-AUT-08 | L'utilisateur peut consulter l'adresse de son compte. | S | EXM-13 | T | `GET /api/auth/me` : adresse de l'utilisateur connecté. |
 
 ### 6.9 Documentation des API (DOC)
@@ -526,6 +527,7 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | ENF-SEC-17 | Les identifiants de connexion à la base hébergée doivent être propres à chaque compte (application, migrations, sauvegarde), distincts et révocables séparément. | I |
 | ENF-SEC-24 | Le système doit présenter à chaque appel du modèle local un jeton secret fourni par la configuration du serveur, et ne doit appeler qu'en https une adresse hors réseau privé. (v1.35) Acceptation : Adresse `http://` publique : démarrage refusé avec un message ; adresse du réseau privé en `http://` : acceptée ; jeton présent dans l'en-tête de l'appel simulé. | T |
 | ENF-SEC-25 | Le système ne doit jamais renvoyer ni journaliser l'adresse ni le jeton du modèle local. (v1.35) Acceptation : Jeton fictif reconnaissable : absent des réponses de l'API, des journaux et des messages d'erreur. | T + I |
+| ENF-SEC-26 | Un code à usage unique (activation ou connexion) doit être aléatoire, à usage unique, stocké en base sous forme d'empreinte uniquement (comme ENF-SEC-20), expirer au plus tard 15 minutes après son envoi, et être invalidé après 5 tentatives erronées consécutives. (v1.36, BES-49) Acceptation : Sixième tentative erronée : code invalidé, un nouvel envoi est nécessaire ; code consommé ou expiré : refusé à sa deuxième utilisation. | T |
 
 ### 7.3 Fiabilité et disponibilité
 | ID | Exigence | Vérif. |
@@ -583,7 +585,8 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | ENF-RGP-02 | L'utilisateur peut supprimer son compte et l'intégralité de ses données par une action unique, CV types (profil déduit), offres choisies et créneaux compris. (v1.35) | T |
 | ENF-RGP-03 | Les données doivent être stockées exclusivement sur le poste du candidat et dans la base hébergée, située dans l'Union européenne, à l'exception des contenus transmis aux fournisseurs IA pour traitement. | I |
 | ENF-RGP-04 | Le système ne doit déposer aucun cookie ni traceur autre que le cookie de session (aucune mesure d'audience, aucune publicité, aucun service tiers dans le navigateur). (v1.25) | I |
-| ENF-RGP-05 | La politique de confidentialité doit indiquer le responsable du traitement et son contact, les données traitées, les finalités et leurs bases légales, les durées de conservation (sauvegardes comprises), les destinataires (Neon, Google, Groq, Gemini, Anthropic, le modèle d'IA local de l'exploitant (v1.35) et, s'il est retenu (Q-25), le service de tunnel qui y mène, avec son pays d'hébergement), les sources d'offres consultées et ce qui leur est transmis (v1.33 : France Travail, La bonne alternance, API Recherche d'entreprises, découpage administratif — critères de recherche seulement), la durée de conservation des offres (ENF-RGP-10), les transferts hors de l'Union européenne, les droits et leur exercice, le recours auprès de la CNIL, et le respect de la politique d'utilisation limitée des données des API Google. (v1.25) | I |
+| ENF-RGP-05 | La politique de confidentialité doit indiquer le responsable du traitement et son contact, les données traitées, les finalités et leurs bases légales, les durées de conservation (sauvegardes comprises), les destinataires (Neon, Google, Groq, Gemini, Anthropic, le modèle d'IA local de l'exploitant (v1.35), Resend pour les e-mails d'activation et de connexion (v1.36, BES-49) et, s'il est retenu (Q-25), le service de tunnel qui y mène, avec son pays d'hébergement), les sources d'offres consultées et ce qui leur est transmis (v1.33 : France Travail, La bonne alternance, API Recherche d'entreprises, découpage administratif — critères de recherche seulement), la durée de conservation des offres (ENF-RGP-10), les transferts hors de l'Union européenne, les droits et leur exercice, le recours auprès de la CNIL, et le respect de la politique d'utilisation limitée des données des API Google. (v1.25 ; v1.36) | I |
+| ENF-RGP-15 | Le système ne doit transmettre à Resend que l'adresse e-mail du destinataire et le contenu du message d'activation ou du code de connexion, jamais le mot de passe ni une autre donnée du compte. (v1.36, BES-49) Acceptation : Requête envoyée à Resend : seuls l'adresse et le message préparé par le serveur y figurent. | T |
 | ENF-RGP-06 | Le système ne doit enregistrer ni en base, ni sur disque (hors dossier temporaire de l'OCR, ENF-SEC-22), ni dans les journaux le CV importé, son texte, le texte de l'offre ou le CV adapté ; seuls les compteurs de l'exécution sont journalisés. Le résultat d'une analyse reste en mémoire 30 minutes au plus, puis est effacé. (v1.30, BES-43) (v1.35 : s'applique aussi à la lecture d'un CV type et au texte d'une offre choisie ; seules les données énumérées par ENF-RGP-14 sont conservées.) | T + I |
 | ENF-RGP-07 | Le système ne doit transmettre au fournisseur IA ni le nom, ni l'adresse e-mail, ni le téléphone, ni l'adresse postale, ni les liens de profil figurant dans le CV importé ; ils sont retirés du texte avant envoi et rétablis dans le CV téléchargé. (v1.30, BES-43) | T |
 | ENF-RGP-08 | La politique de confidentialité doit décrire le traitement de l'Atelier CV : données lues, transmission au fournisseur IA sans les coordonnées, absence de conservation, et celui des CV types et des offres choisies (v1.35). (v1.30, BES-43) | I |
@@ -599,6 +602,7 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 |---|---|---|
 | ENF-COU-01 | Le coût des appels IA ne doit pas dépasser 10 € par mois pour 300 messages liés à l'emploi, 500 nouvelles offres et 150 analyses de l'Atelier CV par mois (analyses ajoutées en v1.30, BES-43). | T (agrégat `llm_calls`) |
 | ENF-COU-02 | Le système doit enregistrer les appels du fournisseur local avec un coût de 0 € et ne pas les compter dans les 10 € mensuels d'ENF-COU-01. (v1.35) Acceptation : Appels `local` simulés : lignes `llm_calls` avec le fournisseur `local`, coût estimé du mois inchangé. | T |
+| ENF-COU-03 | L'envoi des e-mails d'activation et de connexion doit rester dans le palier gratuit de Resend (100 e-mails par jour, 3 000 par mois, tous comptes confondus) : les demandes de nouvel envoi sont limitées en fréquence (EF-AUT-15, EF-AUT-17) et le système ne doit jamais dépasser le palier en usage normal du nombre de comptes de test en cours (Q-27). (v1.36, BES-49) | T (agrégat des envois) |
 
 ## 8. Contraintes
 
@@ -614,6 +618,7 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | C-09 | L'accès aux données passe par l'ORM Drizzle. | Business Owner (v1.1, BES-11) |
 | C-08 | Le CV reproduit le modèle Word « CV pour Forum » déjà utilisé par le candidat. | Existant |
 | C-10 | Le modèle d'IA local est celui installé sur le serveur personnel (homelab) de l'exploitant ; son usage ne consomme aucun crédit et n'est jamais appelé par une adresse publique sans jeton (BES-48). | Business Owner (v1.35) |
+| C-11 | Les e-mails d'activation et de connexion sont envoyés par Resend, palier gratuit ; le domaine d'envoi est vérifié et géré par le Business Owner (BES-49). | Business Owner (v1.36) |
 
 ## 9. Règles de gestion
 
@@ -706,6 +711,7 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | Q-24 | Qui règle quoi (v1.35) : l'utilisateur règle sa recherche, l'exploitant règle le modèle local ? (bloque EF-CFG-06, 07, ENF-MAI-09) | L'utilisateur règle ses CV, niveaux, offres choisies et créneaux ; l'exploitant règle adresse, modèle, jeton, délais et plafonds par la configuration du serveur ; le modèle est partagé. |
 | Q-25 | Comment l'API hébergée joint-elle le modèle local du homelab ? (v1.35 ; ADR-17) | Tunnel gratuit vers un proxy à jeton (option A) ; à défaut, travailleur de veille chez l'exploitant (B) ou fournisseur local réservé au déploiement local (C). Jamais le port du modèle ouvert sur Internet. |
 | Q-26 | « Agir comme un agent » (v1.35) : enchaînement borné piloté par le code, ou agent autonome ? | Enchaînement borné (le modèle extrait et note, le code consulte, enregistre et compte) ; l'agent autonome est une autre demande. |
+| Q-27 | Un code à chaque connexion (EF-AUT-16) peut approcher le palier gratuit de Resend (100 e-mails par jour) si plusieurs comptes de test se connectent souvent le même jour. (v1.36, BES-49) | Accepté le temps des tests (peu de comptes) ; à revoir avant une mise en production avec plus d'utilisateurs — palier payant, ou code demandé seulement sur un appareil non reconnu. |
 
 ## 13. Traçabilité besoins → exigences
 
@@ -728,6 +734,10 @@ Vérification : **T** test automatisé, **D** démonstration, **I** inspection.
 | EF-AUT-09 | Un visiteur sans session qui ouvre l'adresse racine doit voir une page de présentation du service — suivi des candidatures depuis Gmail, classement des réponses, relances préparées, tableau de bord, données conservées — donnant accès à la connexion et à la création de compte ; avec une session, la même adresse ouvre le tableau de bord. (v1.24, BES-36) | S | EXM-13 | T | Sans session, `/` présente le service et ses deux accès ; avec session, `/` affiche le tableau de bord ; la page de présentation ne demande aucune donnée d'utilisateur à l'API. |
 | EF-AUT-10 | L'accès « Créer un compte » de la page de présentation doit ouvrir le formulaire directement sur la création de compte. (v1.24) | C | EXM-13 | T | `/connexion?mode=inscription` ouvre l'onglet « Créer un compte ». |
 | EF-AUT-13 | L'interface doit connaître l'état de session d'un visiteur sans produire d'erreur : une route publique répond toujours 200, avec le compte de la session ou rien. (v1.28, BES-41) | S | EXM-13 | T | `GET /api/auth/session` : 200 `{ account }` avec une session valide, 200 `{ account: null }` sans cookie, avec un cookie inconnu ou expiré. |
+| EF-AUT-14 | À la création d'un compte, le système doit envoyer par e-mail (Resend) un lien ou un code d'activation à usage unique, valable un temps limité ; la connexion est refusée tant qu'il n'est pas confirmé. (v1.36, BES-49) | M | EXM-18 | T | Connexion avant confirmation : refusée avec un message invitant à activer le compte ; lien ou code expiré : refusé ; confirmation dans le délai : compte activé. |
+| EF-AUT-15 | Le candidat peut demander un nouvel envoi du lien ou du code d'activation si le précédent a expiré ou n'est pas arrivé, avec une limite de fréquence anti-abus. (v1.36, BES-49) | S | EXM-18 | T | Trois demandes en une minute pour la même adresse : la quatrième est refusée (429), sans indiquer si l'adresse existe. |
+| EF-AUT-16 | Après une adresse et un mot de passe corrects, l'utilisateur doit saisir un code à usage unique de six chiffres envoyé par e-mail (Resend), valable un temps limité, avant que la session ne s'ouvre. (v1.36, BES-49) | M | EXM-18 | T | Code absent, faux ou expiré : pas de session, réponse 401 ; code correct dans le délai : session ouverte (EF-AUT-03). |
+| EF-AUT-17 | Le candidat peut demander un nouvel envoi du code de connexion si le précédent a expiré ou n'est pas arrivé, avec une limite de fréquence anti-abus. (v1.36, BES-49) | S | EXM-18 | T | Trois demandes en une minute pour la même tentative de connexion : la quatrième est refusée (429). |
 | BES-15 | EXM-14 | EF-DOC-01, 02 |
 | BES-16 | EXM-01 | EF-GML-01 |
 | BES-12 | EXM-11 | EF-GML-19, EF-CAN-13, 14, EF-VEI-20 à 22, EF-TDB-09, RG-09, RG-10 |

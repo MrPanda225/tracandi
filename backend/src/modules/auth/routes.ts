@@ -13,12 +13,23 @@ import {
   SESSION_SECURITY,
   z,
 } from '../../lib/openapi.js';
-import { AccountSchema, DeleteAccountBodySchema, LoginBodySchema, RegisterBodySchema } from './schemas.js';
+import {
+  AccountSchema,
+  ActivateBodySchema,
+  DeleteAccountBodySchema,
+  LoginBodySchema,
+  RegisterBodySchema,
+  ResendActivationBodySchema,
+} from './schemas.js';
 import type { AuthService, OpenedSession } from './service.js';
 
 // ENF-SEC-19: at most 10 attempts per 15 minutes and per IP address.
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const LOGIN_MAX_ATTEMPTS = 10;
+// EF-AUT-15: a fourth resend request within a minute, for the same address, is refused.
+const RESEND_WINDOW_MS = 60 * 1000;
+const RESEND_MAX_ATTEMPTS = 3;
+const UNKNOWN_RESEND_KEY = 'unknown';
 
 interface AuthModuleDeps {
   service: AuthService;
@@ -33,12 +44,14 @@ const registerDocs = (registry: OpenAPIRegistry): void => {
     method: 'post',
     path: '/auth/register',
     tags: ['Comptes'],
-    summary: 'Créer un compte et ouvrir une session',
-    description: 'EF-AUT-01, EF-AUT-02. Pose le cookie de session. Limité à 10 tentatives par 15 minutes.',
+    summary: 'Créer un compte (inactif) et envoyer l’e-mail d’activation',
+    description:
+      'EF-AUT-01, EF-AUT-14. Ne pose aucun cookie de session : le compte reste inactif jusqu’à son activation. ' +
+      'Limité à 10 tentatives par 15 minutes.',
     request: { body: jsonBody(RegisterBodySchema) },
     responses: {
-      201: jsonResponse('Compte créé, session ouverte', CreatedSchema),
-      ...errorResponses(400, 409, 415, 429),
+      201: jsonResponse('Compte créé, e-mail d’activation envoyé', CreatedSchema),
+      ...errorResponses(400, 409, 415, 429, 502),
     },
   });
   registry.registerPath({
@@ -47,11 +60,38 @@ const registerDocs = (registry: OpenAPIRegistry): void => {
     tags: ['Comptes'],
     summary: 'Se connecter',
     description:
-      'EF-AUT-03, ENF-SEC-19. Réponse identique pour une adresse inconnue et un mot de passe faux.',
+      'EF-AUT-03, EF-AUT-14, ENF-SEC-19. Réponse identique (401) pour une adresse inconnue et un mot de passe faux. ' +
+      'Un compte existant mais non activé répond 403 avec `code: "account_not_activated"`.',
     request: { body: jsonBody(LoginBodySchema) },
     responses: {
       200: jsonResponse('Session ouverte (cookie posé)', AccountSchema),
-      ...errorResponses(400, 401, 415, 429),
+      ...errorResponses(400, 401, 403, 415, 429),
+    },
+  });
+  registry.registerPath({
+    method: 'post',
+    path: '/auth/activate',
+    tags: ['Comptes'],
+    summary: 'Activer un compte',
+    description:
+      'EF-AUT-14, ENF-SEC-26. Consomme le code (ou lien) d’activation à usage unique. `code` dans la réponse ' +
+      'd’erreur distingue un code expiré (`activation_code_expired`), déjà utilisé ' +
+      '(`activation_code_already_used`) ou invalide (`activation_code_invalid`).',
+    request: { body: jsonBody(ActivateBodySchema) },
+    responses: { 204: { description: 'Compte activé' }, ...errorResponses(400, 415) },
+  });
+  registry.registerPath({
+    method: 'post',
+    path: '/auth/activate/resend',
+    tags: ['Comptes'],
+    summary: 'Renvoyer l’e-mail d’activation',
+    description:
+      'EF-AUT-15, ENF-COU-03. Réponse identique (204) que l’adresse ait un compte en attente d’activation ou non. ' +
+      'Limité à 3 demandes par minute pour la même adresse ; la quatrième répond 429.',
+    request: { body: jsonBody(ResendActivationBodySchema) },
+    responses: {
+      204: { description: 'E-mail renvoyé si le compte existe et est inactif' },
+      ...errorResponses(400, 415, 429),
     },
   });
   registry.registerPath({
@@ -118,9 +158,12 @@ const mountAccountDeletion = (
 };
 
 /**
- * Account routes: public module (register, login, logout, session state) and protected module (`me`, deletion).
- * The session cookie is `HttpOnly`, `SameSite=Strict`, limited to `/api` and expires with the session (EF-AUT-03).
- * @req EF-AUT-01, EF-AUT-02, EF-AUT-03, EF-AUT-04, EF-AUT-08, EF-AUT-11, EF-AUT-13, ENF-SEC-19
+ * Account routes: public module (register, login, activate, resend, logout, session state) and protected module
+ * (`me`, deletion). The session cookie is `HttpOnly`, `SameSite=Strict`, limited to `/api` and expires with the
+ * session (EF-AUT-03). Registering never opens one (EF-AUT-14): the account stays inactive until its activation
+ * e-mail is confirmed.
+ * @req EF-AUT-01, EF-AUT-02, EF-AUT-03, EF-AUT-04, EF-AUT-08, EF-AUT-11, EF-AUT-13, EF-AUT-14, EF-AUT-15,
+ * ENF-SEC-19, ENF-SEC-26, ENF-RGP-15
  */
 export const createAuthModules = ({ service, isCookieSecure }: AuthModuleDeps): ApiModule[] => {
   const cookieOptions: CookieOptions = {
@@ -139,6 +182,19 @@ export const createAuthModules = ({ service, isCookieSecure }: AuthModuleDeps): 
     legacyHeaders: false,
     message: { error: 'Trop de tentatives, réessayez dans 15 minutes' },
   });
+  // EF-AUT-15: keyed by the address itself, not the caller's IP — the limit is "for the same address" and must hold
+  // even if the abuse is spread over many addresses from one visitor, or one address probed from many.
+  const limitResendAttempts = rateLimit({
+    windowMs: RESEND_WINDOW_MS,
+    limit: RESEND_MAX_ATTEMPTS,
+    standardHeaders: 'draft-7',
+    legacyHeaders: false,
+    keyGenerator: (req) => {
+      const email = (req.body as { email?: unknown } | undefined)?.email;
+      return typeof email === 'string' ? email.trim().toLowerCase() : UNKNOWN_RESEND_KEY;
+    },
+    message: { error: 'Trop de demandes, réessayez dans une minute' },
+  });
 
   const publicRouter = Router();
   publicRouter.post(
@@ -146,9 +202,8 @@ export const createAuthModules = ({ service, isCookieSecure }: AuthModuleDeps): 
     limitAttempts,
     asyncHandler(async (req, res) => {
       const { body } = validate(req, { body: RegisterBodySchema });
-      const session = await service.register(body);
-      setSessionCookie(res, session);
-      res.status(201).json({ id: session.userId });
+      const account = await service.register(body);
+      res.status(201).json({ id: account.id });
     }),
   );
   publicRouter.post(
@@ -159,6 +214,24 @@ export const createAuthModules = ({ service, isCookieSecure }: AuthModuleDeps): 
       const session = await service.login(body);
       setSessionCookie(res, session);
       res.status(200).json(await service.getAccount(session.userId));
+    }),
+  );
+  publicRouter.post(
+    '/auth/activate',
+    asyncHandler(async (req, res) => {
+      const { body } = validate(req, { body: ActivateBodySchema });
+      await service.activateAccount(body.code);
+      res.status(204).end();
+    }),
+  );
+  publicRouter.post(
+    '/auth/activate/resend',
+    limitAttempts,
+    limitResendAttempts,
+    asyncHandler(async (req, res) => {
+      const { body } = validate(req, { body: ResendActivationBodySchema });
+      await service.requestActivationResend(body.email);
+      res.status(204).end();
     }),
   );
   // EF-AUT-13: a visitor without a session is an expected state, not an error the browser should report.

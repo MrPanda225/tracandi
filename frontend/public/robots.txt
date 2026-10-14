@@ -14,5 +14,6 @@ Disallow: /reglages
 Disallow: /offres
 Disallow: /sites
 Disallow: /atelier-cv
+Disallow: /activation
 
 Sitemap: https://tracandi.vercel.app/sitemap.xml

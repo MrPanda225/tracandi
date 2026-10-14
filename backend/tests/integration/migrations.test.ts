@@ -4,10 +4,17 @@ import request from 'supertest';
 import { afterAll, describe, expect, it } from 'vitest';
 import { runMigrations } from '../../src/db/migrate.js';
 import { createLogger } from '../../src/lib/logger.js';
-import { createTestContext, openTestDatabase } from './context.js';
+import {
+  createTestContext,
+  openTestDatabase,
+  registerUser,
+  TEST_USER_PASSWORD,
+  truncateAll,
+} from './context.js';
 import { testDatabaseUrl } from './test-database.js';
 
 const database = openTestDatabase();
+const BACKFILL_FILE = new URL('../../drizzle/0031_backfill-activated-at.sql', import.meta.url);
 const JOURNAL_FILE = new URL('../../drizzle/meta/_journal.json', import.meta.url);
 
 /** Number of migrations versioned in `drizzle/`, as listed by drizzle-kit's journal. */
@@ -19,6 +26,7 @@ afterAll(async () => {
 });
 
 const EXPECTED_TABLES = [
+  'account_activations',
   'app_settings',
   'application_status_history',
   'applications',
@@ -85,6 +93,8 @@ describe('migrations', () => {
       [
         'GET /health',
         'POST /auth/register',
+        'POST /auth/activate',
+        'POST /auth/activate/resend',
         'POST /auth/login',
         'POST /auth/logout',
         'GET /auth/session',
@@ -146,5 +156,28 @@ describe('migrations', () => {
         'GET /watch/places',
       ].sort(),
     );
+  });
+
+  it('[EF-AUT-14] the backfill migration keeps an account created before activation existed able to log in', async () => {
+    // All migrations are applied once before the suite, so "before 0031" is reproduced: an account whose
+    // activation date is empty (as it was when 0030 added the column), then the migration's own SQL is run.
+    await truncateAll(database);
+    const { app } = createTestContext(database);
+    await registerUser(app, 'ancien@example.com');
+    await database.db.execute(sql`UPDATE users SET activated_at = NULL`);
+    const login = () =>
+      request(app)
+        .post('/api/auth/login')
+        .set('Content-Type', 'application/json')
+        .send({ email: 'ancien@example.com', password: TEST_USER_PASSWORD });
+    expect((await login()).status).toBe(403);
+
+    await database.db.execute(sql.raw(readFileSync(BACKFILL_FILE, 'utf8')));
+
+    expect((await login()).status).toBe(200);
+    const stored = await database.db.execute<{ same: boolean }>(
+      sql`SELECT activated_at = created_at AS same FROM users`,
+    );
+    expect(stored.rows[0]?.same).toBe(true);
   });
 });

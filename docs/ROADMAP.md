@@ -1159,6 +1159,70 @@ développeur l'active sur son poste (`ENABLED_FEATURES=watch,cv`) le temps d'y t
   *Exigences* : EF-IA-15.
   *Fini quand* : tâche réservée et local éteint : erreur d'EF-IA-04, aucun fournisseur hébergé appelé.
   *Dépend de* : T-1003.
+- [x] **T-1019 Activation du compte par e-mail (Resend)** — intégration de Resend (nouvelle dépendance, `backend/src/lib/`
+  ou `modules/auth/`) ; la création de compte n'ouvre plus de session, envoie un lien ou code d'activation à usage
+  unique et limité dans le temps ; nouvel envoi possible, limité en fréquence. Côté écran (`AuthPage`) : après
+  inscription, un message remplace l'ouverture directe du tableau de bord (« Vérifiez votre boîte mail pour activer
+  votre compte »), avec un bouton pour renvoyer le lien ; une page d'activation consomme le lien (`/activation?code=…`)
+  et affiche son résultat (succès, lien expiré, déjà utilisé) avant de proposer la connexion.
+  *Exigences* : EF-AUT-01 (modifiée), EF-AUT-05 (modifiée), EF-AUT-14, EF-AUT-15, ENF-SEC-26 (partielle), ENF-RGP-05
+  (modifiée), ENF-RGP-15, ENF-COU-03 (partielle), C-11.
+  *Fini quand* : création de compte : 201 sans cookie de session, e-mail d'activation envoyé ; connexion avant
+  confirmation : refusée avec message ; lien expiré : refusé ; confirmation dans le délai : compte activé, connexion
+  possible ; quatrième demande de renvoi en une minute pour la même adresse : 429, sans indiquer si l'adresse existe ;
+  code stocké en base sous forme d'empreinte, jamais en clair ; écran testé (Testing Library) et vérifié à l'œil aux
+  largeurs 1440 px et 390 px (`frontend.md`, ENF-UTI-02).
+  *Dépend de* : —. *Point d'attention* : Resend exige un domaine d'envoi vérifié pour écrire à n'importe quel
+  destinataire (C-11, à la charge du Business Owner) ; sans domaine vérifié, Resend ne livre qu'à l'adresse du compte
+  Resend lui-même — à confirmer prêt avant la tâche.
+  *Livré* : `backend/src/modules/auth/resendClient.ts` (`fetch` nu vers `POST /emails`, aucune dépendance `resend`,
+  jamais de corps journalisé, réponse analysée par zod, motif tronqué à 300 caractères, adresses e-mail masquées par `withoutContacts` — ENF-SEC-08 — et délai maximal
+  `RESEND_TIMEOUT_MS` de 10 s) ; `activationEmail.ts`
+  (texte français, lien `${frontendOrigin}/activation?code=…`) ; `token.ts` étendu (`generateActivationToken`,
+  `hashActivationToken`, même construction que les jetons de session) ; `schema.ts` : colonne `users.activatedAt`
+  (nulle = inactif) et table `account_activations` (`userId` clé primaire — une ligne par candidat, comme
+  `app_settings` ou `candidate_profiles` — `tokenHash` unique, `expiresAt`, `consumedAt`), migration `0030` ; migration de données `0031_backfill-activated-at` : les comptes créés avant l'activation
+  sont considérés comme activés (`activated_at = created_at`), décision du Business Owner.
+  `service.ts` : `register` crée le compte inactif et son activation dans une transaction, envoie l'e-mail, et
+  revient en arrière (compte supprimé) si Resend refuse — 502, ré-inscription possible ; `login` refuse 403
+  `account_not_activated` un compte existant mais inactif, 401 pour un mot de passe faux (y compris sur un compte
+  inactif, pour ne rien révéler) ; `activateAccount` et `requestActivationResend` (toujours 204, même réponse pour
+  une adresse inconnue ou déjà active). `routes.ts` : `POST /auth/activate`, `POST /auth/activate/resend` (limite
+  par appelant, comme l'inscription et la connexion, puis limite dédiée par adresse, 3 par minute). `HttpError`/`ApiError` (back et front) portent désormais un `code` optionnel
+  (`account_not_activated`, `activation_code_expired`, `activation_code_already_used`, `activation_code_invalid`) —
+  signature repliée en objet d'options pour rester à trois paramètres (`clean-code.md`). `config/env.ts` :
+  `RESEND_API_KEY` obligatoire, `RESEND_FROM_EMAIL` (défaut `onboarding@resend.dev`, C-11). Frontend :
+  `AuthForm.tsx` (écran « Vérifiez votre boîte mail » après inscription, bouton de renvoi partagé avec le message de
+  connexion refusée) ; `ActivationPage.tsx` (nouvelle route publique `/activation`, les quatre états, lien vers la
+  connexion). Tests : `credentials.test.ts`, `resendClient.test.ts`, `activationEmail.test.ts`,
+  `config/env.test.ts`, `tests/integration/auth.test.ts` (étendu) côté API ; `AuthPage.test.tsx` (étendu),
+  `ActivationPage.test.tsx` côté interface.
+  *Écarts par rapport à l'architecture suggérée* : pas de colonne `attempts` sur `account_activations` — un jeton de
+  256 bits reçu par lien n'est jamais « tenté » plusieurs fois comme le serait un code à six chiffres tapé (ça, c'est
+  T-1020) ; `consumedAt` ajoutée à la place pour distinguer « déjà utilisé » d'« invalide », exigé par l'écran
+  (ROADMAP). Paramètre `code` (et non `token`) choisi dans l'URL et le corps des requêtes, pour coller au libellé
+  `/activation?code=…` de cette tâche.
+  *Écart* : le délai de Resend est posé par un `AbortController` et non `AbortSignal.timeout`, dont le minuteur
+  interne échappe aux horloges simulées des tests.
+  *Reste à faire* : tests d'intégration écrits mais non exécutés (`docker compose up -d db` indisponible dans cet
+  environnement) ; captures aux deux largeurs, à joindre à la pull request.
+- [ ] **T-1020 Connexion confirmée par un code à usage unique** — après une adresse et un mot de passe corrects,
+  envoi par Resend d'un code à six chiffres ; la session ne s'ouvre qu'après sa confirmation ; nouvel envoi possible,
+  limité en fréquence. Côté écran (`AuthPage`) : une étape de saisie du code remplace l'ouverture immédiate de
+  session après un mot de passe correct, avec son message d'erreur (code faux ou expiré) et un bouton pour renvoyer
+  le code.
+  *Exigences* : EF-AUT-03 (modifiée), EF-AUT-16, EF-AUT-17, ENF-SEC-26, ENF-RGP-15 (partagée avec T-1019),
+  ENF-COU-03.
+  *Fini quand* : adresse et mot de passe corrects : 200 sans cookie de session, code envoyé ; code absent, faux ou
+  expiré : 401, pas de session ; code correct dans le délai : session ouverte ; sixième tentative erronée du même
+  code : invalidé ; quatrième demande de renvoi en une minute : 429 ; écran testé (Testing Library) et vérifié à
+  l'œil aux largeurs 1440 px et 390 px.
+  *Dépend de* : T-1019.
+- [ ] **T-1021 Session raccourcie à 24 heures** — `EF-AUT-07` : la session expire 24 heures après son ouverture au
+  lieu de 7 jours.
+  *Exigences* : EF-AUT-07 (modifiée).
+  *Fini quand* : horloge simulée à H+24 : 401 ; à H+23h59 : session encore valide.
+  *Dépend de* : —.
 
 **Revue indépendante du backend du lot 10 (02/10/2026)** — relue par un second agent, en lecture seule, sur
 `dev..fix/T-1010-tolerant-local-answers` ; chaque point ci-dessous a été vérifié dans le code avant d'être corrigé.

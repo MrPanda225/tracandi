@@ -1,0 +1,40 @@
+.activation-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  background: var(--color-canvas);
+  color: var(--color-ink);
+}
+
+.activation-card {
+  width: 100%;
+  max-width: 28rem;
+  padding: 2rem;
+  border-radius: var(--radius-lg);
+  background: var(--color-canvas-raised, var(--color-canvas));
+  box-shadow: 0 24px 48px -28px rgb(62 61 71 / 0.35);
+  text-align: center;
+}
+
+.activation-card__status {
+  margin: 0;
+  color: var(--color-mauve-deep);
+}
+
+.activation-card__title {
+  margin: 0 0 0.75rem;
+  font-size: clamp(1.5rem, 4vw, 1.9rem);
+}
+
+.activation-card__body {
+  margin: 0 0 1.5rem;
+  color: var(--color-mauve-deep);
+}
+
+.activation-card__link {
+  display: inline-flex;
+  width: auto;
+  padding: 0.85rem 1.6rem;
+  text-decoration: none;
+}
