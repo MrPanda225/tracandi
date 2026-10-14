@@ -9,6 +9,7 @@ import {
   createTestContext,
   NANTERRE,
   openTestDatabase,
+  logInUser,
   registerUser,
   type TestContext,
   truncateAll,
@@ -301,6 +302,7 @@ describe('passes by candidate and by slot (T-1008, EF-VEI-51)', () => {
     await scheduledPassAt('morning');
 
     context.clock.advanceDays(1);
+    alice = await logInUser(context.app, 'alice@example.com'); // EF-AUT-07: the session lasts 24 hours
 
     expect((await as(alice).get('/api/watch/automatic')).body).toMatchObject({ passes: [] });
   });
@@ -476,6 +478,7 @@ describe('which model led the pass, and when the last one succeeded (T-1014, EF-
     await scheduledPassAt('morning');
     const first = (await read()).lastSuccessAt;
     context.clock.advanceDays(3);
+    alice = await logInUser(context.app, 'alice@example.com'); // EF-AUT-07: the session lasts 24 hours
 
     expect(first).not.toBeNull();
     // Three days later nothing ran: the passes of the day are none, the last success is still the morning's.

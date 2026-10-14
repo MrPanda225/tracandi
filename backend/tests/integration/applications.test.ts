@@ -324,6 +324,7 @@ describe('GET/PATCH/DELETE /api/applications/:id', () => {
 
   it('[EF-CAN-07] updates the status (204), records it and counts it as activity', async () => {
     context.clock.advanceDays(3);
+    alice = await logInUser(context.app, 'alice@example.com'); // EF-AUT-07: the session lasts 24 hours
 
     const response = await api(alice).patch(`/api/applications/${applicationId}`, { status: 'interview' });
 

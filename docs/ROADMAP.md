@@ -1204,6 +1204,8 @@ développeur l'active sur son poste (`ENABLED_FEATURES=watch,cv`) le temps d'y t
   `/activation?code=…` de cette tâche.
   *Écart* : le délai de Resend est posé par un `AbortController` et non `AbortSignal.timeout`, dont le minuteur
   interne échappe aux horloges simulées des tests.
+  *Écart* : ENF-RGP-05 (modifiée, v1.36 : Resend parmi les destinataires de la politique de confidentialité) n'avait pas
+  été faite ici ; complétée par T-1021.
   *Reste à faire* : tests d'intégration écrits mais non exécutés (`docker compose up -d db` indisponible dans cet
   environnement) ; captures aux deux largeurs, à joindre à la pull request.
 - [x] **T-1020 Connexion confirmée par un code à usage unique** — après une adresse et un mot de passe corrects,
@@ -1238,11 +1240,18 @@ développeur l'active sur son poste (`ENABLED_FEATURES=watch,cv`) le temps d'y t
   (oubli de T-1019) ajoutée à la liste des tables.
   *Reste à faire* : tests d'intégration écrits mais non exécutés (Docker indisponible) ; captures aux largeurs 1440 px et
   390 px, à joindre à la pull request.
-- [ ] **T-1021 Session raccourcie à 24 heures** — `EF-AUT-07` : la session expire 24 heures après son ouverture au
+- [x] **T-1021 Session raccourcie à 24 heures** — `EF-AUT-07` : la session expire 24 heures après son ouverture au
   lieu de 7 jours.
   *Exigences* : EF-AUT-07 (modifiée).
   *Fini quand* : horloge simulée à H+24 : 401 ; à H+23h59 : session encore valide.
   *Dépend de* : —.
+  *Livré* : `SESSION_LIFETIME_MS` passe de 7 jours à 24 heures (`auth/service.ts`) ; le cookie suit `expiresAt` et le cache
+  mémoire de 60 s garde l'expiration propre de la session : rien d'autre à changer. Pages « Confidentialité » et « Cookies » :
+  « 24 heures au plus » (test `[EF-AUT-07]`). Test d'intégration : valide à H+23h59, 401 à H+24 ; les tests d'intégration qui
+  avancent l'horloge d'un jour ou plus rouvrent leur session (`logInUser`).
+  Politique de confidentialité : Resend nommé parmi les destinataires, avec ce qu'il reçoit et jamais le mot de passe
+  (ENF-RGP-05 modifiée, oubliée par T-1019, faite ici) ; date des pages légales : 13 octobre 2026.
+  *Reste à faire* : tests d'intégration écrits mais non exécutés (Docker indisponible).
 
 **Revue indépendante du backend du lot 10 (02/10/2026)** — relue par un second agent, en lecture seule, sur
 `dev..fix/T-1010-tolerant-local-answers` ; chaque point ci-dessous a été vérifié dans le code avant d'être corrigé.

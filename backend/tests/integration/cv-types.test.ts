@@ -16,6 +16,7 @@ import {
 import {
   createTestContext,
   openTestDatabase,
+  logInUser,
   registerUser,
   tablesHolding,
   type TestContext,
@@ -263,6 +264,7 @@ describe('replacing and deleting a CV type (T-1009, EF-CVX-41, EF-CVX-42)', () =
     const [before] = await database.db.select().from(cvTypes);
 
     context.clock.advanceDays(1);
+    alice = await logInUser(context.app, 'alice@example.com'); // EF-AUT-07: the session lasts 24 hours
     const response = await as(alice).put(`/api/cv-types/${String(id)}`, { file: cvBase64() });
     const state = await outcomeOf('alice@example.com', response);
 

@@ -9,6 +9,7 @@ import { buildLockedPdf, buildTextPdf, FICTITIOUS_CV_LINES } from '../fixtures/c
 import {
   createTestContext,
   openTestDatabase,
+  logInUser,
   registerUser,
   tablesHolding,
   type TestContext,
@@ -381,6 +382,7 @@ describe('the daily allowance of deductions (T-1010, EF-CVX-44)', () => {
     expect(replaced.status).toBe(429);
 
     context.clock.advanceDays(1);
+    alice = await logInUser(context.app, 'alice@example.com'); // EF-AUT-07: the session lasts 24 hours
     await as(alice)
       .delete(`/api/cv-types/${String(id)}`)
       .expect(204);
