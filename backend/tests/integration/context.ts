@@ -7,6 +7,7 @@ import { emails, processedMessages } from '../../src/db/schema.js';
 import { connectDatabase, type DatabaseHandle } from '../../src/db/client.js';
 import { createJobQueue, type JobQueue } from '../../src/jobs/queue.js';
 import { createPdfOcr, type PdfOcr } from '../../src/modules/cvWorkshop/ocr.js';
+import { createPdftotext } from '../../src/modules/cvWorkshop/pdftotext.js';
 import { type AnalysisResults, createAnalysisResults } from '../../src/modules/cvWorkshop/results.js';
 import { createCvWorkshopModule } from '../../src/modules/cvWorkshop/routes.js';
 import { type CvAnalysis, createCvWorkshopService } from '../../src/modules/cvWorkshop/service.js';
@@ -351,6 +352,7 @@ export const createTestContext = (
           createCvWorkshopService({
             queue,
             ocr: ocrOf(ocr),
+            textLayer: createPdftotext(),
             router: llmRouter,
             results: memory.analyses,
             clock: clock.now,
@@ -371,6 +373,7 @@ export const createTestContext = (
             clock: clock.now,
             queue,
             ocr: ocrOf(ocr),
+            textLayer: createPdftotext(),
             router: llmRouter,
             deductions: memory.deductions,
             deductionsPerDay: 5,

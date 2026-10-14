@@ -16,12 +16,37 @@ export interface SeparatedCv {
 // Starts only at the beginning of a run of address characters: one that goes on without an « @ » costs one pass,
 // not one per letter (ENF-SEC-22).
 const EMAIL = /(?<![\w.+-])[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g;
-// French numbers (06 12 34 56 78, 06.12.34.56.78) and international ones (+33 6 12 34 56 78).
-const PHONE = /(?:\+\d{1,3}[\s.-]?\d(?:[\s.-]?\d{2}){4}|\b0\d(?:[\s.-]?\d{2}){4})\b/g;
+// French numbers (06 12 34 56 78, 06.12.34.56.78, 0612345678) and international ones (+33 6 12 34 56 78). A number
+// keeps one separator throughout, so « 09 2022 06 2023 » (dates) is none, and no digit touches it.
+const PHONE =
+  /(?<![\d+])(?:\+\d{1,3}[\s.-]?\d(?:[\s.-]?\d{2}){4}|0\d(?:([\s.-])\d{2}(?:\1\d{2}){3}|\d{8}))(?!\d)/g;
 const LINK = /\b(?:https?:\/\/\S+|(?:www\.)?(?:linkedin\.com|github\.com|gitlab\.com)\/\S+)/gi;
-// A street line (12 rue des Lilas) or a French postal code followed by a town (69003 Lyon).
-const ADDRESS_LINE =
-  /^.*(?:\b\d{1,4}(?:\s?(?:bis|ter))?,?\s+(?:rue|avenue|av\.|boulevard|bd|allée|chemin|place|impasse|route|quai|cours)\b|\b\d{5}\s+[A-ZÀ-Ý][\p{L}-]+).*$/imu;
+/*
+ * A postal address is cut out alone, never the line it shares with another column (EF-CVX-45): a street (12 rue des
+ * Lilas) and its postal code and town if they follow, or a French postal code followed by a capitalised town (69003
+ * Lyon). Case matters (no « i » flag): « 20000 factures » in a sentence is no address. It starts a line or follows a
+ * separator or a label, never a word.
+ */
+const STREET_TYPES = [
+  'rue',
+  'avenue',
+  'av.',
+  'boulevard',
+  'bd',
+  'allée',
+  'chemin',
+  'place',
+  'impasse',
+  'route',
+  'quai',
+  'cours',
+];
+const capitalisable = (word: string): string =>
+  `[${word.charAt(0).toUpperCase()}${word.charAt(0)}]${word.slice(1)}`;
+const TOWN = String.raw`\p{Lu}[\p{L}'’-]*(?:[ -]\p{Lu}[\p{L}'’-]*)*`;
+const POSTAL_TOWN = String.raw`\d{5}\s+${TOWN}`;
+const STREET = String.raw`\d{1,4}(?:\s?(?:bis|ter))?,?\s+(?:${STREET_TYPES.map(capitalisable).join('|')})\b[^,•|·;\n]*(?:,\s*${POSTAL_TOWN})?`;
+const ADDRESS = new RegExp(String.raw`(?<=^|[|•·;,:][ \t]{0,3})(?:${STREET}|${POSTAL_TOWN})`, 'mu');
 const NAME_WORD = /^[\p{Lu}][\p{L}'’-]*$/u;
 const NOT_A_NAME = /\b(?:cv|curriculum|vitae|résumé|resume|profil)\b/i;
 const MIN_NAME_WORDS = 2;
@@ -95,7 +120,7 @@ const tidy = (text: string): string =>
 export const separateContacts = (cvText: string): SeparatedCv => {
   const lines = cvText.split('\n');
   const name = findName(lines);
-  const address = lines.find((line) => ADDRESS_LINE.test(line))?.trim() ?? null;
+  const address = ADDRESS.exec(cvText)?.[0].trim() ?? null;
   const contacts: CvContacts = {
     name,
     emails: unique(cvText.match(EMAIL) ?? []),
@@ -104,7 +129,7 @@ export const separateContacts = (cvText: string): SeparatedCv => {
     links: unique(cvText.match(LINK) ?? []),
   };
   let text = cvText;
-  if (address) text = text.split('\n').filter((line) => line.trim() !== address).join('\n');
+  if (address) text = text.split(address).join('');
   text = text.replace(LINK, '').replace(EMAIL, '').replace(PHONE, '');
   if (name) text = text.replace(new RegExp(escapeRegExp(name), 'g'), '');
   return { text: tidy(text), contacts };
