@@ -50,3 +50,17 @@ export const DeleteAccountBodySchema = z
   .strict()
   .openapi('DeleteAccountBody');
 
+// Base64url of 32 random bytes (`token.ts`) is 43 characters; a generous bound keeps an abusive body cheap to reject.
+const ACTIVATION_CODE_MAX_LENGTH = 100;
+
+/** EF-AUT-14: the single-use code (or link token) of the activation e-mail. */
+export const ActivateBodySchema = z
+  .object({ code: z.string().min(1).max(ACTIVATION_CODE_MAX_LENGTH) })
+  .strict()
+  .openapi('ActivateBody');
+
+/** EF-AUT-15: a new activation e-mail, by address only — the answer never says whether it exists (RG). */
+export const ResendActivationBodySchema = z
+  .object({ email: EmailSchema })
+  .strict()
+  .openapi('ResendActivationBody');

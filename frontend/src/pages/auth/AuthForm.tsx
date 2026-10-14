@@ -1,6 +1,7 @@
 import { animate, stagger } from 'animejs';
 import { type FormEvent, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { resendActivation } from '../../api/auth';
 import { ApiError } from '../../api/client';
 import { type AuthMode, useAuth } from '../../auth/AuthContext';
 import { ClickSpark } from '../../components/reactbits/ClickSpark';
@@ -13,6 +14,9 @@ const REGISTER_MODE_PARAM = 'inscription';
 // EF-AUT-02: same bounds as the API.
 export const PASSWORD_MIN_LENGTH = 12;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// EF-AUT-14: the API itself never says whether the address exists; the interface echoes that same wording.
+const ACTIVATION_NOT_ACTIVATED_CODE = 'account_not_activated';
+const RESEND_SENT_MESSAGE = 'Si cette adresse a un compte en attente d’activation, un nouvel e-mail vient d’être envoyé.';
 
 const COPY: Record<AuthMode, { title: string; subtitle: string; submit: string; pending: string }> = {
   login: {
@@ -46,8 +50,69 @@ const messageOf = (error: unknown): string =>
   error instanceof ApiError ? error.message : 'Une erreur inattendue est survenue. Réessayez.';
 
 /**
- * Login and account creation form (EF-AUT-01, EF-AUT-02, EF-AUT-03). Validates locally with the API's rules,
- * shows a waiting state during the request (ENF-UTI-03) and any failure as a readable message.
+ * EF-AUT-15: button that asks the API for a fresh activation e-mail. Shows a waiting state while the request is in
+ * flight (ENF-UTI-03) and the same confirmation whatever the address turns out to be (RG: never reveals which).
+ */
+function ResendActivationButton({ email }: { email: string }) {
+  const [isSending, setIsSending] = useState(false);
+  const [feedback, setFeedback] = useState<{ kind: 'sent' | 'error'; message: string } | null>(null);
+
+  const handleResend = async () => {
+    setIsSending(true);
+    setFeedback(null);
+    try {
+      await resendActivation(email);
+      setFeedback({ kind: 'sent', message: RESEND_SENT_MESSAGE });
+    } catch (error) {
+      // EF-AUT-15: a rate limit (429) is the one case the API does answer distinctly; shown as-is.
+      setFeedback({ kind: 'error', message: messageOf(error) });
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  return (
+    <div className="auth-form__resend">
+      <button
+        type="button"
+        className="button-secondary"
+        onClick={() => void handleResend()}
+        disabled={isSending}
+        aria-busy={isSending}
+      >
+        {isSending ? 'Envoi…' : 'Renvoyer l’e-mail d’activation'}
+      </button>
+      {feedback && (
+        <p role={feedback.kind === 'error' ? 'alert' : 'status'} className={`auth-form__resend-${feedback.kind}`}>
+          {feedback.message}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Shown after a successful registration (EF-AUT-14): the account is created but inactive, and no session was
+ * opened — the activation e-mail is the only way in, with a way to ask for a new one (EF-AUT-15).
+ */
+function PendingActivation({ email }: { email: string }) {
+  return (
+    <div className="auth-form__panel auth-form__pending" data-reveal>
+      <header className="auth-form__header">
+        <h2 className="auth-form__title">Vérifiez votre boîte mail</h2>
+        <p className="auth-form__subtitle">
+          Nous avons envoyé un lien d’activation à <strong>{email}</strong>. Ouvrez-le pour activer votre compte.
+        </p>
+      </header>
+      <ResendActivationButton email={email} />
+    </div>
+  );
+}
+
+/**
+ * Login and account creation form (EF-AUT-01, EF-AUT-02, EF-AUT-03, EF-AUT-14). Validates locally with the API's
+ * rules, shows a waiting state during the request (ENF-UTI-03) and any failure as a readable message. Registering
+ * no longer opens a session: it hands off to `PendingActivation` until the e-mail is confirmed.
  */
 export function AuthForm() {
   const { authenticate } = useAuth();
@@ -61,6 +126,10 @@ export function AuthForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
+  // EF-AUT-14: set once registration succeeds; swaps the form for PendingActivation until the tab changes again.
+  const [pendingActivationEmail, setPendingActivationEmail] = useState<string | null>(null);
+  // EF-AUT-14: the login attempt that found an inactive account — offers a resend right where it was refused.
+  const [notActivatedEmail, setNotActivatedEmail] = useState<string | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const tabsRef = useRef<HTMLDivElement>(null);
   const ids = { email: useId(), password: useId(), hint: useId(), error: useId() };
@@ -106,6 +175,8 @@ export function AuthForm() {
     setMode(next);
     setFieldErrors({});
     setFormError(null);
+    setPendingActivationEmail(null);
+    setNotActivatedEmail(null);
   };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -113,19 +184,27 @@ export function AuthForm() {
     const errors = validate(mode, email, password);
     setFieldErrors(errors);
     setFormError(null);
+    setNotActivatedEmail(null);
     if (errors.email || errors.password) {
       shake();
       return;
     }
     setIsSubmitting(true);
+    const trimmedEmail = email.trim();
     try {
-      await authenticate(mode, { email: email.trim(), password });
+      await authenticate(mode, { email: trimmedEmail, password });
+      if (mode === 'register') setPendingActivationEmail(trimmedEmail);
     } catch (error) {
       setFormError(messageOf(error));
+      if (error instanceof ApiError && error.code === ACTIVATION_NOT_ACTIVATED_CODE) {
+        setNotActivatedEmail(trimmedEmail);
+      }
       setIsSubmitting(false);
       shake();
     }
   };
+
+  if (pendingActivationEmail) return <PendingActivation email={pendingActivationEmail} />;
 
   const passwordProgress = Math.min(password.length / PASSWORD_MIN_LENGTH, 1);
 
@@ -240,6 +319,8 @@ export function AuthForm() {
               {formError}
             </p>
           )}
+
+          {notActivatedEmail && <ResendActivationButton email={notActivatedEmail} />}
 
           <div data-reveal>
             <Magnet className="auth-submit-magnet" disabled={isSubmitting}>

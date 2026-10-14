@@ -22,6 +22,8 @@ export const ErrorResponseSchema = z
     details: z
       .array(z.object({ path: z.string().openapi({ example: 'body.status' }), message: z.string() }))
       .optional(),
+    // EF-AUT-14: a caller that must branch on something more precise than the HTTP status (`account_not_activated`).
+    code: z.string().optional().openapi({ example: 'account_not_activated' }),
   })
   .openapi('Error');
 

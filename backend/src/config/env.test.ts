@@ -18,7 +18,14 @@ const GROQ = {
   GROQ_MODEL_2: 'qwen/qwen3.8-27b',
   GROQ_MODEL_3: 'openai/gpt-oss-20b',
 };
-const BASE_ENV = { FRONTEND_ORIGIN: 'http://127.0.0.1:5173', DATABASE_URL_APP: NEON_URL, ...GOOGLE };
+// Fictitious key: the configuration never checks it against Resend.
+const RESEND = { RESEND_API_KEY: 'resend-test-key' };
+const BASE_ENV = {
+  FRONTEND_ORIGIN: 'http://127.0.0.1:5173',
+  DATABASE_URL_APP: NEON_URL,
+  ...GOOGLE,
+  ...RESEND,
+};
 const VALID_ENV = { ...BASE_ENV, ...ANTHROPIC, ...GEMINI };
 
 describe('loadConfig', () => {
@@ -41,6 +48,8 @@ describe('loadConfig', () => {
         redirectUri: 'http://localhost:4000/api/gmail/callback',
         tokenEncryptionKey: Buffer.from(ENCRYPTION_KEY_HEX, 'hex'),
       },
+      // EF-AUT-14, C-11: Resend's own sandbox address by default, until a domain is verified.
+      resend: { apiKey: 'resend-test-key', fromEmail: 'onboarding@resend.dev' },
       scheduler: { timezone: 'Europe/Paris', gmailCron: '*/30 * * * *', watchCron: '0 7,13,19 * * *' },
       // ENF-COL-03: no contact address by default, so nothing is collected until one is given.
       scraper: { contact: null },
@@ -160,6 +169,37 @@ describe('loadConfig', () => {
     const env = { ...VALID_ENV, GOOGLE_REDIRECT_URI: '', TOKEN_ENCRYPTION_KEY: 'secret-looking-key-value' };
 
     expect(() => loadConfig(env)).not.toThrow(/google-test-secret|secret-looking-key-value/);
+  });
+
+  it.each([
+    ['RESEND_API_KEY', { ...VALID_ENV, RESEND_API_KEY: '' }],
+    ['RESEND_API_KEY', { ...VALID_ENV, RESEND_API_KEY: undefined }],
+  ])(
+    '[EF-AUT-14] refuses to start without a %s: the activation e-mail is load-bearing now',
+    (variable, env) => {
+      expect(() => loadConfig(env)).toThrow(ConfigError);
+      expect(() => loadConfig(env)).toThrow(variable);
+    },
+  );
+
+  it('[C-11] defaults the sender to Resend’s own sandbox address until a domain is verified', () => {
+    expect(loadConfig(VALID_ENV).resend).toEqual({
+      apiKey: 'resend-test-key',
+      fromEmail: 'onboarding@resend.dev',
+    });
+    // Left empty, the default still applies rather than being read as an invalid address.
+    expect(loadConfig({ ...VALID_ENV, RESEND_FROM_EMAIL: '' }).resend.fromEmail).toBe(
+      'onboarding@resend.dev',
+    );
+  });
+
+  it('[C-11] reads a verified sender address once the Business Owner sets one', () => {
+    expect(loadConfig({ ...VALID_ENV, RESEND_FROM_EMAIL: 'activation@tracandi.fr' }).resend.fromEmail).toBe(
+      'activation@tracandi.fr',
+    );
+    expect(() => loadConfig({ ...VALID_ENV, RESEND_FROM_EMAIL: 'pas-une-adresse' })).toThrow(
+      /RESEND_FROM_EMAIL/,
+    );
   });
 
   it('[EF-IA-05] starts with the Gemini key alone', () => {

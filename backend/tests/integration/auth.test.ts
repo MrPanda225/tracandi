@@ -1,12 +1,15 @@
 import { eq } from 'drizzle-orm';
 import request from 'supertest';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
-import { sessions, users } from '../../src/db/schema.js';
+import { accountActivations, sessions, users } from '../../src/db/schema.js';
 import {
+  createFakeMailer,
   createTestContext,
+  lastActivationCodeSentTo,
   openTestDatabase,
   registerUser,
   sessionCookieOf,
+  TEST_USER_PASSWORD,
   type TestContext,
   truncateAll,
 } from './context.js';
@@ -17,7 +20,7 @@ let context: TestContext;
 const post = (path: string, body: object) =>
   request(context.app).post(path).set('Content-Type', 'application/json').send(body);
 
-const PASSWORD = 'une phrase de passe longue';
+const PASSWORD = TEST_USER_PASSWORD;
 
 beforeEach(async () => {
   await truncateAll(database);
@@ -29,7 +32,7 @@ afterAll(async () => {
 });
 
 describe('POST /api/auth/register', () => {
-  it('[EF-AUT-01] creates the account with its settings and opens a session', async () => {
+  it('[EF-AUT-01] [EF-AUT-14] creates the account inactive, with its settings, and opens no session', async () => {
     const response = await post('/api/auth/register', {
       email: 'Alex.Martin@Example.com',
       password: PASSWORD,
@@ -37,18 +40,45 @@ describe('POST /api/auth/register', () => {
 
     expect(response.status).toBe(201);
     expect(response.body).toEqual({ id: expect.any(Number) as unknown });
-    const me = await request(context.app).get('/api/auth/me').set('Cookie', sessionCookieOf(response));
-    expect(me.body).toEqual({ id: response.body.id as number, email: 'alex.martin@example.com' });
+    expect(response.headers['set-cookie']).toBeUndefined();
+    const [stored] = await database.db.select({ activatedAt: users.activatedAt }).from(users);
+    expect(stored?.activatedAt).toBeNull();
   });
 
-  it('[EF-AUT-03] sets an HttpOnly, SameSite=Strict, Secure session cookie limited to /api', async () => {
-    const response = await post('/api/auth/register', { email: 'alex@example.com', password: PASSWORD });
+  it('[EF-AUT-14] sends a single-use activation link to the address, valid 15 minutes', async () => {
+    await post('/api/auth/register', { email: 'alex@example.com', password: PASSWORD });
 
-    const cookie = (response.headers['set-cookie'] as unknown as string[])[0] ?? '';
-    expect(cookie).toMatch(/HttpOnly/);
-    expect(cookie).toMatch(/SameSite=Strict/);
-    expect(cookie).toMatch(/Secure/);
-    expect(cookie).toMatch(/Path=\/api/);
+    expect(context.mailer.sentEmails).toHaveLength(1);
+    const [sent] = context.mailer.sentEmails;
+    expect(sent?.to).toBe('alex@example.com');
+    expect(sent?.html).toContain('/activation?code=');
+    const [activation] = await database.db.select().from(accountActivations);
+    expect(activation?.expiresAt.getTime() ?? 0).toBeCloseTo(
+      new Date(context.clock.now().getTime() + 15 * 60 * 1000).getTime(),
+      -2,
+    );
+  });
+
+  it('[ENF-RGP-15] sends Resend only the address and the prepared message, never the password', async () => {
+    await post('/api/auth/register', { email: 'alex@example.com', password: PASSWORD });
+
+    const [sent] = context.mailer.sentEmails;
+    expect(Object.keys(sent ?? {}).sort()).toEqual(['html', 'subject', 'to']);
+    expect(sent?.html).not.toContain(PASSWORD);
+    expect(JSON.stringify(sent)).not.toContain(PASSWORD);
+  });
+
+  it('[ENF-SEC-26] stores only the digest of the activation token, never the raw value', async () => {
+    const response = await post('/api/auth/register', { email: 'alex@example.com', password: PASSWORD });
+    const code = lastActivationCodeSentTo('alex@example.com');
+
+    expect(code).toBeDefined();
+    const [activation] = await database.db
+      .select({ tokenHash: accountActivations.tokenHash, userId: accountActivations.userId })
+      .from(accountActivations);
+    expect(activation?.userId).toBe(response.body.id);
+    expect(activation?.tokenHash).toHaveLength(32);
+    expect(activation?.tokenHash.toString('base64url')).not.toBe(code);
   });
 
   it('[EF-AUT-01] rejects an email already used, whatever its case, with 409', async () => {
@@ -89,13 +119,175 @@ describe('POST /api/auth/register', () => {
     expect(stored?.hash).not.toContain(PASSWORD);
   });
 
-  it('[ENF-SEC-20] stores only the digest of the session token', async () => {
-    const response = await post('/api/auth/register', { email: 'alex@example.com', password: PASSWORD });
-    const token = sessionCookieOf(response).split('=')[1] ?? '';
+  it('[EF-AUT-14] rolls the account back and answers 502 when the activation e-mail cannot be sent', async () => {
+    const failing = createTestContext(database, {
+      mailer: { sentEmails: [], send: () => Promise.reject(new Error('Resend: over quota')) },
+    });
 
-    const [stored] = await database.db.select({ tokenHash: sessions.tokenHash }).from(sessions);
-    expect(stored?.tokenHash).toHaveLength(32);
-    expect(stored?.tokenHash.toString('base64url')).not.toBe(token);
+    const response = await request(failing.app)
+      .post('/api/auth/register')
+      .set('Content-Type', 'application/json')
+      .send({ email: 'alex@example.com', password: PASSWORD });
+
+    expect(response.status).toBe(502);
+    expect(await database.db.select().from(users)).toHaveLength(0);
+    // Retryable: the address is free again rather than stuck on a 409.
+    const retry = await request(failing.app)
+      .post('/api/auth/register')
+      .set('Content-Type', 'application/json')
+      .send({ email: 'alex@example.com', password: PASSWORD });
+    expect(retry.status).toBe(502);
+  });
+});
+
+describe('POST /api/auth/activate', () => {
+  it('[EF-AUT-14] activates the account and lets it log in', async () => {
+    await post('/api/auth/register', { email: 'alex@example.com', password: PASSWORD });
+    const code = lastActivationCodeSentTo('alex@example.com') ?? '';
+
+    const activate = await post('/api/auth/activate', { code });
+    const login = await post('/api/auth/login', { email: 'alex@example.com', password: PASSWORD });
+
+    expect(activate.status).toBe(204);
+    expect(login.status).toBe(200);
+    const [stored] = await database.db.select({ activatedAt: users.activatedAt }).from(users);
+    expect(stored?.activatedAt).not.toBeNull();
+  });
+
+  it('[EF-AUT-14] refuses an unknown code with a distinct code, so the screen can tell it apart', async () => {
+    const response = await post('/api/auth/activate', { code: 'un-code-qui-n-existe-pas' });
+
+    expect(response.status).toBe(400);
+    expect(response.body.code).toBe('activation_code_invalid');
+  });
+
+  it('[EF-AUT-14] [ENF-SEC-26] refuses an expired code (15 minutes), expiry not exceeded', async () => {
+    await post('/api/auth/register', { email: 'alex@example.com', password: PASSWORD });
+    const code = lastActivationCodeSentTo('alex@example.com') ?? '';
+    context.clock.advanceMinutes(15);
+
+    const response = await post('/api/auth/activate', { code });
+
+    expect(response.status).toBe(400);
+    expect(response.body.code).toBe('activation_code_expired');
+  });
+
+  it('[EF-AUT-14] [ENF-SEC-26] accepts a code just before its expiry', async () => {
+    await post('/api/auth/register', { email: 'alex@example.com', password: PASSWORD });
+    const code = lastActivationCodeSentTo('alex@example.com') ?? '';
+    context.clock.advanceMinutes(14.98);
+
+    const response = await post('/api/auth/activate', { code });
+
+    expect(response.status).toBe(204);
+  });
+
+  it('[ENF-SEC-26] refuses a code already consumed, with a distinct code', async () => {
+    await post('/api/auth/register', { email: 'alex@example.com', password: PASSWORD });
+    const code = lastActivationCodeSentTo('alex@example.com') ?? '';
+    await post('/api/auth/activate', { code });
+
+    const second = await post('/api/auth/activate', { code });
+
+    expect(second.status).toBe(400);
+    expect(second.body.code).toBe('activation_code_already_used');
+  });
+
+  it('[ENF-SEC-04] rejects a missing code with 400', async () => {
+    const response = await post('/api/auth/activate', {});
+
+    expect(response.status).toBe(400);
+  });
+});
+
+describe('POST /api/auth/activate/resend', () => {
+  it('[EF-AUT-15] sends a fresh code, invalidating the previous one', async () => {
+    await post('/api/auth/register', { email: 'alex@example.com', password: PASSWORD });
+    const firstCode = lastActivationCodeSentTo('alex@example.com') ?? '';
+
+    const resend = await post('/api/auth/activate/resend', { email: 'alex@example.com' });
+    const secondCode = lastActivationCodeSentTo('alex@example.com') ?? '';
+
+    expect(resend.status).toBe(204);
+    expect(secondCode).not.toBe(firstCode);
+    expect((await post('/api/auth/activate', { code: firstCode })).status).toBe(400);
+    expect((await post('/api/auth/activate', { code: secondCode })).status).toBe(204);
+  });
+
+  it('[EF-AUT-15] answers identically for an address without any account (never reveals it)', async () => {
+    const response = await post('/api/auth/activate/resend', { email: 'personne@example.com' });
+
+    expect(response.status).toBe(204);
+    expect(context.mailer.sentEmails).toHaveLength(0);
+  });
+
+  it('[EF-AUT-15] sends nothing for an already activated account, but still answers 204', async () => {
+    await registerUser(context.app, 'alex@example.com');
+    context.mailer.sentEmails.length = 0;
+
+    const response = await post('/api/auth/activate/resend', { email: 'alex@example.com' });
+
+    expect(response.status).toBe(204);
+    expect(context.mailer.sentEmails).toHaveLength(0);
+  });
+
+  it('[EF-AUT-15] refuses the fourth request within a minute for the same address with 429', async () => {
+    await post('/api/auth/register', { email: 'alex@example.com', password: PASSWORD });
+
+    const attempts = await Promise.all(
+      Array.from({ length: 3 }, () => post('/api/auth/activate/resend', { email: 'alex@example.com' })),
+    );
+    const fourth = await post('/api/auth/activate/resend', { email: 'alex@example.com' });
+
+    for (const attempt of attempts) expect(attempt.status).toBe(204);
+    expect(fourth.status).toBe(429);
+  });
+
+  it('[EF-AUT-15] [ENF-COU-03] also limits the resend per caller, whatever the addresses it rotates through', async () => {
+    const attempts = Array.from({ length: 10 }, (_, index) =>
+      post('/api/auth/activate/resend', { email: `inconnu${String(index)}@example.com` }),
+    );
+    for (const attempt of attempts) expect((await attempt).status).toBe(204);
+
+    const eleventh = await post('/api/auth/activate/resend', { email: 'autre@example.com' });
+
+    expect(eleventh.status).toBe(429);
+    expect(context.mailer.sentEmails).toHaveLength(0);
+  });
+
+  it('[EF-AUT-15] limits each address on its own, not every resend together', async () => {
+    await post('/api/auth/register', { email: 'alex@example.com', password: PASSWORD });
+    await post('/api/auth/register', { email: 'sam@example.com', password: PASSWORD });
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      await post('/api/auth/activate/resend', { email: 'alex@example.com' });
+    }
+
+    const response = await post('/api/auth/activate/resend', { email: 'sam@example.com' });
+
+    expect(response.status).toBe(204);
+  });
+
+  it('[ENF-RGP-15] [ENF-SEC-26] carries only the fresh digest, never the previous one, for the same user', async () => {
+    const mailer = createFakeMailer();
+    const withOwnMailer = createTestContext(database, { mailer });
+    await request(withOwnMailer.app)
+      .post('/api/auth/register')
+      .set('Content-Type', 'application/json')
+      .send({ email: 'alex@example.com', password: PASSWORD });
+    const [before] = await database.db
+      .select({ tokenHash: accountActivations.tokenHash })
+      .from(accountActivations);
+
+    await request(withOwnMailer.app)
+      .post('/api/auth/activate/resend')
+      .set('Content-Type', 'application/json')
+      .send({ email: 'alex@example.com' });
+    const [after] = await database.db
+      .select({ tokenHash: accountActivations.tokenHash })
+      .from(accountActivations);
+
+    expect(after?.tokenHash.equals(before?.tokenHash ?? Buffer.alloc(0))).toBe(false);
+    expect(await database.db.select().from(accountActivations)).toHaveLength(1);
   });
 });
 
@@ -111,6 +303,27 @@ describe('POST /api/auth/login', () => {
     expect(response.body).toMatchObject({ email: 'alex@example.com' });
     const me = await request(context.app).get('/api/auth/me').set('Cookie', sessionCookieOf(response));
     expect(me.status).toBe(200);
+  });
+
+  it('[EF-AUT-14] refuses a correct password for an inactive account with 403 account_not_activated', async () => {
+    await post('/api/auth/register', { email: 'sam@example.com', password: PASSWORD });
+
+    const response = await post('/api/auth/login', { email: 'sam@example.com', password: PASSWORD });
+
+    expect(response.status).toBe(403);
+    expect(response.body.code).toBe('account_not_activated');
+    expect(response.headers['set-cookie']).toBeUndefined();
+  });
+
+  it('[EF-AUT-14] still answers 401, not 403, for a wrong password on an inactive account', async () => {
+    await post('/api/auth/register', { email: 'sam@example.com', password: PASSWORD });
+
+    const response = await post('/api/auth/login', {
+      email: 'sam@example.com',
+      password: 'mot de passe erroné',
+    });
+
+    expect(response.status).toBe(401);
   });
 
   it('[ENF-SEC-19] answers identically for a wrong password and an unknown email', async () => {
@@ -207,7 +420,9 @@ describe('GET /api/auth/session', () => {
     const response = await request(context.app).get('/api/auth/session').set('Cookie', cookie);
 
     expect(response.status).toBe(200);
-    expect(response.body).toEqual({ account: { id: expect.any(Number) as unknown, email: 'alex@example.com' } });
+    expect(response.body).toEqual({
+      account: { id: expect.any(Number) as unknown, email: 'alex@example.com' },
+    });
   });
 
   it('[EF-AUT-13] answers 200 with no account without a cookie or with an unknown one', async () => {

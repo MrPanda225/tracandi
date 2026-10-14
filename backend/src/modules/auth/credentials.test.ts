@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { hashPassword, OWASP_SCRYPT_PARAMS, verifyPassword } from './password.js';
-import { generateSessionToken, hashSessionToken } from './token.js';
+import {
+  generateActivationToken,
+  generateSessionToken,
+  hashActivationToken,
+  hashSessionToken,
+} from './token.js';
 
 // Low cost for fast tests; production uses OWASP_SCRYPT_PARAMS.
 const TEST_PARAMS = { cost: 2 ** 10, blockSize: 8, parallelization: 1 };
@@ -48,6 +53,23 @@ describe('session tokens', () => {
     expect(hashSessionToken(token)).toHaveLength(32);
     expect(hashSessionToken(token).equals(hashSessionToken(token))).toBe(true);
     expect(hashSessionToken(token).toString('base64url')).not.toBe(token);
+  });
+});
+
+describe('activation tokens', () => {
+  it('[ENF-SEC-26] generates 256-bit random tokens', () => {
+    const token = generateActivationToken();
+
+    expect(Buffer.from(token, 'base64url')).toHaveLength(32);
+    expect(generateActivationToken()).not.toBe(token);
+  });
+
+  it('[ENF-SEC-26] stores only a SHA-256 digest, stable for the same token', () => {
+    const token = generateActivationToken();
+
+    expect(hashActivationToken(token)).toHaveLength(32);
+    expect(hashActivationToken(token).equals(hashActivationToken(token))).toBe(true);
+    expect(hashActivationToken(token).toString('base64url')).not.toBe(token);
   });
 });
 
