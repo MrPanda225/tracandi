@@ -760,7 +760,7 @@ l'offre n'est écrite en base, sur disque ou dans les journaux (ENF-RGP-06).
   reste conservé ; expérience sans intitulé ancré ou formation sans diplôme ancré écartée ; identifiants attribués
   dans l'ordre par le code. `parsing.ts` : `parseCv` exécute la tâche (`LlmUnavailableError` propagée).
   *Écarts* : aucun.
-- [ ] **T-521 Adaptation par références et page tenue** — `tailor_cv` reçoit la structure, désigne les faits, rédige
+- [x] **T-521 Adaptation par références et page tenue** — `tailor_cv` reçoit la structure, désigne les faits, rédige
   accroche, profil et réalisations ; le code remplit les faits, retire ce qui cite un chiffre absent, rétablit une
   expérience omise, ramène à une page ; message d'erreur seulement pour une réponse inexploitable.
   *Exigences* : EF-CVX-47, RG-21, RG-24 (v1.39).
@@ -768,6 +768,26 @@ l'offre n'est écrite en base, sur disque ou dans les journaux (ENF-RGP-06).
   livré ; une réponse qui omet une expérience : l'expérience est rétablie avec son intitulé, son entreprise et ses
   dates ; le CV de la testeuse type (deux colonnes) est adapté sans erreur avec des réponses simulées fidèles.
   *Dépend de* : T-520.
+  *Livré (16/10/2026)* : `tailor_cv` reçoit la structure de `parse_cv` (`prompts/tailorCv.ts`, chaque fait avec son
+  identifiant) et répond par identifiants, plus accroche, profil et réalisations rédigés (`tailorCvAnswer.ts` :
+  parties inexploitables écartées au lieu de faire échouer la réponse, champs inconnus ignorés, listes plafonnées).
+  `assembly.ts` : `assembleCv` recopie intitulés, entreprises, dates, diplômes et établissements du CV, jamais du
+  modèle ; un identifiant inconnu est ignoré ; une réalisation ou une phrase du profil qui cite un chiffre absent du
+  CV est retirée (séparateurs de milliers ignorés : « 10000 » = « 10 000 »), le reste est gardé ; une expérience
+  omise est rétablie dans l'ordre du CV avec ses faits ; accroche de secours tirée du CV ; `buildChanges` donne le
+  texte du CV comme avant et le texte final comme après, avec la raison du modèle. `onePage.ts` : `fitToOnePage`
+  retire d'abord les réalisations de l'expérience la plus ancienne (la dernière en premier), puis les dernières
+  phrases du profil, puis les détails de formation, sans jamais retirer une ligne d'intitulé ; `null` si même les
+  lignes seules ne tiennent pas ; `MAX_RESERVED_SKILLS = 6` compétences réservées à cocher. `fidelity.ts` :
+  `unfaithfulPaths` défensif sur le CV assemblé (chemins sans valeur). Entreprise, dates et école nullables : une
+  ligne sans elles s'affiche sans séparateur parasite (Word et aperçu). Messages d'erreur reformulés : IA
+  injoignable, aucune réponse exploitable, CV introuvable en expériences ou formations, CV qui ne tient pas sur une
+  page. Journal du routeur : message de chaque champ rejeté (chaîne fixe, jamais la réponse).
+  *Écarts* : les détails de formation sont joints par « ; » ; le profil garde au moins sa première phrase.
+  *Vérifié* : banc de bout en bout (9 CV de test, dont deux colonnes entremêlées, titre sur deux lignes, adresse
+  partagée, césures, ligatures, CV de 12 expériences) : adaptation réussie, faits identiques au CV, aucune
+  coordonnée dans les requêtes, une page ; revue de sécurité Opus : une fuite d'adresse vers les IA et un ancrage
+  enjambant une négation, corrigés.
 
 - [ ] **T-515 Retrait de l'ancien atelier** — code du profil de référence et du modèle Word (T-501, T-502, T-507),
   LibreOffice retiré de l'image, migration de suppression de `candidate_profiles` et `cv_versions`, politique de
