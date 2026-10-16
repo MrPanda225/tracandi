@@ -1,0 +1,32 @@
+{
+  "headline": { "line": 1, "text": "Data analyst confirmé" },
+  "profile": [{ "line": 2, "toLine": 3, "text": "Analyste de données avec trois ans d’expérience en tableaux de bord" }],
+  "experiences": [
+    {
+      "title": { "line": 5, "text": "data analyst" },
+      "organization": { "line": 5, "text": "Atelier Nova" },
+      "place": { "line": 6, "text": "Paris" },
+      "dates": { "line": 6, "text": "09/2021 - 06/2023" },
+      "bullets": [
+        { "line": 7, "text": "Création de 12 tableaux de bord Power BI" },
+        { "line": 8, "text": "Automatisation de rapports avec Python" }
+      ]
+    }
+  ],
+  "education": [
+    {
+      "degree": { "line": 10, "text": "Master Informatique" },
+      "school": { "line": 10, "text": "Université de Lyon" },
+      "place": null,
+      "dates": { "line": 11, "text": "2019-2021" },
+      "details": []
+    }
+  ],
+  "skills": [
+    { "line": 12, "text": "SQL" },
+    { "line": 12, "text": "Python" }
+  ],
+  "certifications": [],
+  "languages": [{ "line": 13, "text": "Anglais courant" }],
+  "interests": []
+}

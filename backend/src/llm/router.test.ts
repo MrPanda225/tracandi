@@ -579,7 +579,7 @@ describe('routes by mode (T-1003, v1.35)', () => {
     expect(TASK_ROUTES.extract_offer_traits).not.toContain('local');
   });
 
-  it.each(['classify_emails', 'diagnose_cv', 'tailor_cv', 'write_motivation', 'write_follow_up'] as const)(
+  it.each(['classify_emails', 'diagnose_cv', 'parse_cv', 'tailor_cv', 'write_motivation', 'write_follow_up'] as const)(
     '[EF-IA-09] leaves the route of %s as it is, in a scheduled pass too',
     (task) => {
       expect(SCHEDULED_ROUTES[task]).toEqual(TASK_ROUTES[task]);

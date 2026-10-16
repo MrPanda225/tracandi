@@ -121,6 +121,8 @@ export const llmTask = pgEnum('llm_task', [
   'deduce_profile',
   // EF-VEI-49 (v1.35): the title and keywords of an offer the candidate chose.
   'extract_offer_traits',
+  // EF-CVX-46 (v1.39): the CV structured as references to its numbered lines, anchored by the code.
+  'parse_cv',
 ]);
 export const llmOutcome = pgEnum('llm_outcome', ['success', 'error', 'timeout', 'invalid_output']);
 // EF-CVX-32 (v1.30): an analysis of the CV workshop runs in the queue like the other long treatments.

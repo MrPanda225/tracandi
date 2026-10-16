@@ -27,6 +27,8 @@ export const TASK_ROUTES: Readonly<Record<LlmTaskName, readonly ProviderName[]>>
   // EF-CVX-24 (RG-13): an analysis with bounded scores, like the scoring of the offers.
   diagnose_cv: VOLUME_ROUTE,
   // EF-VEI-45 (RG-13 v1.35): a structured reading of a CV, like the diagnostic; the local model leads it (below).
+  // EF-CVX-46 (RG-13): an extraction run while the candidate waits, like the diagnostic; the local model never serves it.
+  parse_cv: VOLUME_ROUTE,
   deduce_profile: VOLUME_ROUTE,
   // EF-VEI-49 (RG-13 v1.35): the title and keywords of a pasted offer, like the extraction of a career page.
   extract_offer_traits: VOLUME_ROUTE,
