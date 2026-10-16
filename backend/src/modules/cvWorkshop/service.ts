@@ -10,6 +10,7 @@ import { buildDiagnosis, DIMENSIONS, type Diagnosis, DiagnosisAnswerSchema } fro
 import { type TailoredAnswer, tailoredAnswerSchemaFor } from './fidelity.js';
 import type { CvContacts } from './contacts.js';
 import type { PdfOcr } from './ocr.js';
+import type { PdfTextLayer } from './pdftotext.js';
 import { fitsOnOnePage } from './onePage.js';
 import { startOfParisDay } from './quota.js';
 import { type ReadCv, readCv } from './reading.js';
@@ -63,6 +64,8 @@ export interface CvWorkshopService {
 interface ServiceDeps {
   queue: JobQueue;
   ocr: PdfOcr;
+  /** EF-CVX-45: poppler's reading of the text layer; pdf.js alone when left out. */
+  textLayer?: PdfTextLayer;
   router: LlmRouter;
   results: AnalysisResults<CvAnalysis>;
   clock: Clock;
@@ -138,11 +141,11 @@ const checkAllowance = async (
  */
 const analyse =
   (
-    { ocr, router, results }: ServiceDeps,
+    { ocr, textLayer, router, results }: ServiceDeps,
     { userId, pdf, offer }: { userId: number; pdf: Buffer; offer: string },
   ) =>
   async (report: (counters: RunCounters) => void, runId: number): Promise<RunCounters> => {
-    const reading = await readCv(pdf, { ocr });
+    const reading = await readCv(pdf, { ocr, textLayer });
     report({ cv_steps_done: STEP_READ, cv_pages_ocr: reading.ocrPageCount });
     const { data } = await router.runTask('diagnose_cv', {
       userId,

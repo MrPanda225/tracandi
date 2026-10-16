@@ -2,7 +2,8 @@ import { mkdtemp, readdir, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { type CommandRunner, createPdfOcr, OCR_PAGE_TIMEOUT_MS } from './ocr.js';
+import type { CommandRunner } from './command.js';
+import { createPdfOcr, OCR_PAGE_TIMEOUT_MS } from './ocr.js';
 
 const PDF = Buffer.from('%PDF-1.4 fictitious', 'latin1');
 let tempRoot: string;
@@ -42,7 +43,7 @@ describe('createPdfOcr', () => {
     expect(texts).toEqual(['texte de la page 2', 'texte de la page 3']);
     expect(calls.map((call) => call.file)).toEqual(['pdftoppm', 'tesseract', 'pdftoppm', 'tesseract']);
     expect(calls[0]?.args).toEqual(
-      expect.arrayContaining(['-f', '2', '-l', '2', '-gray', '-singlefile', '-r', '200']),
+      expect.arrayContaining(['-f', '2', '-l', '2', '-gray', '-singlefile', '-r', '300']),
     );
     expect(calls[1]?.args).toEqual([expect.stringMatching(/page-2\.pgm$/), 'stdout', '-l', 'fra+eng']);
   });
