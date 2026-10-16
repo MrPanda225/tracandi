@@ -330,3 +330,86 @@ describe('applyCategoryCues — acknowledgements', () => {
     expect(applyCategoryCues(refusal, classified('off_topic')).category).toBe('rejected');
   });
 });
+
+describe('applyCategoryCues — reworded refusals and tu forms (T-314)', () => {
+  const ats = message(
+    'Votre candidature chez Maison Lumen',
+    'Bonjour Alex, Derrière chaque candidature, il y a de l’énergie et une vraie démarche. ' +
+      'Nous vous remercions pour le temps que vous y avez accordé et pour l’intérêt pour la mission proposée par Maison Lumen. ' +
+      'Après avoir examiné votre candidature et votre parcours, notre choix s’est orienté vers des profils dont les compétences ' +
+      'sont plus en adéquation avec les attentes immédiates du poste. Nous vous souhaitons beaucoup de succès dans vos démarches ' +
+      'et espérons que nos trajectoires se croiseront à nouveau.',
+  );
+  const tutoiement = message(
+    'Merci pour ta candidature pour le poste de Développeur Full Stack Java (H/F) chez Atelier Nova,',
+    'Hello Alex, Merci d’avoir pris le temps de postuler pour le poste de Développeur chez Atelier Nova et de t’intéresser à notre univers ! ' +
+      'Après avoir étudié ta candidature avec attention, nous devons malheureusement t’informer qu’elle ne correspond pas à nos besoins actuels. ' +
+      'Mais ce n’est pas un adieu, bien au contraire ! Ton profil reste précieusement conservé.',
+  );
+
+  it.each(['acknowledged', 'off_topic', 'job_alert', 'sent_application'] as const)(
+    '[RG-17] files the « notre choix s’est orienté vers » letter as a refusal when the AI said %s',
+    (category) => {
+      expect(applyCategoryCues(ats, classified(category)).category).toBe('rejected');
+    },
+  );
+
+  it.each(['acknowledged', 'off_topic', 'job_alert', 'sent_application'] as const)(
+    '[RG-17] files the tutoiement refusal letter as a refusal when the AI said %s',
+    (category) => {
+      expect(applyCategoryCues(tutoiement, classified(category)).category).toBe('rejected');
+    },
+  );
+
+  it.each([
+    ['choix orienté vers', 'Notre choix s’est orienté vers des profils plus proches du poste.'],
+    ['choix porté sur un autre', 'Notre choix s’est porté sur un autre profil.'],
+    ['choix porté sur d’autres', 'Notre choix s’est porté sur d’autres candidatures.'],
+    ['poursuivre avec d’autres', 'Nous avons choisi de poursuivre avec d’autres candidats.'],
+    ['profils dont les compétences', 'Des profils dont les compétences sont plus en adéquation ont été étudiés.'],
+    ['candidatures plus en adéquation', 'Nous avons reçu des candidatures plus en adéquation avec le poste.'],
+    ['profils plus en adéquation', 'Nous avons retenu des profils plus en adéquation avec le poste.'],
+    ['regret de t’informer', 'Nous sommes au regret de t’informer de notre décision.'],
+    ['malheureusement t’informer', 'Nous devons malheureusement t’informer de notre décision.'],
+    ['ne pas retenir ta candidature', 'Nous avons décidé de ne pas retenir ta candidature.'],
+  ])('[RG-17] recognizes the refusal wording « %s »', (_label, snippet) => {
+    expect(hasRejectionCue({ subject: null, snippet })).toBe(true);
+  });
+
+  it.each([
+    ['si notre choix s’est porté sur un autre profil', 'Si notre choix s’est porté sur un autre profil, nous vous écrirons.'],
+    ['si notre choix s’est orienté vers d’autres profils', 'Si notre choix s’est orienté vers d’autres profils, vous serez prévenu.'],
+    ['notre choix s’est porté sur vous', 'Notre choix s’est porté sur votre candidature, bravo !'],
+    ['poursuivre avec vous', 'Nous avons choisi de poursuivre avec vous.'],
+  ])('[RG-17] does not read « %s » as a refusal', (_label, snippet) => {
+    expect(hasRejectionCue({ subject: null, snippet })).toBe(false);
+  });
+
+  it.each([
+    'Merci pour ta candidature',
+    'Merci de ta candidature',
+    'Ta candidature a bien été enregistrée',
+    'Nous avons étudié ta candidature',
+    'Nous avons bien reçu ta candidature',
+    'Merci d’avoir postulé chez Atelier Nova',
+    'Merci d’avoir pris le temps de postuler',
+  ])('[RG-17] recognizes the acknowledgement wording « %s »', (snippet) => {
+    expect(hasAcknowledgementCue({ subject: null, snippet })).toBe(true);
+  });
+
+  it('[RG-17] files a tutoiement acknowledgement without refusal as acknowledged', () => {
+    const received = message('Merci pour ta candidature chez Atelier Nova', 'Hello Alex, ta candidature a bien été reçue.');
+
+    expect(applyCategoryCues(received, classified('job_alert')).category).toBe('acknowledged');
+    expect(applyCategoryCues(received, classified('off_topic')).category).toBe('acknowledged');
+  });
+
+  it('[RG-17] keeps a genuine job alert offering « plus en adéquation » positions as a job alert', () => {
+    const alert = message(
+      'Nouvelles offres pour toi',
+      'Découvre des offres plus en adéquation avec votre profil et des profils plus en adéquation avec le marché.',
+    );
+
+    expect(applyCategoryCues(alert, classified('job_alert')).category).toBe('job_alert');
+  });
+});
