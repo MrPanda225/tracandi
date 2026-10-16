@@ -50,7 +50,10 @@ describe('anchorParsedCv', () => {
   });
 
   it('[EF-CVX-46] anchors a fact the model put on the wrong line', () => {
-    const cv = anchorParsedCv(experience(ref(1, 'Développeur'), { organization: ref(1, 'Atelier Nova') }), LINES);
+    const cv = anchorParsedCv(
+      experience(ref(1, 'Développeur'), { organization: ref(1, 'Atelier Nova') }),
+      LINES,
+    );
 
     expect(cv.experiences[0]?.organization).toBe('Atelier Nova');
     expect(cv.dropped).toBe(0);
@@ -91,12 +94,64 @@ describe('anchorParsedCv', () => {
     expect(two.headline).toBe('Ingénieure DevOps Senior');
   });
 
+  it.each([
+    ['non', 'Master 2 non validé Informatique'],
+    ['sans', 'Master 2 sans diplôme Informatique'],
+    ['pas', 'Master 2 pas terminé Informatique'],
+    ['jamais', 'Master 2 jamais fini Informatique'],
+    ['en cours', 'Master 2 en cours Informatique'],
+    ['unfinished', 'Master 2 unfinished Informatique'],
+  ])('[RG-21] [EF-CVX-46] never skips « %s » inside a fact: the reference is dropped', (_word, source) => {
+    const cv = anchorParsedCv(
+      answerWith({ headline: ref(1, 'Master 2 Informatique') }),
+      numberCvLines(source),
+    );
+
+    expect(cv.headline).toBeNull();
+    expect(cv.dropped).toBe(1);
+  });
+
+  it('[RG-21] still anchors a fact written with its negation when the model keeps it', () => {
+    const cv = anchorParsedCv(
+      answerWith({ headline: ref(1, 'Master 2 non validé Informatique') }),
+      numberCvLines('Master 2 non validé Informatique'),
+    );
+
+    expect(cv.headline).toBe('Master 2 non validé Informatique');
+  });
+
+  it('[RG-21] [EF-CVX-46] looks for a fact with gaps on its own lines only, not in the rest of the CV', () => {
+    const lines = numberCvLines(
+      ['Profil', 'Autre', 'Encore', 'Toujours', 'Ailleurs', 'Data analyst Atelier Nova senior'].join('\n'),
+    );
+
+    const elsewhere = anchorParsedCv(answerWith({ headline: ref(1, 'Data analyst senior') }), lines);
+    const onItsLine = anchorParsedCv(answerWith({ headline: ref(6, 'Data analyst senior') }), lines);
+
+    expect(elsewhere.headline).toBeNull();
+    expect(elsewhere.dropped).toBe(1);
+    expect(onItsLine.headline).toBe('Data analyst senior');
+  });
+
+  it('[EF-CVX-46] still finds a contiguous fact in the rest of the CV when the model pointed to the wrong line', () => {
+    const lines = numberCvLines(
+      ['Profil', 'Autre', 'Encore', 'Toujours', 'Ailleurs', 'Data analyst senior'].join('\n'),
+    );
+
+    expect(anchorParsedCv(answerWith({ headline: ref(1, 'Data analyst senior') }), lines).headline).toBe(
+      'Data analyst senior',
+    );
+  });
+
   it('[RG-21] drops a reference to a line that does not exist or to text absent from the CV, and keeps the rest', () => {
     const cv = anchorParsedCv(
       experience(ref(1, 'Développeur'), {
         organization: ref(99, 'Entreprise Inconnue'),
         place: ref(3, 'Tokyo'),
-        bullets: [ref(5, 'Création de 12 tableaux de bord'), ref(5, 'Pilotage d’une équipe de dix personnes')],
+        bullets: [
+          ref(5, 'Création de 12 tableaux de bord'),
+          ref(5, 'Pilotage d’une équipe de dix personnes'),
+        ],
       }),
       LINES,
     );
@@ -108,7 +163,9 @@ describe('anchorParsedCv', () => {
 
   it('[RG-21] never anchors a reference whose figure the source does not carry', () => {
     const cv = anchorParsedCv(
-      answerWith({ skills: [ref(5, 'Création de 15 tableaux de bord'), ref(5, 'Création de 12 tableaux de bord')] }),
+      answerWith({
+        skills: [ref(5, 'Création de 15 tableaux de bord'), ref(5, 'Création de 12 tableaux de bord')],
+      }),
       LINES,
     );
 
@@ -131,14 +188,20 @@ describe('anchorParsedCv', () => {
   });
 
   it('[EF-CVX-46] accepts a date written another way when both read as the same period, and keeps the source text', () => {
-    const cv = anchorParsedCv(experience(ref(1, 'Développeur'), { dates: ref(7, '09/2021 - aujourd’hui') }), LINES);
+    const cv = anchorParsedCv(
+      experience(ref(1, 'Développeur'), { dates: ref(7, '09/2021 - aujourd’hui') }),
+      LINES,
+    );
 
     expect(cv.experiences[0]?.dates).toBe('Sept. 2021 – Présent');
     expect(cv.dropped).toBe(0);
   });
 
   it('[RG-21] does not accept a date of another period', () => {
-    const cv = anchorParsedCv(experience(ref(1, 'Développeur'), { dates: ref(7, '09/2020 - aujourd’hui') }), LINES);
+    const cv = anchorParsedCv(
+      experience(ref(1, 'Développeur'), { dates: ref(7, '09/2020 - aujourd’hui') }),
+      LINES,
+    );
 
     expect(cv.experiences[0]?.dates).toBeNull();
     expect(cv.dropped).toBe(1);
@@ -158,11 +221,20 @@ describe('anchorParsedCv', () => {
 
     expect(cv.profile).toBe('Développeur Full Stack Senior');
     expect(cv.skills.map(({ id }) => id)).toEqual(['skill_0', 'skill_1']);
-    expect([cv.languages[0]?.id, cv.certifications[0]?.id, cv.interests[0]?.id]).toEqual(['lang_0', 'cert_0', 'int_0']);
+    expect([cv.languages[0]?.id, cv.certifications[0]?.id, cv.interests[0]?.id]).toEqual([
+      'lang_0',
+      'cert_0',
+      'int_0',
+    ]);
   });
 
   it('[EF-CVX-46] returns an empty CV for an empty answer', () => {
-    expect(anchorParsedCv(EMPTY, LINES)).toMatchObject({ headline: null, profile: null, experiences: [], dropped: 0 });
+    expect(anchorParsedCv(EMPTY, LINES)).toMatchObject({
+      headline: null,
+      profile: null,
+      experiences: [],
+      dropped: 0,
+    });
   });
 });
 
