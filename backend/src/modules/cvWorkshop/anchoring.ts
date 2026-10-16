@@ -48,6 +48,33 @@ export interface ParsedCv {
 
 /** Foreign tokens tolerated between the tokens of a reference (interleaved leftovers of a two-column layout). */
 export const ANCHOR_MAX_FOREIGN_TOKENS = 2;
+/*
+ * RG-21: a word that reverses or weakens a fact is never skipped inside it, however few tokens are skipped: « Master 2
+ * non validé Informatique » must not become « Master 2 Informatique ». Folded tokens (no case, no accent), French and
+ * English: negations, and the words of an unfinished or abandoned course. « non validé » is stopped by « non »;
+ * « en cours » (in progress) is stopped by the pair, since « cours » alone may be a section title.
+ */
+const MEANING_CHANGING_WORDS: ReadonlySet<string> = new Set([
+  'non',
+  'pas',
+  'sans',
+  'ni',
+  'jamais',
+  'aucun',
+  'aucune',
+  'inacheve',
+  'inachevee',
+  'abandonne',
+  'abandonnee',
+  'interrompu',
+  'interrompue',
+  'not',
+  'no',
+  'without',
+  'unfinished',
+  'incomplete',
+]);
+
 /** A fact is looked for on its lines and the neighbouring ones. */
 const LINE_SLACK = 1;
 
@@ -65,13 +92,20 @@ const WORD = /[\p{L}\p{N}]+/gu;
 const NOT_WORD = /[^\p{L}\p{N}]+/u;
 
 /** The tokens of a text as compared: folded (case, accents, ligatures), punctuation and dashes ignored. */
-export const keysOf = (text: string): string[] => foldText(text).split(NOT_WORD).filter((key) => key !== '');
+export const keysOf = (text: string): string[] =>
+  foldText(text)
+    .split(NOT_WORD)
+    .filter((key) => key !== '');
 
 const tokensOfLine = (text: string, line: number): Omit<Token, 'pos'>[] =>
   [...text.matchAll(WORD)].flatMap((match) => {
     const key = keysOf(match[0]).join('');
     return key === '' ? [] : [{ key, line, start: match.index, end: match.index + match[0].length }];
   });
+
+/** True when `token`, skipped between two matched tokens, would change the meaning of the fact. */
+const changesMeaning = (token: Token, previous: Token | undefined): boolean =>
+  MEANING_CHANGING_WORDS.has(token.key) || (token.key === 'cours' && previous?.key === 'en');
 
 /** Where `wanted` is in `tokens`: contiguous, or (when `maxGap` allows) with a few foreign tokens in between. */
 const findRun = (tokens: readonly Token[], wanted: readonly string[], maxGap: number): Token[] | null => {
@@ -84,11 +118,14 @@ const findRun = (tokens: readonly Token[], wanted: readonly string[], maxGap: nu
     let gap = 0;
     for (let index = 1; index < wanted.length; index += 1) {
       let found = -1;
-      for (let probe = cursor; probe < tokens.length && probe - cursor <= maxGap - gap; probe += 1)
-        if (tokens[probe]?.key === wanted[index]) {
+      for (let probe = cursor; probe < tokens.length && probe - cursor <= maxGap - gap; probe += 1) {
+        const token = tokens[probe] as Token;
+        if (token.key === wanted[index]) {
           found = probe;
           break;
         }
+        if (changesMeaning(token, tokens[probe - 1])) break;
+      }
       if (found === -1) break;
       gap += found - cursor;
       run.push(tokens[found] as Token);
@@ -131,8 +168,12 @@ const windowOf = (ref: CvRef, count: number): number[] => {
   return Array.from({ length: Math.max(to - from + 1, 0) }, (_, offset) => from + offset - 1);
 };
 
-const alignTokens = (wanted: readonly string[], tokens: readonly Token[], lines: readonly CvLine[]): string | null => {
-  const run = findRun(tokens, wanted, 0) ?? findRun(tokens, wanted, ANCHOR_MAX_FOREIGN_TOKENS);
+const alignTokens = (
+  wanted: readonly string[],
+  tokens: readonly Token[],
+  { lines, maxGap }: { lines: readonly CvLine[]; maxGap: number },
+): string | null => {
+  const run = findRun(tokens, wanted, 0) ?? (maxGap > 0 ? findRun(tokens, wanted, maxGap) : null);
   return run ? sourceOf(run, lines) : null;
 };
 
@@ -151,7 +192,7 @@ const alignPeriod = (text: string, indexes: readonly number[], lines: readonly C
 /**
  * The exact source text a reference points to, or null. The referenced lines (one more on each side) are searched
  * first, then the whole CV; the text of the model is only a key — what is returned is the substring of the source from
- * the first to the last token matched, in its own case, accents and spelling. For a date, a period equal to the one
+ * the first to the last token matched (a gap never holds a negation, and exists only in the referenced lines), in its own case, accents and spelling. For a date, a period equal to the one
  * the model wrote is also accepted. A figure the line does not carry is never found, since every token must match.
  * @req EF-CVX-46, RG-21
  */
@@ -160,12 +201,19 @@ const anchorRef = (ref: CvRef, lines: readonly CvLine[], isDate: boolean): strin
   if (wanted.length === 0) return null;
   const everyLine = lines.map((_, index) => index);
   const near = windowOf(ref, lines.length);
-  for (const indexes of [near, everyLine]) {
+  // Gaps (leftovers of a two-column layout) are tolerated on the referenced lines only: a fact found elsewhere in the
+  // CV must be contiguous, or it could be stitched from two different entries.
+  for (const [indexes, maxGap] of [
+    [near, ANCHOR_MAX_FOREIGN_TOKENS],
+    [everyLine, 0],
+  ] as const) {
     if (indexes.length === 0) continue;
     const tokens = indexes
       .flatMap((index) => tokensOfLine((lines[index] as CvLine).text, index))
       .map((token, pos) => ({ ...token, pos }));
-    const text = alignTokens(wanted, tokens, lines) ?? (isDate ? alignPeriod(ref.text, indexes, lines) : null);
+    const text =
+      alignTokens(wanted, tokens, { lines, maxGap }) ??
+      (isDate ? alignPeriod(ref.text, indexes, lines) : null);
     if (text !== null) return text;
   }
   return null;
@@ -186,10 +234,12 @@ export const anchorParsedCv = (answer: ParseCvAnswer, lines: readonly CvLine[]):
     return text;
   };
   const items = (refs: readonly CvRef[], idOf: (index: number) => string): AnchoredItem[] =>
-    refs.flatMap((ref) => {
-      const text = anchor(ref);
-      return text === null ? [] : [text];
-    }).map((text, index) => ({ id: idOf(index), text }));
+    refs
+      .flatMap((ref) => {
+        const text = anchor(ref);
+        return text === null ? [] : [text];
+      })
+      .map((text, index) => ({ id: idOf(index), text }));
   const joined = (refs: readonly CvRef[]): string | null => {
     const texts = items(refs, String).map(({ text }) => text);
     return texts.length > 0 ? texts.join(' ') : null;
