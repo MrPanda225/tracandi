@@ -718,7 +718,7 @@ l'offre n'est écrite en base, sur disque ou dans les journaux (ENF-RGP-06).
   gardé ; entreprise, intitulé, dates, diplôme et chiffre inventés rejettent toujours la réponse.
   *Livré (14/10/2026)* : `foldText` en NFKD, caractères de format retirés, apostrophes et tirets étendus ;
   `tailoredAnswerSchemaFor` filtre les listes avant la vérification ; `npm run check` vert.
-- [ ] **T-519 Lecture du CV à colonnes** — *demande du Business Owner du 14/10/2026 (cahier v1.39, BES-52).* Texte de
+- [x] **T-519 Lecture du CV à colonnes** — *demande du Business Owner du 14/10/2026 (cahier v1.39, BES-52).* Texte de
   la couche PDF lu par `pdftotext` (poppler, déjà dans l'image) qui rétablit l'ordre des colonnes et recolle les
   césures, pdf.js en secours ; coordonnées retirées sans le reste de la ligne ; OCR à 300 ppp, y compris pour les
   couches de texte illisibles ; fixtures de CV à deux colonnes.
@@ -728,13 +728,38 @@ l'offre n'est écrite en base, sur disque ou dans les journaux (ENF-RGP-06).
   adresse sur la même ligne qu'une réalisation : la réalisation reste dans le texte ; les CV de test à colonnes
   entremêlées sont lus dans l'ordre.
   *Dépend de* : T-518.
-- [ ] **T-520 Structuration ancrée du CV** — tâche IA `parse_cv` (skill `add-llm-task` : prompt, schéma, route,
+  *Livré (16/10/2026)* : `pdftotext.ts` lance `pdftotext` (poppler) en mode par défaut, qui rétablit l'ordre des
+  colonnes, par le lanceur partagé (`command.ts`) dans un dossier privé supprimé ensuite, même après un échec ; pages
+  séparées aux sauts de page ; échec ou nombre de pages différent : repli sur pdf.js, césures recollées. Couche de
+  texte illisible (surtout des caractères d'usage privé) : la page part à l'OCR comme un scan, rendue à 300 ppp ; une
+  couche réelle avec quelques pictogrammes est gardée. `contacts.ts` : adresse, e-mail et téléphone retirés comme
+  sous-chaînes, le reste de la ligne (la réalisation voisine) est conservé. Correctif de la revue de sécurité
+  (`bb3a2be`) : toutes les présentations d'adresse et de téléphone sont retirées du texte envoyé aux IA (code postal
+  et ville en minuscules, adresse sur deux lignes, adresse après un intitulé), sans prendre « 20000 factures » ni des
+  dates pour une adresse ou un numéro. Fixtures `columns.ts` et `positioned.ts` (CV à colonnes entremêlées, titre sur
+  deux lignes, adresse partagée, césures).
+  *Écarts* : aucun.
+- [x] **T-520 Structuration ancrée du CV** — tâche IA `parse_cv` (skill `add-llm-task` : prompt, schéma, route,
   migration de `llm_task`), lignes numérotées, faits désignés par ligne, ancrage par le code (correspondance
   tolérante, dates comparées comme des périodes).
   *Exigences* : EF-CVX-46, RG-21 (v1.39).
   *Fini quand* : réponse simulée désignant une ligne inexistante ou un texte absent de la ligne : le fait est écarté,
   le reste de la structure est conservé ; aucune coordonnée dans la requête capturée.
   *Dépend de* : T-519 (le texte lu), mais peut être développée en parallèle.
+  *Livré (16/10/2026)* : tâche IA `parse_cv` (route dans `router.ts`, `prompts/parseCv.ts` : lignes numérotées
+  encadrées comme contenu non fiable, références seules demandées, réécriture interdite, aucune coordonnée ;
+  schéma `ParseCvAnswerSchema` qui écarte une entrée malformée et garde les autres, listes bornées, clé inconnue
+  refusée ; migration `0033_parse_cv_task` ; fixture `parse_cv.json`). `cvLines.ts` numérote les lignes du texte lu
+  (vides sautées). `anchoring.ts` ancre chaque référence sur le texte source par jetons : fenêtre de ±1 ligne autour
+  de la ligne désignée, `toLine` pour un intitulé sur deux lignes, orthographe de la source rendue (casse, accents,
+  ponctuation et tirets ignorés à la comparaison), deux jetons étrangers tolérés au plus entre ceux d'une référence
+  et jamais repris dans la valeur ; `datePeriods.ts` compare les dates comme des périodes (autre écriture acceptée,
+  autre période refusée, texte de la source gardé). Correctif `c5b93b3` : un fait ancré n'enjambe jamais une négation
+  et ne tolère des trous que sur ses propres lignes (fenêtre), pas dans le reste du CV ; un fait contigu est encore
+  retrouvé ailleurs. Référence à une ligne inexistante, texte absent ou chiffre absent de la source : fait écarté,
+  reste conservé ; expérience sans intitulé ancré ou formation sans diplôme ancré écartée ; identifiants attribués
+  dans l'ordre par le code. `parsing.ts` : `parseCv` exécute la tâche (`LlmUnavailableError` propagée).
+  *Écarts* : aucun.
 - [ ] **T-521 Adaptation par références et page tenue** — `tailor_cv` reçoit la structure, désigne les faits, rédige
   accroche, profil et réalisations ; le code remplit les faits, retire ce qui cite un chiffre absent, rétablit une
   expérience omise, ramène à une page ; message d'erreur seulement pour une réponse inexploitable.
