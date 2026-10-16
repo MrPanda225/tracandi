@@ -718,7 +718,7 @@ l'offre n'est écrite en base, sur disque ou dans les journaux (ENF-RGP-06).
   gardé ; entreprise, intitulé, dates, diplôme et chiffre inventés rejettent toujours la réponse.
   *Livré (14/10/2026)* : `foldText` en NFKD, caractères de format retirés, apostrophes et tirets étendus ;
   `tailoredAnswerSchemaFor` filtre les listes avant la vérification ; `npm run check` vert.
-- [ ] **T-519 Lecture du CV à colonnes** — *demande du Business Owner du 14/10/2026 (cahier v1.39, BES-52).* Texte de
+- [x] **T-519 Lecture du CV à colonnes** — *demande du Business Owner du 14/10/2026 (cahier v1.39, BES-52).* Texte de
   la couche PDF lu par `pdftotext` (poppler, déjà dans l'image) qui rétablit l'ordre des colonnes et recolle les
   césures, pdf.js en secours ; coordonnées retirées sans le reste de la ligne ; OCR à 300 ppp, y compris pour les
   couches de texte illisibles ; fixtures de CV à deux colonnes.
@@ -728,6 +728,17 @@ l'offre n'est écrite en base, sur disque ou dans les journaux (ENF-RGP-06).
   adresse sur la même ligne qu'une réalisation : la réalisation reste dans le texte ; les CV de test à colonnes
   entremêlées sont lus dans l'ordre.
   *Dépend de* : T-518.
+  *Livré (16/10/2026)* : `pdftotext.ts` lance `pdftotext` (poppler) en mode par défaut, qui rétablit l'ordre des
+  colonnes, par le lanceur partagé (`command.ts`) dans un dossier privé supprimé ensuite, même après un échec ; pages
+  séparées aux sauts de page ; échec ou nombre de pages différent : repli sur pdf.js, césures recollées. Couche de
+  texte illisible (surtout des caractères d'usage privé) : la page part à l'OCR comme un scan, rendue à 300 ppp ; une
+  couche réelle avec quelques pictogrammes est gardée. `contacts.ts` : adresse, e-mail et téléphone retirés comme
+  sous-chaînes, le reste de la ligne (la réalisation voisine) est conservé. Correctif de la revue de sécurité
+  (`bb3a2be`) : toutes les présentations d'adresse et de téléphone sont retirées du texte envoyé aux IA (code postal
+  et ville en minuscules, adresse sur deux lignes, adresse après un intitulé), sans prendre « 20000 factures » ni des
+  dates pour une adresse ou un numéro. Fixtures `columns.ts` et `positioned.ts` (CV à colonnes entremêlées, titre sur
+  deux lignes, adresse partagée, césures).
+  *Écarts* : aucun.
 - [ ] **T-520 Structuration ancrée du CV** — tâche IA `parse_cv` (skill `add-llm-task` : prompt, schéma, route,
   migration de `llm_task`), lignes numérotées, faits désignés par ligne, ancrage par le code (correspondance
   tolérante, dates comparées comme des périodes).
