@@ -241,6 +241,19 @@ Légende : `[ ]` à faire · `[~]` en cours · `[x]` terminée · `[!]` bloquée
   *Livré* : six formes élidées ajoutées à `REJECTION_CUES` ; `applyCategoryCues` corrige une alerte emploi en refus
   seulement si `hasRejectionCue` et `hasAcknowledgementCue` sont vrais ensemble ; autres règles inchangées.
 
+- [x] **T-314 Refus reformulés et tutoiement** — *demande du Business Owner du 16/10/2026 (cahier v1.40, BES-53) :
+  un refus d'OVHcloud « notre choix s'est orienté vers des profils… » n'était pas reconnu, et un refus tutoyé de
+  Winside Technology était classé « Alertes emploi ».*
+  *Exigences* : RG-17 (précisée, v1.40).
+  *Fini quand* : les deux lettres anonymisées sont classées refusées quelle que soit la catégorie de l'IA (accusé de
+  réception, hors sujet, alerte emploi, candidature envoyée) ; chaque formule nouvelle est reconnue et ignorée après une
+  condition ; une alerte proposant des offres « plus en adéquation avec votre profil » reste une alerte ; un accusé
+  de réception tutoyé sans refus devient « accusé de réception ».
+  *Livré* : formules de refus reformulées et formes tutoyées ajoutées à `REJECTION_CUES`, formes tutoyées et neutres
+  à `ACKNOWLEDGEMENT_CUES` ; « notre choix s'est porté sur vous » et « poursuivre avec vous » ne sont pas des refus.
+  Le rattachement de la confirmation Free-Work à deux candidatures n'est pas corrigé : mécanismes possibles décrits
+  dans le rapport de la tâche, données réelles nécessaires.
+
 ## Lot 4 — Veille des offres
 
 - [x] **T-401 Client HTTP de collecte** — robots.txt (cache par origine), 3 s par hôte, agent identifiant,
