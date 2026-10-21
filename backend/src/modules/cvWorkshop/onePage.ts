@@ -1,5 +1,6 @@
 import type { AdaptedCv } from './adaptedCv.js';
 import type { CvContacts } from './contacts.js';
+import { sentencesOf } from './text.js';
 
 /** RG-22: the usual section titles, in the order recruiters and their software expect them. */
 export const ATS_SECTION_TITLES = {
@@ -91,7 +92,7 @@ const listSection = (title: string, values: readonly string[]): CvBlock[] =>
 
 /**
  * « Title — Organisation, place | dates »: one line a recruiting software reads as the entry's title and period, and
- * one line fewer per entry on the page (RG-24).
+ * one line fewer per entry on the page (RG-24). A fact the CV does not give is left out, with its separator.
  */
 const entry = ({
   what,
@@ -100,13 +101,14 @@ const entry = ({
   dates,
 }: {
   what: string;
-  organization: string;
+  organization: string | null;
   place: string | null;
-  dates: string;
-}): CvBlock => ({
-  kind: 'entry',
-  text: `${what}${TITLE_SEPARATOR}${organization}${place ? `${LIST_SEPARATOR}${place}` : ''}${DATES_SEPARATOR}${dates}`,
-});
+  dates: string | null;
+}): CvBlock => {
+  const where = [organization, place].filter((part) => part !== null).join(LIST_SEPARATOR);
+  const text = [where === '' ? what : `${what}${TITLE_SEPARATOR}${where}`, dates].filter((part) => part !== null).join(DATES_SEPARATOR);
+  return { kind: 'entry', text };
+};
 
 /**
  * The paragraphs of the adapted CV, in order: contact details at the top of the body, then the usual sections of
@@ -235,8 +237,8 @@ export const densityFor = (blocks: readonly CvBlock[]): PageDensity | null =>
   PAGE_DENSITIES.find((density) => fitsAt(blocks, density)) ?? null;
 
 /**
- * RG-24, EF-CVX-37: whether the adapted CV holds on one A4 page with its contact details and every skill the
- * candidate may still tick (all the missing ones of the diagnostic, EF-CVX-28).
+ * RG-24, EF-CVX-37: whether the adapted CV holds on one A4 page with its contact details and the skills the
+ * candidate may still tick (up to {@link MAX_RESERVED_SKILLS} of the diagnostic's, EF-CVX-28).
  * @req RG-24, EF-CVX-37
  */
 export const fitsOnOnePage = (input: {
@@ -244,3 +246,58 @@ export const fitsOnOnePage = (input: {
   contacts: CvContacts;
   addedSkills: readonly string[];
 }): boolean => densityFor(cvBlocks(input)) !== null;
+
+/** RG-24: the missing skills the page keeps room for (EF-CVX-28); the candidate ticks a few, not the whole list. */
+export const MAX_RESERVED_SKILLS = 6;
+
+interface PageFit {
+  contacts: CvContacts;
+  addedSkills: readonly string[];
+}
+
+/**
+ * Every state of the CV as it is trimmed, one step at a time: bullets go first, from the oldest experience (the last)
+ * and its last bullet; then the last sentences of the profile, the first one staying; then the details of the
+ * education, the last entry first. Every experience and education line stays (RG-24).
+ */
+function* trimmedStates(cv: AdaptedCv): Generator<AdaptedCv> {
+  let current = cv;
+  for (let index = cv.experiences.length - 1; index >= 0; index -= 1) {
+    while ((current.experiences[index]?.bullets.length ?? 0) > 0) {
+      current = {
+        ...current,
+        experiences: current.experiences.map((experience, at) =>
+          at === index ? { ...experience, bullets: experience.bullets.slice(0, -1) } : experience,
+        ),
+      };
+      yield current;
+    }
+  }
+  const sentences = sentencesOf(current.profile);
+  for (let kept = sentences.length - 1; kept >= 1; kept -= 1) {
+    current = { ...current, profile: sentences.slice(0, kept).join(' ') };
+    yield current;
+  }
+  for (let index = cv.education.length - 1; index >= 0; index -= 1) {
+    if (current.education[index]?.detail === null) continue;
+    current = {
+      ...current,
+      education: current.education.map((item, at) => (at === index ? { ...item, detail: null } : item)),
+    };
+    yield current;
+  }
+}
+
+/**
+ * RG-24: the adapted CV trimmed, step by step, until it holds on one A4 page with its contact details and the room kept
+ * for the missing skills (see {@link trimmedStates} for the order). A CV that already fits is returned as it is; null
+ * when even the trimmed one does not fit.
+ * @req RG-24, EF-CVX-37
+ */
+export const fitToOnePage = (cv: AdaptedCv, { contacts, addedSkills }: PageFit): AdaptedCv | null => {
+  if (fitsOnOnePage({ cv, contacts, addedSkills })) return cv;
+  for (const state of trimmedStates(cv)) {
+    if (fitsOnOnePage({ cv: state, contacts, addedSkills })) return state;
+  }
+  return null;
+};

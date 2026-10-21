@@ -1,7 +1,7 @@
 import { HttpError } from '../../lib/errors.js';
 
 /** Why an imported CV could not be read (EF-CVX-34). */
-export type UnreadableReason = 'locked' | 'damaged' | 'noText' | 'tooManyScannedPages' | 'ocrTooSlow' | 'ocrFailed';
+export type UnreadableReason = 'locked' | 'damaged' | 'noText' | 'tooManyScannedPages' | 'ocrTooSlow' | 'ocrFailed' | 'noStructure';
 
 // Written for the candidate: what happened, and what to do about it.
 const MESSAGES: Readonly<Record<UnreadableReason, string>> = {
@@ -15,6 +15,7 @@ const MESSAGES: Readonly<Record<UnreadableReason, string>> = {
     'votre traitement de texte.',
   ocrTooSlow: 'La lecture de votre scan a pris trop de temps. Réessayez, ou importez le PDF exporté de votre CV.',
   ocrFailed: 'On n’a pas réussi à lire votre scan. Réessayez, ou importez le PDF exporté de votre CV.',
+  noStructure: 'Nous n’avons pas pu retrouver vos expériences et formations dans ce CV. Essayez le PDF exporté depuis votre traitement de texte.',
 }
 
 /**

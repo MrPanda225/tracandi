@@ -97,9 +97,9 @@ function CvEntry({
   place,
   children,
 }: {
-  dates: string;
+  dates: string | null;
   what: string;
-  organization: string;
+  organization: string | null;
   place: string | null;
   children?: ReactNode;
 }) {
@@ -109,7 +109,13 @@ function CvEntry({
       <div className="cv-sheet__body">
         <div className="cv-sheet__entry-head">
           <p className="cv-sheet__role">
-            {what} — <span className="cv-sheet__organization">{organization}</span>
+            {what}
+            {organization && (
+              <>
+                {' '}
+                — <span className="cv-sheet__organization">{organization}</span>
+              </>
+            )}
           </p>
           {place && <p className="cv-sheet__place">{place}</p>}
         </div>
@@ -195,7 +201,7 @@ function CvPreview({
           <CvSection title="Expériences professionnelles">
             {cv.experiences.map((experience) => (
               <CvEntry
-                key={`${experience.organization}-${experience.dates}`}
+                key={`${experience.title}-${experience.organization ?? ''}-${experience.dates ?? ''}`}
                 dates={experience.dates}
                 what={experience.title}
                 organization={experience.organization}
@@ -214,7 +220,7 @@ function CvPreview({
           <CvSection title="Formation">
             {cv.education.map((entry) => (
               <CvEntry
-                key={`${entry.school}-${entry.dates}`}
+                key={`${entry.degree}-${entry.school ?? ''}-${entry.dates ?? ''}`}
                 dates={entry.dates}
                 what={entry.degree}
                 organization={entry.school}

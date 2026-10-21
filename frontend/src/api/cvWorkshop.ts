@@ -31,8 +31,20 @@ export interface Diagnosis {
 export interface AdaptedCv {
   headline: string;
   profile: string;
-  experiences: { title: string; organization: string; place: string | null; dates: string; bullets: string[] }[];
-  education: { degree: string; school: string; place: string | null; dates: string; detail: string | null }[];
+  experiences: {
+    title: string;
+    organization: string | null;
+    place: string | null;
+    dates: string | null;
+    bullets: string[];
+  }[];
+  education: {
+    degree: string;
+    school: string | null;
+    place: string | null;
+    dates: string | null;
+    detail: string | null;
+  }[];
   skills: string[];
   certifications: string[];
   languages: string[];

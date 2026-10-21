@@ -27,5 +27,20 @@ export const cites = (foldedText: string, phrase: string): boolean => {
   return new RegExp(`(^|[^\\p{L}\\p{N}])${escapeRegExp(folded)}($|[^\\p{L}\\p{N}])`, 'u').test(foldedText);
 };
 
-/** Every number written in a text, as its digits (« 12 », « 2024 », « 3,5 » gives « 3 » and « 5 »). */
-export const numbersIn = (text: string): string[] => text.match(/\d+/gu) ?? [];
+// « 10 000 », « 10.000 », « 10,000 » (a group of exactly three digits after a separator) read « 10000 ».
+const THOUSANDS_SEPARATOR = /(?<=\d)[ \u00a0\u202f.,](?=\d{3}(?!\d))/gu;
+
+/**
+ * Every figure written in a text, as its digits: thousands separators ignored (« 10 000 » is « 10000 »), leading zeros
+ * dropped (« 09 » is « 9 »), a decimal part counted apart (« 3,5 » gives « 3 » and « 5 »).
+ * @req RG-21
+ */
+export const figuresIn = (text: string): string[] =>
+  (text.replace(THOUSANDS_SEPARATOR, '').match(/\d+/gu) ?? []).map((digits) => digits.replace(/^0+(?=\d)/u, ''));
+
+/** The sentences of a paragraph, each one with its final punctuation. */
+export const sentencesOf = (text: string): string[] =>
+  text
+    .split(/(?<=[.!?…])\s+/u)
+    .map((sentence) => sentence.trim())
+    .filter((sentence) => sentence !== '');

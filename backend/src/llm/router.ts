@@ -149,7 +149,7 @@ interface LlmRouterDeps {
 type Refusal =
   | { error: unknown }
   /** Fields of the answer the schema rejected, as paths and codes, without any value (ENF-RGP-01). */
-  | { issues: { path: string; code: string }[] };
+  | { issues: { path: string; code: string; message?: string }[] };
 
 type Attempt<T> =
   | { outcome: 'success'; data: T; completion: LlmCompletion }
@@ -187,6 +187,18 @@ const outputCeilingOf = (provider: LlmProvider, requested: number | undefined): 
   Math.min(requested ?? DEFAULT_MAX_OUTPUT_TOKENS, provider.maxOutputTokens ?? Number.POSITIVE_INFINITY);
 
 /**
+ * Zod codes whose message quotes what the model wrote (« received 'x' », the unknown keys): left out of the log. The
+ * other messages are fixed English strings (« Required », « String must contain at least 1 character(s) »), and the
+ * tasks' own refinements write theirs without any value (ENF-RGP-01).
+ */
+const QUOTING_ISSUE_CODES: ReadonlySet<string> = new Set([
+  'invalid_enum_value',
+  'invalid_literal',
+  'unrecognized_keys',
+  'invalid_union_discriminator',
+]);
+
+/**
  * One call to one provider, bounded to `timeoutMs` and validated against the schema of the task.
  * Never throws: a failure, a timeout and an answer outside the schema all come back as an outcome with its reason.
  * @req EF-IA-02, EF-IA-03
@@ -214,7 +226,11 @@ const attempt = async <T>(
       outcome: 'invalid_output',
       completion,
       refusal: {
-        issues: parsed.error.issues.map((issue) => ({ path: issue.path.join('.'), code: issue.code })),
+        issues: parsed.error.issues.map((issue) => ({
+          path: issue.path.join('.'),
+          code: issue.code,
+          ...(QUOTING_ISSUE_CODES.has(issue.code) ? {} : { message: issue.message }),
+        })),
       },
     };
   } catch (error) {
