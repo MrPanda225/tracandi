@@ -11,7 +11,13 @@ import {
 } from './csvImport.js';
 import * as repository from './repository.js';
 import type { Executor } from './repository.js';
-import { IMPORT_FIELDS, type ImportBody, type ImportMapping, type ImportPreview, type ImportResult } from './schemas.js';
+import {
+  IMPORT_FIELDS,
+  type ImportBody,
+  type ImportMapping,
+  type ImportPreview,
+  type ImportResult,
+} from './schemas.js';
 
 /** A row ready to be created, with the keys RG-03 (a) and (b) identify it by. */
 interface ImportCandidate extends ImportedApplication {
@@ -40,7 +46,10 @@ const assertMappingFits = (mapping: ImportMapping, table: CsvTable): void => {
   const issues = IMPORT_FIELDS.filter((field) => {
     const column = mapping[field];
     return column !== null && column >= table.headers.length;
-  }).map((field) => ({ path: `body.mapping.${field}`, message: 'Cette colonne n’existe pas dans le fichier' }));
+  }).map((field) => ({
+    path: `body.mapping.${field}`,
+    message: 'Cette colonne n’existe pas dans le fichier',
+  }));
   if (issues.length > 0) throw new ValidationError(issues);
 };
 

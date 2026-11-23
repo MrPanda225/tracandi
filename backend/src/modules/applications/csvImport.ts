@@ -30,7 +30,8 @@ const DEFAULT_STATUS: ApplicationStatus = 'sent';
 
 const TOO_LARGE = 'Le fichier dépasse 1 Mo : gardez seulement les colonnes utiles, puis réessayez.';
 const TOO_MANY_ROWS = 'Le fichier dépasse 1 000 lignes de candidatures : découpez-le en plusieurs fichiers.';
-const NOT_TEXT = 'Ce fichier n’est pas un CSV en texte (UTF-8). Exportez votre tableau au format CSV, puis réessayez.';
+const NOT_TEXT =
+  'Ce fichier n’est pas un CSV en texte (UTF-8). Exportez votre tableau au format CSV, puis réessayez.';
 const DATE_FORMATS = 'formats acceptés JJ/MM/AAAA, AAAA-MM-JJ ou JJ/MM/AA';
 
 /**
@@ -165,8 +166,14 @@ const refuse = (reason: string): { ok: false; reason: string } => ({ ok: false, 
 const accept = <T>(value: T): { ok: true; value: T } => ({ ok: true, value });
 
 const DAY_PATTERNS: readonly { pattern: RegExp; toDay: (parts: string[]) => [string, string, string] }[] = [
-  { pattern: /^(\d{4})-(\d{1,2})-(\d{1,2})$/u, toDay: ([year = '', month = '', day = '']) => [year, month, day] },
-  { pattern: /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/u, toDay: ([day = '', month = '', year = '']) => [year, month, day] },
+  {
+    pattern: /^(\d{4})-(\d{1,2})-(\d{1,2})$/u,
+    toDay: ([year = '', month = '', day = '']) => [year, month, day],
+  },
+  {
+    pattern: /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/u,
+    toDay: ([day = '', month = '', year = '']) => [year, month, day],
+  },
   {
     pattern: /^(\d{1,2})\/(\d{1,2})\/(\d{2})$/u,
     toDay: ([day = '', month = '', year = '']) => [String(CENTURY + Number(year)), month, day],
@@ -198,7 +205,8 @@ const readAppliedAt = (cell: string, now: Date): RowReading<Date> => {
   const day = dayOf(cell);
   if (!day) return refuse(`Date « ${cell} » illisible : ${DATE_FORMATS}`);
   if (!isExistingDay(day)) return refuse(`Date « ${cell} » inexistante`);
-  if (Number(day.slice(0, 4)) < EARLIEST_YEAR) return refuse('Date de candidature antérieure au 1er janvier 2000');
+  if (Number(day.slice(0, 4)) < EARLIEST_YEAR)
+    return refuse('Date de candidature antérieure au 1er janvier 2000');
   const { start } = parisDayBounds(day);
   return start > now ? refuse('Date de candidature dans le futur') : accept(start);
 };
@@ -220,7 +228,8 @@ const readNotes = (link: string, notes: string): RowReading<string | null> => {
     return refuse('Lien invalide : adresse http ou https de 1 000 caractères au plus');
   }
   const text = [link === '' ? '' : `Lien : ${link}`, notes].filter(Boolean).join('\n\n');
-  if (text.length > NOTES_MAX_LENGTH) return refuse('Notes trop longues (2 000 caractères au plus, lien compris)');
+  if (text.length > NOTES_MAX_LENGTH)
+    return refuse('Notes trop longues (2 000 caractères au plus, lien compris)');
   return accept(text === '' ? null : text);
 };
 
@@ -234,7 +243,9 @@ const readCompany = (cell: string): RowReading<string> => {
 const readJobTitle = (cell: string): RowReading<string> => {
   if (cell === '') return accept(DEFAULT_JOB_TITLE);
   if (normalizeKey(cell) === '') return refuse('Intitulé sans lettre ni chiffre');
-  return cell.length > JOB_TITLE_MAX_LENGTH ? refuse('Intitulé trop long (300 caractères au plus)') : accept(cell);
+  return cell.length > JOB_TITLE_MAX_LENGTH
+    ? refuse('Intitulé trop long (300 caractères au plus)')
+    : accept(cell);
 };
 
 /**

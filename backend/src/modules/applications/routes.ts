@@ -22,6 +22,24 @@ export const IMPORT_PATH = '/applications/import';
 const JSON_ENVELOPE_BYTES = 1024;
 export const IMPORT_BODY_LIMIT = CSV_MAX_BASE64_LENGTH + JSON_ENVELOPE_BYTES;
 
+/** EF-CAN-23: preview and import of a CSV file. */
+const addImportRoutes = (router: Router, service: ApplicationsService): void => {
+  router.post(
+    IMPORT_PREVIEW_PATH,
+    asyncHandler(async (req, res) => {
+      const { body } = validate(req, { body: ImportPreviewBodySchema });
+      res.status(200).json(service.previewImport(body.file));
+    }),
+  );
+  router.post(
+    IMPORT_PATH,
+    asyncHandler(async (req, res) => {
+      const { body } = validate(req, { body: ImportBodySchema });
+      res.status(200).json(await service.importCsv(currentUserId(res), body));
+    }),
+  );
+};
+
 /**
  * Application and message routes, behind the session guard.
  * @req EF-CAN-01 to EF-CAN-14, EF-CAN-23, EF-AUT-06, ENF-SEC-04
@@ -44,20 +62,7 @@ export const createApplicationsModule = (service: ApplicationsService): ApiModul
     }),
   );
   // Declared before `/applications/:id`, whose parameter would otherwise read « import ».
-  router.post(
-    IMPORT_PREVIEW_PATH,
-    asyncHandler(async (req, res) => {
-      const { body } = validate(req, { body: ImportPreviewBodySchema });
-      res.status(200).json(service.previewImport(body.file));
-    }),
-  );
-  router.post(
-    IMPORT_PATH,
-    asyncHandler(async (req, res) => {
-      const { body } = validate(req, { body: ImportBodySchema });
-      res.status(200).json(await service.importCsv(currentUserId(res), body));
-    }),
-  );
+  addImportRoutes(router, service);
   router.get(
     '/applications/:id',
     asyncHandler(async (req, res) => {

@@ -18,56 +18,77 @@ export class CsvSyntaxError extends Error {
   }
 }
 
-const BYTE_ORDER_MARK = '﻿';
+const BYTE_ORDER_MARK = '\uFEFF';
 const QUOTE = '"';
 const CR = '\r';
 const LF = '\n';
+
+const isLineBreak = (char: string | undefined): boolean => char === CR || char === LF;
 
 /**
  * Picks the separator of the first line: the one that appears more often outside quotes, `,` on a tie (RFC 4180).
  */
 const detectDelimiter = (text: string): CsvDelimiter => {
-  let semicolons = 0;
-  let commas = 0;
+  const counts: Record<CsvDelimiter, number> = { ',': 0, ';': 0 };
   let isQuoted = false;
   for (const char of text) {
     if (char === QUOTE) isQuoted = !isQuoted;
-    else if (!isQuoted && (char === LF || char === CR)) break;
-    else if (!isQuoted && char === ';') semicolons += 1;
-    else if (!isQuoted && char === ',') commas += 1;
+    else if (!isQuoted && isLineBreak(char)) break;
+    else if (!isQuoted && (char === ',' || char === ';')) counts[char] += 1;
   }
-  return semicolons > commas ? ';' : ',';
+  return counts[';'] > counts[','] ? ';' : ',';
 };
 
-/** Mutable cursor of one parse; kept local to `parseCsv`, never shared. */
-interface ParseState {
-  records: string[][];
-  record: string[];
-  field: string;
+/** Line of the file being read (1-based) and line where the current record started, for the error messages. */
+interface Cursor {
   line: number;
   recordLine: number;
 }
 
-const endRecord = (state: ParseState): void => {
-  state.record.push(state.field);
-  state.records.push(state.record);
-  state.record = [];
-  state.field = '';
-};
+/** A field read, and the index of the character that ends it (a separator, a line break or the end of the text). */
+interface ReadField {
+  value: string;
+  end: number;
+}
 
-/** Reads a quoted field starting after its opening quote; returns the index of the character after the closing one. */
-const readQuoted = (text: string, start: number, state: ParseState): number => {
+/** Reads a quoted field starting after its opening quote, up to the character after its closing quote. */
+const readQuoted = (text: string, start: number, cursor: Cursor): ReadField => {
+  let value = '';
   let index = start;
   for (;;) {
     const closing = text.indexOf(QUOTE, index);
-    if (closing === -1) throw new CsvSyntaxError(state.recordLine, 'guillemet ouvert jamais refermé');
+    if (closing === -1) throw new CsvSyntaxError(cursor.recordLine, 'guillemet ouvert jamais refermé');
     const chunk = text.slice(index, closing);
-    state.field += chunk;
-    state.line += chunk.split(LF).length - 1;
-    if (text[closing + 1] !== QUOTE) return closing + 1;
-    state.field += QUOTE;
+    value += chunk;
+    cursor.line += chunk.split(LF).length - 1;
+    if (text[closing + 1] !== QUOTE) return { value, end: closing + 1 };
+    value += QUOTE;
     index = closing + 2;
   }
+};
+
+const readField = (
+  text: string,
+  start: number,
+  { delimiter, cursor }: { delimiter: CsvDelimiter; cursor: Cursor },
+): ReadField => {
+  if (text[start] !== QUOTE) {
+    let end = start;
+    while (end < text.length && text[end] !== delimiter && !isLineBreak(text[end])) end += 1;
+    return { value: text.slice(start, end), end };
+  }
+  const field = readQuoted(text, start + 1, cursor);
+  const next = text[field.end];
+  if (next !== undefined && next !== delimiter && !isLineBreak(next)) {
+    throw new CsvSyntaxError(cursor.recordLine, 'caractère inattendu après un guillemet fermant');
+  }
+  return field;
+};
+
+/** Index after the line break at `index` (CRLF counts as one), or `index` at the end of the text. */
+const skipLineBreak = (text: string, index: number): number => {
+  if (text[index] === CR && text[index + 1] === LF) return index + 2;
+  return index < text.length ? index + 1 : index;
 };
 
 /**
@@ -81,35 +102,26 @@ const readQuoted = (text: string, start: number, state: ParseState): number => {
 export const parseCsv = (input: string): ParsedCsv => {
   const text = input.startsWith(BYTE_ORDER_MARK) ? input.slice(BYTE_ORDER_MARK.length) : input;
   const delimiter = detectDelimiter(text);
-  const state: ParseState = { records: [], record: [], field: '', line: 1, recordLine: 1 };
+  const cursor: Cursor = { line: 1, recordLine: 1 };
+  const records: string[][] = [];
+  let record: string[] = [];
   let index = 0;
-  let isFieldStart = true;
   while (index < text.length) {
-    const char = text[index];
-    if (char === QUOTE && isFieldStart) {
-      index = readQuoted(text, index + 1, state);
-      const next = text[index];
-      if (next !== undefined && next !== delimiter && next !== CR && next !== LF) {
-        throw new CsvSyntaxError(state.recordLine, 'caractère inattendu après un guillemet fermant');
-      }
-      isFieldStart = false;
-    } else if (char === delimiter) {
-      state.record.push(state.field);
-      state.field = '';
+    const field = readField(text, index, { delimiter, cursor });
+    record.push(field.value);
+    index = field.end;
+    if (text[index] === delimiter) {
       index += 1;
-      isFieldStart = true;
-    } else if (char === CR || char === LF) {
-      endRecord(state);
-      index += char === CR && text[index + 1] === LF ? 2 : 1;
-      state.line += 1;
-      state.recordLine = state.line;
-      isFieldStart = true;
-    } else {
-      state.field += char;
-      index += 1;
-      isFieldStart = false;
+      // A separator ending the text still opens a last, empty field.
+      if (index === text.length) record.push('');
+      continue;
     }
+    records.push(record);
+    record = [];
+    index = skipLineBreak(text, index);
+    cursor.line += 1;
+    cursor.recordLine = cursor.line;
   }
-  if (state.field !== '' || state.record.length > 0) endRecord(state);
-  return { delimiter, records: state.records };
+  if (record.length > 0) records.push(record);
+  return { delimiter, records };
 };

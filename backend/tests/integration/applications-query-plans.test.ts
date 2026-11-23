@@ -53,3 +53,15 @@ describe('the list of applications on the load of ENF-PERF-01', () => {
     expect(performance.now() - startedAt).toBeLessThan(MAX_LIST_MS);
   });
 });
+
+// EF-CAN-23: the duplicates of an import are found in one query on every application of the candidate — not a
+// selective query (ENF-PERF-04) either, so it is timed like the list.
+describe('the keys an import compares its rows with, on the load of ENF-PERF-01', () => {
+  it(`[EF-CAN-23] [ENF-PERF-01] reads the keys of 1 000 applications in one query of less than ${String(MAX_LIST_MS)} ms`, async () => {
+    const startedAt = performance.now();
+    const queries = await capture(pool, (db) => repository.listApplicationKeys(db, userId));
+
+    expect(performance.now() - startedAt).toBeLessThan(MAX_LIST_MS);
+    expect(queries).toHaveLength(1);
+  });
+});

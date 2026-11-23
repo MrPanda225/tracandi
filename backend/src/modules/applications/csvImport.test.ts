@@ -34,7 +34,9 @@ const row = (cells: Partial<Record<keyof ImportMapping, string>>) => [
 
 describe('decodeCsvFile', () => {
   it('[EF-CAN-23] returns the text of a UTF-8 file', () => {
-    expect(decodeCsvFile(base64('Entreprise;Poste\nNova;Développeur'))).toBe('Entreprise;Poste\nNova;Développeur');
+    expect(decodeCsvFile(base64('Entreprise;Poste\nNova;Développeur'))).toBe(
+      'Entreprise;Poste\nNova;Développeur',
+    );
   });
 
   it('[EF-CAN-23] refuses a file larger than 1 MB with 413, before decoding it', () => {
@@ -43,9 +45,9 @@ describe('decodeCsvFile', () => {
   });
 
   it('[EF-CAN-23] refuses a file that is not text with 415 (binary or not UTF-8)', () => {
-    expect(statusOf(() => decodeCsvFile(Buffer.from([0x25, 0x50, 0x44, 0x46, 0x00, 0x01]).toString('base64')))).toBe(
-      415,
-    );
+    expect(
+      statusOf(() => decodeCsvFile(Buffer.from([0x25, 0x50, 0x44, 0x46, 0x00, 0x01]).toString('base64'))),
+    ).toBe(415);
     expect(statusOf(() => decodeCsvFile(Buffer.from([0x4e, 0xe9, 0x6f]).toString('base64')))).toBe(415);
   });
 
@@ -69,7 +71,14 @@ describe('readCsvTable', () => {
   it('[EF-CAN-23] refuses more than 1 000 rows with 413', () => {
     const text = `Entreprise\n${Array.from({ length: CSV_MAX_ROWS + 1 }, (_, index) => `E${index}`).join('\n')}`;
     expect(statusOf(() => readCsvTable(text))).toBe(413);
-    expect(readCsvTable(text.split('\n').slice(0, CSV_MAX_ROWS + 1).join('\n')).rows).toHaveLength(CSV_MAX_ROWS);
+    expect(
+      readCsvTable(
+        text
+          .split('\n')
+          .slice(0, CSV_MAX_ROWS + 1)
+          .join('\n'),
+      ).rows,
+    ).toHaveLength(CSV_MAX_ROWS);
   });
 
   it('[EF-CAN-23] refuses an empty file and an invalid CSV with 400 naming the line', () => {
@@ -81,7 +90,14 @@ describe('readCsvTable', () => {
 describe('suggestMapping', () => {
   it('[EF-CAN-23] proposes a column for each field from French or English column names', () => {
     expect(
-      suggestMapping(['Date de candidature', 'Société', 'Poste', 'Lien de l’offre', 'Statut', 'Commentaires']),
+      suggestMapping([
+        'Date de candidature',
+        'Société',
+        'Poste',
+        'Lien de l’offre',
+        'Statut',
+        'Commentaires',
+      ]),
     ).toEqual({ company: 1, jobTitle: 2, link: 3, appliedAt: 0, status: 4, notes: 5 });
     expect(suggestMapping(['Company', 'Job title', 'URL', 'Applied on', 'Status', 'Notes'])).toEqual({
       company: 0,
@@ -153,7 +169,14 @@ describe('readImportRow', () => {
   });
 
   it('[EF-CAN-23] defaults an empty or unmapped cell: « Candidature », Envoyée, today, no notes', () => {
-    const mapping: ImportMapping = { company: 0, jobTitle: null, link: null, appliedAt: null, status: null, notes: null };
+    const mapping: ImportMapping = {
+      company: 0,
+      jobTitle: null,
+      link: null,
+      appliedAt: null,
+      status: null,
+      notes: null,
+    };
     expect(readImportRow(['Nova'], { mapping, now: NOW })).toEqual({
       ok: true,
       value: { companyName: 'Nova', jobTitle: 'Candidature', status: 'sent', appliedAt: NOW, notes: null },

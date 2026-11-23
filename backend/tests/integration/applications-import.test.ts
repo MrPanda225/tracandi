@@ -104,8 +104,20 @@ describe('POST /api/applications/import', () => {
 
   it('[EF-CAN-23] stores each field, the link opening the notes, with one status history entry each', async () => {
     await importFile(alice, base64(GOOGLE_SHEET));
-    const list = await request(context.app).get('/api/applications?sort=company&order=asc').set('Cookie', alice);
-    const items = (list.body as { items: { company: { name: string }; jobTitle: string; status: string; notes: string | null; appliedAt: string }[] }).items;
+    const list = await request(context.app)
+      .get('/api/applications?sort=company&order=asc')
+      .set('Cookie', alice);
+    const items = (
+      list.body as {
+        items: {
+          company: { name: string };
+          jobTitle: string;
+          status: string;
+          notes: string | null;
+          appliedAt: string;
+        }[];
+      }
+    ).items;
     expect(items[0]).toMatchObject({
       company: { name: 'Atelier Nova' },
       jobTitle: 'Data analyst H/F',
@@ -151,9 +163,18 @@ describe('POST /api/applications/import', () => {
       '',
       'Gamma,Analyste,15/09/2026,En cours',
     ].join('\r\n');
-    const response = await importFile(alice, base64(csv), { company: 0, jobTitle: 1, appliedAt: 2, status: 3 });
+    const response = await importFile(alice, base64(csv), {
+      company: 0,
+      jobTitle: 1,
+      appliedAt: 2,
+      status: 3,
+    });
     expect(response.status).toBe(200);
-    const result = response.body as { created: number; duplicates: number; rejected: { line: number; reason: string }[] };
+    const result = response.body as {
+      created: number;
+      duplicates: number;
+      rejected: { line: number; reason: string }[];
+    };
     expect(result.created).toBe(1);
     expect(result.rejected.map((row) => row.line)).toEqual([3, 4, 6]);
     expect(result.rejected[0]?.reason).toMatch(/entreprise/iu);
@@ -174,11 +195,7 @@ describe('POST /api/applications/import', () => {
 
   it('[EF-CAN-23] refuses a mapping without company, giving one column twice or naming a missing column (400)', async () => {
     const file = base64(GOOGLE_SHEET);
-    const cases = [
-      { jobTitle: 1 },
-      { company: 0, jobTitle: 0 },
-      { company: 0, notes: 9 },
-    ];
+    const cases = [{ jobTitle: 1 }, { company: 0, jobTitle: 0 }, { company: 0, notes: 9 }];
     for (const mapping of cases) {
       const response = await importFile(alice, file, mapping);
       expect(response.status).toBe(400);
@@ -188,7 +205,9 @@ describe('POST /api/applications/import', () => {
   });
 
   it('[EF-CAN-23] refuses a file larger than 1 MB with 413 and stores nothing', async () => {
-    const response = await importFile(alice, base64(`Entreprise\n${'a'.repeat(CSV_MAX_BYTES)}`), { company: 0 });
+    const response = await importFile(alice, base64(`Entreprise\n${'a'.repeat(CSV_MAX_BYTES)}`), {
+      company: 0,
+    });
     expect(response.status).toBe(413);
     expect(await countApplications()).toBe(0);
   });
