@@ -8,10 +8,13 @@ import { describeDatabaseUrlProblem } from './url.js';
 const MIGRATIONS_FOLDER = fileURLToPath(new URL('../../drizzle', import.meta.url));
 
 /**
- * Applies the pending migrations of `backend/drizzle/` in order, each in its own transaction; already applied ones
- * are skipped (journal table `drizzle.__drizzle_migrations`), so a second run has no effect.
+ * Applies the pending migrations of `backend/drizzle/` in order, all of them in one single transaction (drizzle's
+ * migrator); already applied ones are skipped (journal table `drizzle.__drizzle_migrations`), so a second run has no
+ * effect. Consequence: a value added to an enumeration (`ALTER TYPE … ADD VALUE`) cannot be used by a later migration
+ * of the same run — PostgreSQL refuses a new enum value before its transaction commits. No migration may therefore
+ * write `technical_test` (0034, T-904) if it can be deployed together with 0034; it goes to a later deployment.
  * Must be called with the owner role, never with the application role (ENF-SEC-09).
- * @throws Error when the URL is invalid or insecure, or when a migration fails (nothing of that migration is kept).
+ * @throws Error when the URL is invalid or insecure, or when a migration fails (nothing of the run is kept).
  * @req ENF-MAI-05, ENF-SEC-09, ENF-SEC-15
  */
 export const runMigrations = async (connectionString: string, logger: Logger): Promise<void> => {

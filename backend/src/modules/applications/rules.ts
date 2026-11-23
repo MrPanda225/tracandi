@@ -5,14 +5,15 @@ export type ApplicationStatus = (typeof applicationStatus.enumValues)[number];
 export type EmailCategory = (typeof emailCategory.enumValues)[number];
 export type ContractType = (typeof contractType.enumValues)[number];
 
-// RG-04: rank of each status.
+// RG-04 (v1.32): rank of each status.
 const STATUS_RANK: Record<ApplicationStatus, number> = {
   to_apply: 0,
   sent: 1,
   acknowledged: 2,
-  interview: 3,
-  offer: 4,
-  rejected: 5,
+  technical_test: 3,
+  interview: 4,
+  offer: 5,
+  rejected: 6,
 };
 const ALWAYS_REPLACING: ReadonlySet<ApplicationStatus> = new Set(['offer', 'rejected']);
 
@@ -20,6 +21,7 @@ const ALWAYS_REPLACING: ReadonlySet<ApplicationStatus> = new Set(['offer', 'reje
 const STATUS_OF_CATEGORY: Record<EmailCategory, ApplicationStatus | null> = {
   sent_application: 'sent',
   acknowledged: 'acknowledged',
+  technical_test: 'technical_test',
   interview: 'interview',
   offer: 'offer',
   rejected: 'rejected',
@@ -36,7 +38,7 @@ export const DEFAULT_JOB_TITLE = 'Candidature';
 
 /**
  * RG-04: an incoming status replaces the current one if and only if it is Proposition or Refusée,
- * or its rank is higher. A late acknowledgement never downgrades an interview.
+ * or its rank is higher. A late acknowledgement never downgrades an interview, nor a technical test an interview.
  * @req RG-04, EF-CAN-11
  */
 export const shouldReplaceStatus = (current: ApplicationStatus, incoming: ApplicationStatus): boolean =>
