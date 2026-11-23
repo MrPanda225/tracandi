@@ -14,7 +14,7 @@ export const bodyPart = (mimeType: string, content: string | Buffer, charset = '
  * Gmail escapes the excerpt (`snippet`) as HTML: the entities below are the ones Gmail really sends. A message
  * without `parts` has no readable body: its excerpt stands for it.
  */
-const metadata = (fields: {
+export const metadata = (fields: {
   id: string;
   threadId: string;
   receivedAt: string;

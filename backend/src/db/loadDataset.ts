@@ -116,7 +116,7 @@ const COMPANY_SUFFIXES = [
   'Solutions',
 ];
 // Distinct RG-25 keys: a company never gets the same job twice.
-const JOB_TITLES = [
+export const JOB_TITLES = [
   'Data analyst H/F',
   'Développeur web',
   'Développeur front (F/H) - CDI',
@@ -135,7 +135,7 @@ const JOB_TITLES = [
 const LOCATIONS = ['Paris', 'Lyon', 'Lille', 'Nantes', 'Bordeaux', 'Toulouse', 'Télétravail'];
 
 /** Fictitious, readable and distinct names: « Atelier Conseil », « Cobalt Numérique 2 »… */
-const companyNameOf = (index: number): string => {
+export const companyNameOf = (index: number): string => {
   const base = `${COMPANY_WORDS[index % COMPANY_WORDS.length] ?? ''} ${
     COMPANY_SUFFIXES[Math.floor(index / COMPANY_WORDS.length) % COMPANY_SUFFIXES.length] ?? ''
   }`;
