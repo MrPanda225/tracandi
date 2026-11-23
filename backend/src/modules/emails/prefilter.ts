@@ -15,6 +15,9 @@ export const DEFAULT_JOB_KEYWORDS: readonly string[] = [
   'entretiens',
   // RG-02 (v1.32): a test to complete rarely names the candidature, it must still reach the classification.
   'test technique',
+  'tests techniques',
+  // RG-02 (v1.32): the other wordings of a test that the classification prompt names.
+  'cas pratique',
   'recrutement',
   'recruteur',
   'recruteurs',
@@ -30,7 +33,10 @@ export const DEFAULT_JOB_KEYWORDS: readonly string[] = [
   'job application',
   'interview',
   'technical test',
+  'technical tests',
   'technical assessment',
+  'technical assessments',
+  'coding challenge',
   'hiring',
   'recruiter',
   'recruitment',

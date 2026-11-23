@@ -514,7 +514,9 @@ describe('classification and attachment', () => {
       .from(applicationStatusHistory)
       .orderBy(asc(applicationStatusHistory.changedAt));
     expect(history.map((row) => row.status)).toEqual(['sent', 'acknowledged', 'technical_test', 'interview']);
-    expect(gmail.labelsOfThread(SENT_APPLICATION.threadId ?? '')).not.toContain('Statut/En attente');
+    const labels = gmail.labelsOfThread(SENT_APPLICATION.threadId ?? '');
+    expect(labels).toContain('Statut/Entretien');
+    expect(labels).not.toContain('Statut/En attente');
   });
 
   it('[RG-04] (v1.32) never downgrades an interview when a technical test arrives after it', async () => {
