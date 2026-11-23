@@ -930,9 +930,14 @@ développeur l'active sur son poste (`ENABLED_FEATURES=watch,cv`) le temps d'y t
   *Exigences* : EF-CAN-19, EF-CAN-21.
 - [ ] **T-903 Import CSV** — lecture du fichier (sans dépendance), aperçu, correspondance des colonnes, import sans doublon.
   *Exigences* : EF-CAN-23.
-- [ ] **T-904 Statut « Test technique »** — énumérations (migration), classement, rangs, libellé Gmail, taux de réponse,
+- [x] **T-904 Statut « Test technique »** — énumérations (migration), classement, rangs, libellé Gmail, taux de réponse,
   tableau de bord, filtre.
   *Exigences* : RG-01, RG-02, RG-04, RG-05, RG-07 (v1.32).
+  *Livré* : valeur `technical_test` de `application_status` et `email_category`, placée avant `interview` (migration
+  `0034_technical-test-status`, à appliquer au déploiement) ; prompt de classement avec exemples français et anglais,
+  un entretien technique restant un entretien ; « test technique », « technical test » et « technical assessment »
+  ajoutés aux mots-clés initiaux de RG-10 (les listes déjà enregistrées ne changent pas). Couleur : celle de T-905
+  (orange, EF-CAN-22) ; `StatusTag` garde le ton « en attente » jusque-là.
 - [~] **T-905 Tri, filtre par période et couleurs** — tri au choix, filtre du … au …, index pour ENF-PERF-04,
   couleurs des statuts (règle `frontend.md` mise à jour).
   *Exigences* : EF-CAN-01 (v1.32), EF-CAN-20, EF-CAN-22, EF-CAN-24.

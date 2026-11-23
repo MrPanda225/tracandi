@@ -40,12 +40,29 @@ describe('shouldReplaceStatus', () => {
   ])('[RG-04] current %s, incoming %s → replace = %s', (current, incoming, expected) => {
     expect(shouldReplaceStatus(current, incoming)).toBe(expected);
   });
+
+  it.each<[ApplicationStatus, ApplicationStatus, boolean]>([
+    ['acknowledged', 'technical_test', true],
+    ['sent', 'technical_test', true],
+    ['technical_test', 'interview', true],
+    ['technical_test', 'acknowledged', false],
+    ['interview', 'technical_test', false],
+    ['technical_test', 'technical_test', false],
+    ['technical_test', 'rejected', true],
+    ['offer', 'technical_test', false],
+  ])(
+    '[RG-04] (v1.32) Test technique ranks 3: current %s, incoming %s → replace = %s',
+    (current, incoming, expected) => {
+      expect(shouldReplaceStatus(current, incoming)).toBe(expected);
+    },
+  );
 });
 
 describe('statusOfCategory', () => {
   it('[RG-02] maps each application message category to its status', () => {
     expect(statusOfCategory('sent_application')).toBe('sent');
     expect(statusOfCategory('acknowledged')).toBe('acknowledged');
+    expect(statusOfCategory('technical_test')).toBe('technical_test');
     expect(statusOfCategory('interview')).toBe('interview');
     expect(statusOfCategory('offer')).toBe('offer');
     expect(statusOfCategory('rejected')).toBe('rejected');
