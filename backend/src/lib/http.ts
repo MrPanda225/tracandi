@@ -1,6 +1,7 @@
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
 import type { z } from 'zod';
 import { ValidationError, type ValidationIssue } from './errors.js';
+import { withoutRedundantSafeIntegerBounds } from './zodMessages.js';
 
 type RequestPart = 'params' | 'query' | 'body';
 
@@ -13,7 +14,7 @@ export type ValidatedRequest<S extends RequestSchemas> = {
 };
 
 const toIssues = (part: RequestPart, error: z.ZodError): ValidationIssue[] =>
-  error.issues.map((issue) => ({
+  withoutRedundantSafeIntegerBounds(error.issues).map((issue) => ({
     path: [part, ...issue.path].join('.'),
     message: issue.message,
   }));

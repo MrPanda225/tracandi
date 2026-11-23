@@ -78,6 +78,13 @@ const describeLocalUrlProblem = (value: string): string | null => {
 
 const withoutTrailingSlash = (value: string): string => value.replace(/\/+$/, '');
 
+// zod 4's z.url() trims what it returns: an address padded with spaces is refused rather than cleaned in silence.
+const exactUrl = () =>
+  z
+    .string()
+    .refine((value) => value === value.trim(), 'must not start or end with a space')
+    .pipe(z.url());
+
 // A line `KEY=` left empty in .env counts as absent.
 const optionalValue = z.preprocess((value) => (value === '' ? undefined : value), z.string().optional());
 
@@ -87,7 +94,7 @@ const EnvSchema = z.object({
   HOST: z.union([z.ipv4(), z.ipv6(), z.literal('localhost')]).default(DEFAULT_HOST),
   PORT: z.coerce.number().int().min(1).max(MAX_PORT).default(DEFAULT_PORT),
   // ENF-SEC-11: exact origin of the interface, the only one allowed to call the API.
-  FRONTEND_ORIGIN: z.url().refine(isHttpOrigin, 'must be an http(s) origin without path'),
+  FRONTEND_ORIGIN: exactUrl().refine(isHttpOrigin, 'must be an http(s) origin without path'),
   // ENF-SEC-15, ENF-SEC-17: application role only, TLS verified for a remote database.
   DATABASE_URL_APP: z.string().superRefine((value, context) => {
     const problem = describeDatabaseUrlProblem(value);
@@ -179,7 +186,7 @@ const EnvSchema = z.object({
   // EF-GML-01: OAuth client of the Google Cloud project, for the Gmail connection from the interface.
   GOOGLE_CLIENT_ID: z.string().min(1),
   GOOGLE_CLIENT_SECRET: z.string().min(1),
-  GOOGLE_REDIRECT_URI: z.url(),
+  GOOGLE_REDIRECT_URI: exactUrl(),
   // ENF-SEC-02: key of the refresh tokens at rest (`openssl rand -hex 32`).
   TOKEN_ENCRYPTION_KEY: z.string().transform((value, context) => {
     try {

@@ -158,6 +158,7 @@ describe('loadConfig', () => {
     ['GOOGLE_CLIENT_ID', { ...VALID_ENV, GOOGLE_CLIENT_ID: '' }],
     ['GOOGLE_CLIENT_SECRET', { ...VALID_ENV, GOOGLE_CLIENT_SECRET: undefined }],
     ['GOOGLE_REDIRECT_URI', { ...VALID_ENV, GOOGLE_REDIRECT_URI: 'not a url' }],
+    ['GOOGLE_REDIRECT_URI', { ...VALID_ENV, GOOGLE_REDIRECT_URI: ' http://localhost:4000/api/gmail/callback ' }],
     ['TOKEN_ENCRYPTION_KEY', { ...VALID_ENV, TOKEN_ENCRYPTION_KEY: '' }],
     ['TOKEN_ENCRYPTION_KEY', { ...VALID_ENV, TOKEN_ENCRYPTION_KEY: 'ab'.repeat(31) }],
   ])('[EF-GML-01] [ENF-SEC-02] refuses to start without a valid %s', (variable, env) => {
@@ -271,6 +272,7 @@ describe('loadConfig', () => {
     [{ DATABASE_URL_APP: NEON_URL }, 'FRONTEND_ORIGIN'],
     [{ ...VALID_ENV, FRONTEND_ORIGIN: 'not a url' }, 'FRONTEND_ORIGIN'],
     [{ ...VALID_ENV, FRONTEND_ORIGIN: 'http://127.0.0.1:5173/app' }, 'FRONTEND_ORIGIN'],
+    [{ ...VALID_ENV, FRONTEND_ORIGIN: ' http://127.0.0.1:5173 ' }, 'FRONTEND_ORIGIN'],
     [{ ...VALID_ENV, PORT: '70000' }, 'PORT'],
     [{ ...VALID_ENV, HOST: 'my host' }, 'HOST'],
     [{ FRONTEND_ORIGIN: 'http://127.0.0.1:5173' }, 'DATABASE_URL_APP'],

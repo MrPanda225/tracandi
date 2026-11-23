@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { z } from './openapi.js';
+import { withoutRedundantSafeIntegerBounds } from './zodMessages.js';
 
 const messagesOf = (schema: z.ZodType, input: unknown): string[] => {
   const result = schema.safeParse(input);
@@ -49,6 +50,28 @@ describe('zod3Messages', () => {
     expect(messagesOf(z.object({}).strict(), { a: 1, b: 2 })).toEqual(["Unrecognized key(s) in object: 'a', 'b'"]);
     expect(messagesOf(z.union([z.string(), z.number()]), true)).toEqual(['Invalid input']);
     expect(messagesOf(z.string().refine(() => false), 'a')).toEqual(['Invalid input']);
+  });
+
+  it('[ENF-SEC-04] keeps the zod 3 wording of a number that is not finite', () => {
+    expect(messagesOf(z.number().int(), Infinity)).toEqual(['Expected integer, received float']);
+    expect(messagesOf(z.coerce.number().int().max(500), '1e400')).toEqual(['Expected integer, received float']);
+    expect(messagesOf(z.number().max(90), Infinity)).toEqual(['Number must be less than or equal to 90']);
+    expect(messagesOf(z.number().gt(-90), -Infinity)).toEqual(['Number must be greater than -90']);
+    expect(messagesOf(z.number(), Infinity)).toEqual(['Number must be finite']);
+    expect(messagesOf(z.number(), Number.NaN)).toEqual(['Expected number, received nan']);
+  });
+
+  it('[ENF-SEC-04] drops the safe-integer bound of zod 4 when the schema refuses the value by its own bound', () => {
+    const issuesOf = (schema: z.ZodType, input: unknown) => {
+      const result = schema.safeParse(input);
+      return result.success ? [] : withoutRedundantSafeIntegerBounds(result.error.issues).map((issue) => issue.message);
+    };
+
+    expect(issuesOf(z.coerce.number().int().max(2_147_483_647), '1e20')).toEqual([
+      'Number must be less than or equal to 2147483647',
+    ]);
+    expect(issuesOf(z.number().int().min(1), -(2 ** 53) - 2)).toEqual(['Number must be greater than or equal to 1']);
+    expect(issuesOf(z.number().int(), 2 ** 53 + 2)).toEqual(['Number must be less than or equal to 9007199254740991']);
   });
 
   it('[ENF-SEC-04] leaves the message a schema gives untouched', () => {

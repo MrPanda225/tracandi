@@ -113,10 +113,45 @@ const boundOf = (issue: SizeIssue): Bound => {
 const sizeMessage = (wording: SizeWording | undefined, issue: SizeIssue, limit: number | bigint): string =>
   wording ? `${wording.subject} ${wording.words[boundOf(issue)]} ${limit}${wording.unit}` : 'Invalid input';
 
+interface NumberCheck {
+  check: string;
+  format?: string;
+  value?: unknown;
+  inclusive?: boolean;
+}
+
+const INTEGER_FORMATS = new Set(['safeint', 'int32', 'uint32']);
+
+// The checks of the schema that raised the issue; none when a check raised it.
+const numberChecksOf = (issue: RawIssue): NumberCheck[] => {
+  const definition = issue.inst?._zod.def;
+  const checks = definition && 'checks' in definition ? (definition.checks ?? []) : [];
+  return checks.map((check) => check._zod.def as NumberCheck);
+};
+
+const boundMessage = (wording: SizeWording, check: NumberCheck): string =>
+  `${wording.subject} ${wording.words[check.inclusive === false ? 'exclusive' : 'inclusive']} ${String(check.value)}`;
+
+/*
+ * zod 4 refuses ±Infinity (1e400 in a JSON body) as a type error, before any other check. zod 3 let it through to the
+ * checks: `.int()` answered « Expected integer, received float », a bound its own message. Null for any other input.
+ */
+const nonFiniteMessage = (issue: RawIssue & { code: 'invalid_type' }): string | null => {
+  const { input } = issue;
+  if (typeof input !== 'number' || Number.isNaN(input) || Number.isFinite(input)) return null;
+  const checks = numberChecksOf(issue);
+  if (checks.some((check) => check.check === 'number_format' && INTEGER_FORMATS.has(check.format ?? ''))) {
+    return 'Expected integer, received float';
+  }
+  const crossed = checks.find((check) => check.check === (input > 0 ? 'less_than' : 'greater_than'));
+  if (crossed) return boundMessage(input > 0 ? NUMBER_MAXIMUM : NUMBER_MINIMUM, crossed);
+  return 'Number must be finite';
+};
+
 const messageOf = (issue: RawIssue): string => {
   switch (issue.code) {
     case 'invalid_type':
-      return invalidType(issue);
+      return nonFiniteMessage(issue) ?? invalidType(issue);
     case 'invalid_value':
       return invalidValue(issue);
     case 'invalid_format':
@@ -142,3 +177,25 @@ const messageOf = (issue: RawIssue): string => {
  * @req ENF-SEC-04, ENF-SEC-10
  */
 export const zod3Messages = (issue: RawIssue): string => messageOf(issue);
+
+type Issue = z.core.$ZodIssue;
+
+const samePath = (left: Issue, right: Issue): boolean =>
+  left.path.length === right.path.length && left.path.every((key, index) => key === right.path[index]);
+
+// zod 4's `.int()` also bounds an integer to the safe range; zod 3 did not, and the schema's own bound already speaks.
+const isSafeIntegerBound = (issue: Issue): boolean =>
+  (issue.code === 'too_big' || issue.code === 'too_small') &&
+  issue.origin === 'int' &&
+  Math.abs(Number(issue.code === 'too_big' ? issue.maximum : issue.minimum)) === Number.MAX_SAFE_INTEGER;
+
+/**
+ * The issues of a failed parse, less zod 4's safe-integer bound when another issue already refuses the same field:
+ * `{ id: 1e20 }` reads « Number must be less than or equal to 2147483647 » alone, as with zod 3 (ENF-SEC-04).
+ * An unsafe integer that nothing else refuses keeps its issue: the value stays refused. Never throws.
+ * @req ENF-SEC-04, ENF-SEC-10
+ */
+export const withoutRedundantSafeIntegerBounds = (issues: readonly Issue[]): Issue[] =>
+  issues.filter(
+    (issue) => !isSafeIntegerBound(issue) || !issues.some((other) => other !== issue && samePath(other, issue)),
+  );
