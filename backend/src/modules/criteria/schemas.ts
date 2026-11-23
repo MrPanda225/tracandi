@@ -20,7 +20,7 @@ const LEVELS = ['junior', 'confirme', 'senior'] as const;
 const label = (max: number) => z.string().trim().min(1).max(max);
 
 /** A list whose values each appear once, whatever their case: the same keyword twice would weigh nothing more. */
-const distinct = <T extends z.ZodTypeAny>(item: T, max: number) =>
+const distinct = <T extends z.ZodType>(item: T, max: number) =>
   z
     .array(item)
     .max(max)

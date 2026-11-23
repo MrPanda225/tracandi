@@ -5,11 +5,11 @@ import { ValidationError, type ValidationIssue } from './errors.js';
 type RequestPart = 'params' | 'query' | 'body';
 
 /** Zod schema for each request part to validate; parts without a schema are not read. */
-export type RequestSchemas = Partial<Record<RequestPart, z.ZodTypeAny>>;
+export type RequestSchemas = Partial<Record<RequestPart, z.ZodType>>;
 
 /** Parsed request parts, typed from their schemas. */
 export type ValidatedRequest<S extends RequestSchemas> = {
-  [K in keyof S]: S[K] extends z.ZodTypeAny ? z.infer<S[K]> : never;
+  [K in keyof S]: S[K] extends z.ZodType ? z.infer<S[K]> : never;
 };
 
 const toIssues = (part: RequestPart, error: z.ZodError): ValidationIssue[] =>

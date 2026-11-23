@@ -3,7 +3,7 @@ import { ApplicationStatusSchema, ContractTypeSchema } from '../applications/sch
 
 const CountSchema = z.number().int().min(0);
 const RateSchema = z.number().int().min(0).max(100).openapi({ description: 'Pourcentage entier (RG-07)' });
-const DateTimeSchema = z.string().datetime().openapi({ example: '2026-09-21T00:00:00.000Z' });
+const DateTimeSchema = z.iso.datetime().openapi({ example: '2026-09-21T00:00:00.000Z' });
 
 export const DashboardSchema = z
   .object({

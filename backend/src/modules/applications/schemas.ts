@@ -51,8 +51,7 @@ const OfferDescriptionSchema = z
   .openapi({ description: "Description de l'offre, 20 000 caractères au plus (EF-CAN-15)" });
 
 /** EF-CAN-16: the upper bound (not in the future) depends on the clock and is checked by the service. */
-const AppliedAtSchema = z
-  .string()
+const AppliedAtSchema = z.iso
   .datetime()
   .transform((value) => new Date(value))
   .refine(
@@ -150,7 +149,7 @@ export const ReattachEmailBodySchema = z
   .strict()
   .openapi('ReattachEmailBody');
 
-const DateTimeSchema = z.string().datetime().openapi({ example: '2026-09-22T08:00:00.000Z' });
+const DateTimeSchema = z.iso.datetime().openapi({ example: '2026-09-22T08:00:00.000Z' });
 
 export const ApplicationSchema = z
   .object({
@@ -187,7 +186,7 @@ export const EmailSchema = z
     snippet: z.string().nullable().openapi({ description: 'Extrait de 300 caractères au plus (ENF-RGP-01)' }),
     platform: z.string().nullable(),
     receivedAt: DateTimeSchema,
-    gmailUrl: z.string().url().openapi({ description: 'Ouvre le fil dans Gmail (EF-CAN-05)' }),
+    gmailUrl: z.url().openapi({ description: 'Ouvre le fil dans Gmail (EF-CAN-05)' }),
   })
   .openapi('Email');
 

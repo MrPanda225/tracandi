@@ -36,9 +36,9 @@ describe('zod3Messages', () => {
     expect(messagesOf(z.enum(['cdi', 'cdd']), 3)).toEqual(["Expected 'cdi' | 'cdd', received number"]);
     expect(messagesOf(z.object({ kind: z.enum(['cdi']) }), {})).toEqual(['Required']);
     expect(messagesOf(z.literal('ok'), 'ko')).toEqual(['Invalid literal value, expected "ok"']);
-    expect(messagesOf(z.string().email(), 'nope')).toEqual(['Invalid email']);
-    expect(messagesOf(z.string().url(), 'nope')).toEqual(['Invalid url']);
-    expect(messagesOf(z.string().datetime(), 'nope')).toEqual(['Invalid datetime']);
+    expect(messagesOf(z.email(), 'nope')).toEqual(['Invalid email']);
+    expect(messagesOf(z.url(), 'nope')).toEqual(['Invalid url']);
+    expect(messagesOf(z.iso.datetime(), 'nope')).toEqual(['Invalid datetime']);
     expect(messagesOf(z.string().regex(/^\d+$/), 'a')).toEqual(['Invalid']);
     expect(messagesOf(z.string().startsWith('ab'), 'b')).toEqual(['Invalid input: must start with "ab"']);
     expect(messagesOf(z.string().endsWith('ab'), 'b')).toEqual(['Invalid input: must end with "ab"']);
