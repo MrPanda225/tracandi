@@ -45,7 +45,7 @@ main() {
   stamp="$(date -u +%Y-%m-%dT%H-%M-%SZ)"
   archive="$BACKUP_DIR/${ARCHIVE_PREFIX}${stamp}${ARCHIVE_SUFFIX}"
   partial="$archive.partial"
-  started="$(date +%s%3N)"
+  started="$(now_ms)"
   log "Backup started: database=$DB_NAME host=$DB_HOST client=$PG_CLIENT_MODE dir=$BACKUP_DIR"
 
   # Propriétaires et droits conservés dans l'archive (restauration fidèle vers Neon) ; restore-check les ignore.

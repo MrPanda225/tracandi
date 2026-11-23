@@ -68,7 +68,7 @@ main() {
   local options=(--dbname="$DB_URL" --clean --if-exists --exit-on-error --single-transaction --no-password)
   [[ "$no_owner" == 0 ]] || options+=(--no-owner --no-privileges)
   local started
-  started="$(date +%s%3N)"
+  started="$(now_ms)"
   log "Restoring $archive into database=$DB_NAME host=$DB_HOST"
   pg_tool pg_restore "${options[@]}" <"$archive" \
     || fail "$EXIT_DATABASE" "pg_restore failed: transaction rolled back, database unchanged (safety dump: $safety)"

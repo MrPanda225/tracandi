@@ -1,4 +1,4 @@
 # Alternative à l'unité systemd (docs/DEPLOIEMENT.md, section Sauvegardes) : `crontab -e`, puis cette ligne,
 # chemin du dépôt adapté. Sauvegarde puis restauration de contrôle chaque jour à 12 h 30 (ENF-FIA-04, ENF-FIA-05).
 # cron ne rattrape pas un passage manqué (poste éteint) : préférer systemd sur un ordinateur portable.
-30 12 * * * cd /chemin/vers/jobpilot && scripts/db/backup.sh && scripts/db/restore-check.sh >>backups/cron.log 2>&1
+30 12 * * * cd /chemin/vers/jobpilot && { scripts/db/backup.sh && scripts/db/restore-check.sh; } >>backups/cron.log 2>&1

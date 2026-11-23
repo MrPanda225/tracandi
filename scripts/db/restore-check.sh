@@ -48,7 +48,8 @@ main() {
     *) fail "$EXIT_CONFIG" "TEST_DB_HOST must be the local Docker database (127.0.0.1)" ;;
   esac
   [[ "$port" =~ ^[0-9]+$ ]] || fail "$EXIT_CONFIG" "TEST_DB_PORT must be a number"
-  export PGPASSWORD="$password" PGCONNECT_TIMEOUT=10
+  # Les NOTICE du serveur (« database … does not exist, skipping ») n'encombrent pas le journal.
+  export PGPASSWORD="$password" PGCONNECT_TIMEOUT=10 PGOPTIONS='-c client_min_messages=warning'
   select_pg_client
 
   local admin_url="postgresql://${user}@${host}:${port}/postgres"
@@ -57,7 +58,7 @@ main() {
 
   log "Restore check started: archive=$archive into $check_db (host=$host port=$port client=$PG_CLIENT_MODE)"
   local started expected
-  started="$(date +%s%3N)"
+  started="$(now_ms)"
   expected="$(archive_table_count "$archive")"
 
   pg_tool psql --dbname="$admin_url" --no-psqlrc --quiet -v ON_ERROR_STOP=1 </dev/null \

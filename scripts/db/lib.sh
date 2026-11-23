@@ -135,13 +135,21 @@ latest_archive() {
     | sort | tail -n 1 | sed "s|^|$1/|"
 }
 
-# Nombre de tables d'une archive, lu dans sa table des matières (pg_restore --list).
+# Nombre de tables d'une archive, lu dans sa table des matières (pg_restore --list) : lignes
+# « <id>; <oid> <oid> TABLE <schéma> <nom> <propriétaire> », sans les « TABLE DATA » (contenu des mêmes tables).
 archive_table_count() {
-  pg_tool pg_restore --list <"$1" | grep -cE '^[0-9]+; [0-9]+ [0-9]+ TABLE [^ ]+ [^ ]+ ' || true
+  pg_tool pg_restore --list <"$1" | awk '$1 ~ /^[0-9]+;$/ && $4 == "TABLE" && $5 != "DATA"' | wc -l
 }
 
-# Durée écoulée depuis $1 (horodatage en millisecondes) au format « 12.345 s ».
+# Horodatage en millisecondes. $EPOCHREALTIME (bash >= 5) plutôt que `date +%s%3N`, que certaines versions de
+# date (uutils) ne complètent pas par des zéros ; tous les chiffres sont gardés, quel que soit le séparateur décimal.
+now_ms() {
+  local micros="${EPOCHREALTIME//[!0-9]/}"
+  printf '%d' $((10#$micros / 1000))
+}
+
+# Durée écoulée depuis $1 (horodatage de now_ms) au format « 12.345 s ».
 elapsed_since() {
-  local ms=$(($(date +%s%3N) - $1))
+  local ms=$(($(now_ms) - $1))
   printf '%d.%03d s' $((ms / 1000)) $((ms % 1000))
 }
