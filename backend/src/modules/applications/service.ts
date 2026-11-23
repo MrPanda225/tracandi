@@ -3,6 +3,7 @@ import type { Clock } from '../../lib/clock.js';
 import { isUniqueViolation } from '../../lib/db-errors.js';
 import { HttpError, NotFoundError, ValidationError } from '../../lib/errors.js';
 import { normalizeKey } from '../../lib/text.js';
+import { importCsvApplications, previewCsvImport } from './importer.js';
 import * as repository from './repository.js';
 import type { ApplicationRow, EmailRow, Executor } from './repository.js';
 import {
@@ -22,6 +23,9 @@ import type {
   ApplicationView,
   CreateApplicationBody,
   EmailView,
+  ImportBody,
+  ImportPreview,
+  ImportResult,
   ListApplicationsQuery,
   UpdateApplicationBody,
 } from './schemas.js';
@@ -52,6 +56,10 @@ export interface ApplicationsService {
   remove(userId: number, id: number): Promise<void>;
   listEmails(userId: number, applicationId: number): Promise<EmailView[]>;
   reattachEmail(userId: number, emailId: number, applicationId: number | null): Promise<void>;
+  /** EF-CAN-23: reads a CSV file without storing anything. */
+  previewImport(file: string): ImportPreview;
+  /** EF-CAN-23: creates the applications of a CSV file in one transaction. */
+  importCsv(userId: number, body: ImportBody): Promise<ImportResult>;
 }
 
 interface ApplicationsServiceDeps {
@@ -468,6 +476,12 @@ export const createApplicationsService = ({ db, clock }: ApplicationsServiceDeps
 
     reattachEmail(userId, emailId, applicationId) {
       return db.transaction((tx) => reattachEmail(tx, userId, { emailId, applicationId }));
+    },
+    previewImport(file) {
+      return previewCsvImport(file);
+    },
+    importCsv(userId, body) {
+      return db.transaction((tx) => importCsvApplications(tx, { userId, body, now: clock() }));
     },
   };
 };

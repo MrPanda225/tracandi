@@ -199,3 +199,80 @@ export type ApplicationView = Omit<z.infer<typeof ApplicationSchema>, 'appliedAt
 };
 export type ApplicationDetailView = ApplicationView & { offerDescription: string | null };
 export type EmailView = Omit<z.infer<typeof EmailSchema>, 'receivedAt'> & { receivedAt: Date };
+
+/** EF-CAN-23: the fields a column of an imported CSV file can fill. */
+export const IMPORT_FIELDS = ['company', 'jobTitle', 'link', 'appliedAt', 'status', 'notes'] as const;
+export type ImportField = (typeof IMPORT_FIELDS)[number];
+
+const ColumnIndexSchema = z.number().int().min(0).nullable().openapi({
+  description: 'Position de la colonne dans le fichier, à partir de 0 ; null quand aucune colonne ne remplit ce champ',
+});
+
+/** EF-CAN-23: column chosen for each field; the company is required, a column fills one field at most. */
+export const ImportMappingSchema = z
+  .object({
+    company: z.number().int().min(0).openapi({ description: "Colonne de l'entreprise (obligatoire)" }),
+    jobTitle: ColumnIndexSchema.default(null),
+    link: ColumnIndexSchema.default(null),
+    appliedAt: ColumnIndexSchema.default(null),
+    status: ColumnIndexSchema.default(null),
+    notes: ColumnIndexSchema.default(null),
+  })
+  .strict()
+  .superRefine((mapping, context) => {
+    const seen = new Set<number>();
+    for (const field of IMPORT_FIELDS) {
+      const column = mapping[field];
+      if (column === null) continue;
+      if (seen.has(column)) {
+        context.addIssue({ code: 'custom', path: [field], message: 'Cette colonne remplit déjà un autre champ' });
+      }
+      seen.add(column);
+    }
+  })
+  .openapi('ImportMapping');
+
+const CsvFileSchema = z
+  .string()
+  .min(1)
+  .openapi({ description: 'Le fichier CSV (UTF-8, 1 Mo et 1 000 lignes au plus), encodé en base64.' });
+
+/** EF-CAN-23: the file to preview. */
+export const ImportPreviewBodySchema = z.object({ file: CsvFileSchema }).strict().openapi('ImportPreviewBody');
+
+/** EF-CAN-23: the file again, with the mapping the candidate validated. */
+export const ImportBodySchema = z
+  .object({ file: CsvFileSchema, mapping: ImportMappingSchema })
+  .strict()
+  .openapi('ImportBody');
+
+export const ImportPreviewSchema = z
+  .object({
+    delimiter: z.enum([',', ';']),
+    headers: z.array(z.string()).openapi({ description: 'Première ligne du fichier' }),
+    rows: z.array(z.array(z.string())).openapi({ description: 'Les 5 premières lignes de candidatures' }),
+    totalRows: z.number().int().openapi({ description: 'Lignes de candidatures du fichier (lignes vides exclues)' }),
+    mapping: z
+      .object(Object.fromEntries(IMPORT_FIELDS.map((field) => [field, z.number().int().nullable()])))
+      .openapi({ description: 'Colonne proposée pour chaque champ, d’après le nom des colonnes' }),
+  })
+  .openapi('ImportPreview');
+
+export const ImportResultSchema = z
+  .object({
+    created: z.number().int().openapi({ description: 'Candidatures créées' }),
+    duplicates: z.number().int().openapi({
+      description: 'Lignes ignorées : candidature déjà enregistrée ou déjà vue dans le fichier (RG-03 (a), (b))',
+    }),
+    rejected: z
+      .array(z.object({ line: z.number().int(), reason: z.string() }))
+      .openapi({ description: 'Lignes refusées, avec leur numéro dans le tableau (en-tête = ligne 1) et la raison' }),
+  })
+  .openapi('ImportResult');
+
+export type ImportMapping = z.infer<typeof ImportMappingSchema>;
+export type ImportBody = z.infer<typeof ImportBodySchema>;
+export type ImportPreview = Omit<z.infer<typeof ImportPreviewSchema>, 'mapping'> & {
+  mapping: Record<ImportField, number | null>;
+};
+export type ImportResult = z.infer<typeof ImportResultSchema>;

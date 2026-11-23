@@ -13,6 +13,10 @@ import {
   CreateApplicationBodySchema,
   EmailSchema,
   IdParamsSchema,
+  ImportBodySchema,
+  ImportPreviewBodySchema,
+  ImportPreviewSchema,
+  ImportResultSchema,
   ListApplicationsQuerySchema,
   ReattachEmailBodySchema,
   UpdateApplicationBodySchema,
@@ -49,6 +53,39 @@ const ROUTES: RouteConfig[] = [
     responses: {
       201: jsonResponse('Candidature créée', CreatedSchema),
       ...errorResponses(400, 401, 409, 415),
+    },
+  },
+  {
+    ...common,
+    method: 'post',
+    path: '/applications/import/preview',
+    summary: 'Aperçu d’un fichier CSV à importer',
+    description:
+      'EF-CAN-23. Le fichier (CSV en UTF-8, séparateur « , » ou « ; », 1 Mo et 1 000 lignes au plus, en base64) ' +
+      'est lu sans rien enregistrer : en-têtes, 5 premières lignes et colonne proposée pour chaque champ d’après ' +
+      'le nom des colonnes. 413 au-delà des limites, 415 pour un fichier qui n’est pas du texte UTF-8.',
+    request: { body: jsonBody(ImportPreviewBodySchema) },
+    responses: {
+      200: jsonResponse('Aperçu', ImportPreviewSchema),
+      ...errorResponses(400, 401, 413, 415),
+    },
+  },
+  {
+    ...common,
+    method: 'post',
+    path: '/applications/import',
+    summary: 'Importer les candidatures d’un fichier CSV',
+    description:
+      'EF-CAN-23. Le même fichier et la correspondance validée par le candidat. Une ligne qui désigne une ' +
+      'candidature existante ou une ligne précédente — même entreprise (RG-26) et même intitulé (RG-25), RG-03 ' +
+      '(a) et (b) — est ignorée ; une ligne invalide est refusée avec son numéro et sa raison. Dates JJ/MM/AAAA, ' +
+      'AAAA-MM-JJ ou JJ/MM/AA ; statut par son libellé français ou anglais (Envoyée par défaut). Le lien de ' +
+      'l’offre est placé en tête des notes tant que la candidature n’a pas de champ dédié (T-902). Tout est ' +
+      'enregistré dans une seule transaction.',
+    request: { body: jsonBody(ImportBodySchema) },
+    responses: {
+      200: jsonResponse('Résultat de l’import', ImportResultSchema),
+      ...errorResponses(400, 401, 413, 415),
     },
   },
   {

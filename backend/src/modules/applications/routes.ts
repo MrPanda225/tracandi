@@ -6,15 +6,25 @@ import { registerApplicationsDocs } from './docs.js';
 import {
   CreateApplicationBodySchema,
   IdParamsSchema,
+  ImportBodySchema,
+  ImportPreviewBodySchema,
   ListApplicationsQuerySchema,
   ReattachEmailBodySchema,
   UpdateApplicationBodySchema,
 } from './schemas.js';
 import type { ApplicationsService } from './service.js';
+import { CSV_MAX_BASE64_LENGTH } from './csvImport.js';
+
+/** EF-CAN-23: the routes that receive a CSV file, the only ones of this module allowed a body larger than 100 kB. */
+export const IMPORT_PREVIEW_PATH = '/applications/import/preview';
+export const IMPORT_PATH = '/applications/import';
+// The base64 of a 1 MB file, the mapping and the JSON around them: a larger body is refused (413) before decoding.
+const JSON_ENVELOPE_BYTES = 1024;
+export const IMPORT_BODY_LIMIT = CSV_MAX_BASE64_LENGTH + JSON_ENVELOPE_BYTES;
 
 /**
  * Application and message routes, behind the session guard.
- * @req EF-CAN-01 to EF-CAN-14, EF-AUT-06, ENF-SEC-04
+ * @req EF-CAN-01 to EF-CAN-14, EF-CAN-23, EF-AUT-06, ENF-SEC-04
  */
 export const createApplicationsModule = (service: ApplicationsService): ApiModule => {
   const router = Router();
@@ -31,6 +41,21 @@ export const createApplicationsModule = (service: ApplicationsService): ApiModul
     asyncHandler(async (req, res) => {
       const { body } = validate(req, { body: CreateApplicationBodySchema });
       res.status(201).json({ id: await service.create(currentUserId(res), body) });
+    }),
+  );
+  // Declared before `/applications/:id`, whose parameter would otherwise read « import ».
+  router.post(
+    IMPORT_PREVIEW_PATH,
+    asyncHandler(async (req, res) => {
+      const { body } = validate(req, { body: ImportPreviewBodySchema });
+      res.status(200).json(service.previewImport(body.file));
+    }),
+  );
+  router.post(
+    IMPORT_PATH,
+    asyncHandler(async (req, res) => {
+      const { body } = validate(req, { body: ImportBodySchema });
+      res.status(200).json(await service.importCsv(currentUserId(res), body));
     }),
   );
   router.get(

@@ -332,3 +332,66 @@ export const setEmailApplication = async (
 ): Promise<void> => {
   await db.update(emails).set({ applicationId }).where(eq(emails.id, emailId));
 };
+
+/**
+ * EF-CAN-23: every company of the user with the job title keys of its applications (null for a company without
+ * application) — what an import compares its rows with, read in one query (served by `uq_companies_user_name_key`
+ * and `uq_applications_company_title`).
+ * @req EF-CAN-23, RG-03, EF-AUT-06
+ */
+export const listApplicationKeys = async (
+  db: Executor,
+  userId: number,
+): Promise<{ companyId: number; companyNameKey: string; jobTitleKey: string | null }[]> =>
+  db
+    .select({ companyId: companies.id, companyNameKey: companies.nameKey, jobTitleKey: applications.jobTitleKey })
+    .from(companies)
+    .leftJoin(applications, eq(applications.companyId, companies.id))
+    .where(ownedBy(userId));
+
+/**
+ * EF-CAN-23: creates these companies of the user in one statement and returns the id of each, an existing one with
+ * the same RG-14 key included. The keys must be distinct.
+ * @req EF-CAN-23, RG-14
+ */
+export const upsertCompanies = async (
+  db: Executor,
+  rows: readonly { userId: number; name: string; nameKey: string }[],
+): Promise<{ id: number; nameKey: string }[]> =>
+  rows.length === 0
+    ? []
+    : db
+        .insert(companies)
+        .values([...rows])
+        .onConflictDoUpdate({
+          target: [companies.userId, companies.nameKey],
+          // No-op update so that RETURNING yields the existing rows.
+          set: { nameKey: sql`excluded.name_key` },
+        })
+        .returning({ id: companies.id, nameKey: companies.nameKey });
+
+/**
+ * EF-CAN-23: inserts these applications in one statement; one whose (company, job title key) already exists — added
+ * meanwhile by a message — is skipped.
+ * @returns the inserted applications only.
+ * @req EF-CAN-23
+ */
+export const insertApplications = async (
+  db: Executor,
+  rows: readonly (typeof applications.$inferInsert)[],
+): Promise<{ id: number; status: ApplicationStatus; appliedAt: Date }[]> =>
+  rows.length === 0
+    ? []
+    : db
+        .insert(applications)
+        .values([...rows])
+        .onConflictDoNothing({ target: [applications.companyId, applications.jobTitleKey] })
+        .returning({ id: applications.id, status: applications.status, appliedAt: applications.appliedAt });
+
+/** EF-CAN-23: records these status changes in one statement (Q-06). */
+export const insertStatusChanges = async (
+  db: Executor,
+  changes: readonly (typeof applicationStatusHistory.$inferInsert)[],
+): Promise<void> => {
+  if (changes.length > 0) await db.insert(applicationStatusHistory).values([...changes]);
+};
