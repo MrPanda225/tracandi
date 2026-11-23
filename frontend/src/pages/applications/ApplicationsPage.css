@@ -1,5 +1,7 @@
 .applications-actions {
   display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
   justify-content: flex-start;
   margin: -0.75rem 0 clamp(1rem, 0.6rem + 1.5vw, 1.5rem);
 }
