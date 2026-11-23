@@ -8,6 +8,8 @@ export const STATUS_LABELS: Readonly<Record<ApplicationStatus, string | null>> =
   to_apply: null,
   sent: 'Statut/En attente',
   acknowledged: 'Statut/En attente',
+  // RG-05 (v1.32): a technical test still waits for the employer's decision.
+  technical_test: 'Statut/En attente',
   interview: 'Statut/Entretien',
   offer: 'Statut/Entretien',
   rejected: 'Statut/Refusée',

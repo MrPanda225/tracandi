@@ -85,6 +85,9 @@ describe('initial lists (Q-09)', () => {
     'Interview invitation — Data analyst',
     'Contrat en alternance : votre dossier',
     'Accusé de réception — Alternance Data Analyst',
+    'Voici votre test technique à réaliser sous 48 h',
+    'Next step: technical assessment',
+    'Your technical test for the Data Analyst role',
   ])('[RG-10] keeps « %s » with the initial keywords', (subject) => {
     expect(defaults.isRetained(message({ subject }))).toBe(true);
   });
