@@ -50,6 +50,7 @@ describe('POST /api/applications/import/preview', () => {
     expect(response.status).toBe(200);
     expect(response.body).toMatchObject({
       delimiter: ',',
+      encoding: 'utf-8',
       headers: ['Entreprise', 'Poste', 'Lien', 'Date de candidature', 'Statut', 'Notes'],
       totalRows: 20,
       mapping: SHEET_MAPPING,
@@ -59,6 +60,14 @@ describe('POST /api/applications/import/preview', () => {
     expect(rows[2]?.[5]).toBe('Entretien le 12, avec "Mme Martin"');
     expect(rows[4]?.[5]).toBe('Relance prévue,\npuis appel');
     expect(await countApplications()).toBe(0);
+  });
+
+  it('[EF-CAN-23] reads an Excel export of Windows in Windows-1252 and says so', async () => {
+    // « Société;Refusée » in Windows-1252: é is 0xE9, not valid UTF-8 alone.
+    const windows1252 = Buffer.from('Entreprise;Statut\nSociété;Refusée', 'latin1');
+    const response = await preview(alice, windows1252.toString('base64'));
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({ encoding: 'windows-1252', rows: [['Société', 'Refusée']] });
   });
 
   it('[EF-CAN-23] refuses a file larger than 1 MB with 413', async () => {
@@ -190,15 +199,27 @@ describe('POST /api/applications/import', () => {
     expect(result.rejected[2]?.reason).toMatch(/En cours/u);
   });
 
-  it('[EF-CAN-23] keeps the imports of each user apart (EF-AUT-06)', async () => {
+  it('[EF-CAN-23] [EF-AUT-06] keeps the imports of each user apart', async () => {
     await importFile(alice, base64(GOOGLE_SHEET));
-    const response = await importFile(bob, base64(GOOGLE_SHEET));
-    expect(response.body).toMatchObject({ created: 20, duplicates: 0 });
+    const response = await importFile(bob, base64('Entreprise;Poste\nAtelier Nova;Data analyst\nCobalt;Ops'), {
+      company: 0,
+      jobTitle: 1,
+    });
+    expect(response.body).toMatchObject({ created: 2, duplicates: 0 });
     const [bobCompanies] = await database.db
       .select({ total: count() })
       .from(companies)
       .where(eq(companies.name, 'Atelier Nova'));
     expect(bobCompanies?.total).toBe(2);
+    const listOf = async (cookie: string) =>
+      (await request(context.app).get('/api/applications?limit=100').set('Cookie', cookie)).body as {
+        total: number;
+        items: { company: { name: string } }[];
+      };
+    const [aliceList, bobList] = [await listOf(alice), await listOf(bob)];
+    expect(aliceList.total).toBe(20);
+    expect(bobList.total).toBe(2);
+    expect(bobList.items.map((item) => item.company.name).sort()).toEqual(['Atelier Nova', 'Cobalt']);
   });
 
   it('[EF-CAN-23] refuses a mapping without company, giving one column twice or naming a missing column (400)', async () => {
