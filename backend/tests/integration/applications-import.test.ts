@@ -134,7 +134,7 @@ describe('POST /api/applications/import', () => {
     expect(history?.total).toBe(20);
   });
 
-  it('[EF-CAN-23] ignores a row designating an existing application by its company (RG-26) and job title (RG-25)', async () => {
+  it('[EF-CAN-23] [RG-03] [RG-25] [RG-26] ignores a row designating an existing application by its company and job title', async () => {
     const created = await post(alice, '/api/applications', {
       companyName: 'Capgemini',
       jobTitle: 'Data analyst',
@@ -154,7 +154,7 @@ describe('POST /api/applications/import', () => {
     expect(names.map((company) => company.name)).toEqual(['Capgemini']);
   });
 
-  it('[EF-CAN-23] refuses the invalid rows by line and reason, and creates the others', async () => {
+  it('[EF-CAN-23] [EF-CAN-16] refuses the invalid rows by line and reason, and creates the others', async () => {
     const csv = [
       'Entreprise,Poste,Date,Statut',
       'Nova,Analyste,15/09/2026,Envoyée',

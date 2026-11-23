@@ -151,7 +151,7 @@ describe('readImportRow', () => {
     ['2026-09-15', '2026-09-14T22:00:00.000Z'],
     ['15/09/26', '2026-09-14T22:00:00.000Z'],
     ['5/1/2026', '2026-01-04T23:00:00.000Z'],
-  ])('[EF-CAN-23] reads the date « %s » as the Paris day starting at %s', (cell, instant) => {
+  ])('[EF-CAN-23] [EF-CAN-16] reads the date « %s » as the Paris day starting at %s', (cell, instant) => {
     const read = readImportRow(row({ appliedAt: cell }), { mapping: MAPPING, now: NOW });
     expect(read.ok && read.value.appliedAt.toISOString()).toBe(instant);
   });
@@ -183,22 +183,30 @@ describe('readImportRow', () => {
     });
   });
 
+  const expectRefused = (cells: Partial<Record<keyof ImportMapping, string>>, reason: RegExp): void => {
+    const read = readImportRow(row(cells), { mapping: MAPPING, now: NOW });
+    expect(read.ok).toBe(false);
+    expect(read.ok ? '' : read.reason).toMatch(reason);
+  };
+
   it.each([
     [{ company: '' }, /entreprise/iu],
     [{ company: '***' }, /entreprise/iu],
     [{ company: 'N'.repeat(161) }, /160/u],
     [{ jobTitle: 'T'.repeat(301) }, /300/u],
+    [{ status: 'En cours' }, /statut/iu],
+    [{ notes: 'n'.repeat(2001) }, /2 000/u],
+  ])('[EF-CAN-23] refuses the row %j with a reason', expectRefused);
+
+  it.each([
     [{ appliedAt: '31/02/2026' }, /date/iu],
     [{ appliedAt: 'septembre' }, /JJ\/MM\/AAAA/u],
     [{ appliedAt: '01/10/2026' }, /futur/iu],
     [{ appliedAt: '31/12/1999' }, /2000/u],
-    [{ status: 'En cours' }, /statut/iu],
+  ])('[EF-CAN-23] [EF-CAN-16] refuses the row %j with a reason', expectRefused);
+
+  it.each([
     [{ link: 'javascript:alert(1)' }, /lien/iu],
     [{ link: `https://example.org/${'a'.repeat(1000)}` }, /lien/iu],
-    [{ notes: 'n'.repeat(2001) }, /2 000/u],
-  ])('[EF-CAN-23] refuses the row %j with a reason', (cells, reason) => {
-    const read = readImportRow(row(cells), { mapping: MAPPING, now: NOW });
-    expect(read.ok).toBe(false);
-    expect(read.ok ? '' : read.reason).toMatch(reason);
-  });
+  ])('[EF-CAN-23] [EF-CAN-19] refuses the row %j with a reason', expectRefused);
 });
