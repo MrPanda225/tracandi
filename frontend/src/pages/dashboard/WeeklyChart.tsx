@@ -11,6 +11,7 @@ import {
   YAxis,
 } from 'recharts';
 import type { Dashboard } from '../../api/stats';
+import { statusColorVar } from '../../components/StatusTag';
 import { formatDayShortMonth, formatInteger, formatWeekRange } from '../../lib/format';
 import { prefersReducedMotion } from '../../lib/motion';
 import './WeeklyChart.css';
@@ -24,13 +25,15 @@ interface WeeklyChartProps {
 type SeriesKey = 'sent' | 'interviews' | 'rejected';
 
 /*
- * bi-dashboard-design: the volume sent is context, drawn in the neutral ink; the interviews are the one accent
- * (Von Restorff), the refusals keep their status colour. Same colours as the status tags (consistency).
+ * EF-CAN-22: the three series in the colours of their statuses — sent and interviews in the orange « en cours »
+ * family, the refusals in red. Three clearly different lightnesses, so that neighbouring bars stay apart even in
+ * grey: sent light orange (3.30:1 on the canvas), interviews the orange of the Entretien tag (6.89:1), refusals a
+ * brighter red than the Refusée tag (4.06:1), which would be too close to the interviews' orange (1.10:1).
  */
-const SERIES: readonly { key: SeriesKey; label: string; color: string }[] = [
-  { key: 'sent', label: 'Envoyées', color: 'var(--color-mauve)' },
-  { key: 'interviews', label: 'Entretiens', color: 'var(--status-interview)' },
-  { key: 'rejected', label: 'Refusées', color: 'var(--status-rejected)' },
+export const WEEKLY_SERIES: readonly { key: SeriesKey; label: string; color: string }[] = [
+  { key: 'sent', label: 'Envoyées', color: 'var(--application-in-progress-light)' },
+  { key: 'interviews', label: 'Entretiens', color: statusColorVar('interview') },
+  { key: 'rejected', label: 'Refusées', color: 'var(--application-rejected-bright)' },
 ];
 
 const CURRENT_WEEK = 'Cette semaine';
@@ -86,7 +89,7 @@ function ThisWeek({
 }) {
   return (
     <div className="weekly-chart__this-week" role="group" aria-label={CURRENT_WEEK}>
-      {SERIES.map((series) => {
+      {WEEKLY_SERIES.map((series) => {
         const value = current[series.key];
         const gap = describeGap(value - (previous?.[series.key] ?? 0));
         const isShown = !hidden.has(series.key);
@@ -146,7 +149,7 @@ function WeekTooltip({ week, hidden }: { week: WeekDatum | undefined; hidden: Re
           : `Semaine du ${week.range.replace(' – ', ' au ')}`}
       </p>
       <dl>
-        {SERIES.filter((series) => !hidden.has(series.key)).map((series) => (
+        {WEEKLY_SERIES.filter((series) => !hidden.has(series.key)).map((series) => (
           <div key={series.key} className="weekly-chart__tooltip-row">
             <dt>
               <span
@@ -171,7 +174,7 @@ function WeeksTable({ data, captionId }: { data: readonly WeekDatum[]; captionId
       <thead>
         <tr>
           <th scope="col">Semaine</th>
-          {SERIES.map((series) => (
+          {WEEKLY_SERIES.map((series) => (
             <th key={series.key} scope="col">
               {series.label}
             </th>
@@ -182,7 +185,7 @@ function WeeksTable({ data, captionId }: { data: readonly WeekDatum[]; captionId
         {data.map((week) => (
           <tr key={week.weekStart}>
             <th scope="row">{week.isCurrent ? CURRENT_WEEK : week.range}</th>
-            {SERIES.map((series) => (
+            {WEEKLY_SERIES.map((series) => (
               <td key={series.key}>{week[series.key]}</td>
             ))}
           </tr>
@@ -251,7 +254,7 @@ export function WeeklyChart({ weekly, isAnimated }: WeeklyChartProps) {
                     ) : null
                   }
                 />
-                {SERIES.map((series, index) => (
+                {WEEKLY_SERIES.map((series, index) => (
                   <Bar
                     key={series.key}
                     dataKey={series.key}

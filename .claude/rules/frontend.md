@@ -21,7 +21,9 @@ paths:
   | Refusée | rouge | `#b0262c` / `#fce3e3` | 5,46:1 |
   | Repère « À relancer » (RG-06) | rouge foncé plein « sans réponse » | `#ffffff` / `#741b21` | 10,93:1 |
 
-  La couleur du texte sert aussi aux graphiques (≥ 6:1 sur le fond de page). Les tokens `--status-*` restent ceux
+  La couleur du texte sert aussi aux graphiques (≥ 6:1 sur le fond de page). Graphique hebdomadaire : Envoyées
+  orange clair `#d0701c` (3,30:1), Entretiens orange « en cours » (6,89:1), Refusées rouge vif `#d9454a` (4,06:1),
+  trois clartés distinctes pour que des barres voisines se distinguent même en gris. Les tokens `--status-*` restent ceux
   des messages d'état (succès, attente, erreur), sans lien avec les statuts de candidature.
 - Accessibilité : éléments interactifs natifs (`button`, `a`), `aria-label` sur les contrôles sans texte, contraste AA.
 - Tests : Testing Library, requêtes par rôle ou texte visible, pas par classe CSS.

@@ -62,6 +62,9 @@
   --application-rejected-soft: #fce3e3;
   --application-no-reply: #741b21;
   --application-no-reply-text: #ffffff;
+  /* Charts only, where a series sits next to the in-progress orange (dashboard weekly chart). */
+  --application-in-progress-light: #d0701c;
+  --application-rejected-bright: #d9454a;
 
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --duration-fast: 180ms;
