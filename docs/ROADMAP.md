@@ -752,6 +752,11 @@ l'offre n'est écrite en base, sur disque ou dans les journaux (ENF-RGP-06).
   dates pour une adresse ou un numéro. Fixtures `columns.ts` et `positioned.ts` (CV à colonnes entremêlées, titre sur
   deux lignes, adresse partagée, césures).
   *Écarts* : aucun.
+  *Correctif (23/11/2026, recette de #107, B-1)* : le mode par défaut ordonne les blocs par hauteur quand les lignes
+  des deux colonnes sont côte à côte, si bien qu'une réalisation tombait après les compétences. `columnLayout.ts` lit la
+  géométrie des lignes (`pdftotext -bbox-layout`), trouve la gouttière et relit chaque colonne par recadrage
+  (`-x -y -W -H`), la colonne qui commence le plus haut d'abord, un bandeau en travers lu à part ; une marge de dates
+  alignée ligne à ligne sur les postes reste une seule colonne ; géométrie illisible : ordre par défaut gardé.
 - [x] **T-520 Structuration ancrée du CV** — tâche IA `parse_cv` (skill `add-llm-task` : prompt, schéma, route,
   migration de `llm_task`), lignes numérotées, faits désignés par ligne, ancrage par le code (correspondance
   tolérante, dates comparées comme des périodes).

@@ -122,6 +122,43 @@ export const buildTwoColumnCv = ({
   return { pdf: buildPositionedPdf(byHeight([...sidebar, ...main])), truth: TRUTH };
 };
 
+/**
+ * A one-column CV whose dates, city and contract sit in a left margin, each on the row of a line of its job: a gutter
+ * without being two columns (EF-CVX-45), each date must stay with its job.
+ */
+export const buildDateMarginCv = (): ColumnsCv => {
+  const items: PositionedText[] = [{ x: 50, y: 60, text: 'Lucie Marchand', size: 18 }];
+  let y = 90;
+  const jobs = [
+    ['09/2022 – 06/2024', 'Nantes', 'Ingénieure DevOps', 'Nordwave Systems', TRUTH.bullets[0], TRUTH.bullets[1]],
+    ['2020 – 2022', 'Rennes', 'Technicienne systèmes', 'Atelier Brume', TRUTH.bullets[2], 'Support aux équipes.'],
+  ] as const;
+  for (const [dates, city, title, organization, firstBullet, secondBullet] of jobs) {
+    const rows = [
+      [dates, title],
+      [city, organization],
+      ['CDI', `• ${firstBullet ?? ''}`],
+      [null, `• ${secondBullet ?? ''}`],
+    ] as const;
+    for (const [margin, text] of rows) {
+      if (margin) items.push({ x: 50, y, text: margin, size: DEFAULT_SIZE });
+      items.push({ x: 160, y, text, size: DEFAULT_SIZE });
+      y += DEFAULT_SIZE + LEADING;
+    }
+    y += 8;
+  }
+  return {
+    pdf: buildPositionedPdf(items),
+    truth: {
+      ...TRUTH,
+      dates: TRUTH.dates.slice(0, 2),
+      degrees: [],
+      schools: [],
+      skills: [],
+    },
+  };
+};
+
 /** A one-column CV with ligatures (« ﬁ », « ﬂ ») and « Développement » cut at a line end by a hyphen or a soft hyphen. */
 export const buildHyphenatedCv = ({ softHyphen }: { softHyphen: boolean }): ColumnsCv => {
   const cut = softHyphen ? '­' : '-';
