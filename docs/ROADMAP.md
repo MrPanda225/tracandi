@@ -922,8 +922,15 @@ développeur l'active sur son poste (`ENABLED_FEATURES=watch,cv`) le temps d'y t
 - [ ] **T-902 Lien, entreprise et intitulé** — colonne du lien (migration), saisie à la création et en modification,
   entreprise et intitulé modifiables avec refus d'un doublon.
   *Exigences* : EF-CAN-19, EF-CAN-21.
-- [ ] **T-903 Import CSV** — lecture du fichier (sans dépendance), aperçu, correspondance des colonnes, import sans doublon.
+- [x] **T-903 Import CSV** — lecture du fichier (sans dépendance), aperçu, correspondance des colonnes, import sans doublon.
   *Exigences* : EF-CAN-23.
+  *Livré (23/11/2026)* : analyseur RFC 4180 maison (`lib/csv.ts`, séparateur `;` ou `,` détecté, BOM ignoré) ;
+  `POST /api/applications/import/preview` (en-têtes, 5 lignes, colonne proposée par nom) et `POST /api/applications/import`
+  (fichier en base64 dans le JSON, comme l'Atelier CV ; 1 Mo et 1 000 lignes, 413 au-delà, 415 hors texte UTF-8) ;
+  doublons par entreprise (RG-26) et intitulé (RG-25, clé ajoutée à `lib/text.ts`) lus en une requête, écritures en une
+  transaction ; bouton « Importer un fichier CSV » et parcours en trois étapes sur l'écran Candidatures. *En attente de
+  T-902* : le lien est ajouté en tête des notes tant que la candidature n'a pas de colonne dédiée. *En attente de T-904* :
+  le libellé « Test technique » s'ajoute à `STATUS_LABELS` de `csvImport.ts` (le typage l'exige à la fusion).
 - [ ] **T-904 Statut « Test technique »** — énumérations (migration), classement, rangs, libellé Gmail, taux de réponse,
   tableau de bord, filtre.
   *Exigences* : RG-01, RG-02, RG-04, RG-05, RG-07 (v1.32).
