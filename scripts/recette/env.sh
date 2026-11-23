@@ -1,0 +1,36 @@
+# shellcheck shell=bash
+# Réglages communs du harnais de recette locale. Sourcé par les autres scripts de scripts/recette/ ; ne s'exécute pas
+# seul. Rien ici ne lit le .env de l'exploitant : la recette ne voit jamais Neon ni une clé réelle.
+
+RECETTE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+readonly RECETTE_ROOT
+readonly RECETTE_SCRIPTS="$RECETTE_ROOT/scripts/recette"
+# Fichiers produits pendant la recette (e-mails captés, appels IA, appels bloqués) : jamais commités.
+RECETTE_RUN_DIR="${RECETTE_RUN_DIR:-$RECETTE_SCRIPTS/.run}"
+readonly RECETTE_RUN_DIR
+
+# Base PostgreSQL propre à la recette : son conteneur, son volume et son port, distincts du service `db` de
+# docker-compose.yml (tests d'intégration) pour ne jamais dépendre de la façon dont ce volume-là a été initialisé.
+readonly RECETTE_DB_CONTAINER=tracandi-recette-db
+readonly RECETTE_DB_VOLUME=tracandi-recette-data
+readonly RECETTE_DB_IMAGE=postgres:18
+readonly RECETTE_DB_PORT="${RECETTE_DB_PORT:-5435}"
+readonly RECETTE_DB_NAME=tracandi_recette
+readonly RECETTE_DB_USER=recette
+# Mot de passe fictif : base jetable, sans donnée réelle, joignable seulement depuis 127.0.0.1.
+readonly RECETTE_DB_PASSWORD=recette
+readonly RECETTE_DB_URL="postgresql://${RECETTE_DB_USER}:${RECETTE_DB_PASSWORD}@127.0.0.1:${RECETTE_DB_PORT}/${RECETTE_DB_NAME}"
+
+recette_log() { printf '[recette] %s\n' "$*"; }
+recette_fail() {
+  printf '[recette] ERREUR : %s\n' "$*" >&2
+  exit 1
+}
+
+# Refuse toute URL qui ne vise pas la base locale de la recette : garde contre une erreur de copier-coller qui
+# viserait Neon (données réelles).
+assert_recette_url() {
+  local url="$1"
+  [[ "$url" =~ ^postgres(ql)?://[^@/]+@(127\.0\.0\.1|localhost):${RECETTE_DB_PORT}/${RECETTE_DB_NAME}$ ]] \
+    || recette_fail "URL de base refusée : seule la base locale de recette (127.0.0.1:${RECETTE_DB_PORT}/${RECETTE_DB_NAME}) est admise"
+}

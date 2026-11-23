@@ -137,3 +137,18 @@ quels, avant le retour à l'application. Une fois le domaine définitif connu, a
 - **Flux en direct** : si un relais coupe une connexion longue, le navigateur la rouvre seul (`EventSource`).
 - **Sauvegardes** : `scripts/db/` est encore en version MySQL jusqu'à T-701 ; Neon garde son propre historique de
   restauration en attendant.
+
+## Recette locale (toutes les pages, sans Neon)
+
+Pour les recettes des agents et du Business Owner : `scripts/recette/` (mode d'emploi : `scripts/recette/README.md`).
+Base PostgreSQL dédiée en Docker (`127.0.0.1:5435`), `ENABLED_FEATURES=watch,cv`, e-mails captés dans un fichier,
+IA simulée par les réponses enregistrées des tests, tout autre appel sortant bloqué.
+
+```bash
+scripts/recette/run-backend.sh          # base + migrations + API sur :4000
+npm --prefix frontend run dev           # interface sur :5173
+scripts/recette/last-mail.sh            # lien d'activation ou code de connexion du dernier e-mail
+```
+
+**Jamais `npm run db:migrate` ni `npm run dev` (backend) pour une recette** : ils chargent `../.env`, donc la base de
+production.
