@@ -29,7 +29,7 @@ allowed-tools: Bash(git status), Bash(git diff:*), Bash(npm run check), Bash(npm
 
 4. **Vérifier**
    - `npm run check` dans chaque package modifié (typecheck + lint + tests unitaires) : doit être vert.
-   - Si la tâche touche la base : `npm run test:integration` dans `backend/` (MySQL : `docker compose up -d db`).
+   - Si la tâche touche la base : `npm run test:integration` dans `backend/` (PostgreSQL local : `docker compose up -d db`).
    - Relire le diff (`git diff`) avec la checklist de `/project:review`.
 
 5. **Tracer**
