@@ -35,7 +35,7 @@ export const WorkdaySiteSchema = z
     const segments = (parsed?.pathname ?? '').split('/').filter((part) => part !== '');
     if (!isWorkday || segments.length === 0) {
       context.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: 'custom',
         message:
           'Adresse attendue : celle du site carrières Workday, par exemple ' +
           'https://nova.wd3.myworkdayjobs.com/fr-FR/Carrieres.',

@@ -25,7 +25,7 @@ export const CreateSourceSchema = z
   .superRefine((value, context) => {
     if (!adapterFor(value.adapter).isOfficial && value.companyName === undefined) {
       context.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: 'custom',
         path: ['companyName'],
         message: 'Nom d’entreprise requis.',
       });
@@ -33,7 +33,7 @@ export const CreateSourceSchema = z
     const read = adapterFor(value.adapter).identifierSchema.safeParse(value.identifier);
     if (!read.success) {
       for (const issue of read.error.issues) {
-        context.addIssue({ code: z.ZodIssueCode.custom, path: ['identifier'], message: issue.message });
+        context.addIssue({ code: 'custom', path: ['identifier'], message: issue.message });
       }
     }
   })
@@ -55,7 +55,7 @@ export const SourceViewSchema = z
     adapterLabel: z.string(),
     identifier: z.string(),
     isActive: z.boolean(),
-    lastCheckedAt: z.string().datetime().nullable(),
+    lastCheckedAt: z.iso.datetime().nullable(),
     lastError: z.string().max(ERROR_MAX_LENGTH).nullable(),
     offerCount: z.number().int(),
   })
@@ -103,7 +103,7 @@ export const SourceSuggestionSchema = z
      */
     verification: z.enum(['verified', 'unconfirmed', 'not_found']).nullable(),
     offerCount: z.number().int().nullable(),
-    discoveredAt: z.string().datetime().nullable(),
+    discoveredAt: z.iso.datetime().nullable(),
   })
   .openapi('SourceSuggestion');
 
