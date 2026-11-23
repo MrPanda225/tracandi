@@ -289,8 +289,18 @@ function MappingStep({ file, fileName, preview, onImported, onBack }: MappingSte
       <p className="csv-import__file-name">
         {fileName} · {plural(preview.totalRows, 'ligne')} de candidatures
       </p>
+      {preview.encoding === 'windows-1252' && (
+        <p className="csv-import__notice">
+          Fichier lu en Windows-1252, l’encodage d’un export Excel sous Windows : vérifiez les accents dans
+          l’aperçu.
+        </p>
+      )}
       {error && <Flash>{error}</Flash>}
       <PreviewTable preview={preview} />
+      <p className="csv-import__notice">
+        Dates acceptées : JJ/MM/AAAA, AAAA-MM-JJ ou JJ/MM/AA. Une date américaine, le mois avant le jour,
+        serait lue à l’envers : convertissez-la avant l’import.
+      </p>
       <fieldset className="csv-import__mapping">
         <legend className="csv-import__legend">Quelle colonne donne chaque information ?</legend>
         {IMPORT_FIELDS.map((field) => (

@@ -159,6 +159,8 @@ export type ImportMapping = Record<ImportField, number | null>;
 /** EF-CAN-23: what the API read in a file (schema `ImportPreview` in /api/docs); nothing is stored yet. */
 export interface ImportPreview {
   delimiter: ',' | ';';
+  /** Windows-1252 only when the file was not valid UTF-8 (an Excel export on Windows). */
+  encoding: 'utf-8' | 'windows-1252';
   headers: string[];
   /** The first 5 rows of applications. */
   rows: string[][];

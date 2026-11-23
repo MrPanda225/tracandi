@@ -16,6 +16,7 @@ const json = (status: number, body?: unknown) =>
 const CSV = 'Entreprise,Poste,Statut\nAtelier Nova,Data analyst,Envoyée\nBeta,Ops,En cours\n';
 const PREVIEW: ImportPreview = {
   delimiter: ',',
+  encoding: 'utf-8',
   headers: ['Entreprise', 'Poste', 'Statut'],
   rows: [
     ['Atelier Nova', 'Data analyst', 'Envoyée'],
@@ -171,6 +172,50 @@ describe('CsvImportPanel', () => {
     const table = within(columns).getByRole('table');
     expect(within(table).getByTitle(link)).toHaveTextContent(link);
     expect(within(table).getByRole('cell', { name: 'Atelier Nova' })).not.toHaveAttribute('title');
+  });
+
+  it('[EF-CAN-23] warns that a file was read in Windows-1252, and shows the accepted dates', async () => {
+    mockApi({
+      'GET /applications': () => json(200, { items: [], total: 0 }),
+      'POST /applications/import/preview': () => json(200, { ...PREVIEW, encoding: 'windows-1252' }),
+    });
+    const user = userEvent.setup();
+    renderPage();
+    const panel = await openPanel(user);
+    await user.upload(within(panel).getByLabelText('Fichier CSV'), csvFile());
+    await user.click(within(panel).getByRole('button', { name: 'Lire le fichier' }));
+
+    const columns = await screen.findByRole('region', { name: 'Associer les colonnes' });
+    expect(within(columns).getByText(/Fichier lu en Windows-1252/u)).toBeVisible();
+    expect(
+      within(columns).getByText(/Dates acceptées : JJ\/MM\/AAAA, AAAA-MM-JJ ou JJ\/MM\/AA/u),
+    ).toBeVisible();
+  });
+
+  it('[EF-CAN-23] names under its field a mapping error returned by the API', async () => {
+    mockApi({
+      'GET /applications': () => json(200, { items: [], total: 0 }),
+      'POST /applications/import/preview': () => json(200, PREVIEW),
+      'POST /applications/import': () =>
+        json(400, {
+          error: 'Données invalides',
+          details: [{ path: 'body.mapping.status', message: 'Cette colonne n’existe pas dans le fichier' }],
+        }),
+    });
+    const user = userEvent.setup();
+    renderPage();
+    const panel = await openPanel(user);
+    await user.upload(within(panel).getByLabelText('Fichier CSV'), csvFile());
+    await user.click(within(panel).getByRole('button', { name: 'Lire le fichier' }));
+    const columns = await screen.findByRole('region', { name: 'Associer les colonnes' });
+
+    await user.click(within(columns).getByRole('button', { name: 'Importer 2 lignes' }));
+
+    expect(await within(columns).findByText('Données invalides')).toBeVisible();
+    expect(within(columns).getByRole('combobox', { name: 'Statut' })).toHaveAccessibleDescription(
+      'Cette colonne n’existe pas dans le fichier',
+    );
+    expect(within(columns).getByRole('combobox', { name: 'Statut' })).toHaveDisplayValue('Statut');
   });
 
   it('[EF-CAN-23] names the mapping errors under the field they concern', async () => {

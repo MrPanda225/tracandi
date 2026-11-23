@@ -78,6 +78,12 @@
   padding-block: 0.45rem;
 }
 
+.csv-import__notice {
+  margin: 0;
+  color: var(--color-mauve-deep);
+  font-size: 0.8125rem;
+}
+
 .csv-import__file-name {
   margin: 0;
   color: var(--color-mauve-deep);
@@ -98,7 +104,10 @@
 }
 
 .csv-import__table {
-  width: 100%;
+  /* Each column takes the width of its content (up to 16rem): on a phone the table scrolls sideways instead of
+     squeezing a column (ENF-UTI-02); on a wide screen it fills the panel. */
+  width: max-content;
+  min-width: 100%;
   border-collapse: collapse;
   font-size: 0.8125rem;
 }
