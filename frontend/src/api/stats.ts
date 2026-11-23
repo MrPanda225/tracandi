@@ -1,6 +1,7 @@
 import { request } from './client';
 
-export type ApplicationStatus = 'to_apply' | 'sent' | 'acknowledged' | 'interview' | 'offer' | 'rejected';
+export type ApplicationStatus =
+  'to_apply' | 'sent' | 'acknowledged' | 'technical_test' | 'interview' | 'offer' | 'rejected';
 export type ContractType = 'cdi' | 'cdd' | 'alternance' | 'job_etudiant' | 'autre' | 'non_precise';
 
 /** Application waiting for a follow-up (RG-06). */

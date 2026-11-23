@@ -26,7 +26,7 @@ export interface ApplicationDetail extends Application {
 }
 
 export type EmailCategory =
-  'sent_application' | 'acknowledged' | 'interview' | 'offer' | 'rejected' | 'job_alert';
+  'sent_application' | 'acknowledged' | 'technical_test' | 'interview' | 'offer' | 'rejected' | 'job_alert';
 
 /** One message of an application's chronology (schema `Email` in /api/docs). */
 export interface ApplicationEmail {
