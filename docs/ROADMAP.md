@@ -941,6 +941,9 @@ développeur l'active sur son poste (`ENABLED_FEATURES=watch,cv`) le temps d'y t
   RG-19 et RG-20 ; le contact est refusé à la synchronisation et à la relecture, et la relance passe les adresses
   enregistrées avant le correctif pour le contact précédent, sinon 409 « Aucune adresse… », affiché tel quel par le
   tableau de bord. Un message dont le `Reply-To` est refusé n'a pas de contact (pas de repli sur l'expéditeur).
+  Recette : une adresse conservée est toujours un contact au sens de RG-20 — les adresses enregistrées avant le
+  correctif sont effacées à chaque synchronisation et à chaque relecture (`emails/contacts.ts`), sans migration ; le
+  repère « À relancer », le tableau de bord et la relance s'accordent donc dès le passage suivant (30 minutes au plus).
 
 ## Lot 10 — Veille automatique par utilisateur (BES-48, cahier v1.35)
 

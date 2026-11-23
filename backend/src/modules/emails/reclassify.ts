@@ -3,6 +3,7 @@ import type { RunCounters } from '../../jobs/queue.js';
 import { mapWithConcurrency } from '../../lib/async.js';
 import type { Logger } from '../../lib/logger.js';
 import { applyReclassifiedMessage, findApplicationThreads } from '../applications/service.js';
+import { clearRefusedContacts } from './contacts.js';
 import { hasRejectionCue } from './cues.js';
 import { contactAddressOf } from './domains.js';
 import type { MessageFetcher } from './fetcher.js';
@@ -72,6 +73,8 @@ export const createReclassification =
   ({ db, fetcher, logger }: ReclassificationDeps): ReclassificationRun =>
   async (userId, report) => {
     const { mailbox, shouldApplyLabels } = await fetcher.openMailbox(userId);
+    // RG-20: an address the rule now refuses is forgotten, and its message read again like one without contact.
+    await clearRefusedContacts(db, userId);
     const [acknowledgements, withoutContact, platforms] = await Promise.all([
       repository.listReceivedEmails(db, userId, 'acknowledged'),
       repository.listEmailsWithoutContact(db, userId),

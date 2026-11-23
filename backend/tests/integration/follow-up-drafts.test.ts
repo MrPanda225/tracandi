@@ -80,6 +80,21 @@ const setContact = (applicationId: number, gmailMessageId: string | null | undef
     .set({ contactAddress })
     .where(and(eq(emails.applicationId, applicationId), eq(emails.gmailMessageId, gmailMessageId ?? '')));
 
+/** A new pass of the synchronisation, as the scheduler runs it every half hour (EF-GML-03). */
+const synchroniseAgain = async () => {
+  await request(context.app).post('/api/gmail/sync').set('Cookie', alice).set('Content-Type', 'application/json');
+  await context.queue.drain();
+};
+
+const isFollowUpDue = async (id: number): Promise<boolean> =>
+  ((await request(context.app).get(`/api/applications/${id}`).set('Cookie', alice)).body as { isFollowUpDue: boolean })
+    .isFollowUpDue;
+
+const dashboardFollowUps = async (): Promise<{ total: number; items: { company: string }[] }> =>
+  ((await request(context.app).get('/api/stats/dashboard').set('Cookie', alice)).body as {
+    followUps: { total: number; items: { company: string }[] };
+  }).followUps;
+
 const draftFor = (id: number, cookie = alice) =>
   request(context.app)
     .post(`/api/applications/${id}/follow-up-draft`)
@@ -194,6 +209,38 @@ describe('POST /api/applications/:id/follow-up-draft (EF-CAN-17)', () => {
     expect(response.status).toBe(409);
     expect((response.body as { error: string }).error).toContain('Aucune adresse');
     expect(gmail.drafts).toHaveLength(0);
+  });
+
+  // Recette de #109: an application whose only contacts were stored before the rule refused them stayed « à relancer ».
+  it('[RG-20] [RG-06] no longer proposes the follow-up of an old application whose only contacts are platforms', async () => {
+    await setUp([SENT_APPLICATION, MCDONALDS_ACKNOWLEDGEMENT]);
+    const id = await applicationOf("McDonald's");
+    await setContact(id, MCDONALDS_ACKNOWLEDGEMENT.id, 'ateme@mail.flatchr.io');
+    await setContact(id, SENT_APPLICATION.id, 'jobs-noreply@mcdonalds.example');
+    expect(await isFollowUpDue(id)).toBe(true);
+
+    await synchroniseAgain();
+
+    expect(await isFollowUpDue(id)).toBe(false);
+    expect(await dashboardFollowUps()).toEqual({ total: 0, items: [] });
+    const stored = await database.db
+      .select({ contactAddress: emails.contactAddress })
+      .from(emails)
+      .where(eq(emails.applicationId, id));
+    expect(stored.map((row) => row.contactAddress)).toEqual([null, null]);
+  });
+
+  it('[RG-20] [RG-06] still proposes it when an older message carries a real recruiter, and writes to him', async () => {
+    await setUp([SENT_APPLICATION, MCDONALDS_ACKNOWLEDGEMENT]);
+    const id = await applicationOf("McDonald's");
+    await setContact(id, MCDONALDS_ACKNOWLEDGEMENT.id, 'candidats@ateme.teamtailor-mail.com');
+    await setContact(id, SENT_APPLICATION.id, 'christophe.recruteur@mcdonalds.example');
+
+    await synchroniseAgain();
+
+    expect(await isFollowUpDue(id)).toBe(true);
+    expect((await dashboardFollowUps()).items.map((item) => item.company)).toEqual(["McDonald's"]);
+    expect(((await draftFor(id)).body as { to: string }).to).toBe('christophe.recruteur@mcdonalds.example');
   });
 
   it('[RG-20] [EF-CAN-17] refuses when nobody can be written to', async () => {
