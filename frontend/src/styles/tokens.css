@@ -42,10 +42,26 @@
   --status-interview-soft: #dfece2;
   --status-rejected: #9b2f35;
   --status-rejected-soft: #f4e1e2;
-  --status-offer: var(--color-accent-strong);
-  --status-offer-soft: var(--color-accent-soft);
   --status-idle: var(--color-mauve-deep);
   --status-idle-soft: var(--color-mist-soft);
+
+  /*
+   * Application statuses (EF-CAN-22): À postuler yellow; Envoyée, Accusé reçu, Test technique, Entretien orange
+   * (« en cours »); Proposition green; Refusée red; « À relancer » (RG-06) solid dark red (« sans réponse »).
+   * Opaque backgrounds so that the measured contrast holds on any surface. Text on its background (WCAG 1.4.3):
+   * to-apply 6.29:1, in-progress 5.92:1, offer 5.44:1, rejected 5.46:1, no-reply 10.93:1. The text colour is also
+   * the chart colour: ≥ 6:1 on the canvas (WCAG 1.4.11).
+   */
+  --application-to-apply: #6b5400;
+  --application-to-apply-soft: #faefc2;
+  --application-in-progress: #8f3f0a;
+  --application-in-progress-soft: #fde3d0;
+  --application-offer: #2b6a3d;
+  --application-offer-soft: #dcf0e1;
+  --application-rejected: #b0262c;
+  --application-rejected-soft: #fce3e3;
+  --application-no-reply: #741b21;
+  --application-no-reply-text: #ffffff;
 
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --duration-fast: 180ms;

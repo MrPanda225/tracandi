@@ -102,17 +102,6 @@
   gap: 0.3rem;
 }
 
-/* Kairos: the relaunch cue uses the accent, distinct from the status colours. */
-.application__badge {
-  padding: 0.2rem 0.6rem;
-  border-radius: 999px;
-  background: var(--color-accent-soft);
-  color: var(--color-accent-strong);
-  font-size: 0.8125rem;
-  font-weight: 700;
-  white-space: nowrap;
-}
-
 .application__chevron {
   grid-area: chevron;
   align-self: end;
