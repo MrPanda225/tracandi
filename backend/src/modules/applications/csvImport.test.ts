@@ -32,6 +32,11 @@ const row = (cells: Partial<Record<keyof ImportMapping, string>>) => [
   cells.notes ?? '',
 ];
 
+// The characters of Windows-1252 outside Latin-1 that a French export holds; the others keep their code.
+const WINDOWS_1252_BYTES: Record<string, number> = { '€': 0x80, '’': 0x92, '–': 0x96 };
+const windows1252 = (text: string): Buffer =>
+  Buffer.from([...text].map((character) => WINDOWS_1252_BYTES[character] ?? character.charCodeAt(0)));
+
 describe('decodeCsvFile', () => {
   it('[EF-CAN-23] returns the text of a UTF-8 file', () => {
     expect(decodeCsvFile(base64('Entreprise;Poste\nNova;Développeur'))).toBe(
@@ -44,11 +49,21 @@ describe('decodeCsvFile', () => {
     expect(statusOf(() => decodeCsvFile(base64('a'.repeat(CSV_MAX_BYTES + 1))))).toBe(413);
   });
 
-  it('[EF-CAN-23] refuses a file that is not text with 415 (binary or not UTF-8)', () => {
+  it('[EF-CAN-23] reads an Excel export of Windows, encoded in Windows-1252', () => {
+    const text = 'Entreprise;Poste;Statut\nSociété Générale;Chargée d’études – 5 000 €;Refusée';
+
+    expect(decodeCsvFile(windows1252(text).toString('base64'))).toBe(text);
+  });
+
+  it('[EF-CAN-23] refuses a file that is not text with 415 (a binary file)', () => {
     expect(
       statusOf(() => decodeCsvFile(Buffer.from([0x25, 0x50, 0x44, 0x46, 0x00, 0x01]).toString('base64'))),
     ).toBe(415);
-    expect(statusOf(() => decodeCsvFile(Buffer.from([0x4e, 0xe9, 0x6f]).toString('base64')))).toBe(415);
+    expect(
+      statusOf(() =>
+        decodeCsvFile(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a]).toString('base64')),
+      ),
+    ).toBe(415);
   });
 
   it('[EF-CAN-23] refuses a truncated base64 content with 400', () => {

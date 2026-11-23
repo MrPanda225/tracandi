@@ -16,7 +16,11 @@ const BYTES_PER_BLOCK = 3;
 /** Longest base64 text a file of CSV_MAX_BYTES can take, padding included. */
 export const CSV_MAX_BASE64_LENGTH = Math.ceil(CSV_MAX_BYTES / BYTES_PER_BLOCK) * BASE64_CHARS_PER_BLOCK;
 const BASE64_PATTERN = /^[A-Za-z0-9+/]*={0,2}$/u;
-const NUL_BYTE = 0;
+// Bytes below the space that are not tab, line feed or carriage return: control characters in UTF-8 as in
+// Windows-1252, never in a spreadsheet export, always in a binary file.
+const FIRST_PRINTABLE_BYTE = 0x20;
+const TEXT_CONTROL_BYTES = new Set([0x09, 0x0a, 0x0d]);
+const isBinaryByte = (byte: number): boolean => byte < FIRST_PRINTABLE_BYTE && !TEXT_CONTROL_BYTES.has(byte);
 
 // Same bounds as a manual application (schemas.ts, EF-CAN-08, EF-CAN-19).
 const COMPANY_MAX_LENGTH = 160;
@@ -31,14 +35,15 @@ const DEFAULT_STATUS: ApplicationStatus = 'sent';
 const TOO_LARGE = 'Le fichier dépasse 1 Mo : gardez seulement les colonnes utiles, puis réessayez.';
 const TOO_MANY_ROWS = 'Le fichier dépasse 1 000 lignes de candidatures : découpez-le en plusieurs fichiers.';
 const NOT_TEXT =
-  'Ce fichier n’est pas un CSV en texte (UTF-8). Exportez votre tableau au format CSV, puis réessayez.';
+  'Ce fichier n’est pas un CSV en texte. Exportez votre tableau au format CSV, puis réessayez.';
 const DATE_FORMATS = 'formats acceptés JJ/MM/AAAA, AAAA-MM-JJ ou JJ/MM/AA';
 
 /**
  * Turns the base64 content of an imported CSV file into its text. The size is checked on the base64 text first, so
- * that an oversized upload is never decoded.
- * @throws HttpError 413 beyond 1 MB; 415 when the content is not UTF-8 text (a binary file, a Latin-1 export);
- * 400 when the content is not base64.
+ * that an oversized upload is never decoded. The text is read as UTF-8 (Google Sheets, LibreOffice, recent Excel);
+ * when it holds invalid UTF-8 sequences, it is read as Windows-1252, the encoding of an Excel export on Windows.
+ * @throws HttpError 413 beyond 1 MB; 415 when the content is not text (a binary file); 400 when the content is not
+ * base64.
  * @req EF-CAN-23
  */
 export const decodeCsvFile = (base64: string): string => {
@@ -48,11 +53,16 @@ export const decodeCsvFile = (base64: string): string => {
   }
   const bytes = Buffer.from(base64, 'base64');
   if (bytes.length > CSV_MAX_BYTES) throw new HttpError(413, TOO_LARGE);
-  if (bytes.includes(NUL_BYTE)) throw new HttpError(415, NOT_TEXT);
+  if (bytes.some(isBinaryByte)) throw new HttpError(415, NOT_TEXT);
+  return decodeText(bytes);
+};
+
+const decodeText = (bytes: Buffer): string => {
   try {
     return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
   } catch {
-    throw new HttpError(415, NOT_TEXT);
+    // Windows-1252 gives a character to every byte: it never fails.
+    return new TextDecoder('windows-1252').decode(bytes);
   }
 };
 
