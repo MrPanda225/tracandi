@@ -32,6 +32,8 @@ main() {
   backup_dir="$(read_setting BACKUP_DIR "$REPO_ROOT/backups")"
   archive="${1:-$(latest_archive "$backup_dir")}"
   [[ -n "$archive" && -f "$archive" ]] || fail "$EXIT_CONFIG" "no backup archive found (BACKUP_DIR=$backup_dir)"
+  # Même journal que backup.sh : le passage quotidien se lit d'un bout à l'autre dans BACKUP_DIR/backup.log.
+  if [[ -w "$backup_dir" ]]; then LOG_FILE="$backup_dir/backup.log"; fi
 
   local check_db host port user password min_tables
   check_db="$(read_setting CHECK_DB tracandi_restore_check)"

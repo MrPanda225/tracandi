@@ -166,6 +166,8 @@ afterAll(async () => {
     `DROP DATABASE IF EXISTS ${SOURCE_DB} WITH (FORCE)`,
     `DROP DATABASE IF EXISTS ${CHECK_DB} WITH (FORCE)`,
     `DROP DATABASE IF EXISTS ${TARGET_DB} WITH (FORCE)`,
+    // The role is global to the server: removed once the databases holding its grants are gone.
+    'DROP ROLE IF EXISTS tracandi_backup',
   );
   rmSync(workDir, { recursive: true, force: true });
 });
@@ -222,6 +224,7 @@ describe('T-701 scripts/db (PostgreSQL)', () => {
     expect(result.status, result.output).toBe(0);
     expect(result.output).toMatch(/Restore check OK in \d+\.\d{3} s: tables=(\d+)\/\1 /);
     expect(result.output).toContain('users=2 applications=3');
+    expect(readFileSync(path.join(backupDir, 'backup.log'), 'utf8')).toContain('Restore check OK');
     expect(await rowCounts(CHECK_DB)).toEqual(await rowCounts(SOURCE_DB));
   });
 
