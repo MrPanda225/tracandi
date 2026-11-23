@@ -1,6 +1,6 @@
 import { z } from '../../lib/openapi.js';
 
-const DateTimeSchema = z.string().datetime().openapi({ example: '2026-09-22T08:00:00.000Z' });
+const DateTimeSchema = z.iso.datetime().openapi({ example: '2026-09-22T08:00:00.000Z' });
 
 /** Google's redirection parameters; other parameters sent by Google (scope, authuser…) are ignored. */
 export const AuthorizationAnswerQuerySchema = z.object({
@@ -19,7 +19,7 @@ export const AuthorizationAnswerQuerySchema = z.object({
 
 export const AuthorizationUrlSchema = z
   .object({
-    url: z.string().url().openapi({ description: 'Page de consentement de Google (scope gmail.modify)' }),
+    url: z.url().openapi({ description: 'Page de consentement de Google (scope gmail.modify)' }),
   })
   .openapi('GmailAuthorizationUrl');
 
@@ -29,7 +29,7 @@ export const GmailStatusSchema = z
     z.object({ connected: z.literal(false) }),
     z.object({
       connected: z.literal(true),
-      emailAddress: z.string().email(),
+      emailAddress: z.email(),
       connectedAt: DateTimeSchema,
       lastRunAt: DateTimeSchema.nullable().openapi({
         description: 'Fin de la dernière synchronisation réussie (EF-CFG-01) ; null si aucune',
@@ -80,7 +80,7 @@ export const GmailSettingsBodySchema = z
 /** EF-CAN-17 : brouillon de relance enregistré dans Gmail, jamais envoyé. */
 export const FollowUpDraftViewSchema = z
   .object({
-    draftUrl: z.string().url().openapi({ description: 'Adresse qui ouvre le brouillon dans Gmail' }),
+    draftUrl: z.url().openapi({ description: 'Adresse qui ouvre le brouillon dans Gmail' }),
     to: z.string().openapi({ description: 'Adresse de contact à qui la relance est écrite (RG-20)' }),
     subject: z.string().openapi({ description: 'Objet : celui du fil, précédé de « Re: »' }),
   })

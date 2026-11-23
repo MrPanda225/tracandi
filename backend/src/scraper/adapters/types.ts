@@ -125,7 +125,7 @@ export interface SourceAdapter {
   /** What the candidate must type, in French (EF-VEI-01). */
   readonly identifierHint: string;
   /** RG-08 for this type; refuses anything else (EF-VEI-02). */
-  readonly identifierSchema: z.ZodType<string, z.ZodTypeDef, unknown>;
+  readonly identifierSchema: z.ZodType<string, unknown>;
   /**
    * The offers published on the source right now, oldest field cut to the bounds of the data model.
    * @throws SourceFetchError when the source answers something unusable; the failure stays on that source (ENF-FIA-02).
@@ -165,7 +165,7 @@ export const jsonOf = (page: CollectedPage, label: string): unknown => {
  * @throws SourceFetchError
  */
 export const parseAnswer = <T>(
-  schema: z.ZodType<T, z.ZodTypeDef, unknown>,
+  schema: z.ZodType<T, unknown>,
   value: unknown,
   label: string,
 ): T => {

@@ -5,9 +5,12 @@ import {
   type ResponseConfig,
 } from '@asteasolutions/zod-to-openapi';
 import { z } from 'zod';
+import { zod3Messages } from './zodMessages.js';
 
 // Must run before any schema calls `.openapi()`: every schema file imports `z` from this module.
 extendZodWithOpenApi(z);
+// ENF-SEC-04: the messages the interface shows keep their zod 3 wording (see zodMessages.ts).
+z.config({ localeError: zod3Messages });
 
 export { z };
 
@@ -52,13 +55,13 @@ export const errorResponses = (...statusCodes: number[]): Record<number, Respons
   );
 
 /** JSON response with the given description and body schema. */
-export const jsonResponse = (description: string, schema: z.ZodTypeAny): ResponseConfig => ({
+export const jsonResponse = (description: string, schema: z.ZodType): ResponseConfig => ({
   description,
   content: { 'application/json': { schema } },
 });
 
 /** JSON request body for `registerPath`. */
-export const jsonBody = (schema: z.ZodTypeAny) => ({ content: { 'application/json': { schema } } });
+export const jsonBody = (schema: z.ZodType) => ({ content: { 'application/json': { schema } } });
 
 /** Registry with the session cookie security scheme declared. */
 export const createOpenApiRegistry = (): OpenAPIRegistry => {

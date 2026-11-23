@@ -37,6 +37,8 @@ export const IdentitySchema = z.object({
   name: text(SHORT),
   city: text(SHORT),
   phone: text(SHORT),
+  // Trimmed before the format check, which `z.email().trim()` would run first; a pipe would drop the format from
+  // the OpenAPI document. Hence zod 4's deprecated string method, kept on purpose.
   email: z.string().trim().email().max(SHORT),
   /** Driving licence, work permit… anything the header should carry besides the coordinates. */
   extra: optionalText(LINE),

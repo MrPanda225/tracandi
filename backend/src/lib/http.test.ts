@@ -30,6 +30,20 @@ describe('validate', () => {
       expect(details).toEqual(expect.arrayContaining(['params.id', 'body.note', 'body']));
     }
   });
+
+  it('[ENF-SEC-04] reports only the bound of the schema for an integer beyond the safe range', () => {
+    const request = fakeRequest({ params: { id: '1e20' } });
+    const bounded = { params: z.object({ id: z.coerce.number().int().max(2_147_483_647) }) };
+
+    expect(() => validate(request, bounded)).toThrow(ValidationError);
+    try {
+      validate(request, bounded);
+    } catch (error) {
+      expect((error as ValidationError).details).toEqual([
+        { path: 'params.id', message: expect.stringContaining('2147483647') as string },
+      ]);
+    }
+  });
 });
 
 describe('asyncHandler', () => {

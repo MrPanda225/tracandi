@@ -121,6 +121,6 @@ const unfaithfulPaths = (cv: AdaptedCv, sourceText: string): FieldPath[] => {
 export const tailoredAnswerSchemaFor = (sourceText: string) =>
   TailoredAnswerSchema.transform((answer) => withoutUncitedItems(answer, sourceText)).superRefine((answer, context) => {
     for (const path of unfaithfulPaths(answer.cv, sourceText)) {
-      context.addIssue({ code: z.ZodIssueCode.custom, path: ['cv', ...path], message: 'Not in the imported CV (RG-21)' });
+      context.addIssue({ code: 'custom', path: ['cv', ...path], message: 'Not in the imported CV (RG-21)' });
     }
   });

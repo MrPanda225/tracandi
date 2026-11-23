@@ -41,7 +41,7 @@ export const CareerPageSchema = z
   .superRefine((value, context) => {
     if (URL.parse(value)?.protocol !== 'https:') {
       context.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: 'custom',
         message:
           'Adresse attendue : celle de la page carrières, en https, par exemple https://exemple.fr/carrieres.',
       });

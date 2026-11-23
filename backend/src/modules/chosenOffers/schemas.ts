@@ -36,7 +36,7 @@ export const UpdateChosenOfferBodySchema = z
     level: LevelSchema.optional(),
   })
   .strict()
-  .refine((body) => Object.keys(body).length > 0, { message: 'Indiquez au moins un trait à corriger.' })
+  .refine((body) => Object.keys(body).length > 0, { error: 'Indiquez au moins un trait à corriger.' })
   .openapi('ChosenOfferCorrection');
 
 export const ChosenOfferIdParamsSchema = z.object({ id: idParam() });
@@ -52,8 +52,8 @@ export const ChosenOfferSchema = z
     years: z.number().int().nullable(),
     /** RG-28: the level the traits point to — by the years, by the title otherwise, null when neither tells. */
     suggestedLevel: LevelSchema.nullable(),
-    createdAt: z.string().datetime(),
-    updatedAt: z.string().datetime(),
+    createdAt: z.iso.datetime(),
+    updatedAt: z.iso.datetime(),
   })
   .openapi('ChosenOffer');
 
