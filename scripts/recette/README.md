@@ -17,6 +17,7 @@ de l'application.
 | `db.sh` | Base PostgreSQL 18 **propre à la recette** : conteneur `tracandi-recette-db`, volume `tracandi-recette-data`, port `127.0.0.1:5435`, base `tracandi_recette`, rôle `recette`. Distincte du service `db` de `docker-compose.yml` (tests d'intégration). |
 | `migrate.sh` | Migrations Drizzle sur la base de recette, sous `env -i`, URL contrôlée (`127.0.0.1:5435/tracandi_recette` seulement). |
 | `run-backend.sh` | Démarre la base, migre, puis lance l'API sur `http://127.0.0.1:4000` avec des réglages fictifs et `preload.mjs`. |
+| `run-frontend.sh` | Lance l'interface (Vite) sur `http://127.0.0.1:5173`, relais `/api` vers l'API de recette (`vite.config.mjs`). |
 | `preload.mjs` | Chargé par `node --import` : intercepte Resend, Groq et tout appel sortant (détail ci-dessous). |
 | `last-mail.sh` | Affiche le dernier e-mail capté : lien d'activation ou code de connexion. |
 | `launch.example.json` | Configuration des deux serveurs pour l'aperçu de Claude Code (`preview_start`). |
@@ -36,19 +37,30 @@ Prérequis : Docker démarré, `(cd backend && npm ci --ignore-scripts)` et `(cd
 
 ```bash
 scripts/recette/run-backend.sh          # base + migrations + API sur :4000 (reste au premier plan)
-npm --prefix frontend run dev           # interface sur http://127.0.0.1:5173, dans un autre terminal
+scripts/recette/run-frontend.sh         # interface sur http://127.0.0.1:5173, dans un autre terminal
 ```
+
+Ports déjà pris (une autre recette tourne) : choisir les deux ports, les mêmes pour les deux commandes.
+
+```bash
+RECETTE_API_PORT=4001 RECETTE_WEB_PORT=5174 scripts/recette/run-backend.sh
+RECETTE_API_PORT=4001 RECETTE_WEB_PORT=5174 scripts/recette/run-frontend.sh
+```
+
+Deux recettes en parallèle partagent la même base de recette (mêmes comptes, mêmes données).
 
 Dans Claude Code : copier `scripts/recette/launch.example.json` en `.claude/launch.json` (fichier non suivi), puis
 démarrer `recette-backend` et `recette-frontend` avec `preview_start`.
 
-L'interface se lance par `npm run dev` côté **frontend** : sans risque, Vite ne lit pas le `.env` de la racine et relaie
-`/api` vers `127.0.0.1:4000`, donc vers l'API de recette.
+`npm --prefix frontend run dev` convient aussi quand l'API de recette est sur le port 4000 : Vite ne lit pas le `.env`
+de la racine et relaie `/api` vers `127.0.0.1:4000`.
 
 ## Compte de test
 
 La base de recette est vide au premier lancement : créez un compte depuis l'écran d'inscription, avec une adresse
 fictive (par exemple `recette@example.test`) et un mot de passe de votre choix, propre à la recette.
+
+Le bandeau cookies, tant qu'il n'est pas fermé (« Compris »), peut masquer un bouton en affichage mobile.
 
 1. Inscription : l'e-mail d'activation est capté. `scripts/recette/last-mail.sh` affiche le **lien d'activation** :
    l'ouvrir dans le navigateur.

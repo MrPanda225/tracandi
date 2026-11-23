@@ -21,6 +21,11 @@ readonly RECETTE_DB_USER=recette
 readonly RECETTE_DB_PASSWORD=recette
 readonly RECETTE_DB_URL="postgresql://${RECETTE_DB_USER}:${RECETTE_DB_PASSWORD}@127.0.0.1:${RECETTE_DB_PORT}/${RECETTE_DB_NAME}"
 
+# Ports de l'API et de l'interface : 4000 et 5173 par défaut ; d'autres valeurs permettent une seconde recette en
+# parallèle (l'interface relaie alors /api vers RECETTE_API_PORT, scripts/recette/vite.config.mjs).
+readonly RECETTE_API_PORT="${RECETTE_API_PORT:-4000}"
+readonly RECETTE_WEB_PORT="${RECETTE_WEB_PORT:-5173}"
+
 recette_log() { printf '[recette] %s\n' "$*"; }
 recette_fail() {
   printf '[recette] ERREUR : %s\n' "$*" >&2

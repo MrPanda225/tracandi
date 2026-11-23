@@ -146,7 +146,7 @@ IA simulée par les réponses enregistrées des tests, tout autre appel sortant 
 
 ```bash
 scripts/recette/run-backend.sh          # base + migrations + API sur :4000
-npm --prefix frontend run dev           # interface sur :5173
+scripts/recette/run-frontend.sh         # interface sur :5173
 scripts/recette/last-mail.sh            # lien d'activation ou code de connexion du dernier e-mail
 ```
 

@@ -10,8 +10,8 @@
     },
     {
       "name": "recette-frontend",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "frontend", "run", "dev"],
+      "runtimeExecutable": "scripts/recette/run-frontend.sh",
+      "runtimeArgs": [],
       "port": 5173,
       "url": "http://127.0.0.1:5173"
     }

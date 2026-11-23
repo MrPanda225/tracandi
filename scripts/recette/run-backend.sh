@@ -5,7 +5,7 @@
 # 2. lance src/server.ts sous `env -i` avec des réglages fictifs, ENABLED_FEATURES=watch,cv (toutes les pages) ;
 # 3. charge preload.mjs : Resend → fichier .run/mails.jsonl, Groq → réponses enregistrées, tout autre appel sortant
 #    bloqué (.run/blocked.jsonl).
-# Usage : scripts/recette/run-backend.sh   (API sur http://127.0.0.1:4000)
+# Usage : scripts/recette/run-backend.sh   (API sur http://127.0.0.1:${RECETTE_API_PORT:-4000})
 set -euo pipefail
 # shellcheck source=scripts/recette/env.sh
 source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
@@ -16,11 +16,11 @@ mkdir -p "$RECETTE_RUN_DIR"
 assert_recette_url "$RECETTE_DB_URL"
 
 cd "$RECETTE_ROOT/backend"
-recette_log "backend sur http://127.0.0.1:4000 — e-mails captés dans $RECETTE_RUN_DIR/mails.jsonl"
+recette_log "backend sur http://127.0.0.1:${RECETTE_API_PORT} — e-mails captés dans $RECETTE_RUN_DIR/mails.jsonl"
 # Valeurs fictives : elles satisfont la validation de la configuration, aucune n'ouvre un service réel.
 # CRON_SCRAPER une fois l'an : la veille ne part pas seule (ses appels sortants seraient bloqués de toute façon).
 exec env -i PATH="$PATH" HOME="$HOME" RECETTE_RUN_DIR="$RECETTE_RUN_DIR" \
-  HOST=127.0.0.1 PORT=4000 FRONTEND_ORIGIN=http://127.0.0.1:5173 COOKIE_SECURE=true \
+  HOST=127.0.0.1 PORT="$RECETTE_API_PORT" FRONTEND_ORIGIN="http://127.0.0.1:${RECETTE_WEB_PORT}" COOKIE_SECURE=true \
   DATABASE_URL_APP="$RECETTE_DB_URL" \
   GROQ_API_KEY=gsk_faux_recette GROQ_MODEL_1=faux-groq-1 \
   RESEND_API_KEY=re_faux_recette \
