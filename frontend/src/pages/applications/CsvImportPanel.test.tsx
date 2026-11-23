@@ -148,6 +148,31 @@ describe('CsvImportPanel', () => {
     await waitFor(() => expect(input).toHaveAccessibleDescription(/UTF-8/u));
   });
 
+  it('[EF-CAN-23] shows a link of the preview with its full address in its title', async () => {
+    const link = 'https://emplois.example/offres/data-analyst-2026-reference-12345';
+    mockApi({
+      'GET /applications': () => json(200, { items: [], total: 0 }),
+      'POST /applications/import/preview': () =>
+        json(200, {
+          ...PREVIEW,
+          headers: ['Entreprise', 'Lien'],
+          rows: [['Atelier Nova', link]],
+          totalRows: 1,
+          mapping: { ...PREVIEW.mapping, jobTitle: null, status: null, link: 1 },
+        }),
+    });
+    const user = userEvent.setup();
+    renderPage();
+    const panel = await openPanel(user);
+    await user.upload(within(panel).getByLabelText('Fichier CSV'), csvFile());
+    await user.click(within(panel).getByRole('button', { name: 'Lire le fichier' }));
+
+    const columns = await screen.findByRole('region', { name: 'Associer les colonnes' });
+    const table = within(columns).getByRole('table');
+    expect(within(table).getByTitle(link)).toHaveTextContent(link);
+    expect(within(table).getByRole('cell', { name: 'Atelier Nova' })).not.toHaveAttribute('title');
+  });
+
   it('[EF-CAN-23] names the mapping errors under the field they concern', async () => {
     const calls = mockApi({
       'GET /applications': () => json(200, { items: [], total: 0 }),

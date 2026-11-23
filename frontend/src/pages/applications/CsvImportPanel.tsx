@@ -155,6 +155,23 @@ function FileStep({ onRead, onCancel }: FileStepProps) {
   );
 }
 
+const LINK_PATTERN = /^https?:\/\/\S+$/iu;
+
+/**
+ * A cell of the preview. A link is cut with an ellipsis, its full address in its title, so that it never squeezes
+ * the other columns on a phone.
+ */
+function PreviewCell({ value }: { value: string }) {
+  if (!LINK_PATTERN.test(value)) return <td>{value}</td>;
+  return (
+    <td>
+      <span className="csv-import__link" title={value}>
+        {value}
+      </span>
+    </td>
+  );
+}
+
 function PreviewTable({ preview }: { preview: ImportPreview }) {
   const captionId = useId();
   return (
@@ -179,7 +196,7 @@ function PreviewTable({ preview }: { preview: ImportPreview }) {
           {preview.rows.map((row, index) => (
             <tr key={index}>
               {preview.headers.map((_, column) => (
-                <td key={column}>{row[column] ?? ''}</td>
+                <PreviewCell key={column} value={row[column] ?? ''} />
               ))}
             </tr>
           ))}
