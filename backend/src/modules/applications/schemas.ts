@@ -232,10 +232,15 @@ export const ImportMappingSchema = z
   })
   .openapi('ImportMapping');
 
-const CsvFileSchema = z
-  .string()
-  .min(1)
-  .openapi({ description: 'Le fichier CSV (UTF-8, 1 Mo et 1 000 lignes au plus), encodé en base64.' });
+const CsvFileSchema = z.string().min(1).openapi({
+  description:
+    'Le fichier CSV (UTF-8, ou Windows-1252 pour un export Excel sous Windows ; 1 Mo, 1 000 lignes et ' +
+    '50 colonnes au plus), encodé en base64.',
+});
+
+/** EF-CAN-23: the encodings a file is read in — Windows-1252 only when the file is not valid UTF-8. */
+export const CSV_ENCODINGS = ['utf-8', 'windows-1252'] as const;
+export type CsvEncoding = (typeof CSV_ENCODINGS)[number];
 
 /** EF-CAN-23: the file to preview. */
 export const ImportPreviewBodySchema = z.object({ file: CsvFileSchema }).strict().openapi('ImportPreviewBody');
@@ -246,9 +251,16 @@ export const ImportBodySchema = z
   .strict()
   .openapi('ImportBody');
 
+/**
+ * EF-CAN-23: what the preview shows before anything is stored.
+ * @req EF-CAN-23
+ */
 export const ImportPreviewSchema = z
   .object({
     delimiter: z.enum([',', ';']),
+    encoding: z.enum(CSV_ENCODINGS).openapi({
+      description: 'Encodage lu : windows-1252 quand le fichier n’est pas de l’UTF-8 valide (export Excel sous Windows)',
+    }),
     headers: z.array(z.string()).openapi({ description: 'Première ligne du fichier' }),
     rows: z.array(z.array(z.string())).openapi({ description: 'Les 5 premières lignes de candidatures' }),
     totalRows: z.number().int().openapi({ description: 'Lignes de candidatures du fichier (lignes vides exclues)' }),
@@ -258,6 +270,10 @@ export const ImportPreviewSchema = z
   })
   .openapi('ImportPreview');
 
+/**
+ * EF-CAN-23: the outcome of an import — created, ignored as duplicates (RG-03 (a), (b)) and refused rows.
+ * @req EF-CAN-23, RG-03
+ */
 export const ImportResultSchema = z
   .object({
     created: z.number().int().openapi({ description: 'Candidatures créées' }),

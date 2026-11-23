@@ -1,3 +1,4 @@
+import { DrizzleQueryError } from 'drizzle-orm';
 import { describe, expect, it } from 'vitest';
 import { createLogger, sanitize } from './logger.js';
 
@@ -47,6 +48,28 @@ describe('sanitize', () => {
     expect(result).toEqual({
       error: { name: 'Error', message: 'login failed for postgres://[REDACTED]@host/db' },
     });
+  });
+});
+
+describe('a failed query in the journal', () => {
+  it('[ENF-RGP-01] [ENF-SEC-08] writes no parameter of a failed query, in its message nor in its stack', () => {
+    const { lines, logger } = captureLines();
+    const failed = new DrizzleQueryError(
+      'insert into "applications" ("company_id", "job_title", "notes") values ($1, $2, $3)',
+      [12, 'Analyste données Nova', 'Relance prévue\n    chez Nova le 3'],
+      new Error('deadlock detected'),
+    );
+
+    logger.error('unexpected error', { error: failed, stack: failed.stack });
+
+    const [line = ''] = lines;
+    expect(line).not.toMatch(/Nova|Analyste|Relance/u);
+    const entry = JSON.parse(line) as { error: { message: string }; stack: string };
+    expect(entry.error.message).toBe(
+      'Failed query: insert into "applications" ("company_id", "job_title", "notes") values ($1, $2, $3)\n' +
+        'params: [REDACTED]',
+    );
+    expect(entry.stack).toMatch(/params: \[REDACTED\]\n {4}at /u);
   });
 });
 

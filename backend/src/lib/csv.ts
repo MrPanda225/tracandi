@@ -7,7 +7,10 @@ export interface ParsedCsv {
   records: string[][];
 }
 
-/** The text is not valid CSV; `line` is the line of the file (1-based) where the faulty record starts. */
+/**
+ * The text is not valid CSV; `line` is the line of the file (1-based) where the faulty record starts.
+ * @req EF-CAN-23
+ */
 export class CsvSyntaxError extends Error {
   constructor(
     readonly line: number,
@@ -26,7 +29,8 @@ const LF = '\n';
 const isLineBreak = (char: string | undefined): boolean => char === CR || char === LF;
 
 /**
- * Picks the separator of the first line: the one that appears more often outside quotes, `,` on a tie (RFC 4180).
+ * Picks the separator of the first line: the one that appears more often outside quotes. On a tie, `;` when it
+ * appears at all — a French export separates by `;` and keeps commas in its column names — else `,` (RFC 4180).
  */
 const detectDelimiter = (text: string): CsvDelimiter => {
   const counts: Record<CsvDelimiter, number> = { ',': 0, ';': 0 };
@@ -36,7 +40,7 @@ const detectDelimiter = (text: string): CsvDelimiter => {
     else if (!isQuoted && isLineBreak(char)) break;
     else if (!isQuoted && (char === ',' || char === ';')) counts[char] += 1;
   }
-  return counts[';'] > counts[','] ? ';' : ',';
+  return counts[';'] > 0 && counts[';'] >= counts[','] ? ';' : ',';
 };
 
 /** Line of the file being read (1-based) and line where the current record started, for the error messages. */

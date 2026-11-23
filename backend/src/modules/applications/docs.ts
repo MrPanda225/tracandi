@@ -61,9 +61,11 @@ const ROUTES: RouteConfig[] = [
     path: '/applications/import/preview',
     summary: 'Aperçu d’un fichier CSV à importer',
     description:
-      'EF-CAN-23. Le fichier (CSV en UTF-8, séparateur « , » ou « ; », 1 Mo et 1 000 lignes au plus, en base64) ' +
-      'est lu sans rien enregistrer : en-têtes, 5 premières lignes et colonne proposée pour chaque champ d’après ' +
-      'le nom des colonnes. 413 au-delà des limites, 415 pour un fichier qui n’est pas du texte UTF-8.',
+      'EF-CAN-23. Le fichier (CSV, séparateur « , » ou « ; », 1 Mo, 1 000 lignes et 50 colonnes au plus, en ' +
+      'base64) est lu sans rien enregistrer : en-têtes, 5 premières lignes, encodage lu et colonne proposée pour ' +
+      'chaque champ d’après le nom des colonnes. Il est lu en UTF-8, ou en Windows-1252 s’il n’est pas de ' +
+      'l’UTF-8 valide (export Excel sous Windows). 400 pour un CSV illisible, plus de 50 colonnes ou deux ' +
+      'colonnes du même nom ; 413 au-delà de 1 Mo ou de 1 000 lignes ; 415 pour un fichier qui n’est pas du texte.',
     request: { body: jsonBody(ImportPreviewBodySchema) },
     responses: {
       200: jsonResponse('Aperçu', ImportPreviewSchema),

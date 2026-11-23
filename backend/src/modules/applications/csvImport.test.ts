@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { HttpError } from '../../lib/errors.js';
 import {
   CSV_MAX_BYTES,
+  CSV_MAX_COLUMNS,
   CSV_MAX_ROWS,
   decodeCsvFile,
   readCsvTable,
@@ -39,9 +40,10 @@ const windows1252 = (text: string): Buffer =>
 
 describe('decodeCsvFile', () => {
   it('[EF-CAN-23] returns the text of a UTF-8 file', () => {
-    expect(decodeCsvFile(base64('Entreprise;Poste\nNova;Développeur'))).toBe(
-      'Entreprise;Poste\nNova;Développeur',
-    );
+    expect(decodeCsvFile(base64('Entreprise;Poste\nNova;Développeur'))).toEqual({
+      text: 'Entreprise;Poste\nNova;Développeur',
+      encoding: 'utf-8',
+    });
   });
 
   it('[EF-CAN-23] refuses a file larger than 1 MB with 413, before decoding it', () => {
@@ -49,10 +51,10 @@ describe('decodeCsvFile', () => {
     expect(statusOf(() => decodeCsvFile(base64('a'.repeat(CSV_MAX_BYTES + 1))))).toBe(413);
   });
 
-  it('[EF-CAN-23] reads an Excel export of Windows, encoded in Windows-1252', () => {
+  it('[EF-CAN-23] reads an Excel export of Windows in Windows-1252, only when it is not valid UTF-8', () => {
     const text = 'Entreprise;Poste;Statut\nSociété Générale;Chargée d’études – 5 000 €;Refusée';
 
-    expect(decodeCsvFile(windows1252(text).toString('base64'))).toBe(text);
+    expect(decodeCsvFile(windows1252(text).toString('base64'))).toEqual({ text, encoding: 'windows-1252' });
   });
 
   it('[EF-CAN-23] refuses a file that is not text with 415 (a binary file)', () => {
@@ -81,6 +83,23 @@ describe('readCsvTable', () => {
         { line: 5, cells: ['Beta', 'Ops'] },
       ],
     });
+  });
+
+  it('[EF-CAN-23] refuses more than 50 columns with 400, in the header or in a row', () => {
+    const columns = (count: number) => Array.from({ length: count }, (_, index) => `C${index}`).join(',');
+    expect(readCsvTable(`${columns(CSV_MAX_COLUMNS)}\nNova`).headers).toHaveLength(CSV_MAX_COLUMNS);
+    expect(statusOf(() => readCsvTable(`${columns(CSV_MAX_COLUMNS + 1)}\nNova`))).toBe(400);
+    expect(statusOf(() => readCsvTable(`Entreprise\n${columns(CSV_MAX_COLUMNS + 1)}`))).toBe(400);
+    // A file of 1 MB of commas: one record of a million empty fields.
+    expect(statusOf(() => readCsvTable(','.repeat(CSV_MAX_BYTES)))).toBe(400);
+  });
+
+  it('[EF-CAN-23] refuses two columns of the same name with 400, blank names aside', () => {
+    expect(() => readCsvTable('Entreprise;Poste;ENTREPRISE \nNova;Dev;Nova')).toThrow(
+      /Deux colonnes s’appellent « ENTREPRISE »/u,
+    );
+    expect(statusOf(() => readCsvTable('Entreprise;Poste;ENTREPRISE \nNova;Dev;Nova'))).toBe(400);
+    expect(readCsvTable('Entreprise;;\nNova;;').headers).toEqual(['Entreprise', '', '']);
   });
 
   it('[EF-CAN-23] refuses more than 1 000 rows with 413', () => {
@@ -212,6 +231,11 @@ describe('readImportRow', () => {
     [{ status: 'En cours' }, /statut/iu],
     [{ notes: 'n'.repeat(2001) }, /2 000/u],
   ])('[EF-CAN-23] refuses the row %j with a reason', expectRefused);
+
+  it('[EF-CAN-23] quotes a long cell in a reason cut at 60 characters', () => {
+    const read = readImportRow(row({ status: 's'.repeat(500) }), { mapping: MAPPING, now: NOW });
+    expect(read.ok ? '' : read.reason).toBe(`Statut « ${'s'.repeat(59)}… » inconnu`);
+  });
 
   it.each([
     [{ appliedAt: '31/02/2026' }, /date/iu],

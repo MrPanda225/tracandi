@@ -3,7 +3,7 @@ import type { Clock } from '../../lib/clock.js';
 import { isUniqueViolation } from '../../lib/db-errors.js';
 import { HttpError, NotFoundError, ValidationError } from '../../lib/errors.js';
 import { normalizeKey } from '../../lib/text.js';
-import { importCsvApplications, previewCsvImport } from './importer.js';
+import { importCsvApplications, previewCsvImport, readCsvImport } from './importer.js';
 import * as repository from './repository.js';
 import type { ApplicationRow, EmailRow, Executor } from './repository.js';
 import {
@@ -481,7 +481,8 @@ export const createApplicationsService = ({ db, clock }: ApplicationsServiceDeps
       return previewCsvImport(file);
     },
     importCsv(userId, body) {
-      return db.transaction((tx) => importCsvApplications(tx, { userId, body, now: clock() }));
+      const reading = readCsvImport({ body, now: clock() });
+      return db.transaction((tx) => importCsvApplications(tx, { userId, reading }));
     },
   };
 };

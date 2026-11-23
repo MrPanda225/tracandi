@@ -3,11 +3,13 @@ import { HttpError } from '../../lib/errors.js';
 import { parisDayBounds } from '../../lib/parisTime.js';
 import { normalizeKey } from '../../lib/text.js';
 import { type ApplicationStatus, DEFAULT_JOB_TITLE } from './rules.js';
-import { IMPORT_FIELDS, type ImportField, type ImportMapping } from './schemas.js';
+import { type CsvEncoding, IMPORT_FIELDS, type ImportField, type ImportMapping } from './schemas.js';
 
 /** EF-CAN-23: largest file accepted, in bytes, and most rows of applications (header excluded). */
 export const CSV_MAX_BYTES = 1024 * 1024;
 export const CSV_MAX_ROWS = 1000;
+/** EF-CAN-23: most columns of a file — a tracking sheet has a dozen; beyond, the file is not one. */
+export const CSV_MAX_COLUMNS = 50;
 /** EF-CAN-23: rows shown in the preview. */
 export const CSV_PREVIEW_ROWS = 5;
 
@@ -38,17 +40,36 @@ export const CSV_TOO_LARGE =
 const TOO_MANY_ROWS = 'Le fichier dépasse 1 000 lignes de candidatures : découpez-le en plusieurs fichiers.';
 const NOT_TEXT =
   'Ce fichier n’est pas un CSV en texte. Exportez votre tableau au format CSV, puis réessayez.';
+const TOO_MANY_COLUMNS =
+  `Le fichier a plus de ${String(CSV_MAX_COLUMNS)} colonnes : ` + 'gardez seulement les colonnes utiles, puis réessayez.';
 const DATE_FORMATS = 'formats acceptés JJ/MM/AAAA, AAAA-MM-JJ ou JJ/MM/AA';
+// A cell quoted in a reason of refusal is cut, so that a long note never fills the result.
+const QUOTED_CELL_MAX_LENGTH = 60;
+
+/** A cell as quoted in a message: cut with an ellipsis beyond 60 characters. */
+const quoteCell = (cell: string): string => {
+  const characters = [...cell];
+  return characters.length > QUOTED_CELL_MAX_LENGTH
+    ? `${characters.slice(0, QUOTED_CELL_MAX_LENGTH - 1).join('')}…`
+    : cell;
+};
+
+/** The text of an imported file and the encoding it was read in. */
+export interface DecodedCsv {
+  text: string;
+  encoding: CsvEncoding;
+}
 
 /**
  * Turns the base64 content of an imported CSV file into its text. The size is checked on the base64 text first, so
  * that an oversized upload is never decoded. The text is read as UTF-8 (Google Sheets, LibreOffice, recent Excel);
- * when it holds invalid UTF-8 sequences, it is read as Windows-1252, the encoding of an Excel export on Windows.
+ * only when it holds invalid UTF-8 sequences is it read as Windows-1252, the encoding of an Excel export on Windows
+ * — the preview says so, for the candidate to check the accents.
  * @throws HttpError 413 beyond 1 MB; 415 when the content is not text (a binary file); 400 when the content is not
  * base64.
  * @req EF-CAN-23
  */
-export const decodeCsvFile = (base64: string): string => {
+export const decodeCsvFile = (base64: string): DecodedCsv => {
   if (base64.length > CSV_MAX_BASE64_LENGTH) throw new HttpError(413, CSV_TOO_LARGE);
   if (base64.length % BASE64_CHARS_PER_BLOCK !== 0 || !BASE64_PATTERN.test(base64)) {
     throw new HttpError(400, 'Le fichier n’est pas arrivé en entier. Réessayez.');
@@ -59,12 +80,12 @@ export const decodeCsvFile = (base64: string): string => {
   return decodeText(bytes);
 };
 
-const decodeText = (bytes: Buffer): string => {
+const decodeText = (bytes: Buffer): DecodedCsv => {
   try {
-    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    return { text: new TextDecoder('utf-8', { fatal: true }).decode(bytes), encoding: 'utf-8' };
   } catch {
     // Windows-1252 gives a character to every byte: it never fails.
-    return new TextDecoder('windows-1252').decode(bytes);
+    return { text: new TextDecoder('windows-1252').decode(bytes), encoding: 'windows-1252' };
   }
 };
 
@@ -81,10 +102,27 @@ export interface CsvTable {
   rows: CsvRow[];
 }
 
+/** @throws HttpError 400 naming the first column name given twice (blank names aside: a sheet exports them). */
+const assertDistinctHeaders = (headers: readonly string[]): void => {
+  const seen = new Set<string>();
+  for (const header of headers) {
+    const key = normalizeKey(header);
+    if (key === '') continue;
+    if (seen.has(key)) {
+      throw new HttpError(
+        400,
+        `Deux colonnes s’appellent « ${quoteCell(header)} » : renommez l’une d’elles, puis réessayez.`,
+      );
+    }
+    seen.add(key);
+  }
+};
+
 /**
  * Reads the header and the rows of an imported file; rows whose cells are all blank are dropped (a spreadsheet
  * exports its empty rows).
- * @throws HttpError 400 for an empty file or an invalid CSV (the line is named); 413 beyond 1 000 rows.
+ * @throws HttpError 400 for an empty file, an invalid CSV (the line is named), more than 50 columns or a column
+ * name given twice; 413 beyond 1 000 rows.
  * @req EF-CAN-23
  */
 export const readCsvTable = (text: string): CsvTable => {
@@ -95,13 +133,18 @@ export const readCsvTable = (text: string): CsvTable => {
     if (error instanceof CsvSyntaxError) throw new HttpError(400, `Fichier CSV illisible. ${error.message}.`);
     throw error;
   }
+  if (parsed.records.some((record) => record.length > CSV_MAX_COLUMNS)) {
+    throw new HttpError(400, TOO_MANY_COLUMNS);
+  }
   const [header, ...records] = parsed.records;
   if (!header) throw new HttpError(400, 'Le fichier est vide.');
+  const headers = header.map((cell) => cell.trim());
+  assertDistinctHeaders(headers);
   const rows = records
     .map((cells, index) => ({ line: index + 2, cells }))
     .filter((row) => row.cells.some((cell) => cell.trim() !== ''));
   if (rows.length > CSV_MAX_ROWS) throw new HttpError(413, TOO_MANY_ROWS);
-  return { delimiter: parsed.delimiter, headers: header.map((cell) => cell.trim()), rows };
+  return { delimiter: parsed.delimiter, headers, rows };
 };
 
 /** EF-CAN-23: column names (RG-14 keys) that announce each field, in French and in English. */
@@ -215,8 +258,8 @@ const isExistingDay = (day: string): boolean => {
 const readAppliedAt = (cell: string, now: Date): RowReading<Date> => {
   if (cell === '') return accept(now);
   const day = dayOf(cell);
-  if (!day) return refuse(`Date « ${cell} » illisible : ${DATE_FORMATS}`);
-  if (!isExistingDay(day)) return refuse(`Date « ${cell} » inexistante`);
+  if (!day) return refuse(`Date « ${quoteCell(cell)} » illisible : ${DATE_FORMATS}`);
+  if (!isExistingDay(day)) return refuse(`Date « ${quoteCell(cell)} » inexistante`);
   if (Number(day.slice(0, 4)) < EARLIEST_YEAR)
     return refuse('Date de candidature antérieure au 1er janvier 2000');
   const { start } = parisDayBounds(day);
@@ -226,7 +269,7 @@ const readAppliedAt = (cell: string, now: Date): RowReading<Date> => {
 const readStatus = (cell: string): RowReading<ApplicationStatus> => {
   if (cell === '') return accept(DEFAULT_STATUS);
   const status = STATUS_OF_LABEL.get(normalizeKey(cell));
-  return status ? accept(status) : refuse(`Statut « ${cell} » inconnu`);
+  return status ? accept(status) : refuse(`Statut « ${quoteCell(cell)} » inconnu`);
 };
 
 const isValidLink = (link: string): boolean => {

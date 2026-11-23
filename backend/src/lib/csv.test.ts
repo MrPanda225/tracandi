@@ -12,6 +12,11 @@ describe('parseCsv', () => {
     });
   });
 
+  it('[EF-CAN-23] prefers the semicolon on a tie, a comma in a column name of a French export', () => {
+    expect(parseCsv('Entreprise;Notes, divers\nNova;Relance').delimiter).toBe(';');
+    expect(parseCsv('Entreprise\nNova').delimiter).toBe(',');
+  });
+
   it('[EF-CAN-23] detects the semicolon separator of a French spreadsheet', () => {
     const parsed = parseCsv('Entreprise;Poste;Notes\r\nAtelier Nova;Data analyst;Relance, puis appel\r\n');
     expect(parsed.delimiter).toBe(';');

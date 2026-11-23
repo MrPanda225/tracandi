@@ -26,14 +26,18 @@ interface ImportCandidate extends ImportedApplication {
 }
 
 /**
- * EF-CAN-23: the header of the file, its first rows and a mapping proposed from the column names. Nothing is stored.
- * @throws HttpError 413 beyond 1 MB or 1 000 rows, 415 for a file that is not UTF-8 text, 400 for an invalid CSV.
+ * EF-CAN-23: the header of the file, its first rows, the encoding it was read in and a mapping proposed from the
+ * column names. Nothing is stored.
+ * @throws HttpError 413 beyond 1 MB or 1 000 rows, 415 for a file that is not text, 400 for an invalid CSV, more
+ * than 50 columns or a column name given twice.
  * @req EF-CAN-23
  */
 export const previewCsvImport = (file: string): ImportPreview => {
-  const table = readCsvTable(decodeCsvFile(file));
+  const { text, encoding } = decodeCsvFile(file);
+  const table = readCsvTable(text);
   return {
     delimiter: table.delimiter,
+    encoding,
     headers: table.headers,
     rows: table.rows.slice(0, CSV_PREVIEW_ROWS).map((row) => row.cells),
     totalRows: table.rows.length,
@@ -101,22 +105,37 @@ const idOf = (companyIds: ReadonlyMap<string, number>, key: string): number => {
   return id;
 };
 
+/** The rows of an imported file, read before any transaction opens. */
+export interface CsvImportReading {
+  candidates: ImportCandidate[];
+  rejected: ImportResult['rejected'];
+}
+
 /**
- * EF-CAN-23: creates, in the caller's transaction, an application for each valid row of the file that designates
- * none of the user's applications (RG-03 (a), (b)) nor an earlier row. The existing applications are read in one
- * query, the companies, applications and status histories written in one statement each.
- * @returns the created, ignored (duplicates) and refused rows — each refused row with its line and reason.
+ * EF-CAN-23: decodes and reads the file with the validated mapping, without touching the database — so that a
+ * large file never holds a transaction open while it is parsed.
  * @throws HttpError 413, 415 or 400 for the file (see `previewCsvImport`); ValidationError for a mapping naming a
  * column the file does not have.
+ * @req EF-CAN-23
+ */
+export const readCsvImport = ({ body, now }: { body: ImportBody; now: Date }): CsvImportReading => {
+  const table = readCsvTable(decodeCsvFile(body.file).text);
+  assertMappingFits(body.mapping, table);
+  return readRows(table, { mapping: body.mapping, now });
+};
+
+/**
+ * EF-CAN-23: creates, in the caller's transaction, an application for each row read that designates none of the
+ * user's applications (RG-03 (a), (b)) nor an earlier row. The existing applications are read in one query, the
+ * companies, applications and status histories written in one statement each.
+ * @returns the created, ignored (duplicates) and refused rows — each refused row with its line and reason.
  * @req EF-CAN-23, RG-03, RG-25, RG-26, EF-AUT-06
  */
 export const importCsvApplications = async (
   tx: Executor,
-  { userId, body, now }: { userId: number; body: ImportBody; now: Date },
+  { userId, reading }: { userId: number; reading: CsvImportReading },
 ): Promise<ImportResult> => {
-  const table = readCsvTable(decodeCsvFile(body.file));
-  assertMappingFits(body.mapping, table);
-  const { candidates, rejected } = readRows(table, { mapping: body.mapping, now });
+  const { candidates, rejected } = reading;
 
   const known = new Map<string, number>();
   const taken = new Set<string>();

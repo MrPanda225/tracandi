@@ -25,7 +25,12 @@ const SENSITIVE_KEY =
 // ENF-SEC-08: "scheme://user:password@host" → "scheme://[REDACTED]@host" (database URLs in driver errors).
 const URL_CREDENTIALS = /\b([a-z][a-z0-9+.-]*:\/\/)[^\s/@]+@/gi;
 
-const scrubText = (text: string): string => text.replace(URL_CREDENTIALS, `$1${REDACTED}@`);
+// ENF-RGP-01, ENF-SEC-08: a failed Drizzle query puts its parameters — the cells of an import, the snippet of a
+// message — on a « params: » line of its message, and so of its stack; they end before the first stack frame.
+const QUERY_PARAMS = /\nparams: [\s\S]*?(?=\n {4}at |$)/gu;
+
+const scrubText = (text: string): string =>
+  text.replace(URL_CREDENTIALS, `$1${REDACTED}@`).replace(QUERY_PARAMS, `\nparams: ${REDACTED}`);
 
 const sanitizeAtDepth = (value: unknown, depth: number): unknown => {
   if (typeof value === 'string') return scrubText(value);
@@ -43,8 +48,9 @@ const sanitizeAtDepth = (value: unknown, depth: number): unknown => {
 
 /**
  * Returns a copy of `value` safe to log: sensitive keys redacted at any depth, credentials removed from URLs
- * embedded in strings, errors reduced to name and message. Never mutates its input.
- * @req ENF-SEC-08
+ * embedded in strings, parameters of a failed query removed, errors reduced to name and message. Never mutates its
+ * input.
+ * @req ENF-SEC-08, ENF-RGP-01
  */
 export const sanitize = (value: unknown): unknown => sanitizeAtDepth(value, 0);
 
