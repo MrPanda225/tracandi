@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { z } from 'zod';
+import { z } from '../lib/openapi.js';
 import { llmProvider, llmTask } from '../db/schema.js';
 import { HttpError, LlmUnavailableError } from '../lib/errors.js';
 import {
@@ -264,7 +264,8 @@ describe('runTask — why a provider was set aside', () => {
 
     const issues = (logged[0]?.context as { issues: { path: string; code: string; message?: string }[] }).issues;
     expect(issues).toContainEqual({ path: 'title', code: 'too_small', message: 'String must contain at least 3 character(s)' });
-    expect(issues).toContainEqual({ path: 'kind', code: 'invalid_enum_value' });
+    expect(issues).toContainEqual({ path: 'kind', code: 'invalid_value' });
+    expect(issues).toContainEqual({ path: '', code: 'unrecognized_keys' });
     expect(JSON.stringify(logged)).not.toMatch(/secretvalue|leak/);
   });
 
@@ -278,7 +279,7 @@ describe('runTask — why a provider was set aside', () => {
 
     expect(logged[0]?.context).toMatchObject({
       outcome: 'invalid_output',
-      issues: [{ path: 'category', code: 'invalid_enum_value' }],
+      issues: [{ path: 'category', code: 'invalid_value' }],
     });
     expect(JSON.stringify(logged)).not.toContain('embauché');
   });

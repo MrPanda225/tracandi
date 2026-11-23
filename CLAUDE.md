@@ -16,7 +16,7 @@ Toute nouvelle demande passe par `/project:change-request` avant le code.
 | `docs/CONVENTIONS_GIT.md` | Branches, commits (Conventional Commits + préfixe `T-xxx`), pull requests |
 
 ## Stack
-- **Backend** : Node 22, TypeScript strict, Express 4, Drizzle ORM (pilote `pg`, aucun SQL assemblé à la main), zod, Vitest + Supertest.
+- **Backend** : Node 22, TypeScript strict, Express 4, Drizzle ORM (pilote `pg`, aucun SQL assemblé à la main), zod 4, Vitest + Supertest.
 - **Frontend** : React 18, TypeScript strict, Vite, React Router, Vitest + Testing Library.
 - **Base** : PostgreSQL hébergé par **Neon** (région UE, TLS). Schéma dans `backend/src/db/schema.ts`, migrations générées
   par `drizzle-kit` dans `backend/drizzle/`. Tests d'intégration sur un PostgreSQL **local** (Docker), jamais sur Neon.
@@ -87,7 +87,7 @@ Skills de référence : `.claude/skills/` (`clean-code`, `security`, `requiremen
 | Tâche | Paquets |
 |---|---|
 | T-002 | `drizzle-orm`, `pg` ; dev : `drizzle-kit`, `@types/pg` (installés) |
-| T-005 | `@asteasolutions/zod-to-openapi`, `swagger-ui-express` ; dev : `@types/swagger-ui-express` (installés) |
+| T-005 | `@asteasolutions/zod-to-openapi` (9, avec zod 4 : ADR-19), `swagger-ui-express` ; dev : `@types/swagger-ui-express` (installés) |
 | T-201 | `@anthropic-ai/sdk`, `@google/genai` (installés) |
 | T-301 | `googleapis` (installé) |
 | T-305 | `node-cron` (installé) |

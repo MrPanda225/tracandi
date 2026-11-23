@@ -96,7 +96,7 @@ export interface RunTaskInput<T> {
    * EF-IA-03: the only barrier against an aberrant answer; nothing outside it is ever returned. Its input is the
    * parsed JSON of the provider, hence `unknown`: a schema may map a wording before checking it (EF-GML-19).
    */
-  schema: z.ZodType<T, z.ZodTypeDef, unknown>;
+  schema: z.ZodType<T, unknown>;
   maxOutputTokens?: number;
 }
 
@@ -187,16 +187,12 @@ const outputCeilingOf = (provider: LlmProvider, requested: number | undefined): 
   Math.min(requested ?? DEFAULT_MAX_OUTPUT_TOKENS, provider.maxOutputTokens ?? Number.POSITIVE_INFINITY);
 
 /**
- * Zod codes whose message quotes what the model wrote (« received 'x' », the unknown keys): left out of the log. The
- * other messages are fixed English strings (« Required », « String must contain at least 1 character(s) »), and the
- * tasks' own refinements write theirs without any value (ENF-RGP-01).
+ * Zod 4 codes whose message may quote what the model wrote (« received 'x' » of an enum or a literal, the unknown keys,
+ * the options of a union): left out of the log. The other messages are fixed English strings (« Required », « String
+ * must contain at least 1 character(s) », lib/zodMessages.ts), and the tasks' own refinements write theirs without any
+ * value (ENF-RGP-01).
  */
-const QUOTING_ISSUE_CODES: ReadonlySet<string> = new Set([
-  'invalid_enum_value',
-  'invalid_literal',
-  'unrecognized_keys',
-  'invalid_union_discriminator',
-]);
+const QUOTING_ISSUE_CODES: ReadonlySet<string> = new Set(['invalid_value', 'unrecognized_keys', 'invalid_union']);
 
 /**
  * One call to one provider, bounded to `timeoutMs` and validated against the schema of the task.
