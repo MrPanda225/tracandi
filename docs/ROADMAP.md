@@ -828,7 +828,7 @@ l'offre n'est écrite en base, sur disque ou dans les journaux (ENF-RGP-06).
   *24/09/2026* : la suppression d'un compte et de toutes ses données est faite dans l'application (T-708,
   EF-AUT-11) ; reste la purge de toute la base en ligne de commande.
   *Exigences* : ENF-RGP-02.
-- [ ] **T-703 Jeu de charge et performance** — *ouvert le 23/09/2026 par les journaux de production : chaque requête
+- [x] **T-703 Jeu de charge et performance** — *ouvert le 23/09/2026 par les journaux de production : chaque requête
   payait deux allers-retours vers Neon (session puis données), et une base injoignable répondait 500 après 15 s.
   Premiers correctifs livrés hors tâche (cache de session 60 s, délai de connexion 8 s, 503 explicite ;
   classement de 3 lots en parallèle ; écrans lourds chargés à la demande ; modèle saturé passé au suivant sans
@@ -836,6 +836,11 @@ l'offre n'est écrite en base, sur disque ou dans les journaux (ENF-RGP-06).
   d'hébergement restent à traiter ici. Correctif du 23/09/2026 : une base injoignable était encore renvoyée en 500
   quand `pg` la signalait par un libellé plutôt que par un code (« Connection terminated unexpectedly ») ; le
   pool ferme désormais ses connexions inactives avant l'hôte (60 s) et garde la liaison en vie.* — script de génération de données, mesures ENF-PERF-01 à 03.
+  *Fait le 23/11/2026* : jeu de charge reproductible `src/db/loadDataset.ts` et commande `npm run db:seed:load`
+  (base locale seulement) ; seuils ENF-PERF-01, 02, 04 et 06 vérifiés par `tests/integration/load-performance.test.ts`
+  sur le volume complet ; méthode et chiffres dans `docs/PERFORMANCE.md`. ENF-PERF-03 est remplacée par ENF-PERF-08
+  (T-511). Restent hors de cette tâche : l'index partiel `emails(application_id) WHERE contact_address IS NOT NULL`
+  (migration, après T-904) et le choix d'hébergement.
 - [ ] **T-704 Revue de sécurité finale** — checklist du skill `security`, `npm audit`, revue des journaux,
   exposition réseau, localisation des données, démarrage `docker compose up` après `scripts/setup.sh`.
   *Exigences* : ENF-SEC-01, ENF-SEC-10, ENF-RGP-03, ENF-POR-01.
