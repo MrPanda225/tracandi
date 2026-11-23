@@ -147,7 +147,7 @@ s'ajoute en complément (ADR-10).
 
 ### 6.1 Rôle `tracandi_backup` sur Neon (une fois, à la main)
 
-1. Générer un mot de passe : `openssl rand -base64 30`.
+1. Générer un mot de passe : `openssl rand -hex 24` (hexadécimal : aucun caractère à échapper dans l'URL).
 2. Console Neon → *SQL Editor*, base de l'application, **rôle propriétaire des tables** (celui de
    `DATABASE_URL_MIGRATOR`) : `CREATE ROLE tracandi_backup WITH LOGIN PASSWORD '<mot de passe>';`.
    Un rôle créé depuis l'onglet *Roles* de la console est membre de `neon_superuser` : il ne serait pas en lecture
@@ -161,9 +161,9 @@ s'ajoute en complément (ADR-10).
 | Clé | Défaut | Rôle |
 |---|---|---|
 | `DATABASE_URL_BACKUP` | — | URL du rôle `tracandi_backup` ; jamais affichée, le mot de passe passe par `PGPASSWORD` |
-| `BACKUP_DIR` | `backups/` du dépôt | dossier des archives et de `backup.log` ; **doit exister** (disque débranché = échec, jamais d'écriture ailleurs). Exemple : `BACKUP_DIR=/run/media/<utilisateur>/<disque>/tracandi-backups` |
+| `BACKUP_DIR` | `backups/` du dépôt | dossier des archives et de `backup.log` ; **doit exister** (disque débranché = échec, jamais d'écriture ailleurs), jamais `/`. Exemple : `BACKUP_DIR=/run/media/<utilisateur>/<disque>/tracandi-backups` |
 | `KEEP_DAYS` | `30` | rétention, d'après l'horodatage du nom des archives |
-| `PG_CLIENT` | `auto` | `local` (outils du poste, version ≥ 18 exigée), `docker` (outils de l'image `postgres:18`, échange par l'entrée et la sortie standard, aucun fichier monté) ; `auto` choisit `local` si `pg_dump --version` ≥ 18 |
+| `PG_CLIENT` | `auto` | `local` (outils du poste, version ≥ 18 exigée), `docker` (outils de l'image `postgres:18`, échange par l'entrée et la sortie standard ; pour une base distante, le magasin d'autorités de l'hôte est monté en lecture seule, l'image n'ayant pas `ca-certificates` ; un `sslrootcert=` dans l'URL exige `local`) ; `auto` choisit `local` si `pg_dump --version` ≥ 18 |
 | `CHECK_DB` | `tracandi_restore_check` | base jetable du contrôle, supprimée après (`KEEP_CHECK_DB=1` la garde) ; jamais `tracandi_test` |
 | `TEST_DB_*` | `docker-compose.yml` | PostgreSQL local du contrôle ; hôte `127.0.0.1` exigé |
 | `RESTORE_DATABASE_URL` | `DATABASE_URL_MIGRATOR` | cible de `restore.sh` (rôle propriétaire) |
@@ -200,6 +200,13 @@ puis contrôle ; en cas d'échec (disque débranché, réseau absent), nouvel es
 jour, ce qui tient le RPO de 24 h. Suivi : `systemctl --user list-timers tracandi-backup.timer`,
 `journalctl --user -u tracandi-backup`, et `BACKUP_DIR/backup.log`. Sans systemd : `scripts/db/crontab.example`
 (cron ne rattrape pas un passage manqué).
+
+- La limite de six essais (`StartLimitIntervalSec=1d`, `StartLimitBurst=6`) porte sur une fenêtre glissante de
+  24 heures : une fois atteinte, systemd ne relance plus l'unité, même au passage suivant du minuteur. Après avoir
+  réglé la cause : `systemctl --user reset-failed tracandi-backup`.
+- `loginctl enable-linger` fait tourner le minuteur sans session ouverte, mais **Docker Desktop ne démarre qu'avec
+  la session graphique** : sans elle, la sauvegarde réussit (outils du poste) et la restauration de contrôle échoue
+  faute de PostgreSQL local, puis elle est réessayée. Ouvrir sa session une fois par jour suffit.
 
 ### 6.5 Restauration de la base Neon (incident)
 

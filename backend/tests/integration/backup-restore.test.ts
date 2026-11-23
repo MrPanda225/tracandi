@@ -1,5 +1,13 @@
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -20,6 +28,8 @@ const ROLE_SQL = path.join(SCRIPTS, 'backup-role.sql');
 const SOURCE_DB = 'tracandi_backup_source';
 const CHECK_DB = 'tracandi_restore_check_test';
 const TARGET_DB = 'tracandi_restore_target';
+// A database without any table: its archive must be refused (EXIT_VERIFY).
+const EMPTY_DB = 'tracandi_backup_empty';
 // Mot de passe fictif du rôle de sauvegarde local : il ne doit jamais apparaître dans un journal.
 const BACKUP_PASSWORD = 'fictive-backup-pw-7Qx';
 const SCRIPT_TIMEOUT_MS = 120_000;
@@ -141,6 +151,8 @@ beforeAll(async () => {
     `DROP DATABASE IF EXISTS ${SOURCE_DB} WITH (FORCE)`,
     `DROP DATABASE IF EXISTS ${CHECK_DB} WITH (FORCE)`,
     `DROP DATABASE IF EXISTS ${TARGET_DB} WITH (FORCE)`,
+    `DROP DATABASE IF EXISTS ${EMPTY_DB} WITH (FORCE)`,
+    `CREATE DATABASE ${EMPTY_DB}`,
     `CREATE DATABASE ${SOURCE_DB}`,
     `CREATE DATABASE ${TARGET_DB}`,
     // Local stand-in of the Neon role (ARCHITECTURE.md §5): login, no attribute, rights from backup-role.sql only.
@@ -166,6 +178,7 @@ afterAll(async () => {
     `DROP DATABASE IF EXISTS ${SOURCE_DB} WITH (FORCE)`,
     `DROP DATABASE IF EXISTS ${CHECK_DB} WITH (FORCE)`,
     `DROP DATABASE IF EXISTS ${TARGET_DB} WITH (FORCE)`,
+    `DROP DATABASE IF EXISTS ${EMPTY_DB} WITH (FORCE)`,
     // The role is global to the server: removed once the databases holding its grants are gone.
     'DROP ROLE IF EXISTS tracandi_backup',
   );
@@ -192,6 +205,36 @@ describe('T-701 scripts/db (PostgreSQL)', () => {
     expect(result.output).not.toContain(BACKUP_PASSWORD);
   });
 
+  it('[ENF-SEC-15] reads .env without running it: a $(…) line is a plain, refused value', () => {
+    const marker = path.join(workDir, 'executed');
+    const envFile = path.join(workDir, 'hostile.env');
+    writeFileSync(envFile, `DATABASE_URL_BACKUP=$(touch ${marker})\n`);
+    const result = runScript('backup.sh', { settings: { BACKUP_DIR: workDir, TRACANDI_ENV_FILE: envFile } });
+    expect(result.status).toBe(2);
+    expect(result.output).toContain('DATABASE_URL_BACKUP is not a valid postgresql:// URL');
+    expect(existsSync(marker)).toBe(false);
+  });
+
+  it('[ENF-SEC-15] refuses a URL whose parameters name another server or repeat sslmode', () => {
+    const local = urlFor(SOURCE_DB, 'tracandi_backup', BACKUP_PASSWORD);
+    const remote = `postgresql://tracandi_backup:${BACKUP_PASSWORD}@db.example.test/tracandi`;
+    for (const url of [
+      `${local}?host=db.example.test`,
+      `${local}?hostaddr=192.0.2.1`,
+      `${remote}?sslmode=verify-full&sslmode=disable`,
+    ]) {
+      const result = runScript('backup.sh', { settings: { BACKUP_DIR: workDir, DATABASE_URL_BACKUP: url } });
+      expect(result.status, url).toBe(2);
+      expect(result.output).not.toContain(BACKUP_PASSWORD);
+    }
+  });
+
+  it('[ENF-FIA-08] refuses the root directory as backup directory', () => {
+    const result = runBackup({ BACKUP_DIR: '/' });
+    expect(result.status).toBe(2);
+    expect(result.output).toContain('BACKUP_DIR must not be the root directory');
+  });
+
   it('[ENF-FIA-04] dumps the database with the read-only backup role into a timestamped custom archive', () => {
     // BACKUP_DIR is created by the operator (or is the mounted external disk).
     mkdirSync(backupDir);
@@ -203,6 +246,16 @@ describe('T-701 scripts/db (PostgreSQL)', () => {
     expect(archives()).toHaveLength(1);
     // Custom format of pg_dump: the file starts with the PGDMP signature.
     expect(readFileSync(latestArchive()).subarray(0, 5).toString()).toBe('PGDMP');
+  });
+
+  it('[ENF-FIA-04] refuses the archive of a database without any table, with code 4, and keeps nothing', () => {
+    const before = readdirSync(backupDir);
+    const result = runBackup({ DATABASE_URL_BACKUP: urlFor(EMPTY_DB, 'tracandi_backup', BACKUP_PASSWORD) });
+    expect(result.status, result.output).toBe(4);
+    expect(result.output).toContain('archive is empty or unreadable (tables=0)');
+    expect(readdirSync(backupDir).filter((name) => name !== 'backup.log')).toEqual(
+      before.filter((name) => name !== 'backup.log'),
+    );
   });
 
   it('[ENF-SEC-17] the backup role can read but not write', async () => {
@@ -226,6 +279,17 @@ describe('T-701 scripts/db (PostgreSQL)', () => {
     expect(result.output).toContain('users=2 applications=3');
     expect(readFileSync(path.join(backupDir, 'backup.log'), 'utf8')).toContain('Restore check OK');
     expect(await rowCounts(CHECK_DB)).toEqual(await rowCounts(SOURCE_DB));
+  });
+
+  it('[ENF-FIA-05] fails with code 4 on an unreadable archive and on fewer tables than expected', () => {
+    const garbage = path.join(workDir, 'garbage.dump');
+    writeFileSync(garbage, 'not a pg_dump archive');
+    const unreadable = runScript('restore-check.sh', { args: [garbage], settings: { CHECK_DB } });
+    expect(unreadable.status, unreadable.output).toBe(4);
+    expect(unreadable.output).toContain('archive is unreadable');
+    const tooFew = runScript('restore-check.sh', { settings: { CHECK_DB, EXPECTED_MIN_TABLES: '999' } });
+    expect(tooFew.status, tooFew.output).toBe(4);
+    expect(tooFew.output).toContain('expected >= 999');
   });
 
   it('[ENF-FIA-05] never restores into the integration test database nor into a remote host', () => {
@@ -255,15 +319,20 @@ describe('T-701 scripts/db (PostgreSQL)', () => {
   });
 
   // pg_dump of the workstation older than 18 (CI runner: 16) → tools of the postgres:18 image, streamed over stdio.
-  it('[ENF-FIA-04] [ENF-FIA-05] falls back to the PostgreSQL 18 tools of the Docker image', () => {
-    const backup = runBackup({ PG_CLIENT: 'docker' });
-    expect(backup.status, backup.output).toBe(0);
-    expect(backup.output).toContain('client=docker');
-    expect(backup.output).not.toContain(BACKUP_PASSWORD);
-    const check = runScript('restore-check.sh', { settings: { CHECK_DB, PG_CLIENT: 'docker' } });
-    expect(check.status, check.output).toBe(0);
-    expect(check.output).toContain('users=2 applications=3');
-  });
+  it(
+    '[ENF-FIA-04] [ENF-FIA-05] falls back to the PostgreSQL 18 tools of the Docker image',
+    () => {
+      const backup = runBackup({ PG_CLIENT: 'docker' });
+      expect(backup.status, backup.output).toBe(0);
+      expect(backup.output).toContain('client=docker');
+      expect(backup.output).not.toContain(BACKUP_PASSWORD);
+      const check = runScript('restore-check.sh', { settings: { CHECK_DB, PG_CLIENT: 'docker' } });
+      expect(check.status, check.output).toBe(0);
+      expect(check.output).toContain('users=2 applications=3');
+      // Two containers per script and per call: slower than the default 30 s of the integration project.
+    },
+    SCRIPT_TIMEOUT_MS,
+  );
 
   it('[ENF-FIA-07] restore.sh refuses without --yes-i-know and without the double confirmation', async () => {
     const settings = { RESTORE_DATABASE_URL: urlFor(TARGET_DB) };

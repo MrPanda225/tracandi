@@ -43,6 +43,8 @@ main() {
   password="$(read_setting TEST_DB_PASSWORD tracandi_test)"
   min_tables="$(read_setting EXPECTED_MIN_TABLES 1)"
   [[ "$check_db" =~ ^[a-z_][a-z0-9_]{0,62}$ ]] || fail "$EXIT_CONFIG" "CHECK_DB must be a plain lowercase identifier"
+  # Repris tel quel dans les URL de connexion : un caractère réservé (@, /, ?) changerait le serveur visé.
+  [[ "$user" =~ ^[a-z_][a-z0-9_]{0,62}$ ]] || fail "$EXIT_CONFIG" "TEST_DB_USER must be a plain lowercase identifier"
   [[ "$check_db" != "$(read_setting TEST_DB_NAME tracandi_test)" ]] \
     || fail "$EXIT_CONFIG" "CHECK_DB must not be the integration test database"
   case "$host" in
@@ -61,7 +63,7 @@ main() {
   log "Restore check started: archive=$archive into $check_db (host=$host port=$port client=$PG_CLIENT_MODE)"
   local started expected
   started="$(now_ms)"
-  expected="$(archive_table_count "$archive")"
+  expected="$(archive_table_count "$archive")" || fail "$EXIT_VERIFY" "archive is unreadable: $archive"
 
   pg_tool psql --dbname="$admin_url" --no-psqlrc --quiet -v ON_ERROR_STOP=1 </dev/null \
     --command="DROP DATABASE IF EXISTS \"$check_db\" WITH (FORCE)" --command="CREATE DATABASE \"$check_db\"" \
@@ -74,11 +76,15 @@ main() {
   duration="$(elapsed_since "$started")"
 
   local restored counts=""
-  restored="$(query "$check_url" "SELECT count(*) FROM pg_tables WHERE schemaname NOT IN ('pg_catalog', 'information_schema')")"
-  local table
+  restored="$(query "$check_url" "SELECT count(*) FROM pg_tables WHERE schemaname NOT IN ('pg_catalog', 'information_schema')")" \
+    || fail "$EXIT_VERIFY" "cannot count the tables restored into $check_db"
+  local table exists rows
   for table in "${COUNTED_TABLES[@]}"; do
-    if [[ "$(query "$check_url" "SELECT to_regclass('public.$table') IS NOT NULL")" == t ]]; then
-      counts+=" $table=$(query "$check_url" "SELECT count(*) FROM public.$table")"
+    exists="$(query "$check_url" "SELECT to_regclass('public.$table') IS NOT NULL")" \
+      || fail "$EXIT_VERIFY" "cannot read $check_db"
+    if [[ "$exists" == t ]]; then
+      rows="$(query "$check_url" "SELECT count(*) FROM public.$table")" || fail "$EXIT_VERIFY" "cannot count $table"
+      counts+=" $table=$rows"
     fi
   done
 

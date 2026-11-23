@@ -50,9 +50,9 @@ main() {
 
   local backup_dir
   backup_dir="$(read_setting BACKUP_DIR "$REPO_ROOT/backups")"
-  [[ -d "$backup_dir" && -w "$backup_dir" ]] || fail "$EXIT_CONFIG" "BACKUP_DIR does not exist or is not writable"
+  require_backup_dir "$backup_dir"
   local tables_in_archive
-  tables_in_archive="$(archive_table_count "$archive")"
+  tables_in_archive="$(archive_table_count "$archive")" || fail "$EXIT_CONFIG" "archive is unreadable: $archive"
   [[ "$tables_in_archive" -ge 1 ]] || fail "$EXIT_CONFIG" "archive is unreadable or has no table: $archive"
 
   describe_target "$archive" "$tables_in_archive"

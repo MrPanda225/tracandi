@@ -85,11 +85,20 @@ parse_database_url() {
     localhost | 127.0.0.1 | '[::1]') DB_IS_LOCAL=1 ;;
     *) DB_IS_LOCAL=0 ;;
   esac
+  # Un paramètre qui redésigne le serveur contournerait le contrôle de l'hôte ci-dessus.
+  if [[ "$query" =~ [?\&](host|hostaddr|service)= ]]; then
+    fail "$EXIT_CONFIG" "$name must name its server in the URL, not with host=, hostaddr= or service="
+  fi
+  local occurrences
+  occurrences="$(grep -o 'sslmode=' <<<"$query" | wc -l || true)"
+  [[ "$occurrences" -le 1 ]] || fail "$EXIT_CONFIG" "$name must contain sslmode only once"
   if [[ "$DB_IS_LOCAL" == 0 && ! "$query" =~ [?\&]sslmode=verify-full(\&|$) ]]; then
     fail "$EXIT_CONFIG" "$name must contain sslmode=verify-full (ENF-SEC-15)"
   fi
+  DB_HAS_ROOTCERT=0
+  if [[ "$query" =~ [?\&]sslrootcert= ]]; then DB_HAS_ROOTCERT=1; fi
   # libpq cherche par défaut ~/.postgresql/root.crt ; Neon est signé par une autorité du magasin du système.
-  if [[ "$DB_IS_LOCAL" == 0 && ! "$query" =~ [?\&]sslrootcert= && -z "${PGSSLROOTCERT:-}" ]]; then
+  if [[ "$DB_IS_LOCAL" == 0 && "$DB_HAS_ROOTCERT" == 0 && -z "${PGSSLROOTCERT:-}" ]]; then
     export PGSSLROOTCERT=system
   fi
   # Décodage des %XX du mot de passe (caractères réservés d'une URL).
@@ -99,8 +108,8 @@ parse_database_url() {
 }
 
 # Choisit les outils PostgreSQL : ceux du poste s'ils sont en version >= PG_MAJOR, sinon ceux de l'image Docker
-# postgres:PG_MAJOR (réseau de l'hôte, échanges par l'entrée et la sortie standard, aucun fichier monté).
-# PG_CLIENT=local ou PG_CLIENT=docker force le choix.
+# postgres:PG_MAJOR (réseau de l'hôte, échanges par l'entrée et la sortie standard ; seul le magasin d'autorités de
+# l'hôte est monté, en lecture seule, pour une base distante). PG_CLIENT=local ou PG_CLIENT=docker force le choix.
 select_pg_client() {
   local mode="${PG_CLIENT:-auto}" major=""
   if [[ "$mode" == auto ]]; then
@@ -114,7 +123,25 @@ select_pg_client() {
     docker) command -v docker >/dev/null 2>&1 || fail "$EXIT_CONFIG" "pg_dump >= $PG_MAJOR and docker both missing" ;;
     *) fail "$EXIT_CONFIG" "PG_CLIENT must be auto, local or docker" ;;
   esac
+  # Un chemin sslrootcert= de l'hôte n'existe pas dans le conteneur : seul le magasin du système y est monté.
+  if [[ "$mode" == docker && "${DB_IS_LOCAL:-1}" == 0 && "${DB_HAS_ROOTCERT:-0}" == 1 ]]; then
+    fail "$EXIT_CONFIG" "sslrootcert= in the URL needs PG_CLIENT=local (the Docker tools only see the system CA store)"
+  fi
   PG_CLIENT_MODE="$mode"
+}
+
+# Magasin d'autorités de l'hôte, monté dans le conteneur : l'image postgres n'a pas ca-certificates, donc
+# sslrootcert=system n'y validerait aucun certificat (Neon).
+readonly CONTAINER_CA_BUNDLE=/etc/ssl/certs/tracandi-host-ca.crt
+host_ca_bundle() {
+  local bundle
+  for bundle in /etc/ssl/certs/ca-certificates.crt /etc/pki/tls/certs/ca-bundle.crt /etc/ssl/cert.pem; do
+    if [[ -r "$bundle" ]]; then
+      printf '%s' "$bundle"
+      return 0
+    fi
+  done
+  fail "$EXIT_CONFIG" "no system CA bundle found to mount for PG_CLIENT=docker"
 }
 
 # Lance un outil PostgreSQL (pg_dump, pg_restore, psql, pg_isready) selon select_pg_client.
@@ -124,7 +151,13 @@ pg_tool() {
   if [[ "$PG_CLIENT_MODE" == local ]]; then
     "$tool" "$@"
   else
-    docker run --rm -i --network host -e PGPASSWORD -e PGSSLROOTCERT -e PGCONNECT_TIMEOUT -e PGOPTIONS \
+    local tls=(-e PGSSLROOTCERT)
+    if [[ "${PGSSLROOTCERT:-}" == system ]]; then
+      local bundle
+      bundle="$(host_ca_bundle)" || exit "$EXIT_CONFIG"
+      tls=(-v "$bundle:$CONTAINER_CA_BUNDLE:ro" -e "PGSSLROOTCERT=$CONTAINER_CA_BUNDLE")
+    fi
+    docker run --rm -i --network host -e PGPASSWORD -e PGCONNECT_TIMEOUT -e PGOPTIONS "${tls[@]}" \
       "$PG_IMAGE" "$tool" "$@"
   fi
 }
@@ -132,7 +165,15 @@ pg_tool() {
 # Archive quotidienne la plus récente de $1 (vide si aucune) ; les copies de sécurité de restore.sh sont exclues.
 latest_archive() {
   find "$1" -maxdepth 1 -type f -name "${ARCHIVE_PREFIX}????-??-??T??-??-??Z${ARCHIVE_SUFFIX}" -printf '%f\n' 2>/dev/null \
-    | sort | tail -n 1 | sed "s|^|$1/|"
+    | sort | tail -n 1 | sed "s|^|$1/|" || true
+}
+
+# Refuse un dossier de sauvegarde absent, non inscriptible, ou la racine du système (rétention et copies de sécurité
+# y écriraient et y supprimeraient des fichiers).
+require_backup_dir() {
+  [[ -n "$1" && "$(realpath -m -- "$1")" != / ]] || fail "$EXIT_CONFIG" "BACKUP_DIR must not be the root directory"
+  [[ -d "$1" && -w "$1" ]] \
+    || fail "$EXIT_CONFIG" "BACKUP_DIR does not exist or is not writable (external disk unplugged?): $1"
 }
 
 # Nombre de tables d'une archive, lu dans sa table des matières (pg_restore --list) : lignes

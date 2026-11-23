@@ -33,8 +33,7 @@ main() {
   [[ "$KEEP_DAYS" =~ ^[1-9][0-9]*$ ]] || fail "$EXIT_CONFIG" "KEEP_DAYS must be a positive integer"
   if [[ "$BACKUP_DIR" == "$default_dir" ]]; then mkdir -p "$BACKUP_DIR"; fi
   # Un disque externe débranché ne doit pas faire écrire la sauvegarde ailleurs : le dossier doit déjà exister.
-  [[ -d "$BACKUP_DIR" && -w "$BACKUP_DIR" ]] \
-    || fail "$EXIT_CONFIG" "BACKUP_DIR does not exist or is not writable (external disk unplugged?): $BACKUP_DIR"
+  require_backup_dir "$BACKUP_DIR"
   LOG_FILE="$BACKUP_DIR/backup.log"
 
   parse_database_url "$(read_setting DATABASE_URL_BACKUP)" DATABASE_URL_BACKUP
@@ -55,7 +54,8 @@ main() {
   fi
 
   local tables
-  tables="$(archive_table_count "$partial")"
+  tables="$(archive_table_count "$partial")" \
+    || { rm -f "$partial"; fail "$EXIT_VERIFY" "archive is unreadable (pg_restore --list failed)"; }
   if [[ ! -s "$partial" || "$tables" -lt 1 ]]; then
     rm -f "$partial"
     fail "$EXIT_VERIFY" "archive is empty or unreadable (tables=$tables)"
