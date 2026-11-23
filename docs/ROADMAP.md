@@ -934,8 +934,13 @@ développeur l'active sur son poste (`ENABLED_FEATURES=watch,cv`) le temps d'y t
   récente d'abord ; liste à plat qui nomme l'entreprise de chaque candidature, groupée par entreprise seulement dans le
   tri par entreprise ; filtre « Candidature du … au … » en jours de Paris (`lib/parisTime.ts`, exact les jours de
   changement d'heure, ce qui corrige aussi le décompte quotidien de l'Atelier CV). *Reste* : couleurs (EF-CAN-22).
-- [ ] **T-906 Relance vers le recruteur** — adresses des plateformes écartées du contact (RG-20 v1.32).
+- [x] **T-906 Relance vers le recruteur** — adresses des plateformes écartées du contact (RG-20 v1.32).
   *Exigences* : RG-20.
+  *Livré* : une seule liste des domaines exclus (`emails/domains.ts`, déjà partagée avec la veille pour RG-19) ;
+  `isRecruitmentPlatformDomain` (plateformes connues, outils de recrutement, ATS, job boards, sous-domaines compris) sert
+  RG-19 et RG-20 ; le contact est refusé à la synchronisation et à la relecture, et la relance passe les adresses
+  enregistrées avant le correctif pour le contact précédent, sinon 409 « Aucune adresse… », affiché tel quel par le
+  tableau de bord. Un message dont le `Reply-To` est refusé n'a pas de contact (pas de repli sur l'expéditeur).
 
 ## Lot 10 — Veille automatique par utilisateur (BES-48, cahier v1.35)
 

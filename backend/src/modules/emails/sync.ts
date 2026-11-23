@@ -11,7 +11,6 @@ import type { ProviderName } from '../../llm/types.js';
 import { attachIncomingMessage, findApplicationThreads } from '../applications/service.js';
 import { type ClassifiedMessage, ClassificationSchema } from './classification.js';
 import { applyCategoryCues } from './cues.js';
-import { contactAddressOf } from './domains.js';
 import type { MessageFetcher, RetainedMessage } from './fetcher.js';
 import { createThreadLabeler, databaseLabelCache, type ThreadLabeler } from './labels.js';
 import { isInvalidGrant } from './mailbox.js';
@@ -194,7 +193,7 @@ const recordMessage = async (
     fromAddress: message.fromAddress,
     subject: message.subject,
     snippet: message.snippet,
-    contactAddress: contactAddressOf(message),
+    contactAddress: message.contactAddress,
     category: classification.category,
     platformId: platform?.id ?? null,
     receivedAt: message.receivedAt,

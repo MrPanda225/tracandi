@@ -5,7 +5,7 @@ import { HttpError, NotFoundError } from '../../lib/errors.js';
 import type { Logger } from '../../lib/logger.js';
 import { buildWriteFollowUpPrompt } from '../../llm/prompts/writeFollowUp.js';
 import type { LlmRouter } from '../../llm/router.js';
-import { isNoReplyAddress } from './domains.js';
+import { latestContactOf } from './domains.js';
 import type { MessageFetcher } from './fetcher.js';
 import { isInvalidGrant } from './mailbox.js';
 import { isRateLimited } from './quota.js';
@@ -94,12 +94,15 @@ const draftUrlOf = (accountAddress: string | null, draftMessageId: string): stri
  * @throws NotFoundError, NotFollowedUpError, NoContactError
  */
 const findFollowedUp = async (db: Database, userId: number, applicationId: number) => {
-  const context = await repository.findFollowUpContext(db, userId, applicationId);
+  const [context, platformDomains] = await Promise.all([
+    repository.findFollowUpContext(db, userId, applicationId),
+    repository.findPlatformDomains(db),
+  ]);
   if (!context) throw new NotFoundError('Candidature introuvable');
   const { status } = context;
   if (status !== 'sent' && status !== 'acknowledged') throw new NotFollowedUpError();
-  // RG-20: a no-reply address stored before the rule was refined is passed over, not written to.
-  const contact = context.contacts.find(({ address }) => !isNoReplyAddress(address));
+  // RG-20: an address stored before the rule was refined (no-reply, platform) is passed over, not written to.
+  const contact = latestContactOf(context.contacts, new Set(platformDomains.keys()));
   if (!contact) throw new NoContactError();
   return { ...context, status, contact };
 };

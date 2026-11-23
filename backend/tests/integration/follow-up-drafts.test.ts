@@ -73,6 +73,13 @@ const applicationOf = async (companyName: string): Promise<number> => {
   return row.id;
 };
 
+/** Stores a contact on one message of the application, as a rule of before would have kept it. */
+const setContact = (applicationId: number, gmailMessageId: string | null | undefined, contactAddress: string) =>
+  database.db
+    .update(emails)
+    .set({ contactAddress })
+    .where(and(eq(emails.applicationId, applicationId), eq(emails.gmailMessageId, gmailMessageId ?? '')));
+
 const draftFor = (id: number, cookie = alice) =>
   request(context.app)
     .post(`/api/applications/${id}/follow-up-draft`)
@@ -150,18 +157,43 @@ describe('POST /api/applications/:id/follow-up-draft (EF-CAN-17)', () => {
     const id = await applicationOf("McDonald's");
     // Contacts as the rule of before stored them: the latest, the acknowledgement, from a « jobs-noreply » address it
     // let through; the earlier one, the application sent, to the recruiter.
-    const setContact = (gmailMessageId: string | null | undefined, contactAddress: string) =>
-      database.db
-        .update(emails)
-        .set({ contactAddress })
-        .where(and(eq(emails.applicationId, id), eq(emails.gmailMessageId, gmailMessageId ?? '')));
-    await setContact(MCDONALDS_ACKNOWLEDGEMENT.id, 'jobs-noreply@mcdonalds.example');
-    await setContact(SENT_APPLICATION.id, 'christophe.recruteur@mcdonalds.example');
+    await setContact(id, MCDONALDS_ACKNOWLEDGEMENT.id, 'jobs-noreply@mcdonalds.example');
+    await setContact(id, SENT_APPLICATION.id, 'christophe.recruteur@mcdonalds.example');
 
     const response = await draftFor(id);
 
     expect(response.status).toBe(201);
     expect((response.body as { to: string }).to).toBe('christophe.recruteur@mcdonalds.example');
+  });
+
+  // BES-45 (30/09/2026): the follow-up proposed the address of the recruitment tool the company answered through.
+  it.each(['ateme@mail.flatchr.io', 'candidats@ateme.teamtailor-mail.com', 'offres@indeed.com'])(
+    '[RG-20] [RG-19] passes over %s, stored before the rule was refined, for the previous contact',
+    async (platformAddress) => {
+      await setUp([SENT_APPLICATION, MCDONALDS_ACKNOWLEDGEMENT]);
+      const id = await applicationOf("McDonald's");
+      await setContact(id, MCDONALDS_ACKNOWLEDGEMENT.id, platformAddress);
+      await setContact(id, SENT_APPLICATION.id, 'christophe.recruteur@mcdonalds.example');
+
+      const response = await draftFor(id);
+
+      expect(response.status).toBe(201);
+      expect((response.body as { to: string }).to).toBe('christophe.recruteur@mcdonalds.example');
+      expect(gmail.drafts[0]?.message).toContain('To: christophe.recruteur@mcdonalds.example\r\n');
+    },
+  );
+
+  it('[RG-20] [EF-CAN-17] says no address is known when every stored contact is a platform', async () => {
+    await setUp([SENT_APPLICATION, MCDONALDS_ACKNOWLEDGEMENT]);
+    const id = await applicationOf("McDonald's");
+    await setContact(id, MCDONALDS_ACKNOWLEDGEMENT.id, 'ateme@mail.flatchr.io');
+    await setContact(id, SENT_APPLICATION.id, 'candidature@free-work.com');
+
+    const response = await draftFor(id);
+
+    expect(response.status).toBe(409);
+    expect((response.body as { error: string }).error).toContain('Aucune adresse');
+    expect(gmail.drafts).toHaveLength(0);
   });
 
   it('[RG-20] [EF-CAN-17] refuses when nobody can be written to', async () => {
