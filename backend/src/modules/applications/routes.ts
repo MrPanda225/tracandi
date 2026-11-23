@@ -1,4 +1,5 @@
-import { Router } from 'express';
+import express, { type RequestHandler, Router } from 'express';
+import { HttpError } from '../../lib/errors.js';
 import { asyncHandler, validate } from '../../lib/http.js';
 import { currentUserId } from '../../lib/middleware.js';
 import type { ApiModule } from '../../lib/module.js';
@@ -13,7 +14,7 @@ import {
   UpdateApplicationBodySchema,
 } from './schemas.js';
 import type { ApplicationsService } from './service.js';
-import { CSV_MAX_BASE64_LENGTH } from './csvImport.js';
+import { CSV_MAX_BASE64_LENGTH, CSV_TOO_LARGE } from './csvImport.js';
 
 /** EF-CAN-23: the routes that receive a CSV file, the only ones of this module allowed a body larger than 100 kB. */
 export const IMPORT_PREVIEW_PATH = '/applications/import/preview';
@@ -21,6 +22,21 @@ export const IMPORT_PATH = '/applications/import';
 // The base64 of a 1 MB file, the mapping and the JSON around them: a larger body is refused (413) before decoding.
 const JSON_ENVELOPE_BYTES = 1024;
 export const IMPORT_BODY_LIMIT = CSV_MAX_BASE64_LENGTH + JSON_ENVELOPE_BYTES;
+
+const parseImportJson = express.json({ limit: IMPORT_BODY_LIMIT });
+const isBodyTooLarge = (error: unknown): boolean =>
+  error instanceof Error && Reflect.get(error, 'type') === 'entity.too.large';
+
+/**
+ * EF-CAN-23: reads the JSON body of an import route, up to IMPORT_BODY_LIMIT. A larger body is answered 413 with the
+ * message of a file beyond 1 MB, not the generic one of the body parser; every other parsing error passes unchanged.
+ * @req EF-CAN-23
+ */
+export const parseImportBody: RequestHandler = (req, res, next) => {
+  parseImportJson(req, res, (error?: unknown) => {
+    next(isBodyTooLarge(error) ? new HttpError(413, CSV_TOO_LARGE) : error);
+  });
+};
 
 /** EF-CAN-23: preview and import of a CSV file. */
 const addImportRoutes = (router: Router, service: ApplicationsService): void => {

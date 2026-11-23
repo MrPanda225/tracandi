@@ -32,7 +32,9 @@ const EARLIEST_YEAR = 2000;
 const CENTURY = 2000;
 const DEFAULT_STATUS: ApplicationStatus = 'sent';
 
-const TOO_LARGE = 'Le fichier dépasse 1 Mo : gardez seulement les colonnes utiles, puis réessayez.';
+/** EF-CAN-23: the answer to a file beyond 1 MB, whichever check meets it first. */
+export const CSV_TOO_LARGE =
+  'Le fichier dépasse 1 Mo : gardez seulement les colonnes utiles, puis réessayez.';
 const TOO_MANY_ROWS = 'Le fichier dépasse 1 000 lignes de candidatures : découpez-le en plusieurs fichiers.';
 const NOT_TEXT =
   'Ce fichier n’est pas un CSV en texte. Exportez votre tableau au format CSV, puis réessayez.';
@@ -47,12 +49,12 @@ const DATE_FORMATS = 'formats acceptés JJ/MM/AAAA, AAAA-MM-JJ ou JJ/MM/AA';
  * @req EF-CAN-23
  */
 export const decodeCsvFile = (base64: string): string => {
-  if (base64.length > CSV_MAX_BASE64_LENGTH) throw new HttpError(413, TOO_LARGE);
+  if (base64.length > CSV_MAX_BASE64_LENGTH) throw new HttpError(413, CSV_TOO_LARGE);
   if (base64.length % BASE64_CHARS_PER_BLOCK !== 0 || !BASE64_PATTERN.test(base64)) {
     throw new HttpError(400, 'Le fichier n’est pas arrivé en entier. Réessayez.');
   }
   const bytes = Buffer.from(base64, 'base64');
-  if (bytes.length > CSV_MAX_BYTES) throw new HttpError(413, TOO_LARGE);
+  if (bytes.length > CSV_MAX_BYTES) throw new HttpError(413, CSV_TOO_LARGE);
   if (bytes.some(isBinaryByte)) throw new HttpError(415, NOT_TEXT);
   return decodeText(bytes);
 };

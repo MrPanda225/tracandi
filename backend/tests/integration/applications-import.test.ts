@@ -3,7 +3,7 @@ import { count, eq } from 'drizzle-orm';
 import request from 'supertest';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { applicationStatusHistory, applications, companies } from '../../src/db/schema.js';
-import { CSV_MAX_BYTES } from '../../src/modules/applications/csvImport.js';
+import { CSV_MAX_BYTES, CSV_TOO_LARGE } from '../../src/modules/applications/csvImport.js';
 import {
   createTestContext,
   openTestDatabase,
@@ -66,6 +66,14 @@ describe('POST /api/applications/import/preview', () => {
     expect((await preview(alice, base64(tooLarge))).status).toBe(413);
     // Larger than the body limit itself: refused by the parser, before any decoding.
     expect((await preview(alice, 'A'.repeat(2 * CSV_MAX_BYTES))).status).toBe(413);
+  });
+
+  it('[EF-CAN-23] answers a body beyond the limit of the body parser with the message of a file beyond 1 MB', async () => {
+    const tooLarge = 'A'.repeat(2 * CSV_MAX_BYTES);
+    for (const response of [await preview(alice, tooLarge), await importFile(alice, tooLarge)]) {
+      expect(response.status).toBe(413);
+      expect(response.body).toEqual({ error: CSV_TOO_LARGE });
+    }
   });
 
   it('[EF-CAN-23] refuses a file that is not text with 415', async () => {
