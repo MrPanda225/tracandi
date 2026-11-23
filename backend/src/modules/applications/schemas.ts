@@ -73,10 +73,11 @@ export const IdParamsSchema = z.object({ id: idParam().openapi({ example: 1 }) }
 export const APPLICATION_SORTS = ['applied_at', 'last_activity', 'status', 'company'] as const;
 export type ApplicationSort = (typeof APPLICATION_SORTS)[number];
 
+// No `u` flag: zod-to-openapi 9 copies regex flags into the OpenAPI `pattern`.
 /** EF-CAN-24: a calendar day, « YYYY-MM-DD », that exists. */
 const DaySchema = z
   .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/u, 'Date attendue au format AAAA-MM-JJ')
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date attendue au format AAAA-MM-JJ')
   .refine(
     (day) =>
       !Number.isNaN(Date.parse(`${day}T12:00:00.000Z`)) &&
@@ -114,7 +115,7 @@ export const CreateApplicationBodySchema = z
     companyName: CompanyNameSchema,
     jobTitle: JobTitleSchema,
     status: ApplicationStatusSchema,
-    contractType: ContractTypeSchema.default('non_precise'),
+    contractType: ContractTypeSchema.default('non_precise').openapi({ default: 'non_precise' }),
     notes: z.string().max(NOTES_MAX_LENGTH).optional(),
     offerDescription: OfferDescriptionSchema.optional(),
     appliedAt: AppliedAtSchema.optional(),

@@ -5,9 +5,12 @@ import {
   type ResponseConfig,
 } from '@asteasolutions/zod-to-openapi';
 import { z } from 'zod';
+import { zod3Messages } from './zodMessages.js';
 
 // Must run before any schema calls `.openapi()`: every schema file imports `z` from this module.
 extendZodWithOpenApi(z);
+// ENF-SEC-04: the messages the interface shows keep their zod 3 wording (see zodMessages.ts).
+z.config({ localeError: zod3Messages });
 
 export { z };
 

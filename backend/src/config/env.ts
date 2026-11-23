@@ -84,7 +84,7 @@ const optionalValue = z.preprocess((value) => (value === '' ? undefined : value)
 // Variables used by the tasks already delivered; each later task extends this schema (YAGNI).
 const EnvSchema = z.object({
   // ENF-SEC-01: loopback by default; 0.0.0.0 only inside the container, whose port is published on 127.0.0.1.
-  HOST: z.union([z.string().ip(), z.literal('localhost')]).default(DEFAULT_HOST),
+  HOST: z.union([z.ipv4(), z.ipv6(), z.literal('localhost')]).default(DEFAULT_HOST),
   PORT: z.coerce.number().int().min(1).max(MAX_PORT).default(DEFAULT_PORT),
   // ENF-SEC-11: exact origin of the interface, the only one allowed to call the API.
   FRONTEND_ORIGIN: z.string().url().refine(isHttpOrigin, 'must be an http(s) origin without path'),

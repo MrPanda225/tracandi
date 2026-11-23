@@ -43,12 +43,13 @@ export const CriteriaTargetSchema = z.object({
   ),
 });
 
+// No `u` flag on documented patterns: zod-to-openapi 9 copies regex flags into the OpenAPI `pattern`.
 /** EF-VEI-30: a commune as the public service describes it (INSEE code, Corsica included). */
 export const PlaceSchema = z
   .object({
-    code: z.string().regex(/^(\d{5}|2[AB]\d{3})$/u, 'Code INSEE invalide.'),
+    code: z.string().regex(/^(\d{5}|2[AB]\d{3})$/, 'Code INSEE invalide.'),
     name: label(PLACE_NAME_MAX_LENGTH),
-    departmentCode: z.string().regex(/^(\d{2,3}|2[AB])$/u, 'Code de département invalide.'),
+    departmentCode: z.string().regex(/^(\d{2,3}|2[AB])$/, 'Code de département invalide.'),
     latitude: z.number().min(-MAX_LATITUDE).max(MAX_LATITUDE),
     longitude: z.number().min(-MAX_LONGITUDE).max(MAX_LONGITUDE),
   })
@@ -59,7 +60,7 @@ const RomeCodeSchema = z
   .string()
   .trim()
   .toUpperCase()
-  .regex(/^[A-Z]\d{4}$/u, 'Code ROME invalide : une lettre et quatre chiffres, par exemple M1419.');
+  .regex(/^[A-Z]\d{4}$/, 'Code ROME invalide : une lettre et quatre chiffres, par exemple M1419.');
 
 /**
  * EF-VEI-29: what the candidate looks for. No commune means the whole of France; the radius counts around the
