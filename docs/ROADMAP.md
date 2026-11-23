@@ -930,11 +930,16 @@ développeur l'active sur son poste (`ENABLED_FEATURES=watch,cv`) le temps d'y t
   Windows-1252 avec un avertissement dans l'aperçu pour un export Excel sous Windows ; 413 au-delà, 415 hors texte) ;
   doublons par entreprise (RG-26) et intitulé (RG-25, clé ajoutée à `lib/text.ts`) lus en une requête, écritures en une
   transaction ; bouton « Importer un fichier CSV » et parcours en trois étapes sur l'écran Candidatures. *En attente de
-  T-902* : le lien est ajouté en tête des notes tant que la candidature n'a pas de colonne dédiée. *En attente de T-904* :
-  le libellé « Test technique » s'ajoute à `STATUS_LABELS` de `csvImport.ts` (le typage l'exige à la fusion).
-- [ ] **T-904 Statut « Test technique »** — énumérations (migration), classement, rangs, libellé Gmail, taux de réponse,
+  T-902* : le lien est ajouté en tête des notes tant que la candidature n'a pas de colonne dédiée. « Test technique »
+  (T-904) reconnu par son libellé français ou anglais.
+- [x] **T-904 Statut « Test technique »** — énumérations (migration), classement, rangs, libellé Gmail, taux de réponse,
   tableau de bord, filtre.
   *Exigences* : RG-01, RG-02, RG-04, RG-05, RG-07 (v1.32).
+  *Livré* : valeur `technical_test` de `application_status` et `email_category`, placée avant `interview` (migration
+  `0034_technical-test-status`, à appliquer au déploiement) ; prompt de classement avec exemples français et anglais,
+  un entretien technique restant un entretien ; « test technique », « technical test » et « technical assessment »
+  ajoutés aux mots-clés initiaux de RG-10 (les listes déjà enregistrées ne changent pas). Couleur : celle de T-905
+  (orange, EF-CAN-22) ; `StatusTag` garde le ton « en attente » jusque-là.
 - [~] **T-905 Tri, filtre par période et couleurs** — tri au choix, filtre du … au …, index pour ENF-PERF-04,
   couleurs des statuts (règle `frontend.md` mise à jour).
   *Exigences* : EF-CAN-01 (v1.32), EF-CAN-20, EF-CAN-22, EF-CAN-24.

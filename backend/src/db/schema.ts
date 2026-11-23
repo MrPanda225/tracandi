@@ -45,10 +45,12 @@ export const contractType = pgEnum('contract_type', [
   'autre',
   'non_precise',
 ]);
+// RG-01 (v1.32): `technical_test` sits before `interview`, so that the enumeration order follows the RG-04 ranks.
 export const applicationStatus = pgEnum('application_status', [
   'to_apply',
   'sent',
   'acknowledged',
+  'technical_test',
   'interview',
   'offer',
   'rejected',
@@ -56,9 +58,11 @@ export const applicationStatus = pgEnum('application_status', [
 export const applicationSource = pgEnum('application_source', ['email', 'offer', 'manual']);
 export const statusChangeOrigin = pgEnum('status_change_origin', ['email', 'manual', 'offer']);
 export const emailDirection = pgEnum('email_direction', ['inbound', 'outbound']);
+// Glossary (v1.32): « test technique » is a message category of its own, filed before `interview` (RG-02).
 export const emailCategory = pgEnum('email_category', [
   'sent_application',
   'acknowledged',
+  'technical_test',
   'interview',
   'offer',
   'rejected',

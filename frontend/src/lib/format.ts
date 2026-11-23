@@ -6,6 +6,7 @@ export const STATUS_LABELS: Record<ApplicationStatus, string> = {
   to_apply: 'À postuler',
   sent: 'Envoyée',
   acknowledged: 'Accusé reçu',
+  technical_test: 'Test technique',
   interview: 'Entretien',
   offer: 'Proposition',
   rejected: 'Refusée',
@@ -38,6 +39,7 @@ export const toContractType = (value: string): ContractType | undefined =>
 export const EMAIL_CATEGORY_LABELS: Record<EmailCategory, string> = {
   sent_application: 'Candidature envoyée',
   acknowledged: 'Accusé de réception',
+  technical_test: 'Test technique',
   interview: 'Entretien',
   offer: 'Proposition',
   rejected: 'Refus',

@@ -23,6 +23,7 @@ import { createFakeGmail, type FakeGmail } from '../fixtures/emails/fakeGmail.js
 import {
   ALTERNANCE_ACKNOWLEDGEMENT,
   APEC_INNOVA,
+  ATELIER_NOVA_ASSESSMENT,
   BANK_STATEMENT,
   DATA_PRAXIS_APPLICATION,
   HTML_LATE_REJECTION,
@@ -33,6 +34,7 @@ import {
   MARATHON_REGISTRATION,
   MCDONALDS_ACKNOWLEDGEMENT,
   MCDONALDS_INTERVIEW,
+  MCDONALDS_TECHNICAL_TEST,
   OLD_SPONTANEOUS_APPLICATION,
   otherMessages,
   POLITE_REJECTION,
@@ -477,6 +479,82 @@ describe('classification and attachment', () => {
       }),
     ]);
     expect((await countRows()).history).toBe(1);
+  });
+
+  it('[RG-02] [RG-04] [RG-05] (v1.32) replaces Accusé reçu by Test technique, labelled « Statut/En attente »', async () => {
+    await setUp([MCDONALDS_TECHNICAL_TEST, MCDONALDS_ACKNOWLEDGEMENT, SENT_APPLICATION]);
+
+    await synchronise();
+
+    expect(await applicationsOf()).toEqual([
+      expect.objectContaining({
+        company: "McDonald's",
+        status: 'technical_test',
+        lastActivityAt: new Date('2026-09-05T11:00:00.000Z'),
+      }),
+    ]);
+    expect((await emailsOf()).map((email) => email.category)).toEqual([
+      'sent_application',
+      'acknowledged',
+      'technical_test',
+    ]);
+    const labels = gmail.labelsOfThread(SENT_APPLICATION.threadId ?? '');
+    expect(labels).toContain('Statut/En attente');
+    expect(labels).not.toContain('Statut/Entretien');
+  });
+
+  it('[RG-04] (v1.32) replaces Test technique by Entretien, the test kept in the history', async () => {
+    await setUp([MCDONALDS_INTERVIEW, MCDONALDS_TECHNICAL_TEST, MCDONALDS_ACKNOWLEDGEMENT, SENT_APPLICATION]);
+
+    await synchronise();
+
+    expect(await applicationsOf()).toEqual([expect.objectContaining({ status: 'interview' })]);
+    const history = await database.db
+      .select({ status: applicationStatusHistory.status })
+      .from(applicationStatusHistory)
+      .orderBy(asc(applicationStatusHistory.changedAt));
+    expect(history.map((row) => row.status)).toEqual(['sent', 'acknowledged', 'technical_test', 'interview']);
+    const labels = gmail.labelsOfThread(SENT_APPLICATION.threadId ?? '');
+    expect(labels).toContain('Statut/Entretien');
+    expect(labels).not.toContain('Statut/En attente');
+  });
+
+  it('[RG-04] (v1.32) never downgrades an interview when a technical test arrives after it', async () => {
+    await setUp([MCDONALDS_TECHNICAL_TEST]);
+    await request(context.app)
+      .post('/api/applications')
+      .set('Cookie', alice)
+      .set('Content-Type', 'application/json')
+      .send({
+        companyName: "McDonald's",
+        jobTitle: 'Équipier polyvalent',
+        status: 'interview',
+        appliedAt: '2026-08-30T12:00:00.000Z',
+      })
+      .expect(201);
+
+    await synchronise();
+
+    expect(await applicationsOf()).toEqual([
+      expect.objectContaining({ status: 'interview', lastActivityAt: new Date('2026-09-05T11:00:00.000Z') }),
+    ]);
+    expect((await emailsOf()).map((email) => email.category)).toEqual(['technical_test']);
+    expect((await countRows()).history).toBe(1);
+  });
+
+  it('[RG-02] [RG-10] (v1.32) files an English technical assessment as a technical test, not an interview', async () => {
+    await setUp([ATELIER_NOVA_ASSESSMENT]);
+
+    await synchronise();
+
+    expect(await outcomeOf(ATELIER_NOVA_ASSESSMENT.id)).toBe('retained');
+    expect(await applicationsOf()).toEqual([
+      expect.objectContaining({
+        company: 'Atelier Nova',
+        jobTitle: 'Data Analyst',
+        status: 'technical_test',
+      }),
+    ]);
   });
 
   it('[RG-02] stores a job alert without attaching it to any application', async () => {

@@ -204,6 +204,29 @@ describe('applyCategoryCues — refusals', () => {
     expect(applyCategoryCues(refusal, classified('off_topic')).category).toBe('rejected');
   });
 
+  it('[RG-17] [RG-02] corrects a refusal the AI took for a technical test (v1.32)', () => {
+    const refusal = message(
+      'Suite à votre test technique',
+      'Malgré la qualité de votre travail, nous ne donnerons pas suite à votre candidature.',
+    );
+
+    expect(applyCategoryCues(refusal, classified('technical_test')).category).toBe('rejected');
+  });
+
+  it('[RG-02] (v1.32) leaves a technical test the AI recognised alone, in French and in English', () => {
+    const french = message(
+      'Votre test technique — Data analyst',
+      'Bonjour, merci pour votre candidature. Voici votre test technique à réaliser sous 48 h.',
+    );
+    const english = message(
+      'Next step: technical assessment',
+      'Thank you for your application. Please complete the technical assessment within five days.',
+    );
+
+    expect(applyCategoryCues(french, classified('technical_test')).category).toBe('technical_test');
+    expect(applyCategoryCues(english, classified('technical_test')).category).toBe('technical_test');
+  });
+
   it('[RG-17] never turns a job alert into a refusal, whatever an offer of the letter says', () => {
     const alert = message(
       'Les offres d’emploi de la semaine',

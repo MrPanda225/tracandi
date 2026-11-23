@@ -195,6 +195,7 @@ const STATUS_LABELS: Record<ApplicationStatus, readonly string[]> = {
   to_apply: ['a postuler', 'postuler', 'to apply'],
   sent: ['envoyee', 'envoye', 'candidature envoyee', 'postule', 'postulee', 'sent', 'applied'],
   acknowledged: ['accuse recu', 'accuse de reception', 'acknowledged', 'received'],
+  technical_test: ['test technique', 'exercice technique', 'technical test', 'technical assessment', 'coding test'],
   interview: ['entretien', 'interview'],
   offer: ['proposition', 'offre', 'offer'],
   rejected: ['refusee', 'refuse', 'refus', 'rejetee', 'rejected', 'declined'],

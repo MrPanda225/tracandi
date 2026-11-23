@@ -194,10 +194,12 @@ describe('readImportRow', () => {
     ['À postuler', 'to_apply'],
     ['envoyée', 'sent'],
     ['Accusé de réception', 'acknowledged'],
+    ['Test technique', 'technical_test'],
+    ['Technical assessment', 'technical_test'],
     ['Rejected', 'rejected'],
     ['offer', 'offer'],
     ['REFUSÉE', 'rejected'],
-  ])('[EF-CAN-23] reads the status « %s » as %s', (cell, status) => {
+  ])('[EF-CAN-23] [RG-01] reads the status « %s » as %s', (cell, status) => {
     const read = readImportRow(row({ status: cell }), { mapping: MAPPING, now: NOW });
     expect(read.ok && read.value.status).toBe(status);
   });
