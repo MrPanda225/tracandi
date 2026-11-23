@@ -162,7 +162,13 @@ const LINK_PATTERN = /^https?:\/\/\S+$/iu;
  * the other columns on a phone.
  */
 function PreviewCell({ value }: { value: string }) {
-  if (!LINK_PATTERN.test(value)) return <td>{value}</td>;
+  if (!LINK_PATTERN.test(value)) {
+    return (
+      <td>
+        <span className="csv-import__cell">{value}</span>
+      </td>
+    );
+  }
   return (
     <td>
       <span className="csv-import__link" title={value}>

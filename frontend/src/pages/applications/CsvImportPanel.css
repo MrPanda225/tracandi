@@ -120,16 +120,21 @@
 
 .csv-import__table th,
 .csv-import__table td {
-  /* A long note stays readable without stretching the table across the screen; a narrow screen scrolls the table
-     sideways instead of squeezing a column below a readable width. */
+  /* A narrow screen scrolls the table sideways instead of squeezing a column below a readable width. */
   min-width: 7rem;
-  max-width: 16rem;
   padding: 0.45rem 0.75rem;
   border-top: 1px solid var(--color-line);
   text-align: left;
   vertical-align: top;
   white-space: pre-line;
   overflow-wrap: break-word;
+}
+
+/* A block bounds the width a cell asks for: a table cell ignores its own max-width, and the table takes the width
+   of its content (max-content). */
+.csv-import__cell {
+  display: block;
+  max-width: 16rem;
 }
 
 .csv-import__link {
