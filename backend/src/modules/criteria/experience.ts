@@ -35,7 +35,7 @@ export const PeriodSchema = z
       !YEAR_MONTH.test(period.start) ||
       !YEAR_MONTH.test(period.end) ||
       monthIndexOf(period.end) >= monthIndexOf(period.start),
-    { message: 'must not end before it starts', path: ['end'] },
+    { error: 'must not end before it starts', path: ['end'] },
   );
 
 export type Period = z.infer<typeof PeriodSchema>;

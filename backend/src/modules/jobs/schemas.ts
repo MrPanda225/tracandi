@@ -11,7 +11,7 @@ export const RunStateSchema = z
     outcome: z.enum(runOutcome.enumValues).openapi({
       description: 'queued (en attente), running (en cours), success, failure, skipped',
     }),
-    counters: z.record(z.enum(runCounter.enumValues), z.number().int().nonnegative()),
+    counters: z.partialRecord(z.enum(runCounter.enumValues), z.number().int().nonnegative()),
     error: z.string().nullable(),
   })
   .openapi('RunState');

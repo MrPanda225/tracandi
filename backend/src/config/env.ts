@@ -78,20 +78,27 @@ const describeLocalUrlProblem = (value: string): string | null => {
 
 const withoutTrailingSlash = (value: string): string => value.replace(/\/+$/, '');
 
+// zod 4's z.url() trims what it returns: an address padded with spaces is refused rather than cleaned in silence.
+const exactUrl = () =>
+  z
+    .string()
+    .refine((value) => value === value.trim(), 'must not start or end with a space')
+    .pipe(z.url());
+
 // A line `KEY=` left empty in .env counts as absent.
 const optionalValue = z.preprocess((value) => (value === '' ? undefined : value), z.string().optional());
 
 // Variables used by the tasks already delivered; each later task extends this schema (YAGNI).
 const EnvSchema = z.object({
   // ENF-SEC-01: loopback by default; 0.0.0.0 only inside the container, whose port is published on 127.0.0.1.
-  HOST: z.union([z.string().ip(), z.literal('localhost')]).default(DEFAULT_HOST),
+  HOST: z.union([z.ipv4(), z.ipv6(), z.literal('localhost')]).default(DEFAULT_HOST),
   PORT: z.coerce.number().int().min(1).max(MAX_PORT).default(DEFAULT_PORT),
   // ENF-SEC-11: exact origin of the interface, the only one allowed to call the API.
-  FRONTEND_ORIGIN: z.string().url().refine(isHttpOrigin, 'must be an http(s) origin without path'),
+  FRONTEND_ORIGIN: exactUrl().refine(isHttpOrigin, 'must be an http(s) origin without path'),
   // ENF-SEC-15, ENF-SEC-17: application role only, TLS verified for a remote database.
   DATABASE_URL_APP: z.string().superRefine((value, context) => {
     const problem = describeDatabaseUrlProblem(value);
-    if (problem) context.addIssue({ code: z.ZodIssueCode.custom, message: problem });
+    if (problem) context.addIssue({ code: 'custom', message: problem });
   }),
   // ADR-09: browsers accept Secure cookies on http://127.0.0.1 and http://localhost.
   COOKIE_SECURE: z
@@ -174,18 +181,18 @@ const EnvSchema = z.object({
   RESEND_API_KEY: z.string().min(1),
   RESEND_FROM_EMAIL: z.preprocess(
     (value) => (value === '' ? undefined : value),
-    z.string().email().default(DEFAULT_RESEND_FROM_EMAIL),
+    z.email().default(DEFAULT_RESEND_FROM_EMAIL),
   ),
   // EF-GML-01: OAuth client of the Google Cloud project, for the Gmail connection from the interface.
   GOOGLE_CLIENT_ID: z.string().min(1),
   GOOGLE_CLIENT_SECRET: z.string().min(1),
-  GOOGLE_REDIRECT_URI: z.string().url(),
+  GOOGLE_REDIRECT_URI: exactUrl(),
   // ENF-SEC-02: key of the refresh tokens at rest (`openssl rand -hex 32`).
   TOKEN_ENCRYPTION_KEY: z.string().transform((value, context) => {
     try {
       return parseEncryptionKey(value);
     } catch (error) {
-      context.addIssue({ code: z.ZodIssueCode.custom, message: (error as Error).message });
+      context.addIssue({ code: 'custom', message: (error as Error).message });
       return z.NEVER;
     }
   }),
@@ -201,7 +208,7 @@ const EnvSchema = z.object({
   SCRAPER_CONTACT_EMAIL: z
     .string()
     .trim()
-    .email()
+    .pipe(z.email())
     .or(z.literal(''))
     .default('')
     .transform((value) => value || null),
@@ -283,7 +290,7 @@ const requireLocalModel = (env: Env, issue: (path: string, message: string) => v
  */
 const requireAiProviders = (env: Env, context: z.RefinementCtx): void => {
   const issue = (path: string, message: string) =>
-    context.addIssue({ code: z.ZodIssueCode.custom, path: [path], message });
+    context.addIssue({ code: 'custom', path: [path], message });
   if (!env.ANTHROPIC_API_KEY && !env.GEMINI_API_KEY && !env.GROQ_API_KEY && !env.LOCAL_LLM_BASE_URL) {
     issue(
       'ANTHROPIC_API_KEY, GEMINI_API_KEY, GROQ_API_KEY or LOCAL_LLM_BASE_URL',
@@ -298,7 +305,7 @@ const requireAiProviders = (env: Env, context: z.RefinementCtx): void => {
 const requireCredentialPairs = (env: Env, context: z.RefinementCtx): void => {
   if (Boolean(env.FRANCE_TRAVAIL_CLIENT_ID) !== Boolean(env.FRANCE_TRAVAIL_CLIENT_SECRET)) {
     context.addIssue({
-      code: z.ZodIssueCode.custom,
+      code: 'custom',
       path: ['FRANCE_TRAVAIL_CLIENT_ID, FRANCE_TRAVAIL_CLIENT_SECRET'],
       message: 'both are required, or neither',
     });

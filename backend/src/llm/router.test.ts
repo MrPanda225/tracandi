@@ -264,7 +264,7 @@ describe('runTask — why a provider was set aside', () => {
 
     expect(logged[0]?.context).toMatchObject({
       outcome: 'invalid_output',
-      issues: [{ path: 'category', code: 'invalid_enum_value' }],
+      issues: [{ path: 'category', code: 'invalid_value' }],
     });
     expect(JSON.stringify(logged)).not.toContain('embauché');
   });
