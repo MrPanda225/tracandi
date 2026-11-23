@@ -124,7 +124,7 @@ pg_tool() {
   if [[ "$PG_CLIENT_MODE" == local ]]; then
     "$tool" "$@"
   else
-    docker run --rm -i --network host -e PGPASSWORD -e PGSSLROOTCERT -e PGCONNECT_TIMEOUT \
+    docker run --rm -i --network host -e PGPASSWORD -e PGSSLROOTCERT -e PGCONNECT_TIMEOUT -e PGOPTIONS \
       "$PG_IMAGE" "$tool" "$@"
   fi
 }
