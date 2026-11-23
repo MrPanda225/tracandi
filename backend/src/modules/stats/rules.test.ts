@@ -6,6 +6,11 @@ describe('responseRate', () => {
     expect(responseRate({ sent: 5, acknowledged: 2, interview: 1, offer: 1, rejected: 1 })).toBe(30);
   });
 
+  it('[RG-07] (v1.32) counts Test technique as an answer', () => {
+    expect(responseRate({ sent: 2, acknowledged: 1, technical_test: 1 })).toBe(25);
+    expect(responseRate({ sent: 1, technical_test: 1, interview: 1, offer: 1, rejected: 1 })).toBe(80);
+  });
+
   it('[RG-07] rounds to the nearest integer', () => {
     expect(responseRate({ sent: 2, rejected: 1 })).toBe(33);
     expect(responseRate({ sent: 1, interview: 2 })).toBe(67);

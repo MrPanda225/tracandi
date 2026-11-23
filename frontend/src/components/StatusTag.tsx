@@ -4,11 +4,8 @@ import './StatusTag.css';
 
 type StatusTone = 'to-apply' | 'in-progress' | 'offer' | 'rejected';
 
-/**
- * EF-CAN-22: colour family of each status. Test technique joins the enumeration with T-904; its colour is set here
- * so that the status only has to be added to `ApplicationStatus`.
- */
-export const STATUS_TONE: Record<ApplicationStatus | 'technical_test', StatusTone> = {
+/** EF-CAN-22: colour family of each status. */
+const STATUS_TONE: Record<ApplicationStatus, StatusTone> = {
   to_apply: 'to-apply',
   sent: 'in-progress',
   acknowledged: 'in-progress',

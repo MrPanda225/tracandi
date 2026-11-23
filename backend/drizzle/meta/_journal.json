@@ -239,6 +239,13 @@
       "when": 1792002683967,
       "tag": "0033_parse_cv_task",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1795448763172,
+      "tag": "0034_technical-test-status",
+      "breakpoints": true
     }
   ]
 }

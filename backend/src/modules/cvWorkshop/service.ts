@@ -1,4 +1,3 @@
-import { z } from 'zod';
 import type { JobQueue, RunCounters } from '../../jobs/queue.js';
 import type { Clock } from '../../lib/clock.js';
 import { HttpError, LlmUnavailableError, NotFoundError } from '../../lib/errors.js';
@@ -81,7 +80,7 @@ interface ServiceDeps {
 const tailoredSchemaFor = ({ cvText, contacts, diagnosis }: { cvText: string; contacts: CvContacts; diagnosis: Diagnosis }) =>
   tailoredAnswerSchemaFor(cvText).superRefine((answer, context) => {
     if (!fitsOnOnePage({ cv: answer.cv, contacts, addedSkills: diagnosis.missingSkills })) {
-      context.addIssue({ code: z.ZodIssueCode.custom, path: ['cv'], message: 'Longer than one A4 page (RG-24)' });
+      context.addIssue({ code: 'custom', path: ['cv'], message: 'Longer than one A4 page (RG-24)' });
     }
   });
 

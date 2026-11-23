@@ -21,8 +21,8 @@ const hasLettersOrDigits = (value: string) => normalizeKey(value).length > 0;
 
 export const ApplicationStatusSchema = z.enum(applicationStatus.enumValues).openapi('ApplicationStatus', {
   description:
-    'RG-01 : to_apply = À postuler, sent = Envoyée, acknowledged = Accusé reçu, interview = Entretien, ' +
-    'offer = Proposition, rejected = Refusée.',
+    'RG-01 : to_apply = À postuler, sent = Envoyée, acknowledged = Accusé reçu, technical_test = Test technique, ' +
+    'interview = Entretien, offer = Proposition, rejected = Refusée.',
 });
 
 export const ContractTypeSchema = z.enum(contractType.enumValues).openapi('ContractType', {
@@ -51,8 +51,7 @@ const OfferDescriptionSchema = z
   .openapi({ description: "Description de l'offre, 20 000 caractères au plus (EF-CAN-15)" });
 
 /** EF-CAN-16: the upper bound (not in the future) depends on the clock and is checked by the service. */
-const AppliedAtSchema = z
-  .string()
+const AppliedAtSchema = z.iso
   .datetime()
   .transform((value) => new Date(value))
   .refine(
@@ -73,10 +72,11 @@ export const IdParamsSchema = z.object({ id: idParam().openapi({ example: 1 }) }
 export const APPLICATION_SORTS = ['applied_at', 'last_activity', 'status', 'company'] as const;
 export type ApplicationSort = (typeof APPLICATION_SORTS)[number];
 
+// No `u` flag: zod-to-openapi 9 copies regex flags into the OpenAPI `pattern`.
 /** EF-CAN-24: a calendar day, « YYYY-MM-DD », that exists. */
 const DaySchema = z
   .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/u, 'Date attendue au format AAAA-MM-JJ')
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date attendue au format AAAA-MM-JJ')
   .refine(
     (day) =>
       !Number.isNaN(Date.parse(`${day}T12:00:00.000Z`)) &&
@@ -114,7 +114,7 @@ export const CreateApplicationBodySchema = z
     companyName: CompanyNameSchema,
     jobTitle: JobTitleSchema,
     status: ApplicationStatusSchema,
-    contractType: ContractTypeSchema.default('non_precise'),
+    contractType: ContractTypeSchema.default('non_precise').openapi({ default: 'non_precise' }),
     notes: z.string().max(NOTES_MAX_LENGTH).optional(),
     offerDescription: OfferDescriptionSchema.optional(),
     appliedAt: AppliedAtSchema.optional(),
@@ -149,7 +149,7 @@ export const ReattachEmailBodySchema = z
   .strict()
   .openapi('ReattachEmailBody');
 
-const DateTimeSchema = z.string().datetime().openapi({ example: '2026-09-22T08:00:00.000Z' });
+const DateTimeSchema = z.iso.datetime().openapi({ example: '2026-09-22T08:00:00.000Z' });
 
 export const ApplicationSchema = z
   .object({
@@ -186,7 +186,7 @@ export const EmailSchema = z
     snippet: z.string().nullable().openapi({ description: 'Extrait de 300 caractères au plus (ENF-RGP-01)' }),
     platform: z.string().nullable(),
     receivedAt: DateTimeSchema,
-    gmailUrl: z.string().url().openapi({ description: 'Ouvre le fil dans Gmail (EF-CAN-05)' }),
+    gmailUrl: z.url().openapi({ description: 'Ouvre le fil dans Gmail (EF-CAN-05)' }),
   })
   .openapi('Email');
 

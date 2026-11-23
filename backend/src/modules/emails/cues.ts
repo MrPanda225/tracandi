@@ -271,6 +271,7 @@ export const hasAcknowledgementCue = (message: MessageWording): boolean =>
  */
 const CORRECTED_BY_REJECTION: readonly ClassifiedMessage['category'][] = [
   'acknowledged',
+  'technical_test',
   'interview',
   'sent_application',
   'off_topic',
@@ -286,8 +287,9 @@ const CORRECTED_BY_ACKNOWLEDGEMENT: readonly ClassifiedMessage['category'][] = [
 /**
  * RG-17: files a received message from its own wording when the AI read it otherwise. A refusal wins over an
  * acknowledgement, since a refusal usually opens with one. A job offer the AI recognised is never replaced, an
- * interview is never downgraded to an acknowledgement, a job alert is turned into a refusal only when the message
- * both thanks for the candidature and refuses it, and a message the candidate sent is never corrected.
+ * interview or a technical test is never downgraded to an acknowledgement, a job alert is turned into a refusal
+ * only when the message both thanks for the candidature and refuses it, and a message the candidate sent is never
+ * corrected.
  * @returns the classification, unchanged when no wording decides.
  * @req RG-17, EF-GML-08, EF-GML-11
  */

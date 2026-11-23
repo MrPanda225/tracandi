@@ -326,6 +326,44 @@ describe('ApplicationsPage', () => {
     expect(calls.at(-1)?.url.searchParams.get('status')).toBe('rejected');
   });
 
+  it('[EF-CAN-02] [RG-01] (v1.32) offers « Test technique » between « Accusé reçu » and « Entretien »', async () => {
+    const calls = mockApi({ 'GET /applications': filteredList });
+    renderPage();
+    await screen.findAllByText('Atelier Nova');
+    const user = userEvent.setup();
+    const options = within(screen.getByLabelText('Statut'))
+      .getAllByRole('option')
+      .map((option) => option.textContent);
+
+    expect(options.slice(options.indexOf('Accusé reçu'), options.indexOf('Entretien') + 1)).toEqual([
+      'Accusé reçu',
+      'Test technique',
+      'Entretien',
+    ]);
+    await user.selectOptions(screen.getByLabelText('Statut'), 'Test technique');
+    await waitFor(() => expect(calls.at(-1)?.url.searchParams.get('status')).toBe('technical_test'));
+  });
+
+  it('[EF-CAN-07] [RG-01] (v1.32) sets the status Test technique by hand, shown with its label', async () => {
+    const calls = mockApi({
+      'GET /applications': () => listOf(ALL),
+      'GET /applications/1/emails': () => json(200, []),
+      'PATCH /applications/1': () => new Response(null, { status: 204 }),
+      'GET /applications/1': () => json(200, { ...NOVA_DEV, status: 'technical_test', isFollowUpDue: false }),
+    });
+    renderPage();
+    await screen.findAllByText('Atelier Nova');
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /Développeur/ }));
+
+    await user.selectOptions(await screen.findByLabelText('Changer le statut'), 'Test technique');
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /Développeur/ })).toHaveAccessibleName(/Test technique/),
+    );
+    expect(calls.find((call) => call.method === 'PATCH')?.body).toEqual({ status: 'technical_test' });
+  });
+
   it('[EF-CAN-14] filters the applications by contract type', async () => {
     const calls = mockApi({ 'GET /applications': filteredList });
     renderPage();

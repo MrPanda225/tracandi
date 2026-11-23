@@ -247,6 +247,28 @@ describe('GET /api/applications', () => {
     expect(response.body).toMatchObject({ total: 1, items: [{ company: { name: 'Zara' } }] });
   });
 
+  it('[EF-CAN-02] [RG-01] (v1.32) filters by the status Test technique, ranked between Accusé reçu and Entretien', async () => {
+    await createApplication(alice, {
+      companyName: 'Atelier Nova',
+      jobTitle: 'Data Analyst',
+      status: 'technical_test',
+    });
+    await createApplication(alice, {
+      companyName: 'Maison Lumen',
+      jobTitle: 'UX designer',
+      status: 'interview',
+    });
+
+    const filtered = await api(alice).get('/api/applications?status=technical_test');
+    expect(filtered.body).toMatchObject({
+      total: 1,
+      items: [{ status: 'technical_test', company: { name: 'Atelier Nova' } }],
+    });
+
+    const byRank = companiesOf(await api(alice).get('/api/applications?sort=status&order=asc'));
+    expect(byRank.slice(2)).toEqual(['Atelier Nova', 'Maison Lumen', 'Zara']);
+  });
+
   it('[EF-CAN-03] finds an application by a fragment of the company name, ignoring case and accents', async () => {
     const response = await api(alice).get('/api/applications?q=mcdo');
 
@@ -320,6 +342,19 @@ describe('GET/PATCH/DELETE /api/applications/:id', () => {
 
   beforeEach(async () => {
     applicationId = await createApplication(alice, { companyName: 'Innova', jobTitle: 'Data Analyst' });
+  });
+
+  it('[EF-CAN-07] [RG-01] (v1.32) sets the status Test technique by hand', async () => {
+    const response = await api(alice).patch(`/api/applications/${applicationId}`, {
+      status: 'technical_test',
+    });
+
+    expect(response.status).toBe(204);
+    const [row] = await database.db
+      .select({ status: applications.status })
+      .from(applications)
+      .where(eq(applications.id, applicationId));
+    expect(row).toEqual({ status: 'technical_test' });
   });
 
   it('[EF-CAN-07] updates the status (204), records it and counts it as activity', async () => {

@@ -34,7 +34,7 @@ export function KpiCards({ totals, offers }: KpiCardsProps) {
       <SpotlightCard className="kpi-card kpi-card--hero">
         <p className="kpi-card__label">Taux de réponse</p>
         <p className="kpi-card__value kpi-card__value--hero">{totals.responseRate}%</p>
-        <p className="kpi-card__caption">Entretien, proposition ou refus</p>
+        <p className="kpi-card__caption">Test technique, entretien, proposition ou refus</p>
       </SpotlightCard>
 
       {offers && (

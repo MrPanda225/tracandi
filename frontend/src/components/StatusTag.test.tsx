@@ -1,12 +1,13 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import type { ApplicationStatus } from '../api/stats';
-import { FollowUpDueTag, STATUS_TONE, StatusTag, statusColorVar } from './StatusTag';
+import { FollowUpDueTag, StatusTag, statusColorVar } from './StatusTag';
 
 const EXPECTED: [ApplicationStatus, string, string][] = [
   ['to_apply', 'À postuler', 'to-apply'],
   ['sent', 'Envoyée', 'in-progress'],
   ['acknowledged', 'Accusé reçu', 'in-progress'],
+  ['technical_test', 'Test technique', 'in-progress'],
   ['interview', 'Entretien', 'in-progress'],
   ['offer', 'Proposition', 'offer'],
   ['rejected', 'Refusée', 'rejected'],
@@ -17,10 +18,6 @@ describe('StatusTag', () => {
     render(<StatusTag status={status} />);
 
     expect(screen.getByText(label)).toHaveClass('status-tag', `status-tag--${tone}`);
-  });
-
-  it('[EF-CAN-22] gives Test technique the orange « en cours » colour, ready for its status (T-904)', () => {
-    expect(STATUS_TONE.technical_test).toBe('in-progress');
   });
 
   it('[EF-CAN-22] colours the status bars of the charts like the tags', () => {
