@@ -42,8 +42,8 @@ export const CvTypeSchema = z
     level: z.enum(experienceLevel.enumValues).nullable(),
     /** EF-VEI-46: the offers deduced from this CV type are waiting to be validated (kept 30 minutes in memory). */
     deductionReady: z.boolean(),
-    createdAt: z.string().datetime(),
-    updatedAt: z.string().datetime(),
+    createdAt: z.iso.datetime(),
+    updatedAt: z.iso.datetime(),
   })
   .openapi('CvType');
 

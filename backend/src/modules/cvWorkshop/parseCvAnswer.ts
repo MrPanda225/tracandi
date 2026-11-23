@@ -36,7 +36,7 @@ const refList = (max: number) =>
   );
 
 /** The entries that are well formed, at most `max`: an entry without a usable title or degree is left out. */
-const entryList = <T extends z.ZodTypeAny>(entry: T, max: number) =>
+const entryList = <T extends z.ZodType>(entry: T, max: number) =>
   z.preprocess(
     (value) =>
       Array.isArray(value)

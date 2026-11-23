@@ -31,8 +31,8 @@ const PassSchema = z
   .object({
     slot: WatchSlotSchema,
     outcome: z.enum(['queued', 'running', 'success', 'failure', 'skipped']),
-    startedAt: z.string().datetime(),
-    finishedAt: z.string().datetime().nullable(),
+    startedAt: z.iso.datetime(),
+    finishedAt: z.iso.datetime().nullable(),
     counters: z.record(z.string(), z.number().int()),
     /** Why a pass was ignored or failed (EF-VEI-55). */
     message: z.string().nullable(),
@@ -49,7 +49,7 @@ export const AutomaticWatchSchema = z
     enabled: z.boolean(),
     slots: z.array(WatchSlotSchema),
     /** EF-CFG-08: when the last scheduled pass that succeeded ended, whichever day it was; null before the first. */
-    lastSuccessAt: z.string().datetime().nullable(),
+    lastSuccessAt: z.iso.datetime().nullable(),
     /** The scheduled passes of today, Paris time, in the order they were started. */
     passes: z.array(PassSchema),
   })
