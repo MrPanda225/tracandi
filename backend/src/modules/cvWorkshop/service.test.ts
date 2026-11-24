@@ -4,9 +4,11 @@ import type { JobQueue, QueuedWork } from '../../jobs/queue.js';
 import { LlmUnavailableError } from '../../lib/errors.js';
 import type { Logger } from '../../lib/logger.js';
 import type { LlmRouter, RunTaskInput } from '../../llm/router.js';
+import { buildTwoColumnCv } from '../../../tests/fixtures/cv/columns.js';
 import { buildTextPdf, FICTITIOUS_CV_LINES } from '../../../tests/fixtures/cv/pdf.js';
 import { FICTITIOUS_STRUCTURE } from '../../../tests/fixtures/cv/structure.js';
 import { readParagraphs } from '../../../tests/fixtures/docx/readDocx.js';
+import { createPdftotext } from './pdftotext.js';
 import { createAnalysisResults } from './results.js';
 import { type CvAnalysis, createCvWorkshopService } from './service.js';
 
@@ -35,6 +37,9 @@ const immediateQueue = (alreadyToday = 0) => {
   return { queue, works, reports };
 };
 
+/** An answer written once the prompt is known, as a model reads the numbered lines it was given. */
+type AnswerToPrompt = (prompt: string) => unknown;
+
 /**
  * A router whose provider answers the fixture of each task, parsed by the schema of the task as the real router does:
  * an answer the schema rejects ends in LlmUnavailableError, as when every provider answered outside the schema.
@@ -44,7 +49,8 @@ const scriptedRouter = (answers: Record<string, unknown> = DEFAULT_ANSWERS) => {
   const router: LlmRouter = {
     runTask: <T>(task: string, input: RunTaskInput<T>) => {
       inputs.push({ ...(input as RunTaskInput<unknown>), task });
-      const parsed = input.schema.safeParse(answers[task]);
+      const answer = answers[task];
+      const parsed = input.schema.safeParse(typeof answer === 'function' ? (answer as AnswerToPrompt)(input.prompt) : answer);
       if (!parsed.success) return Promise.reject(new LlmUnavailableError(true));
       return Promise.resolve({ data: parsed.data, provider: 'groq_1' as const });
     },
@@ -61,9 +67,14 @@ const logger: Logger = {
 const noOcr = { readPages: vi.fn(() => Promise.reject(new Error('no OCR expected'))) };
 const request = () => ({ file: buildTextPdf([[...FICTITIOUS_CV_LINES]]).toString('base64'), offer: OFFER });
 
-const serviceWith = ({ queue = immediateQueue().queue, router = scriptedRouter().router, analysesPerDay = 5 } = {}) => {
+const serviceWith = ({
+  queue = immediateQueue().queue,
+  router = scriptedRouter().router,
+  analysesPerDay = 5,
+  textLayer = undefined as ReturnType<typeof createPdftotext> | undefined,
+} = {}) => {
   const results = createAnalysisResults<CvAnalysis>();
-  const service = createCvWorkshopService({ queue, ocr: noOcr, router, results, clock: () => NOW, logger, analysesPerDay });
+  const service = createCvWorkshopService({ queue, ocr: noOcr, textLayer, router, results, clock: () => NOW, logger, analysesPerDay });
   return { service, results };
 };
 
@@ -157,6 +168,117 @@ describe('createCvWorkshopService', () => {
     await service.startAnalysis(7, request());
 
     expect(service.findAnalysis(7, 41).adapted.cv.experiences[0]?.bullets).toEqual(['Conception de tableaux de bord pour 12 équipes.']);
+  });
+
+  it('[RG-21] never delivers a bullet or a sentence citing a skill absent from the CV: « dbt » is asked, not had', async () => {
+    const answer = {
+      ...TAILORED,
+      profile: 'Data analyst tournée vers les tableaux de bord. Pipelines orchestrés avec Airflow.',
+      experiences: [{ id: 'exp_0', bullets: ['Modélisation des données avec dbt.', 'Conception de tableaux de bord pour 12 équipes.'] }],
+    };
+    const { router } = scriptedRouter({ ...DEFAULT_ANSWERS, tailor_cv: answer });
+    const { service } = serviceWith({ router });
+
+    await service.startAnalysis(7, request());
+
+    const { cv } = service.findAnalysis(7, 41).adapted;
+    expect(cv.experiences[0]?.bullets).toEqual(['Conception de tableaux de bord pour 12 équipes.']);
+    expect(cv.profile).toBe('Data analyst tournée vers les tableaux de bord.');
+  });
+
+  it('[EF-CVX-47] removes « 5 ans d’expérience » when the CV only dates its job « 05/2019 – 03/2023 »', async () => {
+    const lines = FICTITIOUS_CV_LINES.map((line) => line.replace('09/2024 - 08/2026', '05/2019 - 03/2023'));
+    const structure = {
+      ...STRUCTURE,
+      experiences: STRUCTURE.experiences.map((experience) => ({ ...experience, dates: ref(3, '05/2019 - 03/2023') })),
+    };
+    const answer = { ...TAILORED, profile: '5 ans d’expérience en BI. Data analyst tournée vers les tableaux de bord.' };
+    const { router } = scriptedRouter({ ...DEFAULT_ANSWERS, parse_cv: structure, tailor_cv: answer });
+    const { service } = serviceWith({ router });
+
+    await service.startAnalysis(7, { file: buildTextPdf([lines]).toString('base64'), offer: OFFER });
+
+    const { cv } = service.findAnalysis(7, 41).adapted;
+    expect(cv.profile).toBe('Data analyst tournée vers les tableaux de bord.');
+    expect(cv.experiences[0]?.dates).toBe('05/2019 - 03/2023');
+  });
+
+  it('[EF-CVX-47] [EF-CVX-45] adapts the two-column CV of the typical tester without error, with faithful simulated answers', async () => {
+    const lineOf = (prompt: string, text: string, after = 0): number => {
+      const found = prompt.split('\n').find((line) => {
+        const match = /^L(\d+): (.*)$/u.exec(line);
+        return match !== null && Number(match[1]) > after && (match[2] ?? '').includes(text);
+      });
+      return Number(/^L(\d+)/u.exec(found ?? '')?.[1] ?? 0);
+    };
+    const parseAnswer = (prompt: string) => {
+      const at = (text: string, after = 0) => ref(lineOf(prompt, text, after), text);
+      const experiences = lineOf(prompt, 'EXPERIENCES PROFESSIONNELLES');
+      const second = lineOf(prompt, 'Technicienne systèmes');
+      return {
+        headline: at('Ingénieure DevOps'),
+        profile: [],
+        experiences: [
+          {
+            title: at('Ingénieure DevOps', experiences),
+            organization: at('Nordwave Systems'),
+            place: at('Nantes', experiences),
+            dates: at('09/2022 – 06/2024'),
+            bullets: [at('Automatisation des déploiements avec GitLab CI.'), at('Supervision Prometheus de 40 services.')],
+          },
+          {
+            title: at('Technicienne systèmes'),
+            organization: at('Atelier Brume'),
+            place: at('Rennes', second),
+            dates: at('2020 – 2022'),
+            bullets: [at('Administration de serveurs Linux.')],
+          },
+        ],
+        education: [
+          { degree: at('Master Informatique'), school: at('Université de Rennes'), place: null, dates: at('2018 – 2020'), details: [] },
+        ],
+        skills: ['Docker', 'Kubernetes', 'Terraform', 'Python'].map((skill) => at(skill)),
+        certifications: [],
+        languages: [],
+        interests: [],
+      };
+    };
+    const tailored = {
+      headline: 'Ingénieure DevOps',
+      profile: 'Ingénieure DevOps tournée vers l’automatisation des déploiements.',
+      experiences: [
+        { id: 'exp_0', bullets: ['Automatisation des déploiements avec GitLab CI.', 'Supervision Prometheus de 40 services.'] },
+        { id: 'exp_1', bullets: ['Administration de serveurs Linux.'] },
+      ],
+      education: [{ id: 'edu_0', details: [] }],
+      skills: ['skill_2', 'skill_0', 'skill_1'],
+      certifications: [],
+      languages: [],
+      interests: [],
+      changes: [{ target: 'exp_0', reason: 'L’offre insiste sur l’automatisation.' }],
+    };
+    const { router } = scriptedRouter({ parse_cv: parseAnswer, diagnose_cv: ANSWER, tailor_cv: tailored });
+    const { service } = serviceWith({ router, textLayer: createPdftotext() });
+    logged.length = 0;
+
+    await service.startAnalysis(7, { file: buildTwoColumnCv().pdf.toString('base64'), offer: OFFER });
+
+    const { cv, changes } = service.findAnalysis(7, 41).adapted;
+    expect(cv.experiences).toEqual([
+      {
+        title: 'Ingénieure DevOps',
+        organization: 'Nordwave Systems',
+        place: 'Nantes',
+        dates: '09/2022 – 06/2024',
+        bullets: ['Automatisation des déploiements avec GitLab CI.', 'Supervision Prometheus de 40 services.'],
+      },
+      { title: 'Technicienne systèmes', organization: 'Atelier Brume', place: 'Rennes', dates: '2020 – 2022', bullets: ['Administration de serveurs Linux.'] },
+    ]);
+    expect(cv.education[0]).toMatchObject({ degree: 'Master Informatique', school: 'Université de Rennes', dates: '2018 – 2020' });
+    expect(cv.skills).toEqual(['Terraform', 'Docker', 'Kubernetes']);
+    expect(changes.length).toBeGreaterThan(0);
+    expect(logged.filter((entry) => entry.message === 'assembled CV not faithful to the source')).toEqual([]);
+    expect(readParagraphs(await service.renderDocx(7, 41, ['Airflow']))).toContain('Terraform, Docker, Kubernetes, Airflow');
   });
 
   it('[EF-CVX-26] says no AI gave a usable answer, and keeps nothing, only when every provider’s answer is unusable', async () => {
@@ -261,7 +383,7 @@ describe('createCvWorkshopService', () => {
 
     await expect(service.startAnalysis(7, { file: buildTextPdf([lines]).toString('base64'), offer: OFFER })).rejects.toMatchObject({
       statusCode: 502,
-      message: expect.stringContaining('ne tient pas sur une page même sans ses réalisations') as string,
+      message: 'Votre CV reste trop long pour tenir sur une page, même sans ses réalisations. Importez une version plus courte.',
     });
     expect(results.size()).toBe(0);
   });
@@ -309,6 +431,19 @@ describe('createCvWorkshopService', () => {
     await service.startAnalysis(7, request());
 
     await expect(service.renderDocx(7, 41, ['Kubernetes'])).rejects.toMatchObject({ statusCode: 400 });
+  });
+
+  it('[RG-24] [EF-CVX-28] refuses more ticked skills than the page keeps room for', async () => {
+    const missingSkills = ['dbt', 'Airflow', 'Spark', 'Kafka', 'Looker', 'Tableau', 'Snowflake'];
+    const { router } = scriptedRouter({ ...DEFAULT_ANSWERS, diagnose_cv: { ...(ANSWER as object), missingSkills } });
+    const { service } = serviceWith({ router });
+    await service.startAnalysis(7, request());
+
+    await expect(service.renderDocx(7, 41, missingSkills)).rejects.toMatchObject({
+      statusCode: 400,
+      message: 'Cochez 6 compétences au plus : la page n’a de place que pour elles.',
+    });
+    await expect(service.renderDocx(7, 41, missingSkills.slice(0, 6))).resolves.toBeInstanceOf(Buffer);
   });
 
   it('[ENF-RGP-06] answers 404 for the Word file of an analysis it no longer holds', async () => {
