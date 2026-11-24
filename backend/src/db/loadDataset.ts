@@ -62,8 +62,9 @@ const integerBelow = (random: Random, bound: number): number => Math.floor(rando
  */
 const STATUS_WEIGHTS: Record<ApplicationStatus, number> = {
   to_apply: 5,
-  sent: 38,
+  sent: 35,
   acknowledged: 20,
+  technical_test: 3,
   interview: 12,
   offer: 3,
   rejected: 22,
@@ -226,6 +227,7 @@ const PATH_TO: Record<ApplicationStatus, readonly ApplicationStatus[]> = {
   to_apply: ['to_apply'],
   sent: ['sent'],
   acknowledged: ['sent', 'acknowledged'],
+  technical_test: ['sent', 'acknowledged', 'technical_test'],
   interview: ['sent', 'acknowledged', 'interview'],
   offer: ['sent', 'acknowledged', 'interview', 'offer'],
   rejected: ['sent', 'acknowledged', 'rejected'],
@@ -254,6 +256,7 @@ const ANSWERS_OF: Record<ApplicationStatus, readonly EmailCategory[]> = {
   to_apply: [],
   sent: [],
   acknowledged: ['acknowledged'],
+  technical_test: ['acknowledged', 'technical_test'],
   interview: ['acknowledged', 'interview', 'interview'],
   offer: ['acknowledged', 'interview', 'interview', 'offer'],
   rejected: ['acknowledged', 'rejected'],

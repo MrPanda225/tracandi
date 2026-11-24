@@ -14,8 +14,8 @@ Exigences : ENF-PERF-01, 02, 04, 05, 06 (cahier des charges §7.1). ENF-PERF-03 
 | chacun des autres (2 par défaut) | 20 | 100 | 1 000 | 2 | 500 |
 
 - **Candidatures** : réparties sur les 12 derniers mois et sur tous les statuts. La part de chaque statut suit un
-  tableau de suivi réel : 38 % Envoyée, 22 % Refusée, 20 % Accusé reçu, 12 % Entretien, 5 % À postuler, 3 %
-  Proposition. Chaque candidature a l'historique de ses statuts, dans l'ordre de RG-04.
+  tableau de suivi réel : 35 % Envoyée, 22 % Refusée, 20 % Accusé reçu, 12 % Entretien, 5 % À postuler, 3 % Test
+  technique, 3 % Proposition. Chaque candidature a l'historique de ses statuts, dans l'ordre de RG-04.
 - **Messages** : pour chaque candidature envoyée, le message du candidat, puis une réponse par étape (deux pour un
   entretien). Le reste du volume est fait d'alertes emploi rattachées à aucune candidature, comme dans une vraie
   boîte. Un tiers des réponses et toutes les alertes viennent d'une adresse sans contact (RG-20).
