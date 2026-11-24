@@ -256,6 +256,7 @@ describe('MessageFetcher — pre-filter (RG-10)', () => {
     );
     expect(Object.keys(retained[0] ?? {}).sort()).toEqual(
       [
+        'contactAddress',
         'correspondentCompany',
         'direction',
         'fromAddress',

@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { companyNameOfDomain, companyOfCorrespondent, contactAddressOf } from './domains.js';
+import {
+  companyNameOfDomain,
+  companyOfCorrespondent,
+  contactAddressOf,
+  isContactAddress,
+  latestContactOf,
+} from './domains.js';
 
-const PLATFORMS = new Set(['apec.fr', 'lhh.com']);
+const PLATFORMS = new Set(['apec.fr', 'lhh.com', 'indeed.com']);
 
 describe('companyNameOfDomain', () => {
   it.each([
@@ -41,7 +47,7 @@ describe('companyOfCorrespondent', () => {
   it.each([
     ['a personal mailbox', 'recruteur@gmail.com'],
     ['a known platform', 'ne-pas-repondre@mail.apec.fr'],
-    ['a recruitment tool', 'ateme@mail.flatchr.io'],
+    ['a recruitment tool', 'atelier-nova@mail.flatchr.io'],
     ['an ATS', 'maisonlumen@myworkday.com'],
     ['no address', null],
   ])('[RG-03] [RG-19] names no company from %s', (_case, fromAddress) => {
@@ -56,17 +62,24 @@ describe('contactAddressOf', () => {
     replyToAddress,
     toAddress: 'alex.martin@example.com',
   });
+  const contactOf = (message: Parameters<typeof contactAddressOf>[0]) => contactAddressOf(message, PLATFORMS);
 
   it('[RG-20] [BES-34] answers the reply address of a received message before its sender', () => {
-    expect(contactAddressOf(received('recrutement@atelier-nova.example'))).toBe('recrutement@atelier-nova.example');
-    expect(contactAddressOf(received('no-reply@atelier-nova.example', 'camille.durand@atelier-nova.example'))).toBe(
+    expect(contactOf(received('recrutement@atelier-nova.example'))).toBe('recrutement@atelier-nova.example');
+    expect(contactOf(received('no-reply@atelier-nova.example', 'camille.durand@atelier-nova.example'))).toBe(
+      'camille.durand@atelier-nova.example',
+    );
+  });
+
+  it('[RG-20] prefers the recruiter named as Reply-To of a message a recruitment tool sent', () => {
+    expect(contactOf(received('atelier-nova@teamtailor-mail.com', 'camille.durand@atelier-nova.example'))).toBe(
       'camille.durand@atelier-nova.example',
     );
   });
 
   it('[RG-20] writes to the first recipient of an application the candidate sent', () => {
     expect(
-      contactAddressOf({
+      contactOf({
         direction: 'outbound',
         fromAddress: 'alex.martin@example.com',
         replyToAddress: null,
@@ -90,19 +103,74 @@ describe('contactAddressOf', () => {
     'recrutement+noreply@atelier-nova.example',
     'candidats-notification@talent.example',
   ])('[RG-20] never writes to %s, which takes no answer', (address) => {
-    expect(contactAddressOf(received(address))).toBeNull();
+    expect(contactOf(received(address))).toBeNull();
+  });
+
+  // BES-45 (30/09/2026): the follow-up proposed the address of the tool the recruiter answered through.
+  it.each([
+    ['a recruitment tool', 'atelier-nova@mail.flatchr.io'],
+    ['a recruitment tool, sub-domain included', 'atelier-nova.recrutement@atelier-nova.teamtailor-mail.com'],
+    ['an ATS an adapter reads', 'talent@us.greenhouse-mail.io'],
+    ['a job board', 'candidature@free-work.com'],
+    ['a known platform', 'conseiller@apec.fr'],
+    ['a known platform, sub-domain included', 'offres@mail.indeed.com'],
+  ])('[RG-20] [RG-19] never writes to %s', (_case, address) => {
+    expect(contactOf(received(address))).toBeNull();
+    expect(
+      contactOf({ direction: 'outbound', fromAddress: 'alex.martin@example.com', replyToAddress: null, toAddress: address }),
+    ).toBeNull();
+  });
+
+  it('[RG-20] still writes to a recruiter from a personal mailbox, which is no platform', () => {
+    expect(contactOf(received('camille.durand@gmail.com'))).toBe('camille.durand@gmail.com');
   });
 
   it('[RG-20] still writes to a recruiter whose name merely contains « notification » or « bounce »', () => {
-    expect(contactAddressOf(received('notificationsmith@atelier-nova.example'))).toBe('notificationsmith@atelier-nova.example');
-    expect(contactAddressOf(received('j.bounceur@atelier-nova.example'))).toBe('j.bounceur@atelier-nova.example');
+    expect(contactOf(received('notificationsmith@atelier-nova.example'))).toBe('notificationsmith@atelier-nova.example');
+    expect(contactOf(received('j.bounceur@atelier-nova.example'))).toBe('j.bounceur@atelier-nova.example');
   });
 
   it('[RG-20] has no contact when the message names no address', () => {
-    expect(contactAddressOf(received(null))).toBeNull();
+    expect(contactOf(received(null))).toBeNull();
     expect(
-      contactAddressOf({ direction: 'outbound', fromAddress: 'alex@example.com', replyToAddress: null, toAddress: null }),
+      contactOf({ direction: 'outbound', fromAddress: 'alex@example.com', replyToAddress: null, toAddress: null }),
     ).toBeNull();
   });
 });
 
+describe('isContactAddress', () => {
+  it('[RG-20] accepts a recruiter of the company, refuses a no-reply or a platform address', () => {
+    expect(isContactAddress('camille.durand@atelier-nova.example', PLATFORMS)).toBe(true);
+    expect(isContactAddress('jobs-noreply@atelier-nova.example', PLATFORMS)).toBe(false);
+    expect(isContactAddress('atelier-nova@mail.flatchr.io', PLATFORMS)).toBe(false);
+  });
+});
+
+describe('latestContactOf', () => {
+  const contact = (address: string) => ({ address, gmailThreadId: `thread-${address}` });
+
+  it('[RG-20] answers the contact of the most recent message that carries one', () => {
+    expect(
+      latestContactOf([contact('camille.durand@atelier-nova.example'), contact('rh@atelier-nova.example')], PLATFORMS),
+    ).toEqual(contact('camille.durand@atelier-nova.example'));
+  });
+
+  it('[RG-20] falls back on the previous message when the latest was stored with a platform or no-reply address', () => {
+    expect(
+      latestContactOf(
+        [
+          contact('atelier-nova@teamtailor-mail.com'),
+          contact('jobs-noreply@atelier-nova.example'),
+          contact('offres@mail.indeed.com'),
+          contact('camille.durand@atelier-nova.example'),
+        ],
+        PLATFORMS,
+      ),
+    ).toEqual(contact('camille.durand@atelier-nova.example'));
+  });
+
+  it('[RG-20] has no contact when every stored address is refused, or none is stored', () => {
+    expect(latestContactOf([contact('atelier-nova@mail.flatchr.io')], PLATFORMS)).toBeNull();
+    expect(latestContactOf([], PLATFORMS)).toBeNull();
+  });
+});

@@ -10,8 +10,8 @@ import type { LlmRouter } from '../../llm/router.js';
 import type { ProviderName } from '../../llm/types.js';
 import { attachIncomingMessage, findApplicationThreads } from '../applications/service.js';
 import { type ClassifiedMessage, ClassificationSchema } from './classification.js';
+import { clearRefusedContacts } from './contacts.js';
 import { applyCategoryCues } from './cues.js';
-import { contactAddressOf } from './domains.js';
 import type { MessageFetcher, RetainedMessage } from './fetcher.js';
 import { createThreadLabeler, databaseLabelCache, type ThreadLabeler } from './labels.js';
 import { isInvalidGrant } from './mailbox.js';
@@ -194,7 +194,7 @@ const recordMessage = async (
     fromAddress: message.fromAddress,
     subject: message.subject,
     snippet: message.snippet,
-    contactAddress: contactAddressOf(message),
+    contactAddress: message.contactAddress,
     category: classification.category,
     platformId: platform?.id ?? null,
     receivedAt: message.receivedAt,
@@ -329,6 +329,10 @@ const createSyncRun = (
 
   const run = async (userId: number, report: (counters: RunCounters) => void): Promise<SyncReport> => {
     const startedAt = clock();
+    // RG-20, RG-06: addresses kept before the rule refused them stop making an application « à relancer ». Done
+    // before Gmail is read, so that a pass Gmail refuses (disconnected, quota) still clears them.
+    const forgotten = await clearRefusedContacts(db, userId);
+    if (forgotten > 0) logger.info('refused contact addresses forgotten', { count: forgotten });
     const { readCount, retained, mailbox, shouldApplyLabels, hasMore } =
       await fetcher.fetchNewMessages(userId);
     report({ messages_read: readCount, messages_retained: retained.length, messages_classified: 0 });

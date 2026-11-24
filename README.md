@@ -9,9 +9,9 @@ Projet **structuré pour être développé par Claude Code**, tâche par tâche,
 | Cahier des charges v1.1 (11 besoins, 127 exigences, 14 règles de gestion) | `docs/CAHIER_DES_CHARGES.md` | à valider |
 | Roadmap en 8 lots / 32 tâches, avec définition de fini | `docs/ROADMAP.md` | prêt |
 | Architecture, décisions, modèle de données | `docs/ARCHITECTURE.md` | prêt |
-| Modèle de données de référence (9 tables, index justifiés) | `database/migrations/001_initial_schema.sql` | version MySQL, converti en schéma Drizzle/PostgreSQL en T-002 |
+| Modèle de données (index justifiés) | `backend/src/db/schema.ts`, migrations `backend/drizzle/` | PostgreSQL (Drizzle), T-002 |
 | Rôles à moindre privilège | `docs/ARCHITECTURE.md` §5 | créés en T-002 (Neon) |
-| Sauvegarde + restauration de contrôle | `scripts/db/` | version MySQL, réécrite pour PostgreSQL en T-701 |
+| Sauvegarde + restauration de contrôle | `scripts/db/` | PostgreSQL (`pg_dump`), T-701 ; `docs/DEPLOIEMENT.md` §6 |
 | Outillage backend (TS strict, ESLint, Vitest unit/intégration, couverture 80 %) | `backend/` | vide de code métier |
 | Outillage frontend (React, TS strict, Vitest, Testing Library) | `frontend/` | page provisoire |
 | Configuration Claude Code | `CLAUDE.md`, `.claude/` | prêt |
@@ -21,7 +21,7 @@ Projet **structuré pour être développé par Claude Code**, tâche par tâche,
 nvm use                        # Node 22 (.nvmrc)
 scripts/setup.sh               # crée .env (droits 600), génère le mot de passe de test et la clé de chiffrement
                                # puis saisir à la main dans .env : URL Neon (3 rôles), clés IA, OAuth Google, SCRAPER_CONTACT_EMAIL
-docker compose up -d db        # base locale de test (PostgreSQL à partir de T-002)
+docker compose up -d db        # base locale de test (PostgreSQL 18)
 (cd backend && npm ci) && (cd frontend && npm ci)
 ```
 > Le hook qui protège les migrations s'appuie sur Git : le dépôt doit exister avant de lancer Claude Code.

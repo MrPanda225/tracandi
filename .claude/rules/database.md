@@ -1,6 +1,5 @@
 ---
 paths:
-  - "database/**"
   - "backend/src/db/**"
   - "backend/drizzle/**"
   - "backend/src/modules/**/repository.ts"
@@ -11,7 +10,6 @@ paths:
 
 Environnement : **PostgreSQL hébergé par Neon (région UE), base < 0,5 Go, RPO 24 h, RTO 30 min** (cahier des charges
 §7.3, C-02, C-09, ADR-02, ADR-03, ADR-11, ADR-12).
-*Transition* : `scripts/db/` est encore en version MySQL ; il est remplacé en T-701.
 
 ## Schéma
 - Source de vérité : `backend/src/db/schema.ts` (Drizzle). Toute évolution = modification de `schema.ts`
@@ -58,5 +56,7 @@ Environnement : **PostgreSQL hébergé par Neon (région UE), base < 0,5 Go, RPO
 ## Sauvegarde / restauration (T-701)
 - `pg_dump` quotidien de Neon vers le poste (rôle `tracandi_backup`, rétention 30 j), restauration de contrôle dans le
   PostgreSQL local. La restauration vers Neon est destructive : **jamais exécutée par Claude Code**.
+- Claude Code ne lance pas `backup.sh` sans `DATABASE_URL_BACKUP` locale et `TRACANDI_ENV_FILE` vide : sinon il lit
+  l'URL de Neon dans `.env`. Les scripts sont vérifiés par `tests/integration/backup-restore.test.ts`, base locale.
 - Opérations destructives : afficher d'abord ce qui sera touché (`SELECT count(*)`, `SELECT current_database()`),
   demander confirmation.

@@ -814,10 +814,16 @@ l'offre n'est écrite en base, sur disque ou dans les journaux (ENF-RGP-06).
 
 ## Lot 7 — Exploitation
 
-- [ ] **T-701 Sauvegardes** — réécrire `scripts/db/` pour PostgreSQL : `pg_dump` quotidien de Neon vers le poste (rôle
+- [x] **T-701 Sauvegardes** — réécrire `scripts/db/` pour PostgreSQL : `pg_dump` quotidien de Neon vers le poste (rôle
   `tracandi_backup`, rétention 30 j), restauration de contrôle dans le PostgreSQL local, restauration vers Neon, planification quotidienne.
   *Exigences* : ENF-FIA-04 à 08.
   *Fini quand* : une sauvegarde puis une restauration de contrôle réussissent ; durée de restauration mesurée.
+  *23/11/2026* : `backup.sh` (format custom, dossier `BACKUP_DIR` configurable, rétention d'après le nom des archives),
+  `restore-check.sh` (base jetable locale, tables comparées à l'archive, durée affichée), `restore.sh` (`--yes-i-know`,
+  double confirmation, copie de sécurité, une seule transaction), `backup-role.sql`, unités systemd et exemple cron
+  (`docs/DEPLOIEMENT.md` §6). Vérifié sur le PostgreSQL local (`backup-restore.test.ts`), jamais sur Neon.
+  *Reste à l'exploitant* : créer `tracandi_backup` sur Neon (§6.1), renseigner `DATABASE_URL_BACKUP` et `BACKUP_DIR`,
+  installer le minuteur (§6.4), premier essai réel.
 - [ ] **T-702 Purge RGPD** — commande `npm run data:purge` avec confirmation.
   *24/09/2026* : la suppression d'un compte et de toutes ses données est faite dans l'application (T-708,
   EF-AUT-11) ; reste la purge de toute la base en ligne de commande.
@@ -942,8 +948,16 @@ développeur l'active sur son poste (`ENABLED_FEATURES=watch,cv`) le temps d'y t
   *Livré, étape 2 (23/11/2026)* : couleurs des statuts (EF-CAN-22) dans `StatusTag` et le repère « À relancer »,
   palette et contrastes dans `frontend.md` ; « Test technique » (T-904) en orange « en cours » ; graphique hebdomadaire
   aligné sur la palette (remarque de recette).
-- [ ] **T-906 Relance vers le recruteur** — adresses des plateformes écartées du contact (RG-20 v1.32).
+- [x] **T-906 Relance vers le recruteur** — adresses des plateformes écartées du contact (RG-20 v1.32).
   *Exigences* : RG-20.
+  *Livré* : une seule liste des domaines exclus (`emails/domains.ts`, déjà partagée avec la veille pour RG-19) ;
+  `isRecruitmentPlatformDomain` (plateformes connues, outils de recrutement, ATS, job boards, sous-domaines compris) sert
+  RG-19 et RG-20 ; le contact est refusé à la synchronisation et à la relecture, et la relance passe les adresses
+  enregistrées avant le correctif pour le contact précédent, sinon 409 « Aucune adresse… », affiché tel quel par le
+  tableau de bord. Un message dont le `Reply-To` est refusé n'a pas de contact (pas de repli sur l'expéditeur).
+  Recette : une adresse conservée est toujours un contact au sens de RG-20 — les adresses enregistrées avant le
+  correctif sont effacées à chaque synchronisation et à chaque relecture (`emails/contacts.ts`), sans migration ; le
+  repère « À relancer », le tableau de bord et la relance s'accordent donc dès le passage suivant (30 minutes au plus).
 
 ## Lot 10 — Veille automatique par utilisateur (BES-48, cahier v1.35)
 
