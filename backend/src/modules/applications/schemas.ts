@@ -199,3 +199,105 @@ export type ApplicationView = Omit<z.infer<typeof ApplicationSchema>, 'appliedAt
 };
 export type ApplicationDetailView = ApplicationView & { offerDescription: string | null };
 export type EmailView = Omit<z.infer<typeof EmailSchema>, 'receivedAt'> & { receivedAt: Date };
+
+/** EF-CAN-23: the fields a column of an imported CSV file can fill. */
+export const IMPORT_FIELDS = ['company', 'jobTitle', 'link', 'appliedAt', 'status', 'notes'] as const;
+export type ImportField = (typeof IMPORT_FIELDS)[number];
+
+const ColumnIndexSchema = z.number().int().min(0).nullable().openapi({
+  description: 'Position de la colonne dans le fichier, à partir de 0 ; null quand aucune colonne ne remplit ce champ',
+});
+
+/** EF-CAN-23: column chosen for each field; the company is required, a column fills one field at most. */
+export const ImportMappingSchema = z
+  .object({
+    company: z.number().int().min(0).openapi({ description: "Colonne de l'entreprise (obligatoire)" }),
+    jobTitle: ColumnIndexSchema.default(null),
+    link: ColumnIndexSchema.default(null),
+    appliedAt: ColumnIndexSchema.default(null),
+    status: ColumnIndexSchema.default(null),
+    notes: ColumnIndexSchema.default(null),
+  })
+  .strict()
+  .superRefine((mapping, context) => {
+    const seen = new Set<number>();
+    for (const field of IMPORT_FIELDS) {
+      const column = mapping[field];
+      if (column === null) continue;
+      if (seen.has(column)) {
+        context.addIssue({ code: 'custom', path: [field], message: 'Cette colonne remplit déjà un autre champ' });
+      }
+      seen.add(column);
+    }
+  })
+  .openapi('ImportMapping');
+
+/** EF-CAN-23: largest file accepted, in bytes. */
+export const CSV_MAX_BYTES = 1024 * 1024;
+const BASE64_CHARS_PER_BLOCK = 4;
+const BYTES_PER_BLOCK = 3;
+/** Longest base64 text a file of CSV_MAX_BYTES can take, padding included. */
+export const CSV_MAX_BASE64_LENGTH = Math.ceil(CSV_MAX_BYTES / BYTES_PER_BLOCK) * BASE64_CHARS_PER_BLOCK;
+/** EF-CAN-23: the answer to a file beyond 1 MB, whichever check meets it first (the routes answer it with 413). */
+export const CSV_TOO_LARGE = 'Le fichier dépasse 1 Mo : gardez seulement les colonnes utiles, puis réessayez.';
+
+const CsvFileSchema = z.string().min(1).max(CSV_MAX_BASE64_LENGTH, { error: CSV_TOO_LARGE }).openapi({
+  description:
+    'Le fichier CSV (UTF-8, ou Windows-1252 pour un export Excel sous Windows ; 1 Mo, 1 000 lignes et ' +
+    '50 colonnes au plus), encodé en base64.',
+});
+
+/** EF-CAN-23: the encodings a file is read in — Windows-1252 only when the file is not valid UTF-8. */
+export const CSV_ENCODINGS = ['utf-8', 'windows-1252'] as const;
+export type CsvEncoding = (typeof CSV_ENCODINGS)[number];
+
+/** EF-CAN-23: the file to preview. */
+export const ImportPreviewBodySchema = z.object({ file: CsvFileSchema }).strict().openapi('ImportPreviewBody');
+
+/** EF-CAN-23: the file again, with the mapping the candidate validated. */
+export const ImportBodySchema = z
+  .object({ file: CsvFileSchema, mapping: ImportMappingSchema })
+  .strict()
+  .openapi('ImportBody');
+
+/**
+ * EF-CAN-23: what the preview shows before anything is stored.
+ * @req EF-CAN-23
+ */
+export const ImportPreviewSchema = z
+  .object({
+    delimiter: z.enum([',', ';']),
+    encoding: z.enum(CSV_ENCODINGS).openapi({
+      description: 'Encodage lu : windows-1252 quand le fichier n’est pas de l’UTF-8 valide (export Excel sous Windows)',
+    }),
+    headers: z.array(z.string()).openapi({ description: 'Première ligne du fichier' }),
+    rows: z.array(z.array(z.string())).openapi({ description: 'Les 5 premières lignes de candidatures' }),
+    totalRows: z.number().int().openapi({ description: 'Lignes de candidatures du fichier (lignes vides exclues)' }),
+    mapping: z
+      .object(Object.fromEntries(IMPORT_FIELDS.map((field) => [field, z.number().int().nullable()])))
+      .openapi({ description: 'Colonne proposée pour chaque champ, d’après le nom des colonnes' }),
+  })
+  .openapi('ImportPreview');
+
+/**
+ * EF-CAN-23: the outcome of an import — created, ignored as duplicates (RG-03 (a), (b)) and refused rows.
+ * @req EF-CAN-23, RG-03
+ */
+export const ImportResultSchema = z
+  .object({
+    created: z.number().int().openapi({ description: 'Candidatures créées' }),
+    duplicates: z.number().int().openapi({
+      description: 'Lignes ignorées : candidature déjà enregistrée ou déjà vue dans le fichier (RG-03 (a), (b))',
+    }),
+    rejected: z
+      .array(z.object({ line: z.number().int(), reason: z.string() }))
+      .openapi({ description: 'Lignes refusées, avec leur numéro dans le tableau (en-tête = ligne 1) et la raison' }),
+  })
+  .openapi('ImportResult');
+
+export type ImportMapping = z.infer<typeof ImportMappingSchema>;
+export type ImportBody = z.infer<typeof ImportBodySchema>;
+export type ImportPreview = Omit<z.infer<typeof ImportPreviewSchema>, 'mapping'> & {
+  mapping: Record<ImportField, number | null>;
+};
+export type ImportResult = z.infer<typeof ImportResultSchema>;

@@ -110,6 +110,8 @@ describe('migrations', () => {
         'PATCH /applications/{id}',
         'DELETE /applications/{id}',
         'GET /applications/{id}/emails',
+        'POST /applications/import/preview',
+        'POST /applications/import',
         'PATCH /emails/{id}',
         'GET /stats/dashboard',
         'GET /gmail/authorization-url',

@@ -1,0 +1,212 @@
+/* EF-CAN-23: the import panel opens under the actions, like the form of a new application. */
+.csv-import {
+  display: grid;
+  gap: 1rem;
+  margin-bottom: clamp(1rem, 0.6rem + 1.5vw, 1.5rem);
+  padding: clamp(1.1rem, 0.9rem + 0.8vw, 1.5rem);
+  border-radius: var(--radius-md);
+  background: var(--color-canvas-raised);
+  box-shadow: var(--shadow-soft);
+  /* The preview table scrolls inside the panel, never the page (ENF-UTI-02). */
+  min-width: 0;
+}
+
+.csv-import .flash {
+  margin: 0;
+}
+
+.csv-import__steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--color-mauve-deep);
+  font-size: 0.875rem;
+}
+
+.csv-import__step {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.csv-import__step-number {
+  display: inline-grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border: 1px solid var(--color-line);
+  border-radius: 50%;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.csv-import__step[aria-current='step'] {
+  color: var(--color-ink);
+  font-weight: 600;
+}
+
+.csv-import__step[aria-current='step'] .csv-import__step-number {
+  border-color: var(--color-accent-strong);
+  background: var(--color-accent-strong);
+  color: var(--color-canvas);
+}
+
+.csv-import__title {
+  margin: 0;
+  font-size: 1.125rem;
+}
+
+.csv-import__title:focus {
+  outline: none;
+}
+
+.csv-import__title:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.csv-import__form {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.csv-import__file {
+  padding-block: 0.45rem;
+}
+
+.csv-import__notice {
+  margin: 0;
+  color: var(--color-mauve-deep);
+  font-size: 0.8125rem;
+}
+
+.csv-import__file-name {
+  margin: 0;
+  color: var(--color-mauve-deep);
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+}
+
+.csv-import__preview {
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+}
+
+.csv-import__preview:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.csv-import__table {
+  /* Each column takes the width of its content (up to 16rem): on a phone the table scrolls sideways instead of
+     squeezing a column (ENF-UTI-02); on a wide screen it fills the panel. */
+  width: max-content;
+  min-width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+
+.csv-import__caption {
+  padding: 0.5rem 0.75rem;
+  color: var(--color-mauve-deep);
+  text-align: left;
+}
+
+.csv-import__table th,
+.csv-import__table td {
+  /* A narrow screen scrolls the table sideways instead of squeezing a column below a readable width. */
+  min-width: 7rem;
+  padding: 0.45rem 0.75rem;
+  border-top: 1px solid var(--color-line);
+  text-align: left;
+  vertical-align: top;
+  white-space: pre-line;
+  overflow-wrap: break-word;
+}
+
+/* A block bounds the width a cell asks for: a table cell ignores its own max-width, and the table takes the width
+   of its content (max-content). */
+.csv-import__cell {
+  display: block;
+  max-width: 16rem;
+}
+
+.csv-import__link {
+  display: block;
+  max-width: 16rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.csv-import__table th {
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.csv-import__mapping {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.9rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.csv-import__legend {
+  margin-bottom: 0.25rem;
+  padding: 0;
+  font-weight: 600;
+}
+
+@container shell-main (min-width: 40rem) {
+  .csv-import__mapping {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .csv-import__legend {
+    grid-column: 1 / -1;
+  }
+}
+
+@container shell-main (min-width: 64rem) {
+  .csv-import__mapping {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.csv-import__summary,
+.csv-import__rejected {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.csv-import__rejected {
+  padding: 0.75rem;
+  border-left: 3px solid var(--color-danger);
+  border-radius: var(--radius-sm);
+  background: var(--color-canvas);
+  font-size: 0.875rem;
+}
+
+.csv-import__line {
+  margin-right: 0.35rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.csv-import__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.6rem;
+}

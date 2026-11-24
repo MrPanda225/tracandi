@@ -25,13 +25,41 @@ const SENSITIVE_KEY =
 // ENF-SEC-08: "scheme://user:password@host" → "scheme://[REDACTED]@host" (database URLs in driver errors).
 const URL_CREDENTIALS = /\b([a-z][a-z0-9+.-]*:\/\/)[^\s/@]+@/gi;
 
-const scrubText = (text: string): string => text.replace(URL_CREDENTIALS, `$1${REDACTED}@`);
+// ENF-RGP-01, ENF-SEC-08: fallback for text that is not a failed query of ours (a string, a foreign error): its
+// « params: » line is cut before the first stack frame. A failed query itself is rebuilt by safeMessageOf below.
+const QUERY_PARAMS = /\nparams: [\s\S]*?(?=\n {4}at |$)/gu;
+
+const scrubText = (text: string): string =>
+  text.replace(URL_CREDENTIALS, `$1${REDACTED}@`).replace(QUERY_PARAMS, `\nparams: ${REDACTED}`);
+
+// ENF-RGP-01: a failed Drizzle query keeps its statement and its parameters apart (`query`, `params`); rebuilding the
+// message from the statement alone is exact, whatever a cell contains (a « \n    at » in a note ends no regex here).
+const isFailedQuery = (error: Error): error is Error & { query: string; params: unknown[] } =>
+  typeof (error as { query?: unknown }).query === 'string' && Array.isArray((error as { params?: unknown }).params);
+
+const safeMessageOf = (error: Error): string =>
+  isFailedQuery(error) ? `Failed query: ${error.query}\nparams: ${REDACTED}` : scrubText(error.message);
+
+/**
+ * Returns the stack of `error` safe to log: its message replaced by the sanitized one, so that a failed query keeps no
+ * parameter (ENF-RGP-01), and credentials removed from URLs. Never throws.
+ * A failed query whose stack no longer carries its message (message changed after the stack was read, stack rewritten)
+ * is reduced to `name: safe message`, without frames: the parameters could not be located for sure.
+ * @returns `undefined` when `error` is not an `Error` or has no stack.
+ * @req ENF-SEC-08, ENF-RGP-01
+ */
+export const stackOf = (error: unknown): string | undefined => {
+  if (!(error instanceof Error) || error.stack === undefined) return undefined;
+  if (!isFailedQuery(error)) return scrubText(error.stack);
+  if (error.message === '' || !error.stack.includes(error.message)) return `${error.name}: ${safeMessageOf(error)}`;
+  return scrubText(error.stack.split(error.message).join(safeMessageOf(error)));
+};
 
 const sanitizeAtDepth = (value: unknown, depth: number): unknown => {
   if (typeof value === 'string') return scrubText(value);
   if (value === null || typeof value !== 'object') return value;
   if (depth >= MAX_DEPTH) return TRUNCATED;
-  if (value instanceof Error) return { name: value.name, message: scrubText(value.message) };
+  if (value instanceof Error) return { name: value.name, message: safeMessageOf(value) };
   if (Array.isArray(value)) return value.map((item: unknown) => sanitizeAtDepth(item, depth + 1));
   return Object.fromEntries(
     Object.entries(value).map(([key, item]) => [
@@ -43,8 +71,9 @@ const sanitizeAtDepth = (value: unknown, depth: number): unknown => {
 
 /**
  * Returns a copy of `value` safe to log: sensitive keys redacted at any depth, credentials removed from URLs
- * embedded in strings, errors reduced to name and message. Never mutates its input.
- * @req ENF-SEC-08
+ * embedded in strings, parameters of a failed query removed, errors reduced to name and message. Never mutates its
+ * input.
+ * @req ENF-SEC-08, ENF-RGP-01
  */
 export const sanitize = (value: unknown): unknown => sanitizeAtDepth(value, 0);
 

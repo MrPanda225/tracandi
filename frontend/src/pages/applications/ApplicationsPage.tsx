@@ -21,6 +21,7 @@ import {
   toContractType,
 } from '../../lib/format';
 import { ApplicationItem } from './ApplicationItem';
+import { CsvImportPanel } from './CsvImportPanel';
 import { NewApplicationForm } from './NewApplicationForm';
 import { type ApplicationList, useApplications, useLastApplicationFilters } from './useApplications';
 import './ApplicationsPage.css';
@@ -351,11 +352,13 @@ function CompanyGroups({ list }: { list: ApplicationList }) {
 /**
  * Applications screen (T-103): every application, the most recent first or in the order chosen — grouped by company
  * when sorted by company (EF-CAN-01, 20) —, filters by status, contract type and period (EF-CAN-02, 14, 24), search (EF-CAN-03), chronology and Gmail links (EF-CAN-04, 05), manual creation and status
- * change (EF-CAN-06, 07), « à relancer » badge (EF-CAN-12).
+ * change (EF-CAN-06, 07), « à relancer » badge (EF-CAN-12), import of a CSV file (EF-CAN-23).
  */
 export function ApplicationsPage() {
   const formId = useId();
+  const importId = useId();
   const addButtonRef = useRef<HTMLButtonElement>(null);
+  const importButtonRef = useRef<HTMLButtonElement>(null);
   const lastFilters = useLastApplicationFilters();
   const [filters, setFilters] = useState<Filters>(() => ({
     status: lastFilters?.status,
@@ -366,6 +369,7 @@ export function ApplicationsPage() {
     appliedTo: lastFilters?.appliedTo ?? '',
   }));
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isImportOpen, setIsImportOpen] = useState(false);
   const [confirmation, setConfirmation] = useState<string | null>(null);
   const list = useApplications({
     ...filters,
@@ -390,7 +394,20 @@ export function ApplicationsPage() {
 
   const openForm = () => {
     setConfirmation(null);
+    setIsImportOpen(false);
     setIsFormOpen((open) => !open);
+  };
+
+  // EF-CAN-23: one panel at a time, focus back on its button when it closes.
+  const openImport = () => {
+    setConfirmation(null);
+    setIsFormOpen(false);
+    setIsImportOpen((open) => !open);
+  };
+
+  const closeImport = () => {
+    setIsImportOpen(false);
+    importButtonRef.current?.focus();
   };
 
   return (
@@ -413,9 +430,20 @@ export function ApplicationsPage() {
         >
           Ajouter une candidature
         </button>
+        <button
+          ref={importButtonRef}
+          type="button"
+          className="btn btn--quiet"
+          aria-expanded={isImportOpen}
+          aria-controls={importId}
+          onClick={openImport}
+        >
+          Importer un fichier CSV
+        </button>
       </div>
 
       {isFormOpen && <NewApplicationForm id={formId} onCreated={handleCreated} onCancel={closeForm} />}
+      {isImportOpen && <CsvImportPanel id={importId} onImported={list.reload} onClose={closeImport} />}
       {confirmation && <Flash tone="success">{confirmation}</Flash>}
 
       <FilterBar filters={filters} onChange={setFilters} />

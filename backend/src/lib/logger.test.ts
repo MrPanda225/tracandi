@@ -1,5 +1,6 @@
+import { DrizzleQueryError } from 'drizzle-orm';
 import { describe, expect, it } from 'vitest';
-import { createLogger, sanitize } from './logger.js';
+import { createLogger, sanitize, stackOf } from './logger.js';
 
 const captureLines = () => {
   const lines: string[] = [];
@@ -47,6 +48,73 @@ describe('sanitize', () => {
     expect(result).toEqual({
       error: { name: 'Error', message: 'login failed for postgres://[REDACTED]@host/db' },
     });
+  });
+});
+
+describe('a failed query in the journal', () => {
+  it('[ENF-RGP-01] [ENF-SEC-08] writes no parameter of a failed query, in its message nor in its stack', () => {
+    const { lines, logger } = captureLines();
+    const failed = new DrizzleQueryError(
+      'insert into "applications" ("company_id", "job_title", "notes") values ($1, $2, $3)',
+      [12, 'Analyste données Nova', 'Relance prévue\n    chez Nova le 3'],
+      new Error('deadlock detected'),
+    );
+
+    logger.error('unexpected error', { error: failed, stack: failed.stack });
+
+    const [line = ''] = lines;
+    expect(line).not.toMatch(/Nova|Analyste|Relance/u);
+    const entry = JSON.parse(line) as { error: { message: string }; stack: string };
+    expect(entry.error.message).toBe(
+      'Failed query: insert into "applications" ("company_id", "job_title", "notes") values ($1, $2, $3)\n' +
+        'params: [REDACTED]',
+    );
+    expect(entry.stack).toMatch(/params: \[REDACTED\]\n {4}at /u);
+  });
+
+  it('[ENF-RGP-01] [ENF-SEC-08] writes no parameter when a cell looks like a stack frame', () => {
+    const { lines, logger } = captureLines();
+    const failed = new DrizzleQueryError(
+      'update "applications" set "notes" = $1 where "id" = $2',
+      ['Relance prévue\n    at Nova SAS le 3 avec Mme Martin', 12],
+      new Error('deadlock detected'),
+    );
+
+    logger.error('unexpected error', { error: failed, stack: stackOf(failed) });
+
+    const [line = ''] = lines;
+    expect(line).not.toMatch(/Nova|Martin|Relance/u);
+    const entry = JSON.parse(line) as { error: { message: string }; stack: string };
+    expect(entry.error.message).toBe(
+      'Failed query: update "applications" set "notes" = $1 where "id" = $2\nparams: [REDACTED]',
+    );
+    expect(entry.stack).toMatch(/^Error: Failed query: .*\nparams: \[REDACTED\]\n {4}at /u);
+  });
+});
+
+describe('stackOf', () => {
+  const failedQuery = (): DrizzleQueryError =>
+    new DrizzleQueryError('select $1', ['Note confidentielle\n    at Nova SAS'], new Error('deadlock detected'));
+
+  it('[ENF-RGP-01] keeps no frame nor parameter when the message changed after the stack was read', () => {
+    const failed = failedQuery();
+    void failed.stack;
+    failed.message = `${failed.message} (retried)`;
+
+    expect(stackOf(failed)).toBe('Error: Failed query: select $1\nparams: [REDACTED]');
+  });
+
+  it('[ENF-SEC-08] leaves the stack of an ordinary error as it was, credentials of URLs removed', () => {
+    const plain = new Error('connect failed for postgres://u:secret@db.example:5432/app');
+
+    const stack = stackOf(plain) ?? '';
+
+    expect(stack).toMatch(/^Error: connect failed for postgres:\/\/\[REDACTED\]@db\.example:5432\/app\n {4}at /u);
+    expect(stack).not.toMatch(/secret/u);
+  });
+
+  it('[ENF-SEC-08] answers undefined for a value that is not an error', () => {
+    expect(stackOf('boom')).toBeUndefined();
   });
 });
 

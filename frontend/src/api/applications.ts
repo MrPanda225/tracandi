@@ -146,3 +146,41 @@ export interface FollowUpDraft {
 /** EF-CAN-17: has the follow-up of an application written and saved as a draft in its Gmail thread. */
 export const prepareFollowUpDraft = (id: number) =>
   request<FollowUpDraft>(`/applications/${id}/follow-up-draft`, { method: 'POST' });
+
+/** EF-CAN-23: largest CSV file the API accepts (1 MB), checked here too to answer at once. */
+export const CSV_MAX_BYTES = 1024 * 1024;
+
+/** EF-CAN-23: the fields a column of an imported file can fill, in the order shown. */
+export const IMPORT_FIELDS = ['company', 'jobTitle', 'link', 'appliedAt', 'status', 'notes'] as const;
+export type ImportField = (typeof IMPORT_FIELDS)[number];
+/** Column (from 0) chosen for each field, null for none; the company is required (schema `ImportMapping`). */
+export type ImportMapping = Record<ImportField, number | null>;
+
+/** EF-CAN-23: what the API read in a file (schema `ImportPreview` in /api/docs); nothing is stored yet. */
+export interface ImportPreview {
+  delimiter: ',' | ';';
+  /** Windows-1252 only when the file was not valid UTF-8 (an Excel export on Windows). */
+  encoding: 'utf-8' | 'windows-1252';
+  headers: string[];
+  /** The first 5 rows of applications. */
+  rows: string[][];
+  totalRows: number;
+  /** Column proposed for each field from the column names. */
+  mapping: ImportMapping;
+}
+
+/** EF-CAN-23: outcome of an import (schema `ImportResult` in /api/docs). */
+export interface ImportResult {
+  created: number;
+  /** Rows designating an application already stored, or an earlier row (RG-03). */
+  duplicates: number;
+  rejected: { line: number; reason: string }[];
+}
+
+/** EF-CAN-23: reads a CSV file, sent in base64, without storing anything. */
+export const previewApplicationsImport = (file: string) =>
+  request<ImportPreview>('/applications/import/preview', { method: 'POST', body: { file } });
+
+/** EF-CAN-23: creates the applications of the file with the mapping the candidate validated. */
+export const importApplications = (file: string, mapping: ImportMapping) =>
+  request<ImportResult>('/applications/import', { method: 'POST', body: { file, mapping } });
