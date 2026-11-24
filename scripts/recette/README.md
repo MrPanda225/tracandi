@@ -49,7 +49,7 @@ RECETTE_API_PORT=4001 RECETTE_WEB_PORT=5174 scripts/recette/run-frontend.sh
 
 Deux recettes en parallèle partagent la même base de recette (mêmes comptes, mêmes données).
 
-Dans Claude Code : copier `scripts/recette/launch.example.json` en `.claude/launch.json` (fichier non suivi), puis
+Dans Claude Code : copier `scripts/recette/launch.example.json` en `.claude/launch.json` (fichier ignoré par git, à ne jamais commiter), puis
 démarrer `recette-backend` et `recette-frontend` avec `preview_start`.
 
 `npm --prefix frontend run dev` convient aussi quand l'API de recette est sur le port 4000 : Vite ne lit pas le `.env`
@@ -108,6 +108,11 @@ Vérifier avant que personne n'utilise la base de test (autres sessions, autres 
   sont vérifiés, pas la pertinence des structurations, diagnostics, CV adaptés, notes ou relances.
 - **Gmail** : identifiants Google fictifs, appels sortants bloqués ; connexion, synchronisation et libellés ne peuvent
   pas aboutir. L'écran Réglages s'affiche, avec Gmail non connecté.
+  **Ne cliquez pas sur « Connecter Gmail » pendant une recette** : l'interception ne couvre que l'API, et ce bouton
+  envoie le navigateur sur `accounts.google.com`, un vrai service Google (avec un identifiant client fictif).
+- **La séparation des rôles de la base (ENF-SEC-09)** : l'API de recette se connecte avec le rôle `recette`,
+  propriétaire et superutilisateur du conteneur, alors qu'en production le rôle de l'application n'est pas le
+  propriétaire du schéma. Un défaut de droits ne se voit donc qu'aux tests d'intégration ou en production.
 - **La veille réelle** : la collecte des sites carrières est bloquée (appels sortants refusés), le passage planifié est
   repoussé une fois l'an (`CRON_SCRAPER`) ; les écrans Sites et Offres s'affichent, vides tant qu'aucune offre n'est
   saisie.

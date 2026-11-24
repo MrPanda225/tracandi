@@ -25,7 +25,7 @@ exec env -i PATH="$PATH" HOME="$HOME" RECETTE_RUN_DIR="$RECETTE_RUN_DIR" \
   GROQ_API_KEY=gsk_faux_recette GROQ_MODEL_1=faux-groq-1 \
   RESEND_API_KEY=re_faux_recette \
   GOOGLE_CLIENT_ID=faux.apps.googleusercontent.com GOOGLE_CLIENT_SECRET=faux \
-  GOOGLE_REDIRECT_URI=http://localhost:4000/api/gmail/callback \
+  GOOGLE_REDIRECT_URI="http://localhost:${RECETTE_API_PORT}/api/gmail/callback" \
   TOKEN_ENCRYPTION_KEY="$(openssl rand -hex 32)" \
   ENABLED_FEATURES=watch,cv CV_ANALYSES_PER_DAY=0 \
   CRON_SCRAPER='0 3 1 1 *' \

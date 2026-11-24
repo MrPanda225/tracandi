@@ -32,6 +32,13 @@ recette_fail() {
   exit 1
 }
 
+# Un port venu de l'environnement entre tel quel dans une URL : sans ce contrôle, « 5435@hote-distant:5432 » ferait
+# viser un autre serveur tout en passant assert_recette_url.
+for recette_port in "$RECETTE_DB_PORT" "$RECETTE_API_PORT" "$RECETTE_WEB_PORT"; do
+  [[ "$recette_port" =~ ^[0-9]{1,5}$ ]] || recette_fail "port refusé : « $recette_port » (chiffres seulement)"
+done
+unset recette_port
+
 # Refuse toute URL qui ne vise pas la base locale de la recette : garde contre une erreur de copier-coller qui
 # viserait Neon (données réelles).
 assert_recette_url() {
