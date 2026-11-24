@@ -814,10 +814,16 @@ l'offre n'est écrite en base, sur disque ou dans les journaux (ENF-RGP-06).
 
 ## Lot 7 — Exploitation
 
-- [ ] **T-701 Sauvegardes** — réécrire `scripts/db/` pour PostgreSQL : `pg_dump` quotidien de Neon vers le poste (rôle
+- [x] **T-701 Sauvegardes** — réécrire `scripts/db/` pour PostgreSQL : `pg_dump` quotidien de Neon vers le poste (rôle
   `tracandi_backup`, rétention 30 j), restauration de contrôle dans le PostgreSQL local, restauration vers Neon, planification quotidienne.
   *Exigences* : ENF-FIA-04 à 08.
   *Fini quand* : une sauvegarde puis une restauration de contrôle réussissent ; durée de restauration mesurée.
+  *23/11/2026* : `backup.sh` (format custom, dossier `BACKUP_DIR` configurable, rétention d'après le nom des archives),
+  `restore-check.sh` (base jetable locale, tables comparées à l'archive, durée affichée), `restore.sh` (`--yes-i-know`,
+  double confirmation, copie de sécurité, une seule transaction), `backup-role.sql`, unités systemd et exemple cron
+  (`docs/DEPLOIEMENT.md` §6). Vérifié sur le PostgreSQL local (`backup-restore.test.ts`), jamais sur Neon.
+  *Reste à l'exploitant* : créer `tracandi_backup` sur Neon (§6.1), renseigner `DATABASE_URL_BACKUP` et `BACKUP_DIR`,
+  installer le minuteur (§6.4), premier essai réel.
 - [ ] **T-702 Purge RGPD** — commande `npm run data:purge` avec confirmation.
   *24/09/2026* : la suppression d'un compte et de toutes ses données est faite dans l'application (T-708,
   EF-AUT-11) ; reste la purge de toute la base en ligne de commande.

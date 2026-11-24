@@ -1,0 +1,21 @@
+# Sauvegarde quotidienne puis restauration de contrôle (ENF-FIA-04, ENF-FIA-05) — unité systemd UTILISATEUR.
+# Installation : docs/DEPLOIEMENT.md, section Sauvegardes (@REPO_ROOT@ est remplacé par le chemin du dépôt).
+# Journal : journalctl --user -u tracandi-backup ; en plus, BACKUP_DIR/backup.log.
+[Unit]
+Description=Tracandi : sauvegarde pg_dump et restauration de contrôle
+After=network-online.target
+Wants=network-online.target
+# Réessais en cas d'échec (disque externe débranché, réseau absent) : au plus 6 par jour, RPO 24 h (ENF-FIA-06).
+StartLimitIntervalSec=1d
+StartLimitBurst=6
+
+[Service]
+Type=oneshot
+WorkingDirectory=@REPO_ROOT@
+# Exécutés dans l'ordre ; le contrôle n'est lancé que si la sauvegarde a réussi.
+ExecStart=@REPO_ROOT@/scripts/db/backup.sh
+ExecStart=@REPO_ROOT@/scripts/db/restore-check.sh
+Restart=on-failure
+RestartSec=1h
+UMask=0077
+NoNewPrivileges=yes

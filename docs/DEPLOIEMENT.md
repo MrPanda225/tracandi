@@ -130,10 +130,101 @@ quels, avant le retour à l'application. Une fois le domaine définitif connu, a
 6. `https://<domaine-vercel>/robots.txt` et `/llms.txt` renvoient du texte, pas la page de l'application.
 7. Lighthouse (mobile) sur `/` et `/connexion` : performance ≥ 90, SEO et bonnes pratiques à 100 (ENF-PERF-07).
 
+## 6. Sauvegardes (T-701)
+
+Exigences : ENF-FIA-04 (sauvegarde logique quotidienne), ENF-FIA-05 (restauration de contrôle automatique),
+ENF-FIA-06 (RPO 24 h), ENF-FIA-07 (RTO 30 min), ENF-FIA-08 (conservation 30 jours) ; Q-03 et Q-13 : offre Neon
+gratuite, la sauvegarde quotidienne sur le poste de l'exploitant suffit, la restauration Neon à un instant donné
+s'ajoute en complément (ADR-10).
+
+| Script | Rôle |
+|---|---|
+| `scripts/db/backup.sh` | `pg_dump` de Neon vers `BACKUP_DIR`, format custom compressé, `tracandi_<AAAA-MM-JJTHH-MM-SSZ>.dump` (UTC) ; rétention 30 jours |
+| `scripts/db/restore-check.sh` | restaure la dernière archive dans une base jetable du PostgreSQL Docker local, compare le nombre de tables à celui de l'archive, affiche quelques comptages et la durée |
+| `scripts/db/restore.sh` | ⚠ destructif : remplace le contenu de la base cible (Neon) ; `--yes-i-know` et double confirmation |
+| `scripts/db/backup-role.sql` | droits en lecture seule du rôle `tracandi_backup` |
+| `scripts/db/tracandi-backup.service`, `.timer` | planification quotidienne (systemd utilisateur) ; `crontab.example` en alternative |
+
+### 6.1 Rôle `tracandi_backup` sur Neon (une fois, à la main)
+
+1. Générer un mot de passe : `openssl rand -hex 24` (hexadécimal : aucun caractère à échapper dans l'URL).
+2. Console Neon → *SQL Editor*, base de l'application, **rôle propriétaire des tables** (celui de
+   `DATABASE_URL_MIGRATOR`) : `CREATE ROLE tracandi_backup WITH LOGIN PASSWORD '<mot de passe>';`.
+   Un rôle créé depuis l'onglet *Roles* de la console est membre de `neon_superuser` : il ne serait pas en lecture
+   seule (ENF-SEC-09), d'où la création en SQL.
+3. Coller et exécuter `scripts/db/backup-role.sql` dans le même éditeur, avec le même rôle (rejouable).
+4. Dans `.env` : `DATABASE_URL_BACKUP=postgresql://tracandi_backup:<mot de passe>@<hôte direct, sans « -pooler »>/<base>?sslmode=verify-full`.
+   Le script ajoute `PGSSLROOTCERT=system` (autorités du système) si l'URL ne précise pas `sslrootcert`.
+
+### 6.2 Réglages (`.env` ou environnement)
+
+| Clé | Défaut | Rôle |
+|---|---|---|
+| `DATABASE_URL_BACKUP` | — | URL du rôle `tracandi_backup` ; jamais affichée, le mot de passe passe par `PGPASSWORD` |
+| `BACKUP_DIR` | `backups/` du dépôt | dossier des archives et de `backup.log` ; **doit exister** (disque débranché = échec, jamais d'écriture ailleurs), jamais `/`. Exemple : `BACKUP_DIR=/run/media/<utilisateur>/<disque>/tracandi-backups` |
+| `KEEP_DAYS` | `30` | rétention, d'après l'horodatage du nom des archives |
+| `PG_CLIENT` | `auto` | `local` (outils du poste, version ≥ 18 exigée), `docker` (outils de l'image `postgres:18`, échange par l'entrée et la sortie standard ; pour une base distante, le magasin d'autorités de l'hôte est monté en lecture seule, l'image n'ayant pas `ca-certificates` ; un `sslrootcert=` dans l'URL exige `local`) ; `auto` choisit `local` si `pg_dump --version` ≥ 18 |
+| `CHECK_DB` | `tracandi_restore_check` | base jetable du contrôle, supprimée après (`KEEP_CHECK_DB=1` la garde) ; jamais `tracandi_test` |
+| `TEST_DB_*` | `docker-compose.yml` | PostgreSQL local du contrôle ; hôte `127.0.0.1` exigé |
+| `RESTORE_DATABASE_URL` | `DATABASE_URL_MIGRATOR` | cible de `restore.sh` (rôle propriétaire) |
+
+Disque externe : en NTFS ou exFAT, les droits Unix (fichiers en `600`) ne s'appliquent pas ; les archives contiennent
+les données personnelles des utilisatrices (RGPD) : ranger le disque, ou le chiffrer.
+
+Codes de retour, communs aux trois scripts : `0` réussite, `1` usage ou confirmation refusée, `2` configuration
+(URL absente ou sans `sslmode=verify-full`, dossier absent, hôte de contrôle non local), `3` échec de `pg_dump` ou de
+la restauration, `4` archive ou contrôle invalide, `5` échec de la rétention (archive du jour valide).
+
+### 6.3 Premier essai, à la main
+
+```bash
+scripts/db/backup.sh && scripts/db/restore-check.sh
+```
+
+Attendu : `Backup OK: … tables=N`, puis `Restore check OK in X s: tables=N/N rows: users=… applications=…`. La
+durée affichée est la durée de restauration, à rapprocher du RTO de 30 minutes (ENF-FIA-07). Le PostgreSQL local est
+démarré au besoin (`docker compose up -d --wait db`), jamais arrêté.
+
+### 6.4 Planification quotidienne (systemd utilisateur, recommandé)
+
+```bash
+mkdir -p ~/.config/systemd/user
+sed "s|@REPO_ROOT@|$PWD|g" scripts/db/tracandi-backup.service > ~/.config/systemd/user/tracandi-backup.service
+cp scripts/db/tracandi-backup.timer ~/.config/systemd/user/
+systemctl --user daemon-reload && systemctl --user enable --now tracandi-backup.timer
+loginctl enable-linger "$USER"
+```
+
+Chaque jour à 12 h 30 (`Persistent=true` : un passage manqué, poste éteint, est rattrapé au démarrage), sauvegarde
+puis contrôle ; en cas d'échec (disque débranché, réseau absent), nouvel essai une heure plus tard, au plus six par
+jour, ce qui tient le RPO de 24 h. Suivi : `systemctl --user list-timers tracandi-backup.timer`,
+`journalctl --user -u tracandi-backup`, et `BACKUP_DIR/backup.log`. Sans systemd : `scripts/db/crontab.example`
+(cron ne rattrape pas un passage manqué).
+
+- La limite de six essais (`StartLimitIntervalSec=1d`, `StartLimitBurst=6`) porte sur une fenêtre glissante de
+  24 heures : une fois atteinte, systemd ne relance plus l'unité, même au passage suivant du minuteur. Après avoir
+  réglé la cause : `systemctl --user reset-failed tracandi-backup`.
+- `loginctl enable-linger` fait tourner le minuteur sans session ouverte, mais **Docker Desktop ne démarre qu'avec
+  la session graphique** : sans elle, la sauvegarde réussit (outils du poste) et la restauration de contrôle échoue
+  faute de PostgreSQL local, puis elle est réessayée. Ouvrir sa session une fois par jour suffit.
+
+### 6.5 Restauration de la base Neon (incident)
+
+1. `scripts/db/restore-check.sh <archive>` : l'archive se restaure et contient ce qu'on attend.
+2. Northflank : service API à 0 instance (plus aucune écriture pendant la restauration).
+3. `scripts/db/restore.sh --yes-i-know <archive>` : affiche l'hôte, la base, le nombre de tables et d'utilisateurs
+   actuels, demande de retaper le nom de la base puis `RESTAURER`, fait une copie de sécurité
+   (`BACKUP_DIR/pre-restore_tracandi_<horodatage>.dump`, jamais supprimée par la rétention), puis restaure en une seule
+   transaction (un échec ne change rien).
+4. Service `migrate` (Northflank, §2.3) si l'archive est antérieure à la dernière migration, puis API à 1 instance.
+
+Alternative sans archive : restauration Neon à un instant donné (console → *Backup & Restore*), dans la fenêtre de
+l'offre gratuite.
+
 ## Limites connues
 
 - **Aperçus Vercel** : ils partagent l'API de production (relais figé dans `vercel.json`) ; leur origine diffère de
   `FRONTEND_ORIGIN`, donc l'API refuse leurs écritures (garde d'origine) — voulu.
 - **Flux en direct** : si un relais coupe une connexion longue, le navigateur la rouvre seul (`EventSource`).
-- **Sauvegardes** : `scripts/db/` est encore en version MySQL jusqu'à T-701 ; Neon garde son propre historique de
-  restauration en attendant.
+- **Sauvegardes** : poste de l'exploitant allumé au moins une fois par jour (RPO 24 h) ; la restauration de contrôle
+  n'est jamais faite sur Neon, seulement dans le PostgreSQL Docker local.

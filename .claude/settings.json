@@ -22,7 +22,6 @@
       "Bash(git add:*)",
       "Bash(git commit:*)",
       "Bash(git push:*)",
-      "Bash(scripts/db/backup.sh)",
       "Bash(scripts/db/restore-check.sh:*)"
     ],
     "ask": [
@@ -31,7 +30,8 @@
       "Bash(docker compose exec:*)",
       "Bash(docker compose up:*)",
       "Bash(git checkout:*)",
-      "Bash(git reset:*)"
+      "Bash(git reset:*)",
+      "Bash(scripts/db/backup.sh)"
     ],
     "deny": [
       "Read(./.env)",
