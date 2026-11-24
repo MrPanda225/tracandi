@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { PARSED_CV, PARSED_CV_SOURCE } from '../../../tests/fixtures/cv/parsedCv.js';
 import type { AdaptedCv } from './adaptedCv.js';
 import { assembleCv } from './assembly.js';
-import { unfaithfulPaths } from './fidelity.js';
+import { freeTextCheck, unfaithfulPaths } from './fidelity.js';
 import { TailorCvAnswerSchema } from './tailorCvAnswer.js';
 
 const ANSWER = TailorCvAnswerSchema.parse({
@@ -54,5 +54,15 @@ describe('unfaithfulPaths (RG-21)', () => {
       'profile',
       'experiences.0.bullets.0',
     ]);
+  });
+});
+
+describe('freeTextCheck (RG-21)', () => {
+  it('[RG-21] keeps a bullet where a short missing skill is only part of another word, removes one that cites it', () => {
+    const isFaithful = freeTextCheck(PARSED_CV_SOURCE, ['C', 'Go']);
+
+    expect(isFaithful('C’est avec rigueur que j’ai fiabilisé les tableaux de bord.')).toBe(true);
+    expect(isFaithful('Préparation du go-live.')).toBe(true);
+    expect(isFaithful('Développement en C.')).toBe(false);
   });
 });

@@ -69,4 +69,31 @@ describe('AdaptedCvCard', () => {
     expect(screen.getAllByText('Licence')).toHaveLength(2);
     expect(error.mock.calls.flat().join(' ')).not.toMatch(/same key/);
   });
+
+  it('[EF-CVX-25] shows a bullet the model repeated twice, without a key collision', () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const bullet = 'Conception de tableaux de bord.';
+    const cv = {
+      headline: 'Data Analyst',
+      profile: '',
+      experiences: [{ title: 'Stagiaire', organization: null, place: null, dates: null, bullets: [bullet, bullet] }],
+      education: [],
+      skills: [],
+      certifications: [],
+      languages: [],
+      interests: [],
+    };
+
+    render(
+      <AdaptedCvCard
+        cv={cv}
+        contacts={{ name: null, emails: [], phones: [], address: null, links: [] }}
+        runId={1}
+        ticked={[]}
+      />,
+    );
+
+    expect(screen.getAllByText(bullet)).toHaveLength(2);
+    expect(error.mock.calls.flat().join(' ')).not.toMatch(/same key/);
+  });
 });

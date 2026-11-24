@@ -227,8 +227,8 @@ function CvPreview({
                 place={experience.place}
               >
                 <ul>
-                  {experience.bullets.map((bullet) => (
-                    <li key={bullet}>{bullet}</li>
+                  {experience.bullets.map((bullet, bulletIndex) => (
+                    <li key={`${String(bulletIndex)}-${bullet}`}>{bullet}</li>
                   ))}
                 </ul>
               </CvEntry>

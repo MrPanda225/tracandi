@@ -17,14 +17,27 @@ export const foldText = (text: string): string =>
 
 const escapeRegExp = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+/** A skill this short (« C », « R », « Go ») is mostly met as a piece of another word. */
+const SHORT_PHRASE_LENGTH = 2;
+const WORD_START = '(^|[^\\p{L}\\p{N}])';
+const WORD_END = '($|[^\\p{L}\\p{N}])';
+// After a short phrase: not an elision (« c'est »), a hyphen before a letter (« go-live ») nor an ampersand (« r&d »).
+const SHORT_WORD_START = `${WORD_START}(?<!\\p{L}&)`;
+const SHORT_WORD_END = "($|(?!'|&|-\\p{L})[^\\p{L}\\p{N}])";
+
 /**
- * Whether a folded text cites a phrase as a whole word or group of words, whatever its case and accents.
+ * Whether a folded text cites a phrase as a whole word or group of words, whatever its case and accents. A phrase of
+ * at most two characters is not cited by an elision (« C'est » for « C »), a hyphenated word (« go-live » for « Go »)
+ * or an initialism with an ampersand (« R&D » for « R » or « D »). Never throws; an empty phrase is always cited.
  * @req EF-CVX-27, RG-21
  */
 export const cites = (foldedText: string, phrase: string): boolean => {
   const folded = foldText(phrase);
   if (folded === '') return true;
-  return new RegExp(`(^|[^\\p{L}\\p{N}])${escapeRegExp(folded)}($|[^\\p{L}\\p{N}])`, 'u').test(foldedText);
+  const isShort = folded.length <= SHORT_PHRASE_LENGTH;
+  const start = isShort ? SHORT_WORD_START : WORD_START;
+  const end = isShort ? SHORT_WORD_END : WORD_END;
+  return new RegExp(`${start}${escapeRegExp(folded)}${end}`, 'u').test(foldedText);
 };
 
 // « 10 000 », « 10.000 », « 10,000 » (a group of exactly three digits after a separator) read « 10000 ».

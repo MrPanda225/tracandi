@@ -17,6 +17,26 @@ describe('foldText and cites (RG-21)', () => {
     for (const mark of ['’', '‘', 'ʼ', '´', '′', '`']) expect(foldText(`l${mark}équipe`)).toBe("l'equipe");
   });
 
+  it('[RG-21] does not read a short skill in an elision, a hyphenated word or « R&D »', () => {
+    expect(cites(foldText('C’est avec rigueur que j’ai mené le projet.'), 'C')).toBe(false);
+    expect(cites(foldText('Préparation du go-live.'), 'Go')).toBe(false);
+    expect(cites(foldText('Budget de R&D suivi chaque mois.'), 'R')).toBe(false);
+    expect(cites(foldText('Budget de R&D suivi chaque mois.'), 'D')).toBe(false);
+  });
+
+  it('[RG-21] still reads a short skill written as a word', () => {
+    expect(cites(foldText('Développement en C.'), 'C')).toBe(true);
+    expect(cites(foldText('Services écrits en Go, R et C#'), 'Go')).toBe(true);
+    expect(cites(foldText('Services écrits en Go, R et C#'), 'R')).toBe(true);
+    expect(cites(foldText('Services écrits en Go, R et C#'), 'C#')).toBe(true);
+    expect(cites(foldText('C - Python - SQL'), 'C')).toBe(true);
+    expect(cites(foldText('Python/R'), 'R')).toBe(true);
+  });
+
+  it('[RG-21] keeps reading a longer skill inside a hyphenated word', () => {
+    expect(cites(foldText('Migration Power BI-Fabric'), 'Power BI')).toBe(true);
+  });
+
   it('[RG-21] reads the minus sign among the dashes of a date', () => {
     expect(cites(foldText('2022 − 2023'), '2022 - 2023')).toBe(true);
   });

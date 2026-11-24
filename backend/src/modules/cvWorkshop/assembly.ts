@@ -50,7 +50,8 @@ const firstById = <T extends { id: string }>(choices: readonly T[]): Map<string,
  * and the ids it keeps. Every experience and education entry stays, with its facts, even when the model gave it no
  * bullet. A free text that fails {@link freeTextCheck} — a figure, a date or a duration the CV does not carry, or a skill
  * the diagnostic found absent from it — is removed (a bullet, a sentence of the profile) or replaced by the CV's own
- * (the headline). The lists keep the order the model gave. Never throws.
+ * (the headline, and the profile when none of its sentences is left). The lists keep the order the model gave.
+ * Never throws.
  * @param sourceText the text the CV was parsed from, where the figures, dates and durations are looked for
  * @param missingSkills the skills of the offer the CV does not cite (EF-CVX-27); none are looked for when left out
  * @req RG-21, RG-24, EF-CVX-47
@@ -71,7 +72,8 @@ export const assembleCv = ({
   const educationChoices = firstById(answer.education);
   const headline =
     answer.headline !== null && isFaithful(answer.headline) ? answer.headline : headlineOfCv(parsed);
-  const profile = answer.profile === null ? (parsed.profile ?? '') : sentencesOf(answer.profile).filter(isFaithful).join(' ');
+  const faithfulProfile = answer.profile === null ? '' : sentencesOf(answer.profile).filter(isFaithful).join(' ');
+  const profile = faithfulProfile === '' ? (parsed.profile ?? '') : faithfulProfile;
 
   return {
     headline,
@@ -198,7 +200,8 @@ const targetsOf = (parsed: ParsedCv, assembled: AdaptedCv, cv: AdaptedCv): Targe
  * the headline, the profile, each experience (its bullets), each education entry (its details), each list. `before`
  * is the CV's own text, `after` what the final CV says once the page was fitted (« (retiré) » when nothing is left).
  * The reason is the model's when it named the part, followed by the code's when the page fitting trimmed it further;
- * the code's own otherwise (« Réalisations retirées pour tenir sur une page. »…). The parts the model named come
+ * the code's own otherwise (« Réalisations retirées pour tenir sur une page. »…), and always when the part kept the CV's
+ * own text because the model's was refused (a profile none of whose sentences was faithful). The parts the model named come
  * first, in its order, then the others in the order of the CV; each part once. A target the CV does not have, or
  * whose text did not change, gives no change. Never throws; an empty array when nothing changed.
  * @param assembled the CV before the page was fitted (RG-24), to tell what the fitting removed
@@ -217,7 +220,11 @@ export const buildChanges = ({
 }): CvChange[] => {
   const targets = targetsOf(parsed, assembled, cv);
   const reasons = new Map<string, string>();
-  for (const { target, reason } of answer.changes) if (!reasons.has(target)) reasons.set(target, reason);
+  // RG-21: a profile none of whose sentences was faithful is the CV's own; the model's reason does not apply to it.
+  const keepsCvProfile = assembled.profile === (parsed.profile ?? '');
+  for (const { target, reason } of answer.changes) {
+    if (!reasons.has(target) && !(target === 'profile' && keepsCvProfile)) reasons.set(target, reason);
+  }
   const named = [...reasons.keys()].flatMap((id) => targets.filter((target) => target.id === id));
   const ordered = [...named, ...targets.filter((target) => !reasons.has(target.id))];
   return ordered.flatMap(({ id, texts, codeReason, trimmedReason }): CvChange[] => {

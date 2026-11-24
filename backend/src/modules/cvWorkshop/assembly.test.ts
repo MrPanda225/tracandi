@@ -83,6 +83,12 @@ describe('assembleCv', () => {
     expect(cv.profile).toBe('Analyste de données. Goût du détail.');
   });
 
+  it('[RG-21] keeps the profile of the CV when no sentence of the model’s is faithful', () => {
+    const cv = assemble(answerOf({ profile: 'Cinq ans, soit 60 mois d’expérience. Modélisation avec DBT.' }), ['DBT']);
+
+    expect(cv.profile).toBe(PARSED_CV.profile);
+  });
+
   it('[RG-21] falls back on the headline of the CV, then on the first title, when the model’s is unusable', () => {
     expect(assemble(answerOf({ headline: 'Data Analyst depuis 15 ans' })).headline).toBe('Data analyst confirmé');
     expect(assemble(answerOf({ headline: null })).headline).toBe('Data analyst confirmé');
@@ -184,6 +190,23 @@ describe('buildChanges', () => {
         reason: 'Plus court.',
       },
     ]);
+  });
+
+  it('[EF-CVX-29] [RG-21] shows no removed profile with the model’s reason when the CV’s own profile was kept', () => {
+    const answer = answerOf({ profile: 'Cinq ans, soit 60 mois d’expérience.', changes });
+    const assembled = assemble(answer);
+
+    expect(buildChanges({ parsed: PARSED_CV, answer, assembled, cv: assembled }).map((change) => change.section)).not.toContain(
+      'Profil',
+    );
+
+    const fitted = { ...assembled, profile: 'Analyste de données.' };
+    expect(buildChanges({ parsed: PARSED_CV, answer, assembled, cv: fitted })).toContainEqual({
+      section: 'Profil',
+      before: 'Analyste de données. Trois ans en tableaux de bord.',
+      after: 'Analyste de données.',
+      reason: 'Profil raccourci pour tenir sur une page.',
+    });
   });
 
   it('[EF-CVX-29] drops a change whose text did not change or whose target does not exist, and shows the text after removals', () => {
