@@ -1,6 +1,7 @@
-import express, { type RequestHandler, Router } from 'express';
-import { HttpError } from '../../lib/errors.js';
+import express, { type Request, type RequestHandler, Router } from 'express';
+import { HttpError, ValidationError } from '../../lib/errors.js';
 import { asyncHandler, validate } from '../../lib/http.js';
+import type { z } from '../../lib/openapi.js';
 import { currentUserId } from '../../lib/middleware.js';
 import type { ApiModule } from '../../lib/module.js';
 import { registerApplicationsDocs } from './docs.js';
@@ -14,7 +15,7 @@ import {
   UpdateApplicationBodySchema,
 } from './schemas.js';
 import type { ApplicationsService } from './service.js';
-import { CSV_MAX_BASE64_LENGTH, CSV_TOO_LARGE } from './csvImport.js';
+import { CSV_MAX_BASE64_LENGTH, CSV_TOO_LARGE } from './schemas.js';
 
 /** EF-CAN-23: the routes that receive a CSV file, the only ones of this module allowed a body larger than 100 kB. */
 export const IMPORT_PREVIEW_PATH = '/applications/import/preview';
@@ -38,19 +39,35 @@ export const parseImportBody: RequestHandler = (req, res, next) => {
   });
 };
 
+/**
+ * EF-CAN-23: validates the body of an import route. A file beyond 1 MB — the bound of `CsvFileSchema` — is answered
+ * 413 with its message, like every other check of the size, never 400.
+ * @throws HttpError 413 for a file beyond 1 MB; ValidationError (400) for any other invalid field.
+ */
+const validateImportBody = <S extends z.ZodType>(req: Request, schema: S): z.infer<S> => {
+  try {
+    return validate(req, { body: schema }).body;
+  } catch (error) {
+    const isTooLarge =
+      error instanceof ValidationError &&
+      error.details.some((issue) => issue.path === 'body.file' && issue.message === CSV_TOO_LARGE);
+    throw isTooLarge ? new HttpError(413, CSV_TOO_LARGE) : error;
+  }
+};
+
 /** EF-CAN-23: preview and import of a CSV file. */
 const addImportRoutes = (router: Router, service: ApplicationsService): void => {
   router.post(
     IMPORT_PREVIEW_PATH,
     asyncHandler(async (req, res) => {
-      const { body } = validate(req, { body: ImportPreviewBodySchema });
+      const body = validateImportBody(req, ImportPreviewBodySchema);
       res.status(200).json(service.previewImport(body.file));
     }),
   );
   router.post(
     IMPORT_PATH,
     asyncHandler(async (req, res) => {
-      const { body } = validate(req, { body: ImportBodySchema });
+      const body = validateImportBody(req, ImportBodySchema);
       res.status(200).json(await service.importCsv(currentUserId(res), body));
     }),
   );

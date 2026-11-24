@@ -3,10 +3,19 @@ import { HttpError } from '../../lib/errors.js';
 import { parisDayBounds } from '../../lib/parisTime.js';
 import { normalizeKey } from '../../lib/text.js';
 import { type ApplicationStatus, DEFAULT_JOB_TITLE } from './rules.js';
-import { type CsvEncoding, IMPORT_FIELDS, type ImportField, type ImportMapping } from './schemas.js';
+import {
+  CSV_MAX_BASE64_LENGTH,
+  CSV_MAX_BYTES,
+  CSV_TOO_LARGE,
+  type CsvEncoding,
+  IMPORT_FIELDS,
+  type ImportField,
+  type ImportMapping,
+} from './schemas.js';
 
-/** EF-CAN-23: largest file accepted, in bytes, and most rows of applications (header excluded). */
-export const CSV_MAX_BYTES = 1024 * 1024;
+export { CSV_MAX_BASE64_LENGTH, CSV_MAX_BYTES, CSV_TOO_LARGE } from './schemas.js';
+
+/** EF-CAN-23: most rows of applications of a file (header excluded). */
 export const CSV_MAX_ROWS = 1000;
 /** EF-CAN-23: most columns of a file — a tracking sheet has a dozen; beyond, the file is not one. */
 export const CSV_MAX_COLUMNS = 50;
@@ -14,9 +23,6 @@ export const CSV_MAX_COLUMNS = 50;
 export const CSV_PREVIEW_ROWS = 5;
 
 const BASE64_CHARS_PER_BLOCK = 4;
-const BYTES_PER_BLOCK = 3;
-/** Longest base64 text a file of CSV_MAX_BYTES can take, padding included. */
-export const CSV_MAX_BASE64_LENGTH = Math.ceil(CSV_MAX_BYTES / BYTES_PER_BLOCK) * BASE64_CHARS_PER_BLOCK;
 const BASE64_PATTERN = /^[A-Za-z0-9+/]*={0,2}$/u;
 // Bytes below the space that are not tab, line feed or carriage return: control characters in UTF-8 as in
 // Windows-1252, never in a spreadsheet export, always in a binary file.
@@ -34,9 +40,6 @@ const EARLIEST_YEAR = 2000;
 const CENTURY = 2000;
 const DEFAULT_STATUS: ApplicationStatus = 'sent';
 
-/** EF-CAN-23: the answer to a file beyond 1 MB, whichever check meets it first. */
-export const CSV_TOO_LARGE =
-  'Le fichier dépasse 1 Mo : gardez seulement les colonnes utiles, puis réessayez.';
 const TOO_MANY_ROWS = 'Le fichier dépasse 1 000 lignes de candidatures : découpez-le en plusieurs fichiers.';
 const NOT_TEXT =
   'Ce fichier n’est pas un CSV en texte. Exportez votre tableau au format CSV, puis réessayez.';

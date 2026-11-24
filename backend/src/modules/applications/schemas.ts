@@ -232,7 +232,16 @@ export const ImportMappingSchema = z
   })
   .openapi('ImportMapping');
 
-const CsvFileSchema = z.string().min(1).openapi({
+/** EF-CAN-23: largest file accepted, in bytes. */
+export const CSV_MAX_BYTES = 1024 * 1024;
+const BASE64_CHARS_PER_BLOCK = 4;
+const BYTES_PER_BLOCK = 3;
+/** Longest base64 text a file of CSV_MAX_BYTES can take, padding included. */
+export const CSV_MAX_BASE64_LENGTH = Math.ceil(CSV_MAX_BYTES / BYTES_PER_BLOCK) * BASE64_CHARS_PER_BLOCK;
+/** EF-CAN-23: the answer to a file beyond 1 MB, whichever check meets it first (the routes answer it with 413). */
+export const CSV_TOO_LARGE = 'Le fichier dépasse 1 Mo : gardez seulement les colonnes utiles, puis réessayez.';
+
+const CsvFileSchema = z.string().min(1).max(CSV_MAX_BASE64_LENGTH, { error: CSV_TOO_LARGE }).openapi({
   description:
     'Le fichier CSV (UTF-8, ou Windows-1252 pour un export Excel sous Windows ; 1 Mo, 1 000 lignes et ' +
     '50 colonnes au plus), encodé en base64.',
