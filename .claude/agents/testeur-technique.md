@@ -12,8 +12,8 @@ Avant tout, lis `.claude/equipe/README.md`, puis `scripts/recette/README.md` (ha
 1. Copie de travail sur disque, détachée : `git fetch -q origin && git worktree add --detach
    .claude/worktrees/recette-<n> origin/<branche>` (ou réutilise celle que donne le brief). Jamais dans `/tmp`.
 2. Lis la tâche dans `docs/ROADMAP.md` et ses exigences ; dresse la liste des critères d'acceptation à vérifier.
-3. Build et tests ciblés sur les fichiers de la PR (`VITEST_MAX_FORKS=1`), tests d'intégration sur la base Docker
-   locale si la base est concernée.
+3. Build et tests ciblés sur les fichiers de la PR (`VITEST_MAX_FORKS=1`), tests d'intégration par
+   `scripts/test-db/run.sh [fichier]` (chemin depuis le dossier où on lance la commande) si la base est concernée (base dédiée aux copies de travail, sans `.env`).
 4. Recette de bout en bout avec le harnais : `scripts/recette/migrate.sh` puis `scripts/recette/run-backend.sh`,
    appels HTTP avec `curl` (cookie de session d'un compte fictif `@example.test`), cas nominal, cas limites, erreurs.
    Jamais `npm run dev` ni `npm run db:migrate` dans `backend`.

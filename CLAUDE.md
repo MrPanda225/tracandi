@@ -36,6 +36,7 @@ docker compose up -d db                 # PostgreSQL 18 local de test (127.0.0.1
 cd backend  && npm run check            # typecheck + lint + tests unitaires (sans base)
 cd backend  && npm run test:coverage    # tous les tests + couverture ≥ 80 % (base locale requise)
 cd backend  && npm run test:integration # tests sur tracandi_test (base locale Docker)
+scripts/test-db/run.sh                  # copie de travail sans .env : intégration sur sa base dédiée (:5436)
 cd backend  && npm run db:migrate       # applique les migrations (rôle propriétaire tracandi_owner)
 cd backend  && npm run dev              # API sur :4000
 cd frontend && npm run check
