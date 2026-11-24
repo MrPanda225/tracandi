@@ -5,12 +5,14 @@ readonly TEST_COPIES_CONTAINER=tracandi-test-copies-db
 readonly TEST_COPIES_VOLUME=tracandi-test-copies-data
 readonly TEST_COPIES_IMAGE=postgres:18
 # Port distinct de 5432 (service `db` de docker-compose.yml) et de 5435 (recette) : la mise en place des tests
-# d'intégration efface le schéma, deux bases séparées ne se gênent jamais.
+# d'intégration efface le schéma ; une base à part, et un verrou entre copies de travail (run.sh), évitent qu'un
+# passage efface celui d'un autre.
 readonly TEST_COPIES_PORT="${TEST_COPIES_PORT:-5436}"
 # Valeurs par défaut fictives de backend/tests/integration/test-database.ts.
 readonly TEST_COPIES_NAME=tracandi_test
 readonly TEST_COPIES_USER=tracandi_test
 readonly TEST_COPIES_PASSWORD=tracandi_test
+readonly TEST_COPIES_LOCK="${XDG_RUNTIME_DIR:-/tmp}/tracandi-test-copies.lock"
 
 test_db_log() { printf '[test-db] %s\n' "$*"; }
 test_db_fail() {
