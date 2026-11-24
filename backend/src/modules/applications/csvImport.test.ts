@@ -9,7 +9,12 @@ import {
   readImportRow,
   suggestMapping,
 } from './csvImport.js';
-import type { ImportMapping } from './schemas.js';
+import {
+  CSV_MAX_BASE64_LENGTH,
+  CSV_TOO_LARGE,
+  ImportPreviewBodySchema,
+  type ImportMapping,
+} from './schemas.js';
 
 const base64 = (text: string) => Buffer.from(text, 'utf8').toString('base64');
 const statusOf = (run: () => unknown): number | undefined => {
@@ -70,6 +75,15 @@ describe('decodeCsvFile', () => {
 
   it('[EF-CAN-23] refuses a truncated base64 content with 400', () => {
     expect(statusOf(() => decodeCsvFile('abc'))).toBe(400);
+  });
+});
+
+describe('CsvFileSchema', () => {
+  it('[EF-CAN-23] accepts the base64 of a 1 MB file and refuses one character group more with the message of 413', () => {
+    expect(ImportPreviewBodySchema.safeParse({ file: 'A'.repeat(CSV_MAX_BASE64_LENGTH) }).success).toBe(true);
+    const tooLarge = ImportPreviewBodySchema.safeParse({ file: 'A'.repeat(CSV_MAX_BASE64_LENGTH + 4) });
+    expect(tooLarge.success).toBe(false);
+    expect(tooLarge.error?.issues.map((issue) => issue.message)).toEqual([CSV_TOO_LARGE]);
   });
 });
 

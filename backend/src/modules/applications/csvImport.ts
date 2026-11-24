@@ -44,7 +44,8 @@ const TOO_MANY_ROWS = 'Le fichier dépasse 1 000 lignes de candidatures : décou
 const NOT_TEXT =
   'Ce fichier n’est pas un CSV en texte. Exportez votre tableau au format CSV, puis réessayez.';
 const TOO_MANY_COLUMNS =
-  `Le fichier a plus de ${String(CSV_MAX_COLUMNS)} colonnes : ` + 'gardez seulement les colonnes utiles, puis réessayez.';
+  `Le fichier a plus de ${String(CSV_MAX_COLUMNS)} colonnes : ` +
+  'gardez seulement les colonnes utiles, puis réessayez.';
 const DATE_FORMATS = 'formats acceptés JJ/MM/AAAA, AAAA-MM-JJ ou JJ/MM/AA';
 // A cell quoted in a reason of refusal is cut, so that a long note never fills the result.
 const QUOTED_CELL_MAX_LENGTH = 60;
@@ -198,7 +199,13 @@ const STATUS_LABELS: Record<ApplicationStatus, readonly string[]> = {
   to_apply: ['a postuler', 'postuler', 'to apply'],
   sent: ['envoyee', 'envoye', 'candidature envoyee', 'postule', 'postulee', 'sent', 'applied'],
   acknowledged: ['accuse recu', 'accuse de reception', 'acknowledged', 'received'],
-  technical_test: ['test technique', 'exercice technique', 'technical test', 'technical assessment', 'coding test'],
+  technical_test: [
+    'test technique',
+    'exercice technique',
+    'technical test',
+    'technical assessment',
+    'coding test',
+  ],
   interview: ['entretien', 'interview'],
   offer: ['proposition', 'offre', 'offer'],
   rejected: ['refusee', 'refuse', 'refus', 'rejetee', 'rejected', 'declined'],

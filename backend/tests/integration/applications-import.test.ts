@@ -77,6 +77,20 @@ describe('POST /api/applications/import/preview', () => {
     expect((await preview(alice, 'A'.repeat(2 * CSV_MAX_BYTES))).status).toBe(413);
   });
 
+  it('[EF-CAN-23] reads a file of exactly 1 MB and refuses one just above with 413 and its message', async () => {
+    const header = 'Entreprise,Notes\nNova,';
+    const exactly = `${header}${'n'.repeat(CSV_MAX_BYTES - header.length)}`;
+    expect(Buffer.byteLength(exactly)).toBe(CSV_MAX_BYTES);
+    const accepted = await preview(alice, base64(exactly));
+    expect(accepted.status).toBe(200);
+    expect(accepted.body).toMatchObject({ headers: ['Entreprise', 'Notes'], totalRows: 1 });
+
+    // Within the body limit, beyond the bound of the schema: refused before any decoding.
+    const refused = await preview(alice, `${base64(exactly)}AAAA`);
+    expect(refused.status).toBe(413);
+    expect(refused.body).toEqual({ error: CSV_TOO_LARGE });
+  });
+
   it('[EF-CAN-23] answers a body beyond the limit of the body parser with the message of a file beyond 1 MB', async () => {
     const tooLarge = 'A'.repeat(2 * CSV_MAX_BYTES);
     for (const response of [await preview(alice, tooLarge), await importFile(alice, tooLarge)]) {
@@ -201,10 +215,14 @@ describe('POST /api/applications/import', () => {
 
   it('[EF-CAN-23] [EF-AUT-06] keeps the imports of each user apart', async () => {
     await importFile(alice, base64(GOOGLE_SHEET));
-    const response = await importFile(bob, base64('Entreprise;Poste\nAtelier Nova;Data analyst\nCobalt;Ops'), {
-      company: 0,
-      jobTitle: 1,
-    });
+    const response = await importFile(
+      bob,
+      base64('Entreprise;Poste\nAtelier Nova;Data analyst\nCobalt;Ops'),
+      {
+        company: 0,
+        jobTitle: 1,
+      },
+    );
     expect(response.body).toMatchObject({ created: 2, duplicates: 0 });
     const [bobCompanies] = await database.db
       .select({ total: count() })
