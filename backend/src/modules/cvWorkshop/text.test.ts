@@ -3,9 +3,9 @@ import { cites, datesIn, durationsIn, foldText, figuresIn, sentencesOf } from '.
 
 describe('foldText and cites (RG-21)', () => {
   it('[RG-21] reads the ligatures of a PDF as their letters', () => {
-    expect(cites(foldText('Conﬁguration des ﬂux, Certiﬁcation oﬃcielle'), 'Configuration')).toBe(true);
-    expect(cites(foldText('Certiﬁcation AWS'), 'certification')).toBe(true);
-    expect(cites(foldText('Conﬁguration'), 'Configuration')).toBe(true);
+    expect(cites('Conﬁguration des ﬂux, Certiﬁcation oﬃcielle', 'Configuration')).toBe(true);
+    expect(cites('Certiﬁcation AWS', 'certification')).toBe(true);
+    expect(cites('Conﬁguration', 'Configuration')).toBe(true);
     expect(foldText('ﬀ ﬃ ﬄ ﬅ ﬆ')).toBe('ff ffi ffl st st');
   });
 
@@ -56,6 +56,9 @@ describe('foldText and cites (RG-21)', () => {
     ['Services Go&Rust', 'Go'],
     ['Analyses Python&R', 'R'],
     ['Le langage ‘Go’', 'Go'],
+    // Each occurrence is judged on its own: an excluded one never hides a later citation.
+    ["C’est écrit en C.", 'C'],
+    ['Préparation du go-live, services en Go', 'Go'],
   ])('[RG-21] reads a short skill written as a word: « %s » cites « %s »', (text, skill) => {
     expect(cites(text, skill)).toBe(true);
   });
@@ -65,7 +68,7 @@ describe('foldText and cites (RG-21)', () => {
   });
 
   it('[RG-21] reads the minus sign among the dashes of a date', () => {
-    expect(cites(foldText('2022 − 2023'), '2022 - 2023')).toBe(true);
+    expect(cites('2022 − 2023', '2022 - 2023')).toBe(true);
   });
 
   it('[RG-21] leaves the figures of the raw text alone', () => {
