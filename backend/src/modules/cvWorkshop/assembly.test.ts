@@ -18,7 +18,8 @@ const answerOf = (changes: Record<string, unknown> = {}): TailorCvAnswer =>
     ...changes,
   });
 
-const assemble = (answer: TailorCvAnswer) => assembleCv({ parsed: PARSED_CV, answer, sourceText: PARSED_CV_SOURCE });
+const assemble = (answer: TailorCvAnswer, missingSkills: string[] = []) =>
+  assembleCv({ parsed: PARSED_CV, answer, sourceText: PARSED_CV_SOURCE, missingSkills });
 const bulletsOf = (bullets: string[]) => assemble(answerOf({ experiences: [{ id: 'exp_0', bullets }] })).experiences[0]?.bullets;
 
 describe('assembleCv', () => {
@@ -93,14 +94,52 @@ describe('assembleCv', () => {
     expect(withoutHeadline.headline).toBe('Data Analyst');
   });
 
-  it('[EF-CVX-47] maps the chosen ids to their source texts, in the order of the CV, and keeps every item when none is chosen', () => {
-    const cv = assemble(answerOf({ skills: ['skill_2', 'skill_0'], languages: [], interests: ['int_0'], certifications: [] }));
+  it('[EF-CVX-47] maps the chosen ids to their source texts, in the order the model gave, and keeps every item when none is chosen', () => {
+    const cv = assemble(answerOf({ skills: ['skill_2', 'skill_0', 'skill_2'], languages: [], interests: ['int_0'], certifications: [] }));
 
-    expect(cv.skills).toEqual(['SQL', 'Power BI']);
+    expect(cv.skills).toEqual(['Power BI', 'SQL']);
     expect(cv.languages).toEqual(['Anglais courant']);
     expect(cv.interests).toEqual(['Course à pied']);
     expect(cv.education[0]?.detail).toBe('Mention bien');
     expect(assemble(answerOf({ skills: [] })).skills).toEqual(['SQL', 'Python', 'Power BI']);
+  });
+
+  it('[RG-21] removes a bullet or a sentence of the profile citing a skill absent from the CV, and the headline falls back on the CV’s', () => {
+    const cv = assemble(
+      answerOf({
+        headline: 'Analytics Engineer dbt',
+        profile: 'Analyste de données. Modélisation avec DBT et Airflow. Goût du détail.',
+        experiences: [{ id: 'exp_0', bullets: ['Modélisation des données avec dbt.', 'Création de 12 tableaux de bord Power BI.'] }],
+      }),
+      ['dbt', 'Airflow'],
+    );
+
+    expect(cv.experiences[0]?.bullets).toEqual(['Création de 12 tableaux de bord Power BI.']);
+    expect(cv.profile).toBe('Analyste de données. Goût du détail.');
+    expect(cv.headline).toBe('Data analyst confirmé');
+  });
+
+  it('[EF-CVX-47] [RG-21] removes a duration of experience the CV does not state, in figures or in words', () => {
+    const cv = assemble(
+      answerOf({
+        profile: 'Analyste de données. Cinq ans d’expérience en BI. Plus de 2 années en BI. Trois ans en tableaux de bord.',
+      }),
+    );
+
+    expect(cv.profile).toBe('Analyste de données. Trois ans en tableaux de bord.');
+  });
+
+  it('[EF-CVX-47] [RG-21] never takes the month of a date for a figure: « 05/2019 » vouches neither for « 5 ans » nor « Bac+5 »', () => {
+    const sourceText = `${PARSED_CV_SOURCE}\nChargée d’études – Institut Delta | 05/2019 – 03/2023`;
+    const cv = assembleCv({
+      parsed: PARSED_CV,
+      answer: answerOf({
+        profile: '5 ans d’expérience en BI. Titulaire d’un Bac+5. Analyste depuis 05/2019. Analyste depuis 06/2019.',
+      }),
+      sourceText,
+    });
+
+    expect(cv.profile).toBe('Analyste depuis 05/2019.');
   });
 
   it('[RG-24] renders an experience without organization nor dates with no stray separator', () => {
@@ -127,9 +166,10 @@ describe('buildChanges', () => {
   it('[EF-CVX-29] gives the CV’s own text as before and the final text as after, with the model’s reason', () => {
     const answer = answerOf({ changes });
 
-    const built = buildChanges({ parsed: PARSED_CV, answer, cv: assemble(answer) });
+    const assembled = assemble(answer);
+    const built = buildChanges({ parsed: PARSED_CV, answer, assembled, cv: assembled });
 
-    expect(built).toEqual([
+    expect(built.slice(0, 3)).toEqual([
       {
         section: 'Expériences professionnelles',
         before: 'Création de 12 tableaux de bord Power BI · Automatisation de rapports avec Python · Support de 10 000 utilisateurs',
@@ -153,9 +193,75 @@ describe('buildChanges', () => {
       changes: [...changes, { target: 'exp_7', reason: 'Inconnue.' }, { target: 'headline', reason: 'Deux fois.' }],
     });
 
-    const built = buildChanges({ parsed: PARSED_CV, answer, cv: assemble(answer) });
+    const assembled = assemble(answer);
+    const built = buildChanges({ parsed: PARSED_CV, answer, assembled, cv: assembled });
 
-    expect(built.map((change) => change.section)).toEqual(['Expériences professionnelles', 'Profil']);
+    expect(built.map((change) => change.section).slice(0, 2)).toEqual(['Expériences professionnelles', 'Profil']);
+    expect(built.filter((change) => change.section === 'Titre du CV')).toEqual([]);
     expect(built[0]?.after).toBe('Création de 12 tableaux.');
+  });
+
+  it('[EF-CVX-29] shows, with a reason of the code, each change the model did not name: details and list items left out', () => {
+    const answer = answerOf({ changes: [] });
+    const assembled = assemble(answer);
+
+    const built = buildChanges({ parsed: PARSED_CV, answer, assembled, cv: assembled });
+
+    expect(built).toContainEqual({
+      section: 'Formation',
+      before: 'Mention bien ; Major de promotion',
+      after: 'Mention bien',
+      reason: 'Détails choisis pour l’offre.',
+    });
+    expect(built).toContainEqual({
+      section: 'Compétences',
+      before: 'SQL, Python, Power BI',
+      after: 'SQL, Power BI',
+      reason: 'Éléments écartés, moins utiles pour cette offre.',
+    });
+    expect(built.every((change) => change.reason !== '' && change.after !== change.before)).toBe(true);
+  });
+
+  it('[EF-CVX-29] [RG-24] shows the bullets and details the page fitting removed, even on an experience the model did not name', () => {
+    const answer = answerOf({ changes: [{ target: 'exp_0', reason: 'Vocabulaire de l’offre.' }] });
+    const assembled = assemble(answer);
+    const fitted = {
+      ...assembled,
+      experiences: assembled.experiences.map((experience) => ({ ...experience, bullets: [] })),
+      education: assembled.education.map((entry) => ({ ...entry, detail: null })),
+    };
+    const parsed = {
+      ...PARSED_CV,
+      experiences: PARSED_CV.experiences.map((experience) =>
+        experience.id === 'exp_1' ? { ...experience, bullets: [{ id: 'exp_1.b0', text: 'Programmation de modules' }] } : experience,
+      ),
+    };
+    const withSecond = {
+      ...assembled,
+      experiences: assembled.experiences.map((experience, index) =>
+        index === 1 ? { ...experience, bullets: ['Programmation de modules.'] } : experience,
+      ),
+    };
+
+    const built = buildChanges({ parsed, answer, assembled: withSecond, cv: fitted });
+
+    expect(built[0]).toEqual({
+      section: 'Expériences professionnelles',
+      before: 'Création de 12 tableaux de bord Power BI · Automatisation de rapports avec Python · Support de 10 000 utilisateurs',
+      after: '(retiré)',
+      reason: 'Vocabulaire de l’offre. Réalisations retirées pour tenir sur une page.',
+    });
+    expect(built).toContainEqual({
+      section: 'Expériences professionnelles',
+      before: 'Programmation de modules',
+      after: '(retiré)',
+      reason: 'Réalisations retirées pour tenir sur une page.',
+    });
+    expect(built).toContainEqual({
+      section: 'Formation',
+      before: 'Mention bien ; Major de promotion',
+      after: '(retiré)',
+      reason: 'Détails retirés pour tenir sur une page.',
+    });
   });
 });

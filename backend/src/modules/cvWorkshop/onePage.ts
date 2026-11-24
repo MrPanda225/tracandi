@@ -250,6 +250,9 @@ export const fitsOnOnePage = (input: {
 /** RG-24: the missing skills the page keeps room for (EF-CVX-28); the candidate ticks a few, not the whole list. */
 export const MAX_RESERVED_SKILLS = 6;
 
+/** RG-24, EF-CVX-28: said when more skills are ticked than the page keeps room for. */
+export const TOO_MANY_SKILLS = `Cochez ${String(MAX_RESERVED_SKILLS)} compétences au plus : la page n’a de place que pour elles.`;
+
 interface PageFit {
   contacts: CvContacts;
   addedSkills: readonly string[];

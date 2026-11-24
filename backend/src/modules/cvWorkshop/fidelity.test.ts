@@ -45,4 +45,14 @@ describe('unfaithfulPaths (RG-21)', () => {
       'experiences.0.bullets.0',
     ]);
   });
+
+  it('[RG-21] [EF-CVX-47] finds a skill absent from the CV, or a duration it does not state, in a free text', () => {
+    const experience = { ...CV.experiences[0], bullets: ['Modélisation des données avec dbt.'] } as AdaptedCv['experiences'][number];
+    const cv = { ...CV, experiences: [experience], profile: 'Cinq ans d’expérience en BI.' };
+
+    expect(unfaithfulPaths(cv, PARSED_CV_SOURCE, ['dbt']).map((path) => path.join('.'))).toEqual([
+      'profile',
+      'experiences.0.bullets.0',
+    ]);
+  });
 });

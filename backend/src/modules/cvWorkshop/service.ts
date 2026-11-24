@@ -14,7 +14,7 @@ import type { CvContacts } from './contacts.js';
 import { CvUnreadableError } from './errors.js';
 import { unfaithfulPaths } from './fidelity.js';
 import type { PdfOcr } from './ocr.js';
-import { fitToOnePage, MAX_RESERVED_SKILLS } from './onePage.js';
+import { fitToOnePage, MAX_RESERVED_SKILLS, TOO_MANY_SKILLS } from './onePage.js';
 import { parseCv } from './parsing.js';
 import type { PdfTextLayer } from './pdftotext.js';
 import { TailorCvAnswerSchema } from './tailorCvAnswer.js';
@@ -46,10 +46,12 @@ const STEP_ADAPTED = 3;
 /** EF-CVX-26: said when no provider gave a usable answer (quota and overload are told apart, EF-IA-04). */
 const UNFAITHFUL = 'On n’a pas réussi à adapter votre CV. Réessayez dans un instant.';
 
-/** RG-24: said when the CV, stripped of its achievements, still does not hold on one page. */
+/**
+ * RG-24: said when the CV, trimmed as far as the rule allows, still does not hold on one page — whatever makes it long
+ * (entries, long lists of skills…), the message does not guess.
+ */
 const TOO_LONG =
-  'Votre CV ne tient pas sur une page même sans ses réalisations : il compte trop d’expériences ou de formations. ' +
-  'Importez une version plus courte.';
+  'Votre CV reste trop long pour tenir sur une page, même sans ses réalisations. Importez une version plus courte.';
 
 /** Use cases of the CV workshop (EF-CVX-21 to 35). */
 export interface CvWorkshopService {
@@ -67,7 +69,8 @@ export interface CvWorkshopService {
   /**
    * The adapted CV as a Word file readable by recruiting software (RG-22), contact details put back, with the missing
    * skills the candidate ticked (EF-CVX-28). The score is left as it is.
-   * @throws NotFoundError as findAnalysis; HttpError 400 for a skill the diagnostic did not list.
+   * @throws NotFoundError as findAnalysis; HttpError 400 for a skill the diagnostic did not list, or more skills than
+   * the page keeps room for (RG-24, {@link MAX_RESERVED_SKILLS}).
    */
   renderDocx: (userId: number, runId: number, addedSkills: readonly string[]) => Promise<Buffer>;
 }
@@ -127,19 +130,20 @@ const tailorCv = async (
     if (error instanceof LlmUnavailableError && error.answerRejected) throw new HttpError(502, UNFAITHFUL);
     throw error;
   }
-  const assembled = assembleCv({ parsed, answer, sourceText });
+  const { missingSkills } = diagnosis;
+  const assembled = assembleCv({ parsed, answer, sourceText, missingSkills });
   const cv = fitToOnePage(assembled, {
     contacts,
-    addedSkills: diagnosis.missingSkills.slice(0, MAX_RESERVED_SKILLS),
+    addedSkills: missingSkills.slice(0, MAX_RESERVED_SKILLS),
   });
   if (cv === null) throw new HttpError(502, TOO_LONG);
-  const unfaithful = unfaithfulPaths(cv, sourceText);
+  const unfaithful = unfaithfulPaths(cv, sourceText, missingSkills);
   if (unfaithful.length > 0) {
     // A bug of the assembly, never the candidate's fault: the paths only, never their values (ENF-SEC-08).
     logger.error('assembled CV not faithful to the source', { paths: unfaithful.map((path) => path.join('.')) });
     throw new HttpError(502, UNFAITHFUL);
   }
-  return { cv, changes: buildChanges({ parsed, answer, cv }) };
+  return { cv, changes: buildChanges({ parsed, answer, assembled, cv }) };
 };
 
 /** EF-CVX-33: refuses a new analysis once the allowance of the day is spent. */
@@ -245,6 +249,7 @@ export const createCvWorkshopService = (deps: ServiceDeps): CvWorkshopService =>
       if (addedSkills.some((skill) => !listed.has(foldText(skill)))) {
         throw new HttpError(400, 'Seules les compétences listées par le diagnostic peuvent être ajoutées.');
       }
+      if (addedSkills.length > MAX_RESERVED_SKILLS) throw new HttpError(400, TOO_MANY_SKILLS);
       return renderAtsDocx({ cv: adapted.cv, contacts: reading.contacts, addedSkills });
     },
   };
