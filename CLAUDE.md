@@ -14,6 +14,7 @@ Toute nouvelle demande passe par `/project:change-request` avant le code.
 | `docs/TRACABILITE.md` | Exigence → tâche → test (tenu à jour à chaque tâche) |
 | `docs/ARCHITECTURE.md` | Décisions (ADR), arborescence cible, modèle de données, rôles PostgreSQL |
 | `docs/CONVENTIONS_GIT.md` | Branches, commits (Conventional Commits + préfixe `T-xxx`), pull requests |
+| `.claude/equipe/README.md` | Équipe d'agents (`.claude/agents/`), lancée en ligne de commande par `scripts/equipe/lancer-agent.sh` |
 
 ## Stack
 - **Backend** : Node 22, TypeScript strict, Express 4, Drizzle ORM (pilote `pg`, aucun SQL assemblé à la main), zod 4, Vitest + Supertest.
@@ -51,8 +52,11 @@ scripts/db/backup.sh && scripts/db/restore-check.sh   # exploitant seulement : b
 5. `npm run check` vert dans chaque package touché ; tests d'intégration si la base est concernée.
 6. Mettre à jour `docs/TRACABILITE.md` et cocher la tâche dans `docs/ROADMAP.md`.
 7. Commits sur la branche : `T-xxx <type>(<module>): <summary>` + exigences couvertes dans le corps. Tâche finie :
-   push de la branche et pull request vers `dev` décrite avec `.github/pull_request_template.md` ; le Business Owner
-   fusionne en « Squash and merge » (un commit par tâche sur `dev`). Détails : `docs/CONVENTIONS_GIT.md`.
+   push de la branche et pull request vers `dev` décrite avec `.github/pull_request_template.md` ; l'orchestrateur
+   (session principale) fusionne dans `dev` en « Squash and merge » (un commit par tâche) après les quatre portes :
+   CI GitHub entièrement verte, contrôle QA de forme, recette sans anomalie bloquante, revue indépendante sans
+   régression (délégation du Business Owner du 23/11/2026). `main` reste au Business Owner.
+   Détails : `docs/CONVENTIONS_GIT.md`.
    Périmètre de `main` et `dev` (BES-29) : tableau de bord, candidatures, réglages Gmail ; veille et CV désactivés par
    `ENABLED_FEATURES` (ENF-MAI-07), écrans « En préparation », code jamais retiré.
 8. **S'arrêter et faire un rapport.** Ne jamais enchaîner la tâche suivante sans accord.
@@ -78,7 +82,9 @@ Skills de référence : `.claude/skills/` (`clean-code`, `security`, `requiremen
 - Se connecter à la base Neon (données réelles) : seul le service `migrate` et le backend le font, jamais Claude Code ni un test.
   Pour les tests, utiliser `backend/tests/fixtures/profile.example.json`.
 - Modifier une migration commitée (bloqué par hook) ; exécuter `scripts/db/restore.sh`.
-- Commit ou push direct sur `main` ou `dev`, `git push --force`, fusionner une pull request (réservé au Business Owner).
+- Commit ou push direct sur `main` ou `dev`, `git push --force`. Fusionner une pull request : vers `main`, réservé au
+  Business Owner ; vers `dev`, réservé à l'orchestrateur après les quatre portes, ou au Business Owner (jamais un
+  agent de l'équipe).
 - Appeler une API réelle (Claude, Gemini, Gmail, site carrières) dans un test.
 - Ajouter une dépendance sans accord explicite ni justification (voir security.md).
 - Affaiblir un test, désactiver une règle lint/TS, ou élargir le périmètre pour « faire passer ».
