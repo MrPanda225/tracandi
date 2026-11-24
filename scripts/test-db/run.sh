@@ -16,6 +16,46 @@ vitest="$backend/node_modules/.bin/vitest"
 # Jamais npx : sans node_modules, il téléchargerait une version de vitest non verrouillée et l'exécuterait.
 [[ -x "$vitest" ]] || test_db_fail "vitest introuvable dans $backend : lancez d'abord « npm ci » dans backend"
 
+# Des dépendances installées qui ne sont plus celles de package-lock.json (dev a avancé depuis le dernier npm ci) font
+# échouer les tests sur des erreurs trompeuses (« z.config is not a function » après le passage à zod 4).
+stale_deps="$(node -e '
+  const fs = require("fs");
+  const path = require("path");
+  const dir = process.argv[1];
+  const read = (file) => JSON.parse(fs.readFileSync(path.join(dir, file), "utf8"));
+  const pkg = read("package.json");
+  let locked;
+  try { locked = read("package-lock.json").packages ?? {}; }
+  catch { console.log("package-lock.json absent ou illisible"); process.exit(0); }
+  for (const name of Object.keys({ ...pkg.dependencies, ...pkg.devDependencies })) {
+    const wanted = locked[`node_modules/${name}`]?.version ?? "(absente du verrou)";
+    let installed = "absent";
+    try { installed = read(`node_modules/${name}/package.json`).version; } catch {}
+    if (installed !== wanted) console.log(`${name} ${installed} au lieu de ${wanted}`);
+  }
+' "$backend")"
+[[ -z "$stale_deps" ]] || test_db_fail "dépendances de $backend à réinstaller (« npm ci » dans backend) :
+$stale_deps"
+
+# Les tests qui lisent ou mettent en page des CV appellent les vrais programmes, comme l'image de l'API : sans eux,
+# ils échouent. Simple avertissement, les autres tests restent utiles.
+missing_tools=()
+for tool in pdftoppm tesseract soffice; do command -v "$tool" >/dev/null || missing_tools+=("$tool"); done
+[[ -x /usr/bin/time ]] || missing_tools+=(/usr/bin/time)
+# cv-one-page vérifie que le PDF produit par LibreOffice emploie Carlito (police du modèle Word, métrique de Calibri).
+# Liste lue d'abord : « fc-list | grep -q » échoue sous pipefail (grep s'arrête tôt, fc-list reçoit SIGPIPE).
+installed_fonts="$(fc-list : family 2>/dev/null || true)"
+grep -qi carlito <<<"$installed_fonts" || missing_tools+=("police Carlito")
+if command -v tesseract >/dev/null; then
+  ocr_languages="$(tesseract --list-langs 2>/dev/null || true)"
+  for language in fra eng; do grep -qx "$language" <<<"$ocr_languages" || missing_tools+=("tesseract ($language)"); done
+fi
+if [[ ${#missing_tools[@]} -gt 0 ]]; then
+  ci_packages="$(sed -n 's/.*apt-get install -y --no-install-recommends \(.*tesseract.*\)$/\1/p' "$here/../../.github/workflows/ci.yml" 2>/dev/null || true)"
+  test_db_log "ATTENTION : absent de cette machine : ${missing_tools[*]} ; les tests qui lisent ou mettent en page des CV (cv-ocr, cv-one-page, columns) échoueront."
+  test_db_log "  paquets de la CI : sudo apt-get install -y --no-install-recommends ${ci_packages:-(voir .github/workflows/ci.yml)}"
+fi
+
 # Une seule exécution à la fois sur cette base, toutes copies confondues : la mise en place des tests efface le schéma.
 # Le verrou reste tenu par vitest (exec garde le descripteur) jusqu'à la fin des tests.
 exec 9>"$TEST_COPIES_LOCK"
