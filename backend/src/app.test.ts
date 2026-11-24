@@ -1,3 +1,4 @@
+import { DrizzleQueryError } from 'drizzle-orm';
 import { Router } from 'express';
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
@@ -10,6 +11,7 @@ const FRONTEND_ORIGIN = 'http://127.0.0.1:5173';
 interface LogEntry {
   level: string;
   message: string;
+  stack?: string;
 }
 
 /** Real logger whose output lines are captured, so sanitization is tested end to end. */
@@ -27,6 +29,9 @@ const buildTestRouter = (): Router => {
   const router = Router();
   router.get('/boom', () => {
     throw new Error('connection to postgresql://app:s3cret@db.example/prod failed');
+  });
+  router.get('/failed-query', () => {
+    throw new DrizzleQueryError('select $1', ['Note confidentielle\n    at Nova SAS'], new Error('deadlock detected'));
   });
   router.get('/teapot', () => {
     throw new HttpError(409, 'Cette source est déjà surveillée');
@@ -221,6 +226,16 @@ describe('central error handler', () => {
     const errorEntry = logs.entries().find((entry) => entry.level === 'error');
     expect(errorEntry).toBeDefined();
     expect(logs.lines.join('\n')).not.toContain('s3cret');
+  });
+
+  it('[ENF-RGP-01] logs a failed query without its parameters, in the error nor in the stack', async () => {
+    const { app, logs } = buildApp();
+
+    await request(app).get('/api/failed-query');
+
+    const errorEntry = logs.entries().find((entry) => entry.level === 'error');
+    expect(errorEntry?.stack).toMatch(/^Error: Failed query: select \$1\nparams: \[REDACTED\]\n {4}at /u);
+    expect(logs.lines.join('\n')).not.toMatch(/confidentielle|Nova/u);
   });
 
   it('[ENF-SEC-04] exposes the status and message of an operational HttpError', async () => {

@@ -92,6 +92,32 @@ describe('a failed query in the journal', () => {
   });
 });
 
+describe('stackOf', () => {
+  const failedQuery = (): DrizzleQueryError =>
+    new DrizzleQueryError('select $1', ['Note confidentielle\n    at Nova SAS'], new Error('deadlock detected'));
+
+  it('[ENF-RGP-01] keeps no frame nor parameter when the message changed after the stack was read', () => {
+    const failed = failedQuery();
+    void failed.stack;
+    failed.message = `${failed.message} (retried)`;
+
+    expect(stackOf(failed)).toBe('Error: Failed query: select $1\nparams: [REDACTED]');
+  });
+
+  it('[ENF-SEC-08] leaves the stack of an ordinary error as it was, credentials of URLs removed', () => {
+    const plain = new Error('connect failed for postgres://u:secret@db.example:5432/app');
+
+    const stack = stackOf(plain) ?? '';
+
+    expect(stack).toMatch(/^Error: connect failed for postgres:\/\/\[REDACTED\]@db\.example:5432\/app\n {4}at /u);
+    expect(stack).not.toMatch(/secret/u);
+  });
+
+  it('[ENF-SEC-08] answers undefined for a value that is not an error', () => {
+    expect(stackOf('boom')).toBeUndefined();
+  });
+});
+
 describe('createLogger', () => {
   it('[ENF-SEC-08] writes one JSON line per entry with level, time and sanitized context', () => {
     const { lines, logger } = captureLines();
