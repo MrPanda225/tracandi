@@ -17,24 +17,51 @@ describe('foldText and cites (RG-21)', () => {
     for (const mark of ['’', '‘', 'ʼ', '´', '′', '`']) expect(foldText(`l${mark}équipe`)).toBe("l'equipe");
   });
 
-  it('[RG-21] does not read a short skill in an elision, a hyphenated word or « R&D »', () => {
-    expect(cites(foldText('C’est avec rigueur que j’ai mené le projet.'), 'C')).toBe(false);
-    expect(cites(foldText('Préparation du go-live.'), 'Go')).toBe(false);
-    expect(cites(foldText('Budget de R&D suivi chaque mois.'), 'R')).toBe(false);
-    expect(cites(foldText('Budget de R&D suivi chaque mois.'), 'D')).toBe(false);
+  it.each([
+    ['C’est avec rigueur que j’ai mené le projet.', 'C'],
+    ['Préparation du go-live.', 'Go'],
+    ['Préparation du go–live.', 'Go'],
+    ['Budget de R&D suivi chaque mois.', 'R'],
+    ['Budget de R&D suivi chaque mois.', 'D'],
+  ])('[RG-21] does not read a short skill as a piece of another word: « %s » for « %s »', (text, skill) => {
+    expect(cites(text, skill)).toBe(false);
   });
 
-  it('[RG-21] still reads a short skill written as a word', () => {
-    expect(cites(foldText('Développement en C.'), 'C')).toBe(true);
-    expect(cites(foldText('Services écrits en Go, R et C#'), 'Go')).toBe(true);
-    expect(cites(foldText('Services écrits en Go, R et C#'), 'R')).toBe(true);
-    expect(cites(foldText('Services écrits en Go, R et C#'), 'C#')).toBe(true);
-    expect(cites(foldText('C - Python - SQL'), 'C')).toBe(true);
-    expect(cites(foldText('Python/R'), 'R')).toBe(true);
+  it.each([
+    ['Développement en C, puis en Python.', 'C'],
+    ['Développement en C.', 'C'],
+    ['Modèles en R.', 'R'],
+    ['Services écrits en Go, R et C#', 'Go'],
+    ['Services écrits en Go, R et C#', 'R'],
+    ['Services écrits en Go, R et C#', 'C#'],
+    ['Services Go/Rust', 'Go'],
+    ['Langages C/C++', 'C'],
+    ['Langage (C)', 'C'],
+    ['Langage « R »', 'R'],
+    ['C - Python - SQL', 'C'],
+    ['Norme C-11', 'C'],
+    ['R: modèles statistiques', 'R'],
+    ['Go! en production', 'Go'],
+    ['Services en C#.', 'C#'],
+    ['Python/R', 'R'],
+    ['Applications R-Shiny pour la direction', 'R'],
+    ['Python-R-SQL', 'R'],
+    ['C-Python-SQL', 'C'],
+    ['C–Python', 'C'],
+    ['Conception UX-UI', 'UX'],
+    ['Tableaux BI-métier', 'BI'],
+    ['Chaîne ML-Ops', 'ML'],
+    ['Projets IA-générative', 'IA'],
+    ['Services Go-lang', 'Go'],
+    ['Services Go&Rust', 'Go'],
+    ['Analyses Python&R', 'R'],
+    ['Le langage ‘Go’', 'Go'],
+  ])('[RG-21] reads a short skill written as a word: « %s » cites « %s »', (text, skill) => {
+    expect(cites(text, skill)).toBe(true);
   });
 
   it('[RG-21] keeps reading a longer skill inside a hyphenated word', () => {
-    expect(cites(foldText('Migration Power BI-Fabric'), 'Power BI')).toBe(true);
+    expect(cites('Migration Power BI-Fabric', 'Power BI')).toBe(true);
   });
 
   it('[RG-21] reads the minus sign among the dashes of a date', () => {

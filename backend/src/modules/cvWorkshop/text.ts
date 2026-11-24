@@ -1,43 +1,82 @@
-/**
- * Text as compared by the workshop: accents and case ignored, ligatures spelled out (« ﬁ » read « fi », as PDF text
- * yields them), invisible characters (soft hyphen, zero-width space…) dropped, dashes and apostrophes made one, spaces
- * collapsed — so that « Août » and « aout », « 09/2024 – 08/2026 » and « 09/2024 − 08/2026 » read the same.
- */
-export const foldText = (text: string): string =>
+/** {@link foldText} without the lowercasing: same characters at the same places, case kept (RG-21). */
+const foldKeepingCase = (text: string): string =>
   text
     // Before the normalization, which would turn « ´ » into a space and an accent.
     .replace(/´/gu, "'")
     .normalize('NFKD')
     .replace(/[\p{M}\p{Cf}]/gu, '')
-    .toLowerCase()
     .replace(/[‐‑‒–—―−]/gu, '-')
     .replace(/[’‘ʼ´′`]/gu, "'")
     .replace(/\s+/gu, ' ')
     .trim();
 
+/**
+ * Text as compared by the workshop: accents and case ignored, ligatures spelled out (« ﬁ » read « fi », as PDF text
+ * yields them), invisible characters (soft hyphen, zero-width space…) dropped, dashes and apostrophes made one, spaces
+ * collapsed — so that « Août » and « aout », « 09/2024 – 08/2026 » and « 09/2024 − 08/2026 » read the same.
+ */
+export const foldText = (text: string): string => foldKeepingCase(text).toLowerCase();
+
 const escapeRegExp = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-/** A skill this short (« C », « R », « Go ») is mostly met as a piece of another word. */
+/** A skill this short (« C », « R », « Go ») is sometimes met as a piece of another word. */
 const SHORT_PHRASE_LENGTH = 2;
-const WORD_START = '(^|[^\\p{L}\\p{N}])';
-const WORD_END = '($|[^\\p{L}\\p{N}])';
-// After a short phrase: not an elision (« c'est »), a hyphen before a letter (« go-live ») nor an ampersand (« r&d »).
-const SHORT_WORD_START = `${WORD_START}(?<!\\p{L}&)`;
-const SHORT_WORD_END = "($|(?!'|&|-\\p{L})[^\\p{L}\\p{N}])";
+const LETTER = /^\p{L}$/u;
+const LOWERCASE_LETTER = /^\p{Ll}$/u;
+const WORD_CHAR = /^[\p{L}\p{N}]$/u;
+const UPPERCASE = /\p{Lu}/u;
+
+const isLetter = (char: string | undefined): boolean => char !== undefined && LETTER.test(char);
+const isWordChar = (char: string | undefined): boolean => char !== undefined && WORD_CHAR.test(char);
+
+/** An occurrence of a phrase in a text folded with its case kept: the text, where it starts and where it ends. */
+interface Occurrence {
+  readonly text: string;
+  readonly start: number;
+  readonly end: number;
+}
+
+/** « C'est »: one letter, an apostrophe and a lowercase letter. */
+const isElision = ({ text, start, end }: Occurrence): boolean =>
+  end - start === 1 && text[end] === "'" && LOWERCASE_LETTER.test(text[end + 1] ?? '');
+
+/** « R&D »: one letter of an initialism of two letters joined by « & », set apart from other words. */
+const isInitialismLetter = ({ text, start, end }: Occurrence): boolean => {
+  if (end - start !== 1) return false;
+  const before = text[end] === '&' && isLetter(text[end + 1]) && !isWordChar(text[end + 2]);
+  const after = text[start - 1] === '&' && isLetter(text[start - 2]) && !isWordChar(text[start - 3]);
+  return before || after;
+};
+
+/** « go-live » for « Go »: joined by a hyphen to a word, and in lowercase when the phrase has a capital. */
+const isLowercaseCompound = ({ text, start, end }: Occurrence, phrase: string): boolean =>
+  text[end] === '-' && isLetter(text[end + 1]) && UPPERCASE.test(phrase) && !UPPERCASE.test(text.slice(start, end));
+
+/** Whether an occurrence of a short phrase is a piece of another word rather than the skill (RG-21). */
+const isPieceOfWord = (occurrence: Occurrence, phrase: string): boolean =>
+  isElision(occurrence) || isInitialismLetter(occurrence) || isLowercaseCompound(occurrence, phrase);
 
 /**
- * Whether a folded text cites a phrase as a whole word or group of words, whatever its case and accents. A phrase of
- * at most two characters is not cited by an elision (« C'est » for « C »), a hyphenated word (« go-live » for « Go »)
- * or an initialism with an ampersand (« R&D » for « R » or « D »). Never throws; an empty phrase is always cited.
+ * Whether a text cites a phrase as a whole word or group of words, whatever its case and accents (both are folded
+ * here, {@link foldText}). A phrase of at most two characters is not cited by an elision of one letter followed by a
+ * lowercase letter (« C'est » for « C »), by one letter of an initialism « R&D » set apart (« R » or « D »), nor by a
+ * word joined by a hyphen and written in lowercase when the phrase has a capital (« go-live » for « Go ») ; it is
+ * cited in « R-Shiny », « UX-UI », « Go-lang », « Python&R » or « Go&Rust ». The text must keep its case for that last
+ * rule: an already folded text reads every hyphenated short phrase as a piece of word. Never throws; an empty phrase
+ * is always cited.
+ * @param text the raw text (headline, bullet, CV), not folded
+ * @param phrase the phrase looked for, as listed (its capitals matter for the hyphen rule)
  * @req EF-CVX-27, RG-21
  */
-export const cites = (foldedText: string, phrase: string): boolean => {
+export const cites = (text: string, phrase: string): boolean => {
   const folded = foldText(phrase);
   if (folded === '') return true;
-  const isShort = folded.length <= SHORT_PHRASE_LENGTH;
-  const start = isShort ? SHORT_WORD_START : WORD_START;
-  const end = isShort ? SHORT_WORD_END : WORD_END;
-  return new RegExp(`${start}${escapeRegExp(folded)}${end}`, 'u').test(foldedText);
+  const occurrence = new RegExp(`(?<![\\p{L}\\p{N}])${escapeRegExp(folded)}(?![\\p{L}\\p{N}])`, 'giu');
+  const kept = foldKeepingCase(text);
+  if (folded.length > SHORT_PHRASE_LENGTH) return occurrence.test(kept);
+  return [...kept.matchAll(occurrence)].some(
+    ({ index, 0: match }) => !isPieceOfWord({ text: kept, start: index, end: index + match.length }, phrase),
+  );
 };
 
 // « 10 000 », « 10.000 », « 10,000 » (a group of exactly three digits after a separator) read « 10000 ».

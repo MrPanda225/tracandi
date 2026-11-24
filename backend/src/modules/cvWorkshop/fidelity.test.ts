@@ -65,4 +65,11 @@ describe('freeTextCheck (RG-21)', () => {
     expect(isFaithful('Préparation du go-live.')).toBe(true);
     expect(isFaithful('Développement en C.')).toBe(false);
   });
+
+  it('[RG-21] removes a bullet citing a missing short skill joined by a hyphen: « R-Shiny » when R is not in the CV', () => {
+    const isFaithful = freeTextCheck(PARSED_CV_SOURCE, ['R']);
+
+    expect(isFaithful('Applications R-Shiny pour la direction.')).toBe(false);
+    expect(isFaithful('Budget de R&D suivi chaque mois.')).toBe(true);
+  });
 });

@@ -1,6 +1,6 @@
 import type { AdaptedCv } from './adaptedCv.js';
 import { keysOf } from './anchoring.js';
-import { cites, datesIn, durationsIn, figuresIn, foldText } from './text.js';
+import { cites, datesIn, durationsIn, figuresIn } from './text.js';
 
 type FieldPath = (string | number)[];
 
@@ -29,15 +29,11 @@ export const freeTextCheck = (sourceText: string, missingSkills: readonly string
   const figures = new Set(figuresIn(sourceText));
   const dates = new Set(datesIn(sourceText));
   const durations = new Set(durationsIn(sourceText));
-  return (text: string): boolean => {
-    const folded = foldText(text);
-    return (
-      figuresIn(text).every((figure) => figures.has(figure)) &&
-      datesIn(text).every((date) => dates.has(date)) &&
-      durationsIn(text).every((duration) => durations.has(duration)) &&
-      !missingSkills.some((skill) => cites(folded, skill))
-    );
-  };
+  return (text: string): boolean =>
+    figuresIn(text).every((figure) => figures.has(figure)) &&
+    datesIn(text).every((date) => dates.has(date)) &&
+    durationsIn(text).every((duration) => durations.has(duration)) &&
+    !missingSkills.some((skill) => cites(text, skill));
 };
 
 /**

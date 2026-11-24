@@ -95,8 +95,8 @@ function CvList({ items }: { items: readonly string[] }) {
     <>
       {rows.length > 0 && (
         <dl className="cv-sheet__rows">
-          {rows.map(([heading, rest]) => (
-            <div key={heading} className="cv-sheet__row">
+          {rows.map(([heading, rest], index) => (
+            <div key={`${String(index)}-${heading}`} className="cv-sheet__row">
               <dt>{heading}</dt>
               <dd>{rest}</dd>
             </div>

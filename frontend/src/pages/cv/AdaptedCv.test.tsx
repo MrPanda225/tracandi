@@ -96,4 +96,32 @@ describe('AdaptedCvCard', () => {
     expect(screen.getAllByText(bullet)).toHaveLength(2);
     expect(error.mock.calls.flat().join(' ')).not.toMatch(/same key/);
   });
+
+  it('[EF-CVX-25] shows two lines of a list under the same heading, without a key collision', () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const cv = {
+      headline: 'Data Analyst',
+      profile: '',
+      experiences: [],
+      education: [],
+      skills: ['Langages : Python, SQL', 'Langages : R, Go'],
+      certifications: [],
+      languages: [],
+      interests: [],
+    };
+
+    render(
+      <AdaptedCvCard
+        cv={cv}
+        contacts={{ name: null, emails: [], phones: [], address: null, links: [] }}
+        runId={1}
+        ticked={[]}
+      />,
+    );
+
+    expect(screen.getAllByText('Langages')).toHaveLength(2);
+    expect(screen.getByText('Python, SQL')).toBeInTheDocument();
+    expect(screen.getByText('R, Go')).toBeInTheDocument();
+    expect(error.mock.calls.flat().join(' ')).not.toMatch(/same key/);
+  });
 });
