@@ -10,7 +10,8 @@ MIN_DISPO_MO="${MIN_DISPO_MO:-3000}"
 MAX_AGENTS="${MAX_AGENTS:-3}"
 
 racine="$(cd "$(dirname "$0")/../.." && pwd)"
-depot_principal="$(cd "$(git -C "$racine" rev-parse --git-common-dir)/.." && pwd)"
+# Chemin absolu : sinon git le rend relatif au dossier courant, et le script viserait un autre dépôt.
+depot_principal="$(dirname "$(git -C "$racine" rev-parse --path-format=absolute --git-common-dir)")"
 rapports="$depot_principal/.claude/equipe/rapports"
 mkdir -p "$rapports"
 
@@ -32,6 +33,7 @@ fi
 agent="$1"; nom="$2"; brief="$3"; dossier="${4:-$depot_principal}"
 
 [[ "$nom" =~ ^[a-z0-9-]+$ ]] || { echo "Nom invalide (minuscules, chiffres, tirets) : $nom" >&2; exit 64; }
+[[ "$agent" =~ ^[a-z-]+$ ]] || { echo "Agent invalide (minuscules et tirets) : $agent" >&2; exit 64; }
 definition="$racine/.claude/agents/$agent.md"
 [[ -f "$definition" ]] || { echo "Agent inconnu : $agent ($(ls "$racine/.claude/agents" | sed 's/\.md$//' | tr '\n' ' '))" >&2; exit 64; }
 [[ -d "$dossier" ]] || { echo "Dossier de travail introuvable : $dossier" >&2; exit 66; }
@@ -65,7 +67,8 @@ NODE
 
 options=()
 [[ "$agent" == "testeur-ecran" ]] && options+=(--chrome)
-consigne="$brief
+# Le brief ne commence jamais par « - » : claude le lirait comme une option.
+consigne="Brief : $brief
 
 Ton rapport : $rapports/$nom.md (crée-le dès le début et tiens-le à jour). Rédige en français."
 
