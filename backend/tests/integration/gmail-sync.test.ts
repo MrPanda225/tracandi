@@ -23,6 +23,7 @@ import { createFakeGmail, type FakeGmail } from '../fixtures/emails/fakeGmail.js
 import {
   ALTERNANCE_ACKNOWLEDGEMENT,
   APEC_INNOVA,
+  ATELIER_NOVA_ASSESSMENT,
   BANK_STATEMENT,
   DATA_PRAXIS_APPLICATION,
   HTML_LATE_REJECTION,
@@ -33,6 +34,7 @@ import {
   MARATHON_REGISTRATION,
   MCDONALDS_ACKNOWLEDGEMENT,
   MCDONALDS_INTERVIEW,
+  MCDONALDS_TECHNICAL_TEST,
   OLD_SPONTANEOUS_APPLICATION,
   otherMessages,
   POLITE_REJECTION,
@@ -428,7 +430,7 @@ describe('classification and attachment', () => {
   });
 
   it('[RG-20] [ENF-RGP-01] keeps with each message the address a follow-up can be written to, never a no-reply', async () => {
-    await setUp([MCDONALDS_ACKNOWLEDGEMENT, APEC_INNOVA, DATA_PRAXIS_APPLICATION]);
+    await setUp([MCDONALDS_ACKNOWLEDGEMENT, APEC_INNOVA, DATA_PRAXIS_APPLICATION, LHH_STUDIO_ARDENT]);
     await readBack(120);
 
     await synchronise();
@@ -441,6 +443,8 @@ describe('classification and attachment', () => {
       [MCDONALDS_ACKNOWLEDGEMENT.id ?? '']: 'recrutement@mcdonalds.example',
       [APEC_INNOVA.id ?? '']: null,
       [DATA_PRAXIS_APPLICATION.id ?? '']: 'christophe.deschamps@data-praxis.example',
+      // RG-20 (v1.32): a known platform (RG-19) is no contact, even from a named address.
+      [LHH_STUDIO_ARDENT.id ?? '']: null,
     });
   });
 
@@ -477,6 +481,82 @@ describe('classification and attachment', () => {
       }),
     ]);
     expect((await countRows()).history).toBe(1);
+  });
+
+  it('[RG-02] [RG-04] [RG-05] (v1.32) replaces Accusé reçu by Test technique, labelled « Statut/En attente »', async () => {
+    await setUp([MCDONALDS_TECHNICAL_TEST, MCDONALDS_ACKNOWLEDGEMENT, SENT_APPLICATION]);
+
+    await synchronise();
+
+    expect(await applicationsOf()).toEqual([
+      expect.objectContaining({
+        company: "McDonald's",
+        status: 'technical_test',
+        lastActivityAt: new Date('2026-09-05T11:00:00.000Z'),
+      }),
+    ]);
+    expect((await emailsOf()).map((email) => email.category)).toEqual([
+      'sent_application',
+      'acknowledged',
+      'technical_test',
+    ]);
+    const labels = gmail.labelsOfThread(SENT_APPLICATION.threadId ?? '');
+    expect(labels).toContain('Statut/En attente');
+    expect(labels).not.toContain('Statut/Entretien');
+  });
+
+  it('[RG-04] (v1.32) replaces Test technique by Entretien, the test kept in the history', async () => {
+    await setUp([MCDONALDS_INTERVIEW, MCDONALDS_TECHNICAL_TEST, MCDONALDS_ACKNOWLEDGEMENT, SENT_APPLICATION]);
+
+    await synchronise();
+
+    expect(await applicationsOf()).toEqual([expect.objectContaining({ status: 'interview' })]);
+    const history = await database.db
+      .select({ status: applicationStatusHistory.status })
+      .from(applicationStatusHistory)
+      .orderBy(asc(applicationStatusHistory.changedAt));
+    expect(history.map((row) => row.status)).toEqual(['sent', 'acknowledged', 'technical_test', 'interview']);
+    const labels = gmail.labelsOfThread(SENT_APPLICATION.threadId ?? '');
+    expect(labels).toContain('Statut/Entretien');
+    expect(labels).not.toContain('Statut/En attente');
+  });
+
+  it('[RG-04] (v1.32) never downgrades an interview when a technical test arrives after it', async () => {
+    await setUp([MCDONALDS_TECHNICAL_TEST]);
+    await request(context.app)
+      .post('/api/applications')
+      .set('Cookie', alice)
+      .set('Content-Type', 'application/json')
+      .send({
+        companyName: "McDonald's",
+        jobTitle: 'Équipier polyvalent',
+        status: 'interview',
+        appliedAt: '2026-08-30T12:00:00.000Z',
+      })
+      .expect(201);
+
+    await synchronise();
+
+    expect(await applicationsOf()).toEqual([
+      expect.objectContaining({ status: 'interview', lastActivityAt: new Date('2026-09-05T11:00:00.000Z') }),
+    ]);
+    expect((await emailsOf()).map((email) => email.category)).toEqual(['technical_test']);
+    expect((await countRows()).history).toBe(1);
+  });
+
+  it('[RG-02] [RG-10] (v1.32) files an English technical assessment as a technical test, not an interview', async () => {
+    await setUp([ATELIER_NOVA_ASSESSMENT]);
+
+    await synchronise();
+
+    expect(await outcomeOf(ATELIER_NOVA_ASSESSMENT.id)).toBe('retained');
+    expect(await applicationsOf()).toEqual([
+      expect.objectContaining({
+        company: 'Atelier Nova',
+        jobTitle: 'Data Analyst',
+        status: 'technical_test',
+      }),
+    ]);
   });
 
   it('[RG-02] stores a job alert without attaching it to any application', async () => {
@@ -713,23 +793,24 @@ describe('reading the acknowledgements again (EF-GML-20)', () => {
   });
 
   it('[RG-20] [EF-GML-20] finds the contact address of the messages stored before it was kept', async () => {
-    await setUp([MCDONALDS_ACKNOWLEDGEMENT, MAISON_LUMEN_REJECTION]);
+    await setUp([MCDONALDS_ACKNOWLEDGEMENT, MAISON_LUMEN_REJECTION, WORKDAY_LATE_REJECTION]);
     await synchronise();
     // As stored before T-310: no contact address on any message.
     await database.db.update(emails).set({ contactAddress: null }).where(eq(emails.userId, aliceId));
 
     const { state } = await reclassify();
 
-    expect(state?.counters).toEqual({ messages_read: 2, messages_corrected: 0 });
+    expect(state?.counters).toEqual({ messages_read: 3, messages_corrected: 0 });
     const contacts = await database.db
-      .select({ contactAddress: emails.contactAddress })
+      .select({ gmailMessageId: emails.gmailMessageId, contactAddress: emails.contactAddress })
       .from(emails)
-      .where(eq(emails.userId, aliceId))
-      .orderBy(emails.receivedAt);
-    expect(contacts.map((row) => row.contactAddress)).toEqual([
-      'recrutement@mcdonalds.example',
-      'rh@maison-lumen.example',
-    ]);
+      .where(eq(emails.userId, aliceId));
+    expect(Object.fromEntries(contacts.map((row) => [row.gmailMessageId, row.contactAddress]))).toEqual({
+      [MCDONALDS_ACKNOWLEDGEMENT.id ?? '']: 'recrutement@mcdonalds.example',
+      [MAISON_LUMEN_REJECTION.id ?? '']: 'rh@maison-lumen.example',
+      // RG-20 (v1.32): the ATS the company answers through (RG-19) is no contact.
+      [WORKDAY_LATE_REJECTION.id ?? '']: null,
+    });
   });
 
   it('[EF-GML-20] reads nothing when no acknowledgement is stored', async () => {

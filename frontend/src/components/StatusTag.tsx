@@ -7,6 +7,8 @@ const TONE: Record<ApplicationStatus, string> = {
   to_apply: 'idle',
   sent: 'waiting',
   acknowledged: 'waiting',
+  // EF-CAN-22 (v1.32): the palette of T-905 gives it its colour; « waiting » until then, like its Gmail label (RG-05).
+  technical_test: 'waiting',
   interview: 'interview',
   offer: 'offer',
   rejected: 'rejected',

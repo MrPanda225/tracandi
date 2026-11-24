@@ -324,6 +324,39 @@ export const listEmailsWithoutContact = async (db: Executor, userId: number): Pr
     .where(and(eq(emails.userId, userId), isNull(emails.contactAddress), ne(emails.category, 'job_alert')))
     .orderBy(emails.receivedAt, emails.id);
 
+/** A contact address kept with one stored message (RG-20). */
+export interface StoredContact {
+  emailId: number;
+  contactAddress: string;
+}
+
+/**
+ * RG-20: every contact address kept with the user's messages, to set aside those the rule now refuses. It reads all
+ * the user's messages that carry one by nature, like the dashboard aggregates (ENF-PERF-05).
+ * @req RG-20, RG-06
+ */
+export const listEmailContacts = async (db: Executor, userId: number): Promise<StoredContact[]> => {
+  const rows = await db
+    .select({ emailId: emails.id, contactAddress: emails.contactAddress })
+    .from(emails)
+    .where(and(eq(emails.userId, userId), isNotNull(emails.contactAddress)));
+  return rows.flatMap(({ emailId, contactAddress }) => (contactAddress ? [{ emailId, contactAddress }] : []));
+};
+
+/**
+ * RG-20: forgets the contact address of these messages of the user, which the rule now refuses. Ids of another user
+ * are left alone (EF-AUT-06).
+ * @req RG-20, RG-06
+ */
+export const clearEmailContacts = async (db: Executor, userId: number, emailIds: readonly number[]): Promise<void> => {
+  for (const slice of slices(emailIds)) {
+    await db
+      .update(emails)
+      .set({ contactAddress: null })
+      .where(and(eq(emails.userId, userId), inArray(emails.id, slice)));
+  }
+};
+
 /**
  * Keeps the contact address found for a stored message (RG-20).
  * @req RG-20

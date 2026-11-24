@@ -27,6 +27,12 @@ export const CLASSIFICATION_BY_SUBJECT: Readonly<Record<string, Classification>>
     jobTitle: 'équipier polyvalent',
   }),
   'Invitation à un entretien': answer({ category: 'interview', employer: "McDonald's" }),
+  'Votre test technique': answer({ category: 'technical_test', employer: "McDonald's" }),
+  'Next step: technical assessment': answer({
+    category: 'technical_test',
+    employer: 'Atelier Nova',
+    jobTitle: 'Data Analyst',
+  }),
   'Innova Solutions a bien reçu votre dossier': answer({
     category: 'acknowledged',
     employer: 'Innova Solutions',

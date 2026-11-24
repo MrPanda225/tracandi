@@ -3,6 +3,7 @@ import type { RunCounters } from '../../jobs/queue.js';
 import { mapWithConcurrency } from '../../lib/async.js';
 import type { Logger } from '../../lib/logger.js';
 import { applyReclassifiedMessage, findApplicationThreads } from '../applications/service.js';
+import { clearRefusedContacts } from './contacts.js';
 import { hasRejectionCue } from './cues.js';
 import { contactAddressOf } from './domains.js';
 import type { MessageFetcher } from './fetcher.js';
@@ -37,7 +38,11 @@ interface Reading {
  * message still without contact address.
  * @returns null when Gmail no longer holds the message.
  */
-const readAgain = async (mailbox: GmailMailbox, stored: StoredMessage): Promise<Reading | null> => {
+const readAgain = async (
+  mailbox: GmailMailbox,
+  stored: StoredMessage,
+  platformDomains: ReadonlySet<string>,
+): Promise<Reading | null> => {
   const message = await mailbox.getMessage(stored.gmailMessageId);
   if (!message) return null;
   return {
@@ -45,7 +50,7 @@ const readAgain = async (mailbox: GmailMailbox, stored: StoredMessage): Promise<
       stored.category === 'acknowledged' &&
       message.direction === 'inbound' &&
       hasRejectionCue({ subject: stored.subject, snippet: stored.snippet ?? '', text: message.text }),
-    contactAddress: stored.contactAddress === null ? contactAddressOf(message) : null,
+    contactAddress: stored.contactAddress === null ? contactAddressOf(message, platformDomains) : null,
   };
 };
 
@@ -68,17 +73,20 @@ export const createReclassification =
   ({ db, fetcher, logger }: ReclassificationDeps): ReclassificationRun =>
   async (userId, report) => {
     const { mailbox, shouldApplyLabels } = await fetcher.openMailbox(userId);
-    const toRead = uniqueById(
-      await Promise.all([
-        repository.listReceivedEmails(db, userId, 'acknowledged'),
-        repository.listEmailsWithoutContact(db, userId),
-      ]),
-    );
+    // RG-20: an address the rule now refuses is forgotten, and its message read again like one without contact.
+    await clearRefusedContacts(db, userId);
+    const [acknowledgements, withoutContact, platforms] = await Promise.all([
+      repository.listReceivedEmails(db, userId, 'acknowledged'),
+      repository.listEmailsWithoutContact(db, userId),
+      repository.findPlatformDomains(db),
+    ]);
+    const toRead = uniqueById([acknowledgements, withoutContact]);
+    const platformDomains: ReadonlySet<string> = new Set(platforms.keys());
     let read = 0;
     let corrected = 0;
 
     const reclassify = async (stored: StoredMessage): Promise<number | null> => {
-      const reading = await readAgain(mailbox, stored);
+      const reading = await readAgain(mailbox, stored, platformDomains);
       if (!reading) return null;
       read += 1;
       const { refuses, contactAddress } = reading;

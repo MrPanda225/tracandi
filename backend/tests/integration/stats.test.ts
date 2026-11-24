@@ -148,10 +148,28 @@ describe('GET /api/stats/dashboard', () => {
       { status: 'to_apply', count: 1 },
       { status: 'sent', count: 1 },
       { status: 'acknowledged', count: 0 },
+      { status: 'technical_test', count: 0 },
       { status: 'interview', count: 0 },
       { status: 'offer', count: 1 },
       { status: 'rejected', count: 1 },
     ]);
+  });
+
+  it('[EF-TDB-03] [EF-TDB-05] [RG-07] (v1.32) counts a technical test as an answer, under its own status', async () => {
+    await seedAliceHistory();
+    const praxis = await createAt('2026-09-19T09:00:00.000Z', {
+      companyName: 'Data Praxis',
+      jobTitle: 'Data engineer',
+      contractType: 'cdi',
+    });
+    await changeStatusAt('2026-09-20T09:00:00.000Z', praxis, 'technical_test');
+    context.clock.set(NOW);
+
+    const { totals, byStatus } = await dashboardOf(alice);
+
+    // Nova (Refusée), Lumen (Proposition) and Data Praxis (Test technique) answered, out of 5.
+    expect(totals).toEqual({ applications: 5, reachedInterview: 2, responseRate: 60 });
+    expect(byStatus).toContainEqual({ status: 'technical_test', count: 1 });
   });
 
   it('[EF-TDB-06] splits the applications between direct and platform', async () => {

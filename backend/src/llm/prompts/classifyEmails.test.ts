@@ -56,6 +56,7 @@ describe('buildClassifyEmailsPrompt', () => {
     for (const category of [
       'sent_application',
       'acknowledged',
+      'technical_test',
       'interview',
       'offer',
       'rejected',
@@ -67,6 +68,24 @@ describe('buildClassifyEmailsPrompt', () => {
     for (const field of ['"ref"', '"category"', '"employer"', '"platform"', '"jobTitle"', '"contractType"']) {
       expect(system).toContain(field);
     }
+  });
+
+  it('[RG-02] [RG-01] (v1.32) files a test to complete as technical_test, with French and English examples', () => {
+    const { system } = buildClassifyEmailsPrompt(MESSAGES);
+
+    expect(system).toContain('Voici votre test technique à réaliser sous 48 h');
+    expect(system).toContain('technical assessment');
+    expect(system).toMatch(/technical assessment[^\n]*→ "technical_test"/);
+  });
+
+  it('[RG-02] (v1.32) keeps an interview, even a technical one, as interview, and no longer calls a test an interview', () => {
+    const { system } = buildClassifyEmailsPrompt(MESSAGES);
+    const interviewDefinition = /interview \(([^)]*)\)/.exec(system)?.[1] ?? '';
+
+    expect(interviewDefinition).toContain('entretien');
+    expect(interviewDefinition).not.toContain('test');
+    expect(system).toMatch(/Un entretien reste "interview", même technique/);
+    expect(system).toContain('technical interview');
   });
 
   it('[EF-GML-08] gives the direction and the day of each message, sender, subject and start of the body', () => {

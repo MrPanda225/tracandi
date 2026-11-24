@@ -7,11 +7,16 @@ export const WEEKS_SHOWN = 5;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const WEEK_MS = 7 * DAY_MS;
 const PERCENT = 100;
-// RG-07: statuses counted as an answer from the employer.
-const ANSWERED_STATUSES: ReadonlySet<ApplicationStatus> = new Set(['interview', 'offer', 'rejected']);
+// RG-07 (v1.32): statuses counted as an answer from the employer.
+const ANSWERED_STATUSES: ReadonlySet<ApplicationStatus> = new Set([
+  'technical_test',
+  'interview',
+  'offer',
+  'rejected',
+]);
 
 /**
- * RG-07: (Entretien + Proposition + Refusée) / total × 100, rounded to the nearest integer; 0 when the total is 0.
+ * RG-07: (Test technique + Entretien + Proposition + Refusée) / total × 100, rounded to the nearest integer; 0 when the total is 0.
  * @req RG-07, EF-TDB-03, EF-TDB-09
  */
 export const responseRate = (countsByStatus: Partial<Record<ApplicationStatus, number>>): number => {

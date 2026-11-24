@@ -46,7 +46,7 @@ const ATS_SENDER_DOMAINS: Readonly<Record<string, SiteAdapterId>> = {
 
 /**
  * RG-19 : domaines d'outils de recrutement et de job boards qui ne figurent pas dans `platform_domains`. Une
- * entreprise qui écrit depuis `ateme.teamtailor-mail.com` ou `mail.flatchr.io` écrit depuis **l'outil de son
+ * entreprise qui écrit depuis `atelier-nova.teamtailor-mail.com` ou `mail.flatchr.io` écrit depuis **l'outil de son
  * recruteur**, pas depuis son site ; proposer ce domaine ferait surveiller l'outil, ou pire le job board — et
  * les offres relevées seraient celles de tout le monde.
  *
@@ -121,17 +121,24 @@ export const adapterOfSenderDomain = (domain: string): SiteAdapterId | null => {
 };
 
 /**
+ * RG-19, RG-20 : vrai quand le domaine, ou l'un de ses parents, est celui d'une plateforme connue, d'un outil de
+ * recrutement (ATS pris en charge ou non) ou d'un job board. Une messagerie grand public n'en est pas un : un
+ * recruteur y écrit en personne.
+ * @req RG-19, RG-20
+ */
+export const isRecruitmentPlatformDomain = (domain: string, platformDomains: ReadonlySet<string>): boolean =>
+  domainAndParents(domain).some(
+    (candidate) => platformDomains.has(candidate) || RECRUITMENT_TOOLING.has(candidate),
+  ) || adapterOfSenderDomain(domain) !== null;
+
+/**
  * RG-19 : un domaine ne désigne l'entreprise que s'il n'est ni celui d'une plateforme connue, ni celui d'une
  * messagerie grand public, ni celui d'un outil de recrutement ou d'un job board — ces derniers hébergent le
  * board, ils ne sont pas le site de l'entreprise.
  */
 export const isCompanyDomain = (domain: string, platformDomains: ReadonlySet<string>): boolean =>
-  !domainAndParents(domain).some(
-    (candidate) =>
-      platformDomains.has(candidate) ||
-      MAILBOX_PROVIDERS.has(candidate) ||
-      RECRUITMENT_TOOLING.has(candidate),
-  ) && adapterOfSenderDomain(domain) === null;
+  !domainAndParents(domain).some((candidate) => MAILBOX_PROVIDERS.has(candidate)) &&
+  !isRecruitmentPlatformDomain(domain, platformDomains);
 
 /**
  * Suffixes under which a company registers its name one level lower: « atelier-nova.co.uk » is Atelier Nova, not
@@ -201,18 +208,45 @@ export const isNoReplyAddress = (address: string): boolean => {
 };
 
 /**
+ * RG-20 (v1.32) : vrai quand une relance peut être écrite à cette adresse — elle accepte une réponse et n'est pas
+ * celle d'une plateforme, d'un outil de recrutement ou d'un job board (domaines de RG-19), qui ne la ferait pas lire
+ * au recruteur.
+ * @req RG-20, RG-19
+ */
+export const isContactAddress = (address: string, platformDomains: ReadonlySet<string>): boolean => {
+  const domain = domainOfAddress(address);
+  return !isNoReplyAddress(address) && !(domain !== null && isRecruitmentPlatformDomain(domain, platformDomains));
+};
+
+/**
  * RG-20 : l'adresse à laquelle une relance peut être écrite — pour un message reçu, son adresse de réponse sinon son
- * expéditeur, pour un message envoyé, son premier destinataire ; null quand elle n'accepte pas de réponse ou manque.
+ * expéditeur, pour un message envoyé, son premier destinataire ; null quand elle manque ou n'est pas une adresse de
+ * contact (`isContactAddress`). L'adresse retenue par la règle n'est pas remplacée par une autre du même message : un
+ * `Reply-To` refusé ne fait pas écrire à l'expéditeur.
  * @req RG-20, EF-CAN-17
  */
-export const contactAddressOf = (message: {
-  direction: 'inbound' | 'outbound';
-  fromAddress: string | null;
-  replyToAddress: string | null;
-  toAddress: string | null;
-}): string | null => {
+export const contactAddressOf = (
+  message: {
+    direction: 'inbound' | 'outbound';
+    fromAddress: string | null;
+    replyToAddress: string | null;
+    toAddress: string | null;
+  },
+  platformDomains: ReadonlySet<string>,
+): string | null => {
   const address =
     message.direction === 'outbound' ? message.toAddress : (message.replyToAddress ?? message.fromAddress);
-  return address && !isNoReplyAddress(address) ? address : null;
+  return address && isContactAddress(address, platformDomains) ? address : null;
 };
+
+/**
+ * RG-20 : le contact à qui la relance s'adresse — le premier des contacts conservés, du plus récent au plus ancien,
+ * que la règle accepte encore ; ceux enregistrés avant qu'elle soit affinée (« jobs-noreply », outil de
+ * recrutement) sont passés. Null quand aucun ne l'est.
+ * @req RG-20
+ */
+export const latestContactOf = <T extends { address: string }>(
+  contacts: readonly T[],
+  platformDomains: ReadonlySet<string>,
+): T | null => contacts.find(({ address }) => isContactAddress(address, platformDomains)) ?? null;
 

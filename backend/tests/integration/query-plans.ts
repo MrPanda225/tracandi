@@ -37,6 +37,20 @@ const sequentiallyScanned = (node: PlanNode): string[] => [
   ...(node.Plans ?? []).flatMap(sequentiallyScanned),
 ];
 
+/**
+ * ENF-PERF-05: execution time of one statement in milliseconds, measured by `EXPLAIN ANALYZE` on the local test
+ * database (the statement runs).
+ */
+export const executionTimeOf = async (pool: pg.Pool, query: CapturedQuery): Promise<number> => {
+  const result = await pool.query<{ 'QUERY PLAN': { 'Execution Time': number }[] }>(
+    `EXPLAIN (ANALYZE, FORMAT JSON) ${query.text}`,
+    query.params,
+  );
+  const plan = result.rows[0]?.['QUERY PLAN'][0];
+  if (!plan) throw new Error('EXPLAIN returned no plan');
+  return plan['Execution Time'];
+};
+
 /** The large tables the plans of these statements read whole (ENF-PERF-04), however deep in the tree. */
 export const largeTablesScanned = async (pool: pg.Pool, queries: readonly CapturedQuery[]): Promise<string[]> => {
   const scanned = new Set<string>();

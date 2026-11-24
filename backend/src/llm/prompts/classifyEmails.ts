@@ -23,7 +23,8 @@ const SYSTEM = [
   'Chaque message est placé entre balises <email ref="N" sens="reçu|envoyé" date="AAAA-MM-JJ">.',
   'Pour chaque message, détermine :',
   '- "category" : sent_application (le candidat envoie une candidature), acknowledged (accusé de réception d’une ' +
-    'candidature), interview (invitation ou organisation d’un entretien, d’un test ou d’un échange avec un recruteur), ' +
+    'candidature), technical_test (exercice, test de code, cas pratique ou évaluation à réaliser par le candidat), ' +
+    'interview (invitation ou organisation d’un entretien ou d’un échange avec un recruteur), ' +
     'offer (proposition d’embauche), rejected (refus de la candidature), job_alert (alerte ou suggestion d’offres ' +
     'envoyée par un site d’emploi), off_topic (sans rapport avec une candidature) ;',
   'Un refus commence souvent par une formule d’accusé de réception (« nous avons bien reçu votre candidature ») : ' +
@@ -33,6 +34,13 @@ const SYSTEM = [
     'comme non retenue, ou qu’un refus sera annoncé par écrit, reste "acknowledged" : rien n’est encore décidé.',
   'Une invitation à un entretien annonce un rendez-vous, un créneau ou demande des disponibilités ; une phrase ' +
     'conditionnelle (« si votre profil correspond, nous reviendrons vers vous ») reste "acknowledged".',
+  'Un test technique est un travail que le candidat fait seul, souvent avec un délai, sans rendez-vous avec ' +
+    'quelqu’un : « Voici votre test technique à réaliser sous 48 h », « vous trouverez ci-joint le cas pratique à ' +
+    'nous rendre », « Please complete the technical assessment », « your take-home assignment », « coding ' +
+    'challenge » → "technical_test", même quand le message évoque un entretien à venir s’il est réussi.',
+  'Un entretien reste "interview", même technique : « entretien technique jeudi à 10 h », « technical interview ' +
+    'with our team », « nous aimerions échanger sur votre test lors d’un entretien mardi » fixent un échange avec ' +
+    'quelqu’un.',
   '- "employer" : l’employeur réel visé, tel qu’il est écrit dans le message, même quand le message vient d’une ' +
     'plateforme ou d’un cabinet (APEC, LHH, Indeed…) ; null s’il n’apparaît pas ;',
   '- "platform" : la plateforme ou le cabinet qui a envoyé ou relayé le message ; null pour un échange direct avec ' +
