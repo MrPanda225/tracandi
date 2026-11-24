@@ -21,8 +21,8 @@ const hasLettersOrDigits = (value: string) => normalizeKey(value).length > 0;
 
 export const ApplicationStatusSchema = z.enum(applicationStatus.enumValues).openapi('ApplicationStatus', {
   description:
-    'RG-01 : to_apply = À postuler, sent = Envoyée, acknowledged = Accusé reçu, interview = Entretien, ' +
-    'offer = Proposition, rejected = Refusée.',
+    'RG-01 : to_apply = À postuler, sent = Envoyée, acknowledged = Accusé reçu, technical_test = Test technique, ' +
+    'interview = Entretien, offer = Proposition, rejected = Refusée.',
 });
 
 export const ContractTypeSchema = z.enum(contractType.enumValues).openapi('ContractType', {

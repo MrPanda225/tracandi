@@ -38,6 +38,7 @@ describe('RG-05 status labels', () => {
       to_apply: null,
       sent: 'Statut/En attente',
       acknowledged: 'Statut/En attente',
+      technical_test: 'Statut/En attente',
       interview: 'Statut/Entretien',
       offer: 'Statut/Entretien',
       rejected: 'Statut/Refusée',

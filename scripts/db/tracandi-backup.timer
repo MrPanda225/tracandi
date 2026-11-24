@@ -1,0 +1,12 @@
+# Déclenche tracandi-backup.service chaque jour (ENF-FIA-04, RPO 24 h : ENF-FIA-06).
+# Persistent=true : un passage manqué (poste éteint) est rattrapé au démarrage suivant.
+[Unit]
+Description=Tracandi : sauvegarde quotidienne de la base
+
+[Timer]
+OnCalendar=*-*-* 12:30:00
+Persistent=true
+RandomizedDelaySec=10min
+
+[Install]
+WantedBy=timers.target

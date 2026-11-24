@@ -184,6 +184,17 @@ describe('DashboardPage', () => {
     expect(kpis.getByText('42%')).toBeInTheDocument();
   });
 
+  it('[EF-TDB-03] [RG-07] (v1.32) names every answer the response rate counts, the technical test included', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json(200, DASHBOARD)));
+
+    renderPage();
+    await screen.findByText('Candidatures suivies');
+
+    expect(
+      within(kpiGroup()).getByText('Test technique, entretien, proposition ou refus'),
+    ).toBeInTheDocument();
+  });
+
   it('[EF-TDB-08] shows the number of new offers above the threshold', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(json(200, DASHBOARD)));
 

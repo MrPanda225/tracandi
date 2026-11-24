@@ -5,6 +5,7 @@ coverage/
 .env.local
 CLAUDE.local.md
 .claude/settings.local.json
+# Ceinture de sécurité : CLAUDE.md (Interdits) décrit ces fichiers comme contenant des données réelles.
 database/conf/backup.cnf
 database/conf/restore.cnf
 backups/

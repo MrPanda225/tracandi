@@ -5,7 +5,7 @@ import { decryptSecret } from '../../lib/crypto.js';
 import { HttpError } from '../../lib/errors.js';
 import { normalizeKey } from '../../lib/text.js';
 import type { GmailMailbox, MailboxMessage, OpenMailbox } from './mailbox.js';
-import { companyOfCorrespondent } from './domains.js';
+import { companyOfCorrespondent, contactAddressOf } from './domains.js';
 import { isRateLimited } from './quota.js';
 import {
   createPrefilter,
@@ -24,12 +24,14 @@ export class GmailNotConnectedError extends HttpError {
 }
 
 /**
- * A new message kept by the pre-filter, with the known platform of its sender (EF-GML-10) and the company the domain
- * of its correspondent names (RG-03 v1.20), for when the AI finds neither employer nor platform.
+ * A new message kept by the pre-filter, with the known platform of its sender (EF-GML-10), the company the domain
+ * of its correspondent names (RG-03 v1.20), for when the AI finds neither employer nor platform, and the address a
+ * follow-up can be written to (RG-20).
  */
 export interface RetainedMessage extends MailboxMessage {
   platform: PlatformRef | null;
   correspondentCompany: string | null;
+  contactAddress: string | null;
 }
 
 export interface FetchResult {
@@ -172,8 +174,9 @@ const readMessages = async (
 
 /**
  * RG-10 split of the messages read: the ones kept for the classification, oldest first (RG-04 order), with their
- * platform (EF-GML-10) and the company their correspondent's domain names (RG-03 v1.20); the others set aside.
- * @req RG-10, RG-03, EF-GML-07, EF-GML-10
+ * platform (EF-GML-10), the company their correspondent's domain names (RG-03 v1.20) and their contact address
+ * (RG-20, platforms of RG-19 refused); the others set aside.
+ * @req RG-10, RG-03, RG-20, EF-GML-07, EF-GML-10
  */
 const prefilterMessages = (
   messages: readonly MailboxMessage[],
@@ -187,6 +190,7 @@ const prefilterMessages = (
       ...message,
       platform: prefilter.platformOf(message.fromAddress),
       correspondentCompany: companyOfCorrespondent(message, platformDomainNames),
+      contactAddress: contactAddressOf(message, platformDomainNames),
     })),
     setAside: messages.filter((message) => !kept.includes(message)),
   };

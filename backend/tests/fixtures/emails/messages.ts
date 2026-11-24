@@ -119,6 +119,28 @@ export const MCDONALDS_INTERVIEW = metadata({
   snippet: 'Bonjour Alex, nous souhaitons vous rencontrer jeudi à 14 h au restaurant de Lyon Part-Dieu.',
 });
 
+/** RG-02 (v1.32): a test to complete in the McDonald's scenario, between the acknowledgement and the interview. */
+export const MCDONALDS_TECHNICAL_TEST = metadata({
+  id: '18f0a1b2c3d4e520',
+  threadId: '18f0a1b2c3d4e501',
+  receivedAt: '2026-09-05T11:00:00.000Z',
+  from: '"McDonald\'s Recrutement" <recrutement@mcdonalds.example>',
+  subject: 'Votre test technique',
+  snippet:
+    'Bonjour Alex, voici votre test technique à réaliser sous 48 h. Nous reviendrons vers vous ensuite.',
+});
+
+/** RG-02 (v1.32): an English technical assessment, never an interview. */
+export const ATELIER_NOVA_ASSESSMENT = metadata({
+  id: '18f0a1b2c3d4e521',
+  threadId: '18f0a1b2c3d4e521',
+  receivedAt: '2026-09-10T08:00:00.000Z',
+  from: 'Atelier Nova Talent <talent@ateliernova.example>',
+  subject: 'Next step: technical assessment',
+  snippet:
+    'Hello Alex, please complete the technical assessment for the Data Analyst position within five days.',
+});
+
 /** EF-GML-10: relayed by the LHH firm for its client Studio Ardent, fixed-term contract. */
 export const LHH_STUDIO_ARDENT = metadata({
   id: '18f0a1b2c3d4e508',
