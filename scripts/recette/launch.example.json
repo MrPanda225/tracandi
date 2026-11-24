@@ -1,0 +1,19 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "recette-backend",
+      "runtimeExecutable": "scripts/recette/run-backend.sh",
+      "runtimeArgs": [],
+      "port": 4000,
+      "url": "http://127.0.0.1:4000"
+    },
+    {
+      "name": "recette-frontend",
+      "runtimeExecutable": "scripts/recette/run-frontend.sh",
+      "runtimeArgs": [],
+      "port": 5173,
+      "url": "http://127.0.0.1:5173"
+    }
+  ]
+}

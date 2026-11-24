@@ -228,3 +228,18 @@ l'offre gratuite.
 - **Flux en direct** : si un relais coupe une connexion longue, le navigateur la rouvre seul (`EventSource`).
 - **Sauvegardes** : poste de l'exploitant allumé au moins une fois par jour (RPO 24 h) ; la restauration de contrôle
   n'est jamais faite sur Neon, seulement dans le PostgreSQL Docker local.
+
+## Recette locale (toutes les pages, sans Neon)
+
+Pour les recettes des agents et du Business Owner : `scripts/recette/` (mode d'emploi : `scripts/recette/README.md`).
+Base PostgreSQL dédiée en Docker (`127.0.0.1:5435`), `ENABLED_FEATURES=watch,cv`, e-mails captés dans un fichier,
+IA simulée par les réponses enregistrées des tests, tout autre appel sortant bloqué.
+
+```bash
+scripts/recette/run-backend.sh          # base + migrations + API sur :4000
+scripts/recette/run-frontend.sh         # interface sur :5173
+scripts/recette/last-mail.sh            # lien d'activation ou code de connexion du dernier e-mail
+```
+
+**Jamais `npm run db:migrate` ni `npm run dev` (backend) pour une recette** : ils chargent `../.env`, donc la base de
+production.

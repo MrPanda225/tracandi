@@ -1,0 +1,4 @@
+# E-mails captés, appels IA et appels bloqués d'une recette : propres à chaque poste, jamais commités.
+.run/
+# Fichier temporaire que Vite écrit à côté de sa configuration le temps de la charger.
+*.timestamp-*.mjs
