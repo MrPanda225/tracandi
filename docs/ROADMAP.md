@@ -937,14 +937,17 @@ développeur l'active sur son poste (`ENABLED_FEATURES=watch,cv`) le temps d'y t
   `0034_technical-test-status`, à appliquer au déploiement) ; prompt de classement avec exemples français et anglais,
   un entretien technique restant un entretien ; « test technique », « technical test » et « technical assessment »
   ajoutés aux mots-clés initiaux de RG-10 (les listes déjà enregistrées ne changent pas). Couleur : celle de T-905
-  (orange, EF-CAN-22) ; `StatusTag` garde le ton « en attente » jusque-là.
-- [~] **T-905 Tri, filtre par période et couleurs** — tri au choix, filtre du … au …, index pour ENF-PERF-04,
+  (orange, EF-CAN-22).
+- [x] **T-905 Tri, filtre par période et couleurs** — tri au choix, filtre du … au …, index pour ENF-PERF-04,
   couleurs des statuts (règle `frontend.md` mise à jour).
   *Exigences* : EF-CAN-01 (v1.32), EF-CAN-20, EF-CAN-22, EF-CAN-24.
   *Livré, étape 1 (30/09/2026, à la demande du Business Owner)* : tri au choix, par défaut la candidature la plus
   récente d'abord ; liste à plat qui nomme l'entreprise de chaque candidature, groupée par entreprise seulement dans le
   tri par entreprise ; filtre « Candidature du … au … » en jours de Paris (`lib/parisTime.ts`, exact les jours de
-  changement d'heure, ce qui corrige aussi le décompte quotidien de l'Atelier CV). *Reste* : couleurs (EF-CAN-22).
+  changement d'heure, ce qui corrige aussi le décompte quotidien de l'Atelier CV).
+  *Livré, étape 2 (23/11/2026)* : couleurs des statuts (EF-CAN-22) dans `StatusTag` et le repère « À relancer »,
+  palette et contrastes dans `frontend.md` ; « Test technique » (T-904) en orange « en cours » ; graphique hebdomadaire
+  aligné sur la palette (remarque de recette).
 - [x] **T-906 Relance vers le recruteur** — adresses des plateformes écartées du contact (RG-20 v1.32).
   *Exigences* : RG-20.
   *Livré* : une seule liste des domaines exclus (`emails/domains.ts`, déjà partagée avec la veille pour RG-19) ;

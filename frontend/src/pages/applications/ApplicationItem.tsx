@@ -8,7 +8,7 @@ import {
 import { messageOf } from '../../api/client';
 import type { ApplicationStatus } from '../../api/stats';
 import { Flash } from '../../components/Flash';
-import { StatusTag } from '../../components/StatusTag';
+import { FollowUpDueTag, StatusTag } from '../../components/StatusTag';
 import {
   APPLICATION_STATUSES,
   CONTRACT_LABELS,
@@ -228,7 +228,7 @@ export function ApplicationItem({
         <span className="application__tags">
           {/* The status first: always at the same place, top right on a phone, at the head of its column. */}
           <StatusTag status={application.status} />
-          {application.isFollowUpDue && <span className="application__badge">À relancer</span>}
+          {application.isFollowUpDue && <FollowUpDueTag />}
         </span>
         <span className="application__chevron" aria-hidden="true" />
       </button>
