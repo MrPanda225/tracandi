@@ -13,6 +13,11 @@ export const LOAD_PASSWORD = 'jeu de charge local';
 // The fictitious accounts of `seedLoadDataset` (`charge-N@example.test`): a second run would mix two datasets.
 const LOAD_EMAILS = 'charge-%@example.test';
 const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
+// pg-connection-string copies every query parameter into the connection settings and prefers `host`, `hostaddr` or
+// `port` given there to the host of the URL: only parameters that cannot change the target are admitted.
+const ALLOWED_QUERY_PARAMETERS = new Set(['sslmode']);
+/** Upper bound of `--users`: the dataset is meant for a laptop, not to fill the disk. */
+export const MAX_LOAD_USERS = 20;
 
 /** What the command line asks for. */
 export interface SeedLoadRequest {
@@ -25,22 +30,31 @@ export interface SeedLoadRequest {
 
 /**
  * T-703: refuses any database that is not on this machine — the load never reaches Neon, whose data are real.
- * @throws Error naming the problem, never the URL (it carries a password).
+ * The URL is read the way pg reads it (pg-connection-string): its host must be a loopback address and its query may
+ * only carry `sslmode`, since `host`, `hostaddr`, `port`, `service` or any other parameter there would be copied into
+ * the connection settings and could send it elsewhere than the host checked here.
+ * @throws Error naming the problem (at most a parameter name), never the URL nor a value (they may carry a password).
  */
 export const assertLocalDatabase = (url: string): void => {
   if (!URL.canParse(url)) throw new Error('LOAD_DATABASE_URL is not a valid URL');
-  const { protocol, hostname } = new URL(url);
+  const { protocol, hostname, searchParams } = new URL(url);
   if (protocol !== 'postgres:' && protocol !== 'postgresql:') {
     throw new Error('LOAD_DATABASE_URL must use the postgresql:// scheme');
   }
   if (!LOOPBACK_HOSTS.has(hostname)) {
     throw new Error('LOAD_DATABASE_URL must point to a local database (127.0.0.1): the load never goes to Neon');
   }
+  const refused = [...searchParams.keys()].find((name) => !ALLOWED_QUERY_PARAMETERS.has(name));
+  if (refused !== undefined) {
+    throw new Error(
+      `LOAD_DATABASE_URL may only carry sslmode in its query, not "${refused}": it could change the target database`,
+    );
+  }
 };
 
 /**
- * Reads `LOAD_DATABASE_URL` and the options `--seed`, `--users`, `--email`.
- * @throws Error for a missing URL or an option that is not a positive integer.
+ * Reads `LOAD_DATABASE_URL` and the options `--seed`, `--users` (at most {@link MAX_LOAD_USERS}), `--email`.
+ * @throws Error for a missing URL, an option that is not a positive integer, or too many users.
  */
 export const readSeedLoadRequest = (argv: readonly string[], env: NodeJS.ProcessEnv): SeedLoadRequest => {
   const { values } = parseArgs({
@@ -55,10 +69,14 @@ export const readSeedLoadRequest = (argv: readonly string[], env: NodeJS.Process
     if (!Number.isInteger(parsed) || parsed < 1) throw new Error(`--${name} must be a positive integer`);
     return parsed;
   };
+  const userCount = integerOf(values.users, DEFAULT_USERS, 'users');
+  if (userCount > MAX_LOAD_USERS) {
+    throw new Error(`--users must be at most ${String(MAX_LOAD_USERS)}: each user adds a tenth of the main volume`);
+  }
   return {
     url,
     seed: integerOf(values.seed, DEFAULT_SEED, 'seed'),
-    users: integerOf(values.users, DEFAULT_USERS, 'users'),
+    users: userCount,
     email: values.email,
   };
 };
@@ -73,7 +91,7 @@ export const readSeedLoadRequest = (argv: readonly string[], env: NodeJS.Process
  */
 export const seedLoad = async (request: SeedLoadRequest, logger: Logger): Promise<number[]> => {
   assertLocalDatabase(request.url);
-  await runMigrations(request.url, logger);
+  await runMigrations(request.url, logger, 'LOAD_DATABASE_URL');
   const handle = connectDatabase(request.url, logger);
   try {
     const { db } = handle;

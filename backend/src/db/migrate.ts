@@ -14,12 +14,17 @@ const MIGRATIONS_FOLDER = fileURLToPath(new URL('../../drizzle', import.meta.url
  * of the same run — PostgreSQL refuses a new enum value before its transaction commits. No migration may therefore
  * write `technical_test` (0034, T-904) if it can be deployed together with 0034; it goes to a later deployment.
  * Must be called with the owner role, never with the application role (ENF-SEC-09).
+ * @param variableName the environment variable the URL comes from, named in the error (never the URL itself).
  * @throws Error when the URL is invalid or insecure, or when a migration fails (nothing of the run is kept).
  * @req ENF-MAI-05, ENF-SEC-09, ENF-SEC-15
  */
-export const runMigrations = async (connectionString: string, logger: Logger): Promise<void> => {
+export const runMigrations = async (
+  connectionString: string,
+  logger: Logger,
+  variableName = 'DATABASE_URL_MIGRATOR',
+): Promise<void> => {
   const problem = describeDatabaseUrlProblem(connectionString);
-  if (problem) throw new Error(`DATABASE_URL_MIGRATOR ${problem}`);
+  if (problem) throw new Error(`${variableName} ${problem}`);
   const handle = connectDatabase(connectionString, logger);
   try {
     await migrate(handle.db, { migrationsFolder: MIGRATIONS_FOLDER });
