@@ -5,20 +5,12 @@ import * as schema from '../../src/db/schema.js';
 import { createStatsService } from '../../src/modules/stats/service.js';
 import { openTestDatabase, truncateAll } from './context.js';
 import { seedLoadDataset } from './load-dataset.js';
+import { type CapturedQuery, executionTimeOf } from './query-plans.js';
 import { testDatabaseUrl } from './test-database.js';
 
 // ENF-PERF-05: bound of each dashboard query, measured on the local test database.
 const MAX_EXECUTION_MS = 50;
 const NOW = new Date('2026-09-22T08:00:00.000Z');
-
-interface CapturedQuery {
-  text: string;
-  params: unknown[];
-}
-
-interface AnalyzedPlan {
-  'Execution Time': number;
-}
 
 const database = openTestDatabase();
 const pool = new pg.Pool({ connectionString: testDatabaseUrl(), max: 1 });
@@ -34,16 +26,6 @@ const captureDashboardQueries = async (): Promise<CapturedQuery[]> => {
   });
   await createStatsService({ db, clock: () => NOW, countsOffers: true }).dashboard(userId);
   return captured;
-};
-
-const executionTimeOf = async (query: CapturedQuery): Promise<number> => {
-  const result = await pool.query<{ 'QUERY PLAN': AnalyzedPlan[] }>(
-    `EXPLAIN (ANALYZE, FORMAT JSON) ${query.text}`,
-    query.params,
-  );
-  const plan = result.rows[0]?.['QUERY PLAN'][0];
-  if (!plan) throw new Error('EXPLAIN returned no plan');
-  return plan['Execution Time'];
 };
 
 beforeAll(async () => {
@@ -63,7 +45,7 @@ describe('dashboard queries on the load of ENF-PERF-01', () => {
 
     const slow: { query: string; ms: number }[] = [];
     for (const query of queries) {
-      const ms = await executionTimeOf(query);
+      const ms = await executionTimeOf(pool, query);
       if (ms >= MAX_EXECUTION_MS) slow.push({ query: query.text, ms });
     }
 
