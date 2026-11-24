@@ -32,11 +32,30 @@ const QUERY_PARAMS = /\nparams: [\s\S]*?(?=\n {4}at |$)/gu;
 const scrubText = (text: string): string =>
   text.replace(URL_CREDENTIALS, `$1${REDACTED}@`).replace(QUERY_PARAMS, `\nparams: ${REDACTED}`);
 
+// ENF-RGP-01: a failed Drizzle query keeps its statement and its parameters apart (`query`, `params`); rebuilding the
+// message from the statement alone is exact, whatever a cell contains (a « \n    at » in a note ends no regex here).
+const isFailedQuery = (error: Error): error is Error & { query: string; params: unknown[] } =>
+  typeof (error as { query?: unknown }).query === 'string' && Array.isArray((error as { params?: unknown }).params);
+
+const safeMessageOf = (error: Error): string =>
+  isFailedQuery(error) ? `Failed query: ${error.query}\nparams: ${REDACTED}` : scrubText(error.message);
+
+/**
+ * Returns the stack of `error` safe to log: its message replaced by the sanitized one, so that a failed query keeps no
+ * parameter (ENF-RGP-01), and credentials removed from URLs.
+ * @returns `undefined` when `error` is not an `Error` or has no stack.
+ * @req ENF-SEC-08, ENF-RGP-01
+ */
+export const stackOf = (error: unknown): string | undefined => {
+  if (!(error instanceof Error) || error.stack === undefined) return undefined;
+  return scrubText(error.stack.split(error.message).join(safeMessageOf(error)));
+};
+
 const sanitizeAtDepth = (value: unknown, depth: number): unknown => {
   if (typeof value === 'string') return scrubText(value);
   if (value === null || typeof value !== 'object') return value;
   if (depth >= MAX_DEPTH) return TRUNCATED;
-  if (value instanceof Error) return { name: value.name, message: scrubText(value.message) };
+  if (value instanceof Error) return { name: value.name, message: safeMessageOf(value) };
   if (Array.isArray(value)) return value.map((item: unknown) => sanitizeAtDepth(item, depth + 1));
   return Object.fromEntries(
     Object.entries(value).map(([key, item]) => [

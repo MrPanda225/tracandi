@@ -1,6 +1,6 @@
 import { DrizzleQueryError } from 'drizzle-orm';
 import { describe, expect, it } from 'vitest';
-import { createLogger, sanitize } from './logger.js';
+import { createLogger, sanitize, stackOf } from './logger.js';
 
 const captureLines = () => {
   const lines: string[] = [];
@@ -70,6 +70,25 @@ describe('a failed query in the journal', () => {
         'params: [REDACTED]',
     );
     expect(entry.stack).toMatch(/params: \[REDACTED\]\n {4}at /u);
+  });
+
+  it('[ENF-RGP-01] [ENF-SEC-08] writes no parameter when a cell looks like a stack frame', () => {
+    const { lines, logger } = captureLines();
+    const failed = new DrizzleQueryError(
+      'update "applications" set "notes" = $1 where "id" = $2',
+      ['Relance prévue\n    at Nova SAS le 3 avec Mme Martin', 12],
+      new Error('deadlock detected'),
+    );
+
+    logger.error('unexpected error', { error: failed, stack: stackOf(failed) });
+
+    const [line = ''] = lines;
+    expect(line).not.toMatch(/Nova|Martin|Relance/u);
+    const entry = JSON.parse(line) as { error: { message: string }; stack: string };
+    expect(entry.error.message).toBe(
+      'Failed query: update "applications" set "notes" = $1 where "id" = $2\nparams: [REDACTED]',
+    );
+    expect(entry.stack).toMatch(/^Error: Failed query: .*\nparams: \[REDACTED\]\n {4}at /u);
   });
 });
 

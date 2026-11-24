@@ -1,7 +1,7 @@
 import type { ErrorRequestHandler } from 'express';
 import { isDatabaseUnreachable } from './db-errors.js';
 import { HttpError } from './errors.js';
-import type { Logger } from './logger.js';
+import { stackOf, type Logger } from './logger.js';
 
 const INTERNAL_ERROR = { status: 500, message: 'Erreur interne du serveur' } as const;
 // ENF-FIA-01: the hosted database was unreachable; the request is worth trying again, unlike a real failure.
@@ -72,7 +72,7 @@ export const handleErrors =
       method: req.method,
       path: req.path,
       error,
-      stack: error instanceof Error ? error.stack : undefined,
+      stack: stackOf(error),
     });
     res.status(INTERNAL_ERROR.status).json({ error: INTERNAL_ERROR.message });
   };
