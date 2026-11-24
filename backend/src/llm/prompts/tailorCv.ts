@@ -43,7 +43,13 @@ const SYSTEM = [
 
 const joinParts = (parts: readonly (string | null)[]): string => parts.filter((part) => part !== null).join(' | ');
 
-/** The parsed CV as the model reads it: one line per fact, each preceded by its id. */
+/**
+ * The parsed CV as the model reads it: one line per fact, each preceded by its id (`exp_0`, `exp_0.b1`, `edu_0.d0`,
+ * `skill_3`…), in the order of the CV; a fact the CV does not give (organization, dates…) is left out of its line, an
+ * absent headline or profile gives no line. Contact details are never in a ParsedCv (ENF-RGP-07). Never throws; an
+ * empty string for an empty CV.
+ * @req EF-CVX-47, RG-21, ENF-RGP-07
+ */
 export const renderParsedCv = (cv: ParsedCv): string =>
   [
     ...(cv.headline ? [`headline: ${cv.headline}`] : []),

@@ -7,6 +7,8 @@ import type { Logger } from '../../lib/logger.js';
 
 /** ENF-SEC-22: time `pdftotext` may take for a whole CV (it needs well under a second for a few pages). */
 export const PDFTOTEXT_TIMEOUT_MS = 30_000;
+/** ENF-SEC-22: pages read again column by column at most — a CV holds on far fewer; the pages beyond keep the default. */
+export const MAX_COLUMN_PAGES = 5;
 const OWNER_ONLY = 0o600;
 const FORM_FEED = '\f';
 
@@ -46,19 +48,22 @@ const readRegion = async (call: PdfCall, page: number, region: Region): Promise<
 };
 
 /**
- * EF-CVX-45: the pages read again column by column where `-bbox-layout` shows side-by-side columns, the other pages
- * kept as the default mode read them. The areas are read one after the other, so a long CV never runs many programs
- * at once.
+ * EF-CVX-45, ENF-SEC-22: the first {@link MAX_COLUMN_PAGES} pages read again column by column where `-bbox-layout`
+ * shows side-by-side columns; the other pages, and those beyond, kept as the default mode read them. The geometry is
+ * asked for those pages only, and the areas are read one after the other, so a long PDF never runs many programs at
+ * once nor without bound.
  */
 const inReadingOrder = async (call: PdfCall, pages: readonly string[]): Promise<string[]> => {
-  const layouts = parseBboxLayout(await run(call, ['-bbox-layout']));
-  if (layouts.length !== pages.length) return [...pages];
-  const ordered: string[] = [];
+  const measured = Math.min(pages.length, MAX_COLUMN_PAGES);
+  const layouts = parseBboxLayout(await run(call, ['-bbox-layout', '-l', String(MAX_COLUMN_PAGES)]));
+  if (layouts.length !== measured) return [...pages];
+  const ordered = [...pages];
   for (const [index, layout] of layouts.entries()) {
     const regions = readingRegions(layout);
+    if (!regions) continue;
     const texts: string[] = [];
-    for (const region of regions ?? []) texts.push(await readRegion(call, index + 1, region));
-    ordered.push(regions ? texts.filter((text) => text !== '').join('\n\n') : (pages[index] ?? ''));
+    for (const region of regions) texts.push(await readRegion(call, index + 1, region));
+    ordered[index] = texts.filter((text) => text !== '').join('\n\n');
   }
   return ordered;
 };

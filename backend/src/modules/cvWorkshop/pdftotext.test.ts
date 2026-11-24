@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CommandRunner } from './command.js';
-import { createPdftotext, PDFTOTEXT_TIMEOUT_MS } from './pdftotext.js';
+import { createPdftotext, MAX_COLUMN_PAGES, PDFTOTEXT_TIMEOUT_MS } from './pdftotext.js';
 
 const PDF = Buffer.from('%PDF-1.4 fictitious', 'latin1');
 
@@ -41,7 +41,7 @@ describe('createPdftotext', () => {
     expect(pages).toEqual(['Page un', 'Page deux']);
     expect(calls.map((call) => call.file)).toEqual(['pdftotext', 'pdftotext']);
     expect(calls[0]?.args).toEqual(['-enc', 'UTF-8', '-eol', 'unix', expect.stringMatching(/cv\.pdf$/), '-']);
-    expect(calls[1]?.args).toEqual(['-bbox-layout', expect.stringMatching(/cv\.pdf$/), '-']);
+    expect(calls[1]?.args).toEqual(['-bbox-layout', '-l', '5', expect.stringMatching(/cv\.pdf$/), '-']);
     expect(calls.every((call) => call.timeoutMs === PDFTOTEXT_TIMEOUT_MS)).toBe(true);
   });
 
@@ -64,6 +64,30 @@ describe('createPdftotext', () => {
       expect.arrayContaining(['-f', '1', '-l', '1', '-x', '0', '-y', '0', '-W', '196', '-H', '842']),
     );
     expect(crops[1]).toEqual(expect.arrayContaining(['-x', '196', '-W', '399']));
+  });
+
+  it('[ENF-SEC-22] reads again in columns the first 5 pages at most, the pages beyond kept as read', async () => {
+    const page = TWO_COLUMNS_THEN_ONE.split('</page>')[0] ?? '';
+    const crops: string[][] = [];
+    const runCommand: CommandRunner = (_file, args) => {
+      if (args.includes('-bbox-layout')) {
+        const last = Number(args[args.indexOf('-l') + 1]);
+        return Promise.resolve({ stdout: Array.from({ length: Math.min(7, last) }, () => `${page}</page>`).join('\n') });
+      }
+      if (args.includes('-x')) {
+        crops.push([...args]);
+        return Promise.resolve({ stdout: 'Colonne\n\f' });
+      }
+      return Promise.resolve({ stdout: Array.from({ length: 7 }, (_unused, index) => `Page ${String(index + 1)}\n\f`).join('') });
+    };
+
+    const pages = await createPdftotext({ runCommand, tempRoot }).readPages(PDF);
+
+    expect(MAX_COLUMN_PAGES).toBe(5);
+    expect(crops).toHaveLength(2 * MAX_COLUMN_PAGES);
+    expect(new Set(crops.map((args) => args[args.indexOf('-f') + 1]))).toEqual(new Set(['1', '2', '3', '4', '5']));
+    expect(pages?.slice(5)).toEqual(['Page 6', 'Page 7']);
+    expect(pages?.[0]).toBe('Colonne\n\nColonne');
   });
 
   it('[EF-CVX-45] keeps the default reading order, and journals no content, when the layout cannot be read', async () => {

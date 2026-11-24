@@ -57,6 +57,13 @@ const ChangeTargetSchema = z.object({
  * the ids of the facts it keeps; never a title, company, place, date, degree, school or list item. Tolerant on shape
  * (an unusable field is left out, extra fields are dropped), strict on caps. An answer without its `experiences`
  * array is not an answer. Unknown ids are ignored by the assembly (RG-21).
+ *
+ * Guarantees of a parsed answer: `headline` and `profile` are trimmed strings within their bounds, or null when
+ * missing or unusable; `experiences` holds at most 20 entries with an `exp_<n>` id and at most 12 trimmed bullets of
+ * 300 characters; `education`, the lists and `changes` are arrays, empty when missing or not arrays, with their
+ * malformed entries left out. Parsing fails (and the router tries the next provider, EF-IA-02) only when the answer is
+ * not an object or its `experiences` is not an array.
+ * @req EF-CVX-47, EF-CVX-29, RG-21, ENF-COU-01
  */
 export const TailorCvAnswerSchema = z.object({
   headline: optionalText(HEADLINE_MAX_LENGTH),

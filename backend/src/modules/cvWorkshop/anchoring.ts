@@ -91,7 +91,12 @@ interface Token {
 const WORD = /[\p{L}\p{N}]+/gu;
 const NOT_WORD = /[^\p{L}\p{N}]+/u;
 
-/** The tokens of a text as compared: folded (case, accents, ligatures), punctuation and dashes ignored. */
+/**
+ * The tokens of a text as compared with the source: folded by {@link foldText} (case, accents, ligatures, invisible
+ * characters), split on anything that is neither a letter nor a digit, so punctuation, spaces and dashes are ignored.
+ * Never throws; an empty array for a text without letters or digits.
+ * @req RG-21, EF-CVX-46
+ */
 export const keysOf = (text: string): string[] =>
   foldText(text)
     .split(NOT_WORD)
