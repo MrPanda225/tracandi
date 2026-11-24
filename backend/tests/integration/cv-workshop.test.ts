@@ -166,6 +166,17 @@ describe('POST /api/cv-workshop/analyses', () => {
 });
 
 describe('GET /api/cv-workshop/analyses/:id', () => {
+  it('[RG-24] [EF-CVX-28] refuses more than 6 ticked skills, with a clear message', async () => {
+    const tooMany = ['a', 'b', 'c', 'd', 'e', 'f', 'g'].map((letter) => `Outil ${letter}`);
+    const response = await request(context.app)
+      .post(`/api/cv-workshop/analyses/${String(await analysed())}/docx`)
+      .set('Cookie', alice)
+      .send({ addedSkills: tooMany });
+
+    expect(response.status).toBe(400);
+    expect(JSON.stringify(response.body)).toContain('Cochez 6 compétences au plus');
+  });
+
   it('[EF-AUT-06] answers 404 for the analysis of another account', async () => {
     const started = await startAnalysis(alice, analysisOf(cvBase64()));
     await context.queue.drain();
