@@ -22,7 +22,9 @@ Avant tout, lis `.claude/equipe/README.md` (règles communes, interdits, limites
    `schema.ts` + migration générée par `drizzle-kit`, jamais deux tâches à migration en parallèle).
 5. `npm run check` vert dans chaque package touché (`VITEST_MAX_FORKS=1`, un seul à la fois) ; tests d'intégration
    sur la base Docker locale si la base est concernée.
-   Puis la définition de fini de `CLAUDE.md` : `npm run test:coverage` vert dans `backend` (couverture ≥ 80 %),
+   Tests d'intégration et couverture par `scripts/test-db/run.sh` et `scripts/test-db/run.sh --coverage`, jamais avec un
+   `.env` copié ou lié dans la copie de travail.
+   Puis la définition de fini de `CLAUDE.md` : couverture ≥ 80 % dans `backend`,
    `npm run audit` sans vulnérabilité haute ou critique si une dépendance pré-approuvée a été ajoutée, et
    `/project:review` avec le verdict « Prêt à commiter ».
 6. `docs/TRACABILITE.md` à jour, tâche cochée dans `docs/ROADMAP.md`.

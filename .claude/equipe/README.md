@@ -40,12 +40,16 @@ scripts/equipe/lancer-agent.sh <agent> <nom-du-rapport> "<brief>" [dossier-de-tr
 3. **Mémoire du poste** (14 Go, swap plein vite) : `VITEST_MAX_FORKS=1`, un seul `npm run check` à la fois, aucun
    serveur laissé ouvert en fin de travail. `/tmp` est en mémoire vive : aucune copie de branche ni gros fichier
    dedans ; les copies de travail vont sous `.claude/worktrees/`.
-4. **Recette** : uniquement avec le harnais `scripts/recette/` (base locale, Resend et Groq simulés), comptes fictifs
+4. **Tests d'intégration et couverture** dans une copie de travail : `scripts/test-db/run.sh` (intégration) ou
+   `scripts/test-db/run.sh --coverage`, sur une base Docker dédiée aux copies de travail (port 5436, identifiants
+   fictifs). Jamais de `.env` dans une copie de travail, ni copié ni lié : ce fichier contient les accès réels. Les tests
+   qui demandent LibreOffice ou l'OCR échouent sur le poste s'ils n'y sont pas installés ; la CI les joue.
+5. **Recette** : uniquement avec le harnais `scripts/recette/` (base locale, Resend et Groq simulés), comptes fictifs
    en `example.test`, aucune donnée réelle.
-5. **Commits** : fréquents (un commit de travail vaut mieux qu'un travail perdu), au format
+6. **Commits** : fréquents (un commit de travail vaut mieux qu'un travail perdu), au format
    `T-xxx <type>(<module>): <résumé>` de `docs/CONVENTIONS_GIT.md`, poussés par
    `git -c credential.helper= -c 'credential.helper=!gh auth git-credential' push origin <branche>`.
    `gh pr edit` échoue sur ce dépôt : modifier une description par
    `gh api -X PATCH repos/MrPanda225/tracandi/pulls/<n> -F body=@<fichier>`.
-6. **Rapport** : en français, dans le fichier `.claude/equipe/rapports/<nom>.md` indiqué dans le brief, mis à jour en
+7. **Rapport** : en français, dans le fichier `.claude/equipe/rapports/<nom>.md` indiqué dans le brief, mis à jour en
    cours de route. Il se termine par une ligne `VERDICT : …` (voir chaque rôle) et, pour un développeur, le hash poussé.
