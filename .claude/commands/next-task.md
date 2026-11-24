@@ -38,7 +38,8 @@ allowed-tools: Bash(git status), Bash(git diff:*), Bash(npm run check), Bash(npm
 
 6. **Livrer**
    - Commit sur la branche : `T-xxx <type>(<module>): <résumé en anglais>` + corps listant les exigences couvertes.
-   - Push de la branche, puis pull request vers `main` : titre au format du commit, description selon
-     `.github/pull_request_template.md` entièrement remplie. La fusion est réservée au Business Owner.
+   - Push de la branche, puis pull request vers `dev` : titre au format du commit, description selon
+     `.github/pull_request_template.md` entièrement remplie. La fusion dans `dev` revient à l'orchestrateur après les
+     quatre portes, ou au Business Owner (`docs/CONVENTIONS_GIT.md`) ; jamais à la session qui a fait la tâche.
    - Rapport final au Business Owner : ce qui est fait, lien de la PR, comment le vérifier (commande ou écran), points d'attention.
    - **S'arrêter.** Ne pas enchaîner la tâche suivante sans accord. En fin de lot, proposer une démonstration.

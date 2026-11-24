@@ -22,8 +22,8 @@ L'ouvrir en production revient à ajouter son nom à `ENABLED_FEATURES` du dépl
 4. Tâche finie (définition de fini de `CLAUDE.md` satisfaite) : `git push -u origin <branche>` puis ouvrir une pull request
    **vers `dev`** avec le modèle `.github/pull_request_template.md`.
 5. L'orchestrateur (session principale de Claude Code) fusionne en **« Squash and merge »** quand les quatre portes
-   sont passées : CI GitHub entièrement verte, contrôle QA de forme, recette sans anomalie bloquante, revue indépendante sans régression. `dev` garde un commit par tâche, dont le message est le titre de
-   la PR. La branche est supprimée après fusion. Délégation du Business Owner du 23/11/2026 ; il reste libre de relire
+   sont passées : CI GitHub entièrement verte, contrôle QA de forme, recette sans anomalie bloquante, revue
+   indépendante sans régression. `dev` garde un commit par tâche, dont le message est le titre de la PR. La branche est supprimée après fusion. Délégation du Business Owner du 23/11/2026 ; il reste libre de relire
    ou de fusionner lui-même.
 
 ## Cycle d'une version

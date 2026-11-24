@@ -53,8 +53,9 @@ scripts/db/backup.sh && scripts/db/restore-check.sh
 7. Commits sur la branche : `T-xxx <type>(<module>): <summary>` + exigences couvertes dans le corps. Tâche finie :
    push de la branche et pull request vers `dev` décrite avec `.github/pull_request_template.md` ; l'orchestrateur
    (session principale) fusionne dans `dev` en « Squash and merge » (un commit par tâche) après les quatre portes :
-   CI GitHub entièrement verte, contrôle QA de forme, recette sans anomalie bloquante, revue indépendante sans régression (délégation du Business Owner du 23/11/2026). `main` reste au
-   Business Owner. Détails : `docs/CONVENTIONS_GIT.md`.
+   CI GitHub entièrement verte, contrôle QA de forme, recette sans anomalie bloquante, revue indépendante sans
+   régression (délégation du Business Owner du 23/11/2026). `main` reste au Business Owner.
+   Détails : `docs/CONVENTIONS_GIT.md`.
    Périmètre de `main` et `dev` (BES-29) : tableau de bord, candidatures, réglages Gmail ; veille et CV désactivés par
    `ENABLED_FEATURES` (ENF-MAI-07), écrans « En préparation », code jamais retiré.
 8. **S'arrêter et faire un rapport.** Ne jamais enchaîner la tâche suivante sans accord.
@@ -81,7 +82,8 @@ Skills de référence : `.claude/skills/` (`clean-code`, `security`, `requiremen
   Pour les tests, utiliser `backend/tests/fixtures/profile.example.json`.
 - Modifier une migration commitée (bloqué par hook) ; exécuter `scripts/db/restore.sh`.
 - Commit ou push direct sur `main` ou `dev`, `git push --force`. Fusionner une pull request : vers `main`, réservé au
-  Business Owner ; vers `dev`, réservé à l'orchestrateur après les quatre portes (jamais un agent de l'équipe).
+  Business Owner ; vers `dev`, réservé à l'orchestrateur après les quatre portes, ou au Business Owner (jamais un
+  agent de l'équipe).
 - Appeler une API réelle (Claude, Gemini, Gmail, site carrières) dans un test.
 - Ajouter une dépendance sans accord explicite ni justification (voir security.md).
 - Affaiblir un test, désactiver une règle lint/TS, ou élargir le périmètre pour « faire passer ».

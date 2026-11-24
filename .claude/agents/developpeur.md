@@ -23,8 +23,8 @@ Avant tout, lis `.claude/equipe/README.md` (règles communes, interdits, limites
 5. `npm run check` vert dans chaque package touché (`VITEST_MAX_FORKS=1`, un seul à la fois) ; tests d'intégration
    sur la base Docker locale si la base est concernée.
    Puis la définition de fini de `CLAUDE.md` : `npm run test:coverage` vert dans `backend` (couverture ≥ 80 %),
-   `npm run audit` sans vulnérabilité haute ou critique si une dépendance pré-approuvée a été ajoutée, et `/project:review`
-   avec le verdict « Prêt à commiter ».
+   `npm run audit` sans vulnérabilité haute ou critique si une dépendance pré-approuvée a été ajoutée, et
+   `/project:review` avec le verdict « Prêt à commiter ».
 6. `docs/TRACABILITE.md` à jour, tâche cochée dans `docs/ROADMAP.md`.
 7. Commit, push, puis PR vers `dev` avec une description en français selon `.github/pull_request_template.md`
    (jamais `gh pr create --fill`), terminée par la ligne de génération Claude Code.

@@ -34,7 +34,8 @@ scripts/equipe/lancer-agent.sh <agent> <nom-du-rapport> "<brief>" [dossier-de-tr
 2. **Interdits** : lire ou afficher `.env`, `backend/data/profile.json`, `database/conf/*.cnf` ; se connecter à Neon ;
    lancer `npm run dev` ou `npm run db:migrate` dans `backend` (ils chargent `../.env`, donc Neon) ; exécuter
    `scripts/db/backup.sh` ou `scripts/db/restore.sh` ; appeler une API réelle (Claude, Gemini, Groq, Gmail, Resend,
-   site carrières) ; ajouter une dépendance hors de la liste pré-approuvée de `CLAUDE.md` (et alors pour sa tâche seulement) ; modifier une migration commitée ; affaiblir un test ou une règle de lint ;
+   site carrières) ; ajouter une dépendance hors de la liste pré-approuvée de `CLAUDE.md` (et alors pour sa tâche
+   seulement) ; modifier une migration commitée ; affaiblir un test ou une règle de lint ;
    modifier `.claude/settings.json` ; commit ou push sur `dev` ou `main` ; `git push --force` ; fusionner une PR.
 3. **Mémoire du poste** (14 Go, swap plein vite) : `VITEST_MAX_FORKS=1`, un seul `npm run check` à la fois, aucun
    serveur laissé ouvert en fin de travail. `/tmp` est en mémoire vive : aucune copie de branche ni gros fichier
