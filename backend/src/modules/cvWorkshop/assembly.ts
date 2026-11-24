@@ -33,6 +33,10 @@ const chosenOrAll = (items: readonly AnchoredItem[], ids: readonly string[]): st
   return chosen.length > 0 ? chosen : items.map((item) => item.text);
 };
 
+/** RG-21: the CV's own headline, else its first job title, else its first degree. */
+const headlineOfCv = (parsed: ParsedCv): string =>
+  parsed.headline ?? parsed.experiences[0]?.title ?? parsed.education[0]?.degree ?? '';
+
 /** The first choice made for each id; an id the CV does not have is never looked up. */
 const firstById = <T extends { id: string }>(choices: readonly T[]): Map<string, T> => {
   const byId = new Map<string, T>();
@@ -66,9 +70,7 @@ export const assembleCv = ({
   const experienceChoices = firstById(answer.experiences);
   const educationChoices = firstById(answer.education);
   const headline =
-    answer.headline !== null && isFaithful(answer.headline)
-      ? answer.headline
-      : (parsed.headline ?? parsed.experiences[0]?.title ?? parsed.education[0]?.degree ?? '');
+    answer.headline !== null && isFaithful(answer.headline) ? answer.headline : headlineOfCv(parsed);
   const profile = answer.profile === null ? (parsed.profile ?? '') : sentencesOf(answer.profile).filter(isFaithful).join(' ');
 
   return {
@@ -166,7 +168,7 @@ const targetsOf = (parsed: ParsedCv, assembled: AdaptedCv, cv: AdaptedCv): Targe
   });
   parsed.education.forEach((entry, index) => {
     const after = cv.education[index]?.detail ?? null;
-    const pageTrimmed = trimmed(after === null && assembled.education[index]?.detail != null, CODE_REASONS.educationTrimmed);
+    const pageTrimmed = trimmed(after === null && (assembled.education[index]?.detail ?? null) !== null, CODE_REASONS.educationTrimmed);
     targets.push({
       id: entry.id,
       texts: {
