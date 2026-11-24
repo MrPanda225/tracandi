@@ -14,6 +14,7 @@ Toute nouvelle demande passe par `/project:change-request` avant le code.
 | `docs/TRACABILITE.md` | Exigence → tâche → test (tenu à jour à chaque tâche) |
 | `docs/ARCHITECTURE.md` | Décisions (ADR), arborescence cible, modèle de données, rôles PostgreSQL |
 | `docs/CONVENTIONS_GIT.md` | Branches, commits (Conventional Commits + préfixe `T-xxx`), pull requests |
+| `.claude/equipe/README.md` | Équipe d'agents (`.claude/agents/`), lancée en ligne de commande par `scripts/equipe/lancer-agent.sh` |
 
 ## Stack
 - **Backend** : Node 22, TypeScript strict, Express 4, Drizzle ORM (pilote `pg`, aucun SQL assemblé à la main), zod 4, Vitest + Supertest.

@@ -12,3 +12,4 @@ backend/data/generated/
 backend/data/profile.json
 *.log
 *.tsbuildinfo
+.claude/equipe/rapports/
