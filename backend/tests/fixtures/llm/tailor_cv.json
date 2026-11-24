@@ -1,29 +1,17 @@
 {
-  "cv": {
-    "headline": "Data Analyst",
-    "profile": "Data analyst tournée vers les tableaux de bord et SQL, prête à rejoindre une équipe data à Lyon.",
-    "experiences": [
-      {
-        "title": "Data Analyst",
-        "organization": "Atelier Nova",
-        "place": null,
-        "dates": "09/2024 – 08/2026",
-        "bullets": ["Conception de tableaux de bord Power BI pour 12 équipes commerciales."]
-      }
-    ],
-    "education": [
-      { "degree": "Master Informatique", "school": "Université de Lyon", "place": null, "dates": "2024", "detail": null }
-    ],
-    "skills": ["SQL", "Python", "Power BI"],
-    "certifications": [],
-    "languages": [],
-    "interests": []
-  },
+  "headline": "Data Analyst",
+  "profile": "Data analyst tournée vers les tableaux de bord et SQL, prête à rejoindre une équipe data à Lyon.",
+  "experiences": [
+    { "id": "exp_0", "bullets": ["Conception de tableaux de bord Power BI pour 12 équipes commerciales."] }
+  ],
+  "education": [{ "id": "edu_0", "details": [] }],
+  "skills": ["skill_0", "skill_1", "skill_2"],
+  "certifications": [],
+  "languages": [],
+  "interests": [],
   "changes": [
     {
-      "section": "Expériences professionnelles",
-      "before": "Tableaux de bord Power BI pour 12 equipes commerciales.",
-      "after": "Conception de tableaux de bord Power BI pour 12 équipes commerciales.",
+      "target": "exp_0",
       "reason": "L’offre parle de conception de tableaux de bord : le verbe d’action le met en avant."
     }
   ]

@@ -15,9 +15,13 @@ const withTicked = (skills: readonly string[], ticked: readonly string[]): strin
   });
 };
 
+/** RG-24: the skills the page of the Word file keeps room for; the server refuses more. */
+export const MAX_TICKED_SKILLS = 6;
+
 /**
- * EF-CVX-27, EF-CVX-28: what the offer asks for and the CV does not say, each to tick when the candidate truly has it.
- * Nothing is added without their say.
+ * EF-CVX-27, EF-CVX-28, RG-24: what the offer asks for and the CV does not say, each to tick when the candidate truly
+ * has it, {@link MAX_TICKED_SKILLS} at most — the other boxes wait, said so, until one is unticked. Nothing is added
+ * without their say.
  */
 export function SkillsToAdd({
   skills,
@@ -29,6 +33,8 @@ export function SkillsToAdd({
   onTickedChange: (ticked: string[]) => void;
 }) {
   const titleId = useId();
+  const limitId = useId();
+  const isFull = ticked.length >= MAX_TICKED_SKILLS;
   const toggle = (skill: string) =>
     onTickedChange(ticked.includes(skill) ? ticked.filter((item) => item !== skill) : [...ticked, skill]);
   return (
@@ -39,18 +45,31 @@ export function SkillsToAdd({
       {skills.length > 0 ? (
         <fieldset className="cv-skills-fieldset">
           <legend className="cv-card__lede">
-            Cochez celles que vous maîtrisez vraiment : elles rejoignent votre CV.
+            Cochez celles que vous maîtrisez vraiment, {MAX_TICKED_SKILLS} au plus : elles rejoignent votre CV.
           </legend>
           <ul className="cv-skills">
-            {skills.map((skill) => (
-              <li key={skill}>
-                <label className="cv-skills__item cv-skills__choice">
-                  <input type="checkbox" checked={ticked.includes(skill)} onChange={() => toggle(skill)} />
-                  {skill}
-                </label>
-              </li>
-            ))}
+            {skills.map((skill) => {
+              const isTicked = ticked.includes(skill);
+              return (
+                <li key={skill}>
+                  <label className="cv-skills__item cv-skills__choice">
+                    <input
+                      type="checkbox"
+                      checked={isTicked}
+                      disabled={isFull && !isTicked}
+                      aria-describedby={isFull && !isTicked ? limitId : undefined}
+                      onChange={() => toggle(skill)}
+                    />
+                    {skill}
+                  </label>
+                </li>
+              );
+            })}
           </ul>
+          <p id={limitId} className="form-field__hint" role="status">
+            {isFull &&
+              `Vous avez coché ${String(MAX_TICKED_SKILLS)} compétences : c’est ce qui tient sur la page. Décochez-en une pour en choisir une autre.`}
+          </p>
         </fieldset>
       ) : (
         <p className="cv-card__lede">Rien d’important ne manque. Bravo !</p>
@@ -76,8 +95,8 @@ function CvList({ items }: { items: readonly string[] }) {
     <>
       {rows.length > 0 && (
         <dl className="cv-sheet__rows">
-          {rows.map(([heading, rest]) => (
-            <div key={heading} className="cv-sheet__row">
+          {rows.map(([heading, rest], index) => (
+            <div key={`${String(index)}-${heading}`} className="cv-sheet__row">
               <dt>{heading}</dt>
               <dd>{rest}</dd>
             </div>
@@ -97,9 +116,9 @@ function CvEntry({
   place,
   children,
 }: {
-  dates: string;
+  dates: string | null;
   what: string;
-  organization: string;
+  organization: string | null;
   place: string | null;
   children?: ReactNode;
 }) {
@@ -109,7 +128,13 @@ function CvEntry({
       <div className="cv-sheet__body">
         <div className="cv-sheet__entry-head">
           <p className="cv-sheet__role">
-            {what} — <span className="cv-sheet__organization">{organization}</span>
+            {what}
+            {organization && (
+              <>
+                {' '}
+                — <span className="cv-sheet__organization">{organization}</span>
+              </>
+            )}
           </p>
           {place && <p className="cv-sheet__place">{place}</p>}
         </div>
@@ -193,17 +218,17 @@ function CvPreview({
         )}
         {cv.experiences.length > 0 && (
           <CvSection title="Expériences professionnelles">
-            {cv.experiences.map((experience) => (
+            {cv.experiences.map((experience, index) => (
               <CvEntry
-                key={`${experience.organization}-${experience.dates}`}
+                key={`${String(index)}-${experience.title}-${experience.organization ?? ''}-${experience.dates ?? ''}`}
                 dates={experience.dates}
                 what={experience.title}
                 organization={experience.organization}
                 place={experience.place}
               >
                 <ul>
-                  {experience.bullets.map((bullet) => (
-                    <li key={bullet}>{bullet}</li>
+                  {experience.bullets.map((bullet, bulletIndex) => (
+                    <li key={`${String(bulletIndex)}-${bullet}`}>{bullet}</li>
                   ))}
                 </ul>
               </CvEntry>
@@ -212,9 +237,9 @@ function CvPreview({
         )}
         {cv.education.length > 0 && (
           <CvSection title="Formation">
-            {cv.education.map((entry) => (
+            {cv.education.map((entry, index) => (
               <CvEntry
-                key={`${entry.school}-${entry.dates}`}
+                key={`${String(index)}-${entry.degree}-${entry.school ?? ''}-${entry.dates ?? ''}`}
                 dates={entry.dates}
                 what={entry.degree}
                 organization={entry.school}

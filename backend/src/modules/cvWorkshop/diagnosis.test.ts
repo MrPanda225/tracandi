@@ -52,6 +52,12 @@ describe('buildDiagnosis', () => {
     expect(buildDiagnosis(ANSWER, CV).missingSkills).toEqual(['dbt', 'Airflow']);
   });
 
+  it('[EF-CVX-27] [RG-21] reads a short skill the CV joins by a hyphen, not one in « go-live »', () => {
+    const cv = 'Data Analyst\nStack Python-R-SQL. Préparation du go-live.';
+
+    expect(buildDiagnosis({ ...ANSWER, missingSkills: ['R', 'Go'] }, cv).missingSkills).toEqual(['Go']);
+  });
+
   it(`[EF-CVX-30] names as weak the dimensions scored below ${String(WEAK_SCORE_BELOW)}`, () => {
     const diagnosis = buildDiagnosis({ ...ANSWER, experience: explained(50) }, CV);
 

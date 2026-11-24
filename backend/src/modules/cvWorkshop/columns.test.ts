@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  buildDateMarginCv,
   buildGarbledCv,
   buildHyphenatedCv,
   buildTwoColumnCv,
@@ -30,11 +31,66 @@ const expectEveryFactWhole = (text: string, cv: ColumnsCv): void => {
   for (const fact of facts) expect(text).toContain(fact);
 };
 
+/** Each text comes after the one before it in `text`, every one of them present. */
+const expectInOrder = (text: string, parts: readonly string[]): void => {
+  const positions = parts.map((part) => text.indexOf(part));
+  expect(positions.every((position) => position >= 0)).toBe(true);
+  expect(positions).toEqual([...positions].sort((first, second) => first - second));
+};
+
+/** The text read between two parts of the CV. */
+const between = (text: string, from: string, to: string): string =>
+  text.slice(text.indexOf(from) + from.length, text.indexOf(to));
+
 describe('readCv on CVs laid out in columns', () => {
   it('[EF-CVX-45] reads a two-column CV whose stream interleaves the columns, every fact whole', async () => {
     const cv = buildTwoColumnCv();
 
     expectEveryFactWhole(await readText(cv), cv);
+  });
+
+  it.each([
+    ['side by side', {}],
+    ['with its address on the row of a bullet', { addressOnBulletLine: true }],
+    ['with a wrapped job title', { wrapTitle: true }],
+  ])('[EF-CVX-45] reads each bullet right after its job, in a two-column CV %s', async (_name, options) => {
+    const text = await readText(buildTwoColumnCv(options));
+
+    expectInOrder(text, [
+      'EXPERIENCES PROFESSIONNELLES',
+      'Nordwave Systems, Nantes',
+      '09/2022 – 06/2024',
+      'Automatisation des déploiements avec GitLab CI.',
+      'Supervision Prometheus de 40 services.',
+      'Technicienne systèmes',
+      'Atelier Brume, Rennes',
+      '2020 – 2022',
+      'Administration de serveurs Linux.',
+      'FORMATION',
+      'Master Informatique',
+      'Université de Rennes, Rennes',
+      '2018 – 2020',
+    ]);
+    const firstJob = between(text, 'EXPERIENCES PROFESSIONNELLES', 'FORMATION');
+    for (const sidebar of ['CONTACT', 'COMPETENCES', 'Docker', 'Kubernetes', 'Terraform', 'Python']) {
+      expect(firstJob).not.toContain(sidebar);
+    }
+    expectInOrder(text, ['COMPETENCES', 'Docker', 'Kubernetes', 'Terraform', 'Python']);
+  });
+
+  it('[EF-CVX-45] keeps each date of a margin with its job in a one-column CV', async () => {
+    const cv = buildDateMarginCv();
+    const text = await readText(cv);
+
+    expectEveryFactWhole(text, cv);
+    expectInOrder(text, [
+      '09/2022 – 06/2024',
+      'Ingénieure DevOps',
+      'Supervision Prometheus de 40 services.',
+      '2020 – 2022',
+      'Technicienne systèmes',
+      'Administration de serveurs Linux.',
+    ]);
   });
 
   it('[EF-CVX-45] reads a job title wrapped over two lines without a word of the other column inside', async () => {

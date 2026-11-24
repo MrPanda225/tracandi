@@ -68,7 +68,7 @@ const registerDocs = (registry: OpenAPIRegistry): void => {
     summary: 'Télécharger le CV adapté au format Word',
     description:
       'EF-CVX-28, EF-CVX-31, RG-22. Le CV adapté, lisible par les logiciels de recrutement, coordonnées remises, ' +
-      'avec les compétences manquantes que le candidat a cochées — seules celles du diagnostic sont acceptées (400 ' +
+      'avec les compétences manquantes que le candidat a cochées — seules celles du diagnostic, 6 au plus, sont acceptées (400 ' +
       'sinon). Le score ne change pas. 404 comme le résultat de l’analyse.',
     request: { params: AnalysisIdParamsSchema, body: jsonBody(DocxRequestSchema) },
     responses: {

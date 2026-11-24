@@ -68,11 +68,10 @@ export const overallScore = (answer: Pick<DiagnosisAnswer, Dimension>): number =
  * @req EF-CVX-24, EF-CVX-27, EF-CVX-30, RG-23
  */
 export const buildDiagnosis = (answer: DiagnosisAnswer, cvText: string): Diagnosis => {
-  const foldedCv = foldText(cvText);
   const seen = new Set<string>();
   const missingSkills = answer.missingSkills.filter((skill) => {
     const key = foldText(skill);
-    if (seen.has(key) || cites(foldedCv, skill)) return false;
+    if (seen.has(key) || cites(cvText, skill)) return false;
     seen.add(key);
     return true;
   });

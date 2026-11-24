@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { z } from 'zod';
+import { z } from '../lib/openapi.js';
 import { llmProvider, llmTask } from '../db/schema.js';
 import { HttpError, LlmUnavailableError } from '../lib/errors.js';
 import {
@@ -252,6 +252,21 @@ describe('runTask — why a provider was set aside', () => {
     expect(JSON.stringify(logged)).not.toContain('Texte fictif reconnaissable');
     expect(logged[0]?.context).toMatchObject({ outcome: 'error', provider: 'gemini' });
     expect((logged[0]?.context['error'] as Error & { status: number }).status).toBe(400);
+  });
+
+  it('[EF-IA-03] logs the message of each rejected field, a fixed string that never quotes the answer', async () => {
+    const strict = z.object({ title: z.string().min(3), kind: z.enum(['a', 'b']) }).strict();
+    const { router, logged } = setup({
+      gemini: fakeProvider('gemini', () => Promise.resolve(answer({ title: 'x', kind: 'secretvalue', extra: 'leak' }))),
+    });
+
+    await expect(router.runTask('classify_emails', { ...INPUT, schema: strict })).rejects.toBeInstanceOf(LlmUnavailableError);
+
+    const issues = (logged[0]?.context as { issues: { path: string; code: string; message?: string }[] }).issues;
+    expect(issues).toContainEqual({ path: 'title', code: 'too_small', message: 'String must contain at least 3 character(s)' });
+    expect(issues).toContainEqual({ path: 'kind', code: 'invalid_value' });
+    expect(issues).toContainEqual({ path: '', code: 'unrecognized_keys' });
+    expect(JSON.stringify(logged)).not.toMatch(/secretvalue|leak/);
   });
 
   it('[EF-IA-03] logs the fields the schema rejected, as paths, never their value', async () => {

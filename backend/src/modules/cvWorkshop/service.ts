@@ -1,16 +1,23 @@
 import type { JobQueue, RunCounters } from '../../jobs/queue.js';
 import type { Clock } from '../../lib/clock.js';
 import { HttpError, LlmUnavailableError, NotFoundError } from '../../lib/errors.js';
+import type { Logger } from '../../lib/logger.js';
 import { buildDiagnoseCvPrompt } from '../../llm/prompts/diagnoseCv.js';
 import { buildTailorCvPrompt } from '../../llm/prompts/tailorCv.js';
 import type { LlmRouter } from '../../llm/router.js';
 import { renderAtsDocx } from './atsDocx.js';
 import { buildDiagnosis, DIMENSIONS, type Diagnosis, DiagnosisAnswerSchema } from './diagnosis.js';
-import { type TailoredAnswer, tailoredAnswerSchemaFor } from './fidelity.js';
+import type { AdaptedCv } from './adaptedCv.js';
+import type { ParsedCv } from './anchoring.js';
+import { assembleCv, buildChanges, type CvChange } from './assembly.js';
 import type { CvContacts } from './contacts.js';
+import { CvUnreadableError } from './errors.js';
+import { unfaithfulPaths } from './fidelity.js';
 import type { PdfOcr } from './ocr.js';
+import { fitToOnePage, MAX_RESERVED_SKILLS, TOO_MANY_SKILLS } from './onePage.js';
+import { parseCv } from './parsing.js';
 import type { PdfTextLayer } from './pdftotext.js';
-import { fitsOnOnePage } from './onePage.js';
+import { TailorCvAnswerSchema } from './tailorCvAnswer.js';
 import { startOfParisDay } from './quota.js';
 import { type ReadCv, readCv } from './reading.js';
 import type { AnalysisResults } from './results.js';
@@ -22,7 +29,7 @@ export interface CvAnalysis {
   reading: ReadCv;
   diagnosis: Diagnosis;
   /** EF-CVX-25, EF-CVX-29: the CV adapted to the offer, faithful to the imported one (RG-21), and its changes. */
-  adapted: TailoredAnswer;
+  adapted: { cv: AdaptedCv; changes: CvChange[] };
 }
 
 /** What the candidate sends: the PDF in base64 and the text of the offer (EF-CVX-21, EF-CVX-23). */
@@ -36,8 +43,15 @@ const STEP_READ = 1;
 const STEP_DIAGNOSED = 2;
 const STEP_ADAPTED = 3;
 
-/** EF-CVX-26, EF-CVX-37: said when no provider wrote an adapted CV that invents nothing and holds on one page. */
-const UNFAITHFUL = 'On n’a pas réussi à adapter votre CV fidèlement et sur une page. Réessayez dans un instant.';
+/** EF-CVX-26: said when no provider gave a usable answer (quota and overload are told apart, EF-IA-04). */
+const UNFAITHFUL = 'On n’a pas réussi à adapter votre CV. Réessayez dans un instant.';
+
+/**
+ * RG-24: said when the CV, trimmed as far as the rule allows, still does not hold on one page — whatever makes it long
+ * (entries, long lists of skills…), the message does not guess.
+ */
+const TOO_LONG =
+  'Votre CV reste trop long pour tenir sur une page, même sans ses réalisations. Importez une version plus courte.';
 
 /** Use cases of the CV workshop (EF-CVX-21 to 35). */
 export interface CvWorkshopService {
@@ -55,7 +69,8 @@ export interface CvWorkshopService {
   /**
    * The adapted CV as a Word file readable by recruiting software (RG-22), contact details put back, with the missing
    * skills the candidate ticked (EF-CVX-28). The score is left as it is.
-   * @throws NotFoundError as findAnalysis; HttpError 400 for a skill the diagnostic did not list.
+   * @throws NotFoundError as findAnalysis; HttpError 400 for a skill the diagnostic did not list, or more skills than
+   * the page keeps room for (RG-24, {@link MAX_RESERVED_SKILLS}).
    */
   renderDocx: (userId: number, runId: number, addedSkills: readonly string[]) => Promise<Buffer>;
 }
@@ -68,55 +83,67 @@ interface ServiceDeps {
   router: LlmRouter;
   results: AnalysisResults<CvAnalysis>;
   clock: Clock;
+  logger: Logger;
   /** EF-CVX-33: analyses per candidate and per day, Paris time; 0 lifts the limit. */
   analysesPerDay: number;
 }
 
 /**
- * EF-CVX-37, RG-24: what an adapted CV must meet — faithful to the imported CV (RG-21) and on one A4 page with its
- * contact details and every missing skill the candidate may still tick (EF-CVX-28). A longer one is rejected like an
- * unfaithful one, so the router asks the next provider (EF-IA-02).
- */
-const tailoredSchemaFor = ({ cvText, contacts, diagnosis }: { cvText: string; contacts: CvContacts; diagnosis: Diagnosis }) =>
-  tailoredAnswerSchemaFor(cvText).superRefine((answer, context) => {
-    if (!fitsOnOnePage({ cv: answer.cv, contacts, addedSkills: diagnosis.missingSkills })) {
-      context.addIssue({ code: 'custom', path: ['cv'], message: 'Longer than one A4 page (RG-24)' });
-    }
-  });
-
-/**
- * EF-CVX-25, EF-CVX-26, EF-CVX-37: the adapted CV, or a plain failure when no provider wrote one faithful to the CV
- * (RG-21) and holding on one page (RG-24). When no provider answered at all (quota, overload), the failure says so
- * instead (EF-IA-04).
+ * EF-CVX-25, EF-CVX-47, RG-21, RG-24: the adapted CV. The model chooses and rewrites; the code copies the facts from the
+ * parsed CV, trims to one page and checks the result. When no provider gave a usable answer, the failure says so; when
+ * no provider answered at all (quota, overload), it says that instead (EF-IA-04).
+ * @throws HttpError 502 for an unusable answer or a CV that cannot hold on one page, even trimmed
  */
 const tailorCv = async (
-  router: LlmRouter,
+  { router, logger }: Pick<ServiceDeps, 'router' | 'logger'>,
   {
     userId,
-    cvText,
+    parsed,
+    sourceText,
     contacts,
     offerText,
     diagnosis,
-  }: { userId: number; cvText: string; contacts: CvContacts; offerText: string; diagnosis: Diagnosis },
-): Promise<TailoredAnswer> => {
+  }: {
+    userId: number;
+    parsed: ParsedCv;
+    sourceText: string;
+    contacts: CvContacts;
+    offerText: string;
+    diagnosis: Diagnosis;
+  },
+): Promise<{ cv: AdaptedCv; changes: CvChange[] }> => {
+  let answer;
   try {
-    const { data } = await router.runTask('tailor_cv', {
+    ({ data: answer } = await router.runTask('tailor_cv', {
       userId,
       ...buildTailorCvPrompt({
-        cvText,
+        cv: parsed,
         offerText,
         diagnosis: {
           explanations: DIMENSIONS.map((dimension) => diagnosis.dimensions[dimension].explanation),
           missingSkills: diagnosis.missingSkills,
         },
       }),
-      schema: tailoredSchemaFor({ cvText, contacts, diagnosis }),
-    });
-    return data;
+      schema: TailorCvAnswerSchema,
+    }));
   } catch (error) {
     if (error instanceof LlmUnavailableError && error.answerRejected) throw new HttpError(502, UNFAITHFUL);
     throw error;
   }
+  const { missingSkills } = diagnosis;
+  const assembled = assembleCv({ parsed, answer, sourceText, missingSkills });
+  const cv = fitToOnePage(assembled, {
+    contacts,
+    addedSkills: missingSkills.slice(0, MAX_RESERVED_SKILLS),
+  });
+  if (cv === null) throw new HttpError(502, TOO_LONG);
+  const unfaithful = unfaithfulPaths(cv, sourceText, missingSkills);
+  if (unfaithful.length > 0) {
+    // A bug of the assembly, never the candidate's fault: the paths only, never their values (ENF-SEC-08).
+    logger.error('assembled CV not faithful to the source', { paths: unfaithful.map((path) => path.join('.')) });
+    throw new HttpError(502, UNFAITHFUL);
+  }
+  return { cv, changes: buildChanges({ parsed, answer, assembled, cv }) };
 };
 
 /** EF-CVX-33: refuses a new analysis once the allowance of the day is spent. */
@@ -135,32 +162,52 @@ const checkAllowance = async (
 };
 
 /**
- * The analysis itself, run by the queue: reading (OCR included), diagnostic against the offer, then the adapted CV,
+ * EF-CVX-46: the CV structured. Counts only are logged (ENF-SEC-08).
+ * @throws CvUnreadableError `noStructure` when no experience nor education could be found in it
+ */
+const parseStructure = async (
+  { router, logger }: Pick<ServiceDeps, 'router' | 'logger'>,
+  input: { userId: number; text: string },
+): Promise<ParsedCv> => {
+  const parsed = await parseCv(router, input);
+  logger.info('cv parsed', {
+    dropped: parsed.dropped,
+    experiences: parsed.experiences.length,
+    education: parsed.education.length,
+  });
+  if (parsed.experiences.length === 0 && parsed.education.length === 0) throw new CvUnreadableError('noStructure');
+  return parsed;
+};
+
+/**
+ * The analysis itself, run by the queue: reading (OCR included) and structure, diagnostic against the offer, then the adapted CV,
  * each step published as it ends (EF-CVX-32). The result is kept under the run, in memory only (ENF-RGP-06).
  */
 const analyse =
   (
-    { ocr, textLayer, router, results }: ServiceDeps,
+    deps: ServiceDeps,
     { userId, pdf, offer }: { userId: number; pdf: Buffer; offer: string },
   ) =>
   async (report: (counters: RunCounters) => void, runId: number): Promise<RunCounters> => {
-    const reading = await readCv(pdf, { ocr, textLayer });
+    const reading = await readCv(pdf, { ocr: deps.ocr, textLayer: deps.textLayer });
+    const parsed = await parseStructure(deps, { userId, text: reading.text });
     report({ cv_steps_done: STEP_READ, cv_pages_ocr: reading.ocrPageCount });
-    const { data } = await router.runTask('diagnose_cv', {
+    const { data } = await deps.router.runTask('diagnose_cv', {
       userId,
       ...buildDiagnoseCvPrompt({ cvText: reading.text, offerText: offer }),
       schema: DiagnosisAnswerSchema,
     });
     const diagnosis = buildDiagnosis(data, reading.text);
     report({ cv_steps_done: STEP_DIAGNOSED, cv_pages_ocr: reading.ocrPageCount });
-    const adapted = await tailorCv(router, {
+    const adapted = await tailorCv(deps, {
       userId,
-      cvText: reading.text,
+      parsed,
+      sourceText: reading.text,
       contacts: reading.contacts,
       offerText: offer,
       diagnosis,
     });
-    results.save(userId, runId, { reading, diagnosis, adapted });
+    deps.results.save(userId, runId, { reading, diagnosis, adapted });
     return { cv_steps_done: STEP_ADAPTED, cv_pages_ocr: reading.ocrPageCount };
   };
 
@@ -202,6 +249,7 @@ export const createCvWorkshopService = (deps: ServiceDeps): CvWorkshopService =>
       if (addedSkills.some((skill) => !listed.has(foldText(skill)))) {
         throw new HttpError(400, 'Seules les compétences listées par le diagnostic peuvent être ajoutées.');
       }
+      if (addedSkills.length > MAX_RESERVED_SKILLS) throw new HttpError(400, TOO_MANY_SKILLS);
       return renderAtsDocx({ cv: adapted.cv, contacts: reading.contacts, addedSkills });
     },
   };

@@ -1,9 +1,9 @@
 import { z } from '../../lib/openapi.js';
 import { idParam } from '../../lib/ids.js';
 import { AdaptedCvSchema } from './adaptedCv.js';
+import { MAX_RESERVED_SKILLS, TOO_MANY_SKILLS } from './onePage.js';
 
-// EF-CVX-27: same bounds as the diagnostic's list.
-const MISSING_SKILLS_MAX = 20;
+// EF-CVX-27: same bound as the diagnostic's list.
 const MISSING_SKILL_MAX_LENGTH = 60;
 
 /** EF-CVX-23: bounds of the text of the offer. */
@@ -63,13 +63,16 @@ export const CvAnalysisSchema = z
   })
   .openapi('CvAnalysis');
 
-/** EF-CVX-28: missing skills the candidate ticked, to add to « Compétences » in the Word file. */
+/**
+ * EF-CVX-28, RG-24: missing skills the candidate ticked, to add to « Compétences » in the Word file — no more than the
+ * page keeps room for ({@link MAX_RESERVED_SKILLS}), since the file is not measured again.
+ */
 export const DocxRequestSchema = z
   .object({
     addedSkills: z
       .array(z.string().trim().min(1).max(MISSING_SKILL_MAX_LENGTH))
-      .max(MISSING_SKILLS_MAX)
-      .openapi({ description: 'Compétences manquantes cochées, parmi celles du diagnostic.' }),
+      .max(MAX_RESERVED_SKILLS, TOO_MANY_SKILLS)
+      .openapi({ description: 'Compétences manquantes cochées, parmi celles du diagnostic (6 au plus).' }),
   })
   .strict()
   .openapi('CvDocxRequest');
