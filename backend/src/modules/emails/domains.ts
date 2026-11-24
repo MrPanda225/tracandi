@@ -46,7 +46,7 @@ const ATS_SENDER_DOMAINS: Readonly<Record<string, SiteAdapterId>> = {
 
 /**
  * RG-19 : domaines d'outils de recrutement et de job boards qui ne figurent pas dans `platform_domains`. Une
- * entreprise qui écrit depuis `ateme.teamtailor-mail.com` ou `mail.flatchr.io` écrit depuis **l'outil de son
+ * entreprise qui écrit depuis `atelier-nova.teamtailor-mail.com` ou `mail.flatchr.io` écrit depuis **l'outil de son
  * recruteur**, pas depuis son site ; proposer ce domaine ferait surveiller l'outil, ou pire le job board — et
  * les offres relevées seraient celles de tout le monde.
  *

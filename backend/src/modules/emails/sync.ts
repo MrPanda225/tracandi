@@ -329,12 +329,13 @@ const createSyncRun = (
 
   const run = async (userId: number, report: (counters: RunCounters) => void): Promise<SyncReport> => {
     const startedAt = clock();
+    // RG-20, RG-06: addresses kept before the rule refused them stop making an application « à relancer ». Done
+    // before Gmail is read, so that a pass Gmail refuses (disconnected, quota) still clears them.
+    const forgotten = await clearRefusedContacts(db, userId);
+    if (forgotten > 0) logger.info('refused contact addresses forgotten', { count: forgotten });
     const { readCount, retained, mailbox, shouldApplyLabels, hasMore } =
       await fetcher.fetchNewMessages(userId);
     report({ messages_read: readCount, messages_retained: retained.length, messages_classified: 0 });
-    // RG-20, RG-06: addresses kept before the rule refused them stop making an application « à relancer ».
-    const forgotten = await clearRefusedContacts(db, userId);
-    if (forgotten > 0) logger.info('refused contact addresses forgotten', { count: forgotten });
     // EF-GML-17: read-only mode, no label is ever written.
     const labeler = shouldApplyLabels
       ? createThreadLabeler({ mailbox, cache: databaseLabelCache(db, userId) })

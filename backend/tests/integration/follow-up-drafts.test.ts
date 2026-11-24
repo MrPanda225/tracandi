@@ -3,9 +3,10 @@ import { and, eq } from 'drizzle-orm';
 import type { gmail_v1 } from 'googleapis/build/src/apis/gmail/index.js';
 import request from 'supertest';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
-import { applications, companies, emails, users } from '../../src/db/schema.js';
+import { applications, companies, emails, processedMessages, users } from '../../src/db/schema.js';
 import { encryptSecret } from '../../src/lib/crypto.js';
 import type { LlmProvider, LlmRequest } from '../../src/llm/types.js';
+import { clearRefusedContacts } from '../../src/modules/emails/contacts.js';
 import { createGmailMailbox } from '../../src/modules/emails/mailbox.js';
 import { saveGmailAccount } from '../../src/modules/emails/repository.js';
 import { createFakeGmail, type FakeGmail } from '../fixtures/emails/fakeGmail.js';
@@ -80,11 +81,28 @@ const setContact = (applicationId: number, gmailMessageId: string | null | undef
     .set({ contactAddress })
     .where(and(eq(emails.applicationId, applicationId), eq(emails.gmailMessageId, gmailMessageId ?? '')));
 
-/** A new pass of the synchronisation, as the scheduler runs it every half hour (EF-GML-03). */
+/** A new pass of the synchronisation, as the scheduler runs it every half hour (EF-GML-03), and how it ended. */
 const synchroniseAgain = async () => {
-  await request(context.app).post('/api/gmail/sync').set('Cookie', alice).set('Content-Type', 'application/json');
+  const accepted = await request(context.app)
+    .post('/api/gmail/sync')
+    .set('Cookie', alice)
+    .set('Content-Type', 'application/json');
   await context.queue.drain();
+  const { runId } = accepted.body as { runId: number };
+  return { status: accepted.status, state: await context.queue.stateOf(aliceId, runId) };
 };
+
+/** The contact addresses stored with the messages of one user (all of an application's when given), oldest first. */
+const storedContacts = async ({ applicationId, userId }: { applicationId?: number; userId?: number }) =>
+  (
+    await database.db
+      .select({ contactAddress: emails.contactAddress })
+      .from(emails)
+      .where(
+        applicationId === undefined ? eq(emails.userId, userId ?? 0) : eq(emails.applicationId, applicationId),
+      )
+      .orderBy(emails.receivedAt)
+  ).map((row) => row.contactAddress);
 
 const isFollowUpDue = async (id: number): Promise<boolean> =>
   ((await request(context.app).get(`/api/applications/${id}`).set('Cookie', alice)).body as { isFollowUpDue: boolean })
@@ -182,7 +200,7 @@ describe('POST /api/applications/:id/follow-up-draft (EF-CAN-17)', () => {
   });
 
   // BES-45 (30/09/2026): the follow-up proposed the address of the recruitment tool the company answered through.
-  it.each(['ateme@mail.flatchr.io', 'candidats@ateme.teamtailor-mail.com', 'offres@indeed.com'])(
+  it.each(['atelier-nova@mail.flatchr.io', 'candidats@atelier-nova.teamtailor-mail.com', 'offres@indeed.com'])(
     '[RG-20] [RG-19] passes over %s, stored before the rule was refined, for the previous contact',
     async (platformAddress) => {
       await setUp([SENT_APPLICATION, MCDONALDS_ACKNOWLEDGEMENT]);
@@ -201,7 +219,7 @@ describe('POST /api/applications/:id/follow-up-draft (EF-CAN-17)', () => {
   it('[RG-20] [EF-CAN-17] says no address is known when every stored contact is a platform', async () => {
     await setUp([SENT_APPLICATION, MCDONALDS_ACKNOWLEDGEMENT]);
     const id = await applicationOf("McDonald's");
-    await setContact(id, MCDONALDS_ACKNOWLEDGEMENT.id, 'ateme@mail.flatchr.io');
+    await setContact(id, MCDONALDS_ACKNOWLEDGEMENT.id, 'atelier-nova@mail.flatchr.io');
     await setContact(id, SENT_APPLICATION.id, 'candidature@free-work.com');
 
     const response = await draftFor(id);
@@ -215,32 +233,66 @@ describe('POST /api/applications/:id/follow-up-draft (EF-CAN-17)', () => {
   it('[RG-20] [RG-06] no longer proposes the follow-up of an old application whose only contacts are platforms', async () => {
     await setUp([SENT_APPLICATION, MCDONALDS_ACKNOWLEDGEMENT]);
     const id = await applicationOf("McDonald's");
-    await setContact(id, MCDONALDS_ACKNOWLEDGEMENT.id, 'ateme@mail.flatchr.io');
+    await setContact(id, MCDONALDS_ACKNOWLEDGEMENT.id, 'atelier-nova@mail.flatchr.io');
     await setContact(id, SENT_APPLICATION.id, 'jobs-noreply@mcdonalds.example');
     expect(await isFollowUpDue(id)).toBe(true);
 
-    await synchroniseAgain();
+    const pass = await synchroniseAgain();
 
+    expect(pass.status).toBe(202);
+    expect(pass.state).toMatchObject({ outcome: 'success', error: null });
     expect(await isFollowUpDue(id)).toBe(false);
     expect(await dashboardFollowUps()).toEqual({ total: 0, items: [] });
-    const stored = await database.db
-      .select({ contactAddress: emails.contactAddress })
-      .from(emails)
-      .where(eq(emails.applicationId, id));
-    expect(stored.map((row) => row.contactAddress)).toEqual([null, null]);
+    expect(await storedContacts({ applicationId: id })).toEqual([null, null]);
   });
 
   it('[RG-20] [RG-06] still proposes it when an older message carries a real recruiter, and writes to him', async () => {
     await setUp([SENT_APPLICATION, MCDONALDS_ACKNOWLEDGEMENT]);
     const id = await applicationOf("McDonald's");
-    await setContact(id, MCDONALDS_ACKNOWLEDGEMENT.id, 'candidats@ateme.teamtailor-mail.com');
+    await setContact(id, MCDONALDS_ACKNOWLEDGEMENT.id, 'candidats@atelier-nova.teamtailor-mail.com');
     await setContact(id, SENT_APPLICATION.id, 'christophe.recruteur@mcdonalds.example');
 
-    await synchroniseAgain();
+    const pass = await synchroniseAgain();
 
+    expect(pass.status).toBe(202);
+    expect(pass.state).toMatchObject({ outcome: 'success', error: null });
+    // Oldest first: the application sent keeps its recruiter, the acknowledgement loses its tool address.
+    expect(await storedContacts({ applicationId: id })).toEqual(['christophe.recruteur@mcdonalds.example', null]);
     expect(await isFollowUpDue(id)).toBe(true);
     expect((await dashboardFollowUps()).items.map((item) => item.company)).toEqual(["McDonald's"]);
-    expect(((await draftFor(id)).body as { to: string }).to).toBe('christophe.recruteur@mcdonalds.example');
+    const draft = await draftFor(id);
+    expect(draft.status).toBe(201);
+    expect((draft.body as { to: string }).to).toBe('christophe.recruteur@mcdonalds.example');
+    expect(gmail.drafts[0]?.message).toContain('To: christophe.recruteur@mcdonalds.example\r\n');
+  });
+
+  it('[RG-20] clears only the refused addresses of this user, and a second pass clears nothing', async () => {
+    await setUp([SENT_APPLICATION, MCDONALDS_ACKNOWLEDGEMENT]);
+    const id = await applicationOf("McDonald's");
+    await setContact(id, MCDONALDS_ACKNOWLEDGEMENT.id, 'atelier-nova@mail.flatchr.io');
+    await setContact(id, SENT_APPLICATION.id, 'christophe.recruteur@mcdonalds.example');
+    await registerUser(context.app, 'bob@example.com');
+    const [bob] = await database.db.select({ id: users.id }).from(users).where(eq(users.email, 'bob@example.com'));
+    const bobId = bob?.id ?? 0;
+    // A message of another user, stored with the same refused address before the rule.
+    await database.db.insert(processedMessages).values({ userId: bobId, gmailMessageId: 'bob-1', outcome: 'retained' });
+    await database.db.insert(emails).values({
+      userId: bobId,
+      gmailMessageId: 'bob-1',
+      gmailThreadId: 'bob-thread',
+      direction: 'inbound',
+      fromAddress: 'atelier-nova@mail.flatchr.io',
+      contactAddress: 'atelier-nova@mail.flatchr.io',
+      category: 'acknowledged',
+      receivedAt: SYNC_TIME,
+    });
+
+    expect(await clearRefusedContacts(database.db, aliceId)).toBe(1);
+    expect(await clearRefusedContacts(database.db, aliceId)).toBe(0);
+
+    // The recruiter the application was sent to is kept; the other user's message is left alone (EF-AUT-06).
+    expect(await storedContacts({ applicationId: id })).toEqual(['christophe.recruteur@mcdonalds.example', null]);
+    expect(await storedContacts({ userId: bobId })).toEqual(['atelier-nova@mail.flatchr.io']);
   });
 
   it('[RG-20] [EF-CAN-17] refuses when nobody can be written to', async () => {
