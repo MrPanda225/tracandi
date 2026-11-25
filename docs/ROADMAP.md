@@ -1418,3 +1418,57 @@ développeur l'active sur son poste (`ENABLED_FEATURES=watch,cv`) le temps d'y t
   sans effet en production où `watch` est éteinte) ;
 - avec `MAX_CONCURRENT_JOBS=1`, une demande de candidat attend la fin du passage en cours (jusqu'à 45 minutes) ; le
   modèle local ne traite qu'une demande à la fois, deux emplacements n'y changeraient rien.
+
+## Lot 11 — Ouverture au public (BES-54, cahier v1.41)
+
+> *Demande du Business Owner du 25/11/2026* : inscription et synchronisation Gmail ouvertes à toute personne, plus
+> seulement aux comptes de test Google ajoutés par l'exploitant ; e-mails envoyés depuis le domaine vérifié de
+> l'exploitant. Choix par défaut validés le 25/11/2026 : appareil reconnu 30 jours plutôt que le palier payant de
+> Resend, palier gratuit conservé, plafond de 10 comptes actifs. Ordre conseillé : T-704 et T-1101, puis T-1102 à
+> T-1104 (indépendantes), puis T-1105. De son côté, le Business Owner peut vérifier dès maintenant son domaine dans
+> Resend.
+
+- [ ] **T-1101 Configuration d'envoi des e-mails** — `docker-compose.yml` transmet `RESEND_API_KEY` et
+  `RESEND_FROM_EMAIL` à l'API (elle ne démarre pas sans la clé) ; sur un déploiement hébergé (interface en HTTPS),
+  refus au démarrage d'un expéditeur absent ou du domaine `resend.dev` (`config/env.ts`) ; `docs/DEPLOIEMENT.md`
+  décrit le domaine à vérifier dans Resend, ses enregistrements DNS et la variable à poser sur Northflank.
+  *Exigences* : EF-AUT-18.
+  *Fini quand* : configuration hébergée sans adresse ou avec `onboarding@resend.dev` : démarrage refusé, message nommant
+  la variable ; adresse d'un domaine quelconque : acceptée et utilisée comme expéditeur (Resend simulé) ; en local
+  (HTTP), le domaine de test reste accepté ; `docker compose up` démarre l'API avec un `.env` complet.
+- [ ] **T-1102 Appareil reconnu** — table des appareils reconnus (migration `drizzle-kit` : compte, empreinte du jeton,
+  création, expiration), case « Reconnaître cet appareil pendant 30 jours » à l'étape du code (`AuthPage`), cookie
+  dédié, connexion sans code depuis un appareil reconnu, bouton « Oublier mes appareils » dans les Réglages, jetons
+  supprimés avec le compte et inclus dans l'export (EF-AUT-12) sous forme de dates seulement ; bandeau et page des
+  cookies (deux cookies, avec leur durée).
+  *Exigences* : EF-AUT-19, EF-AUT-20, EF-AUT-16 (modifiée), EXM-18 (modifiée), ENF-SEC-27, EF-LEG-02 (modifiée).
+  *Fini quand* : critères d'EF-AUT-19, 20 et ENF-SEC-27 couverts (horloge simulée à J+29 et J+31, autre navigateur, jeton
+  d'un autre compte, jeton retiré) ; aucun jeton en clair en base ni dans les journaux ; écrans testés (Testing Library)
+  et vérifiés aux largeurs 1440 px et 390 px.
+  *Dépend de* : T-1020.
+- [ ] **T-1103 Compteur des envois Resend** — décompte par jour (UTC) et par mois, tous comptes confondus, avant chaque
+  envoi ; refus au-delà de 100 par jour ou de 3 000 par mois avec un message en français (aucun appel à Resend) ;
+  avertissement dans les journaux à 80 % d'un palier.
+  *Exigences* : ENF-COU-03 (modifiée).
+  *Fini quand* : 101ᵉ envoi simulé de la journée refusé, sans appel au client Resend simulé ; 80ᵉ envoi : avertissement
+  journalisé ; changement de jour et de mois (horloge simulée) : compteur reparti ; deux envois simultanés ne dépassent
+  pas le palier (test d'intégration) ; requête du compteur vérifiée par `EXPLAIN`.
+- [ ] **T-1104 Plafond de comptes actifs** — réglage de l'exploitant (`MAX_ACTIVE_ACCOUNTS`, 10 par défaut, borné),
+  refus de l'inscription au plafond avec un message en français, avant tout envoi d'e-mail.
+  *Exigences* : EF-AUT-21.
+  *Fini quand* : plafond de 2 et deux comptes actifs : troisième inscription refusée (403), aucun e-mail envoyé ;
+  compte supprimé : une place se libère ; écran d'inscription affichant le message (Testing Library).
+  *Dépend de* : Q-29 pour la valeur en production.
+- [ ] **T-1105 Validation Google** — *tâche d'exploitation, menée par le Business Owner (C-12)* : écran de consentement
+  passé en production, domaine et marque vérifiés, justification du scope `gmail.modify` et vidéo de démonstration,
+  évaluation de sécurité annuelle (CASA). Côté projet : textes de justification, liste des pièces, script de la vidéo,
+  `docs/DEPLOIEMENT.md` §4 mis à jour (mode test retiré), politique de confidentialité relue.
+  *Exigences* : EF-GML-21, ENF-SEC-28, C-12, H-04 (modifiée).
+  *Fini quand* : validation obtenue ; un compte Gmail jamais ajouté comme compte de test se connecte et synchronise
+  encore 8 jours plus tard, sans reconnexion (vérifié par le Business Owner).
+  *Dépend de* : T-1101 (domaine), T-704 (revue de sécurité), Q-28.
+- [ ] **T-1106 Correctifs de l'évaluation de sécurité** — selon le rapport de l'organisme agréé, un correctif par
+  constat, chacun avec son test.
+  *Exigences* : ENF-SEC-28.
+  *Fini quand* : rapport sans constat bloquant, daté de moins de 12 mois.
+  *Dépend de* : T-1105.

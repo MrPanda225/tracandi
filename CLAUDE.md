@@ -1,7 +1,8 @@
 # Tracandi — instructions pour Claude Code
 
-Application web locale, mono-utilisateur, qui automatise la recherche d'emploi de Sahiré YAPI :
-suivi des candidatures depuis Gmail, veille des sites carrières, CV adaptés au format de son modèle Word.
+Application web hébergée, multi-utilisateur à comptes séparés, ouverte à toute personne qui crée un compte (BES-54),
+née de la recherche d'emploi de Sahiré YAPI : suivi des candidatures depuis Gmail, veille des sites carrières, CV
+adaptés au format de son modèle Word.
 
 **Le cahier des charges fait foi : `docs/CAHIER_DES_CHARGES.md`.** Aucune fonctionnalité hors de ce document.
 Toute nouvelle demande passe par `/project:change-request` avant le code.
