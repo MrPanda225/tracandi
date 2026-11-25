@@ -1453,18 +1453,20 @@ développeur l'active sur son poste (`ENABLED_FEATURES=watch,cv`) le temps d'y t
   3 000 par mois, et au-delà de 50 e-mails d'activation par jour, avec un message en français (aucun appel à Resend) ;
   avertissement dans les journaux à 80 % d'un palier.
   *Exigences* : ENF-COU-03 (modifiée).
-  *Fini quand* : 101ᵉ envoi simulé de la journée refusé, sans appel au client Resend simulé ; 51ᵉ e-mail d'activation
-  refusé alors qu'un code de connexion part encore ; 80ᵉ envoi : avertissement
+  *Fini quand* : 101ᵉ envoi simulé de la journée refusé, sans appel au client Resend simulé ; 51ᵉ inscription du jour
+  refusée (503) sans compte créé, alors qu'un code de connexion part encore ; 80ᵉ envoi : avertissement
   journalisé ; changement de jour et de mois (horloge simulée) : compteur reparti ; deux envois simultanés ne dépassent
   pas le palier (test d'intégration) ; requête du compteur vérifiée par `EXPLAIN`.
 - [ ] **T-1104 Plafond de comptes actifs** — réglage de l'exploitant (`MAX_ACTIVE_ACCOUNTS`, entier de 1 à 1 000,
   10 par défaut ; valeur hors bornes : démarrage refusé, comme ENF-MAI-09), refus de l'inscription au plafond avec un
-  message en français, avant tout envoi d'e-mail ; suppression des comptes jamais activés 24 heures après leur
-  création, par le planificateur.
+  message en français, avant tout envoi d'e-mail ; compte jamais activé expiré 24 heures après sa création ou à
+  l'expiration de son dernier code (le plus tard des deux) : l'inscription reprend aussitôt son adresse, le
+  planificateur supprime les autres.
   *Exigences* : EF-AUT-21, EF-AUT-22.
   *Fini quand* : plafond de 2, deux comptes actifs et cinq en attente : troisième inscription refusée (403), aucun
   e-mail envoyé ; un compte actif : inscription acceptée ; compte supprimé : une place se libère ; compte non activé
-  supprimé à H+24 (horloge simulée), son adresse réutilisable ; `MAX_ACTIVE_ACCOUNTS=0` : démarrage refusé ; écran
+  expiré à H+24 (horloge simulée), son adresse reprise par une nouvelle inscription sans attendre le planificateur ;
+  code renvoyé à H+23 h 55 et confirmé à H+24 h 05 : compte activé ; `MAX_ACTIVE_ACCOUNTS=0` : démarrage refusé ; écran
   d'inscription affichant le message (Testing Library) ; requête de décompte vérifiée par `EXPLAIN`.
   *Dépend de* : Q-29 pour la valeur en production.
 - [ ] **T-1105 Validation Google** — *tâche d'exploitation, menée par le Business Owner (C-12)* : écran de consentement
